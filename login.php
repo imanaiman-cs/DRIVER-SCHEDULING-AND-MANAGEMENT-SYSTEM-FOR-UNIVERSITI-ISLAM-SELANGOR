@@ -27,67 +27,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Please enter both username and password.';
     } else {
-        try {
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND status = 'active' LIMIT 1");
-            $stmt->execute([$username]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
+        $stmt->bind_param('s', $username);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
 
-            $authenticated = false;
+        $authenticated = false;
 
-            if ($user) {
-                // Try password_verify (bcrypt) first
-                if (password_verify($password, $user['password'])) {
-                    $authenticated = true;
-                }
-                // Fallback: md5 comparison (legacy passwords)
-                elseif (md5($password) === $user['password']) {
-                    $authenticated = true;
-                }
-                // Fallback: SHA2-256 comparison
-                elseif (hash('sha256', $password) === $user['password']) {
-                    $authenticated = true;
-                }
-                // Fallback: plain-text comparison (development only)
-                elseif ($password === $user['password']) {
-                    $authenticated = true;
-                }
+        if ($user) {
+            // Try bcrypt first
+            if (password_verify($password, $user['password'])) {
+                $authenticated = true;
+            }
+            // Fallback: SHA2-256 (seed passwords)
+            elseif (hash('sha256', $password) === $user['password']) {
+                $authenticated = true;
+                $new_hash = password_hash($password, PASSWORD_DEFAULT);
+                $upd = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                $upd->bind_param('si', $new_hash, $user['user_id']);
+                $upd->execute();
+                $upd->close();
+            }
+            // Fallback: MD5 (legacy)
+            elseif (md5($password) === $user['password']) {
+                $authenticated = true;
+            }
+        }
+
+        if ($authenticated) {
+            $driver_id = null;
+            if ($user['role'] === 'driver') {
+                $dstmt = $conn->prepare("SELECT driver_id FROM drivers WHERE user_id = ? LIMIT 1");
+                $dstmt->bind_param('i', $user['user_id']);
+                $dstmt->execute();
+                $driver = $dstmt->get_result()->fetch_assoc();
+                $dstmt->close();
+                $driver_id = $driver['driver_id'] ?? null;
             }
 
-            if ($authenticated) {
-                // Fetch associated driver_id if role is driver
-                $driver_id = null;
-                if ($user['role'] === 'driver') {
-                    $dstmt = $pdo->prepare("SELECT id FROM drivers WHERE user_id = ? LIMIT 1");
-                    $dstmt->execute([$user['id']]);
-                    $driver = $dstmt->fetch(PDO::FETCH_ASSOC);
-                    $driver_id = $driver['id'] ?? null;
-                }
+            if (!empty($_POST['remember_me'])) {
+                $token = bin2hex(random_bytes(32));
+                setcookie('remember_token', $token, time() + (86400 * 30), '/', '', false, true);
+            }
 
-                // Handle "Remember Me"
-                if (!empty($_POST['remember_me'])) {
-                    $token = bin2hex(random_bytes(32));
-                    setcookie('remember_token', $token, time() + (86400 * 30), '/', '', false, true);
-                    // Optionally store token in DB here
-                }
+            $_SESSION['user_id']   = $user['user_id'];
+            $_SESSION['username']  = $user['username'];
+            $_SESSION['role']      = $user['role'];
+            $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
+            $_SESSION['driver_id'] = $driver_id;
 
-                $_SESSION['user_id']   = $user['id'];
-                $_SESSION['username']  = $user['username'];
-                $_SESSION['role']      = $user['role'];
-                $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
-                $_SESSION['driver_id'] = $driver_id;
-
-                if ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
-                    header('Location: admin/dashboard.php');
-                } else {
-                    header('Location: driver/dashboard.php');
-                }
-                exit();
+            if ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
+                header('Location: admin/dashboard.php');
             } else {
-                $error = 'Invalid username or password. Please try again.';
+                header('Location: driver/dashboard.php');
             }
-        } catch (PDOException $e) {
-            $error = 'A database error occurred. Please contact the system administrator.';
-            // Log actual error server-side: error_log($e->getMessage());
+            exit();
+        } else {
+            $error = 'Invalid username or password. Please try again.';
         }
     }
 }

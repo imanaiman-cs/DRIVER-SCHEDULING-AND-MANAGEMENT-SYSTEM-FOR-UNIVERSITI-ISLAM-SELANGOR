@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              WHERE schedule_id = ?"
         );
         $upd->bind_param(
-            'iisssssisd si',
+            'iisssssisdsi',
             $did, $vid, $trip_date, $start_time, $end_time,
             $destination, $purpose, $passenger_count,
             $status, $priority_score, $notes, $schedule_id
