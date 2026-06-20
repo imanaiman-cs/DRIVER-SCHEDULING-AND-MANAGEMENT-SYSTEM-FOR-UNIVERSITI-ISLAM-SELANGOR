@@ -58,12 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($authenticated) {
             $driver_id = null;
             if ($user['role'] === 'driver') {
-                $dstmt = $conn->prepare("SELECT driver_id FROM drivers WHERE user_id = ? LIMIT 1");
-                $dstmt->bind_param('i', $user['user_id']);
-                $dstmt->execute();
-                $driver = $dstmt->get_result()->fetch_assoc();
-                $dstmt->close();
-                $driver_id = $driver['driver_id'] ?? null;
+                $driver_id = isset($user['driver_id']) ? (int)$user['driver_id'] : null;
             }
 
             if (!empty($_POST['remember_me'])) {
