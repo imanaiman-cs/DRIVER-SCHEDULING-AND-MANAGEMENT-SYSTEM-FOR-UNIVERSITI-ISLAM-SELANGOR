@@ -144,38 +144,38 @@ require_once '../includes/sidebar.php';
     <!-- Stat Cards -->
     <div class="row g-3 mb-4">
       <div class="col-6 col-md-3">
-        <div class="card stat-card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="stat-icon bg-primary bg-opacity-10 text-primary mx-auto mb-2"><i class="fas fa-route"></i></div>
-            <h3 class="fw-bold mb-0 text-primary"><?= $today_trips ?></h3>
-            <p class="text-muted small mb-0">Today's Trips</p>
+        <div class="stat-card stat-blue">
+          <div class="stat-card-icon"><i class="fas fa-route" style="font-size:1.4rem;"></i></div>
+          <div class="stat-card-body">
+            <div class="stat-card-value"><?= $today_trips ?></div>
+            <div class="stat-card-label">Today's Trips</div>
           </div>
         </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="card stat-card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="stat-icon bg-info bg-opacity-10 text-info mx-auto mb-2"><i class="fas fa-calendar-week"></i></div>
-            <h3 class="fw-bold mb-0 text-info"><?= $week_trips ?></h3>
-            <p class="text-muted small mb-0">This Week</p>
+        <div class="stat-card stat-sky">
+          <div class="stat-card-icon"><i class="fas fa-calendar-week" style="font-size:1.4rem;"></i></div>
+          <div class="stat-card-body">
+            <div class="stat-card-value"><?= $week_trips ?></div>
+            <div class="stat-card-label">This Week</div>
           </div>
         </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="card stat-card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="stat-icon bg-success bg-opacity-10 text-success mx-auto mb-2"><i class="fas fa-check-circle"></i></div>
-            <h3 class="fw-bold mb-0 text-success"><?= $completed_trips ?></h3>
-            <p class="text-muted small mb-0">Completed</p>
+        <div class="stat-card stat-green">
+          <div class="stat-card-icon"><i class="fas fa-check-circle" style="font-size:1.4rem;"></i></div>
+          <div class="stat-card-body">
+            <div class="stat-card-value"><?= $completed_trips ?></div>
+            <div class="stat-card-label">Completed</div>
           </div>
         </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="card stat-card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="stat-icon bg-warning bg-opacity-10 text-warning mx-auto mb-2"><i class="fas fa-clock"></i></div>
-            <h3 class="fw-bold mb-0 text-warning"><?= $pending_trips ?></h3>
-            <p class="text-muted small mb-0">Pending</p>
+        <div class="stat-card stat-amber">
+          <div class="stat-card-icon"><i class="fas fa-clock" style="font-size:1.4rem;"></i></div>
+          <div class="stat-card-body">
+            <div class="stat-card-value"><?= $pending_trips ?></div>
+            <div class="stat-card-label">Pending</div>
           </div>
         </div>
       </div>

@@ -333,18 +333,16 @@ require_once '../includes/sidebar.php';
 
         <!-- Card 1: Total Active Drivers -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card rounded-3 shadow-sm"
-                 style="border-left: 4px solid #003580;">
-                <div class="stat-card-icon bg-primary-soft"
-                     style="width:58px;height:58px;border-radius:14px;">
-                    <i class="fas fa-person-circle-check" style="font-size:1.5rem;"></i>
+            <div class="stat-card stat-blue">
+                <div class="stat-card-icon">
+                    <i class="fas fa-users" style="font-size:1.5rem;"></i>
                 </div>
                 <div class="stat-card-body">
                     <div class="stat-card-value"><?php echo number_format($total_active_drivers); ?></div>
-                    <div class="stat-card-label" style="font-weight:600;color:#374151;">Total Active Drivers</div>
-                    <div class="mt-1" style="font-size:0.75rem;color:#6b7280;">
-                        <i class="fas fa-circle text-success me-1" style="font-size:0.5rem;vertical-align:middle;"></i>
-                        <?php echo $total_active_drivers; ?> driver<?php echo $total_active_drivers !== 1 ? 's' : ''; ?> available
+                    <div class="stat-card-label">Active Drivers</div>
+                    <div class="mt-1" style="font-size:.72rem;color:rgba(255,255,255,.65);">
+                        <i class="fas fa-circle me-1" style="font-size:.45rem;vertical-align:middle;"></i>
+                        <?php echo $total_active_drivers; ?> available now
                     </div>
                 </div>
             </div>
@@ -352,19 +350,17 @@ require_once '../includes/sidebar.php';
 
         <!-- Card 2: Total Vehicles -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card rounded-3 shadow-sm"
-                 style="border-left: 4px solid #059669;">
-                <div class="stat-card-icon bg-success-soft"
-                     style="width:58px;height:58px;border-radius:14px;">
+            <div class="stat-card stat-green">
+                <div class="stat-card-icon">
                     <i class="fas fa-truck" style="font-size:1.5rem;"></i>
                 </div>
                 <div class="stat-card-body">
                     <div class="stat-card-value"><?php echo number_format($total_vehicles); ?></div>
-                    <div class="stat-card-label" style="font-weight:600;color:#374151;">Total Vehicles</div>
-                    <div class="mt-1 d-flex flex-wrap gap-1" style="font-size:0.72rem;">
-                        <span class="badge bg-success"><?php echo $vehicle_counts['available']; ?> Avail</span>
-                        <span class="badge bg-primary"><?php echo $vehicle_counts['in_use']; ?> In Use</span>
-                        <span class="badge bg-warning text-dark"><?php echo $vehicle_counts['maintenance']; ?> Maint</span>
+                    <div class="stat-card-label">Total Vehicles</div>
+                    <div class="mt-1 d-flex flex-wrap gap-1" style="font-size:.70rem;">
+                        <span style="background:rgba(255,255,255,.20);color:#fff;padding:1px 7px;border-radius:10px;"><?php echo $vehicle_counts['available']; ?> Avail</span>
+                        <span style="background:rgba(255,255,255,.20);color:#fff;padding:1px 7px;border-radius:10px;"><?php echo $vehicle_counts['in_use']; ?> In Use</span>
+                        <span style="background:rgba(255,255,255,.20);color:#fff;padding:1px 7px;border-radius:10px;"><?php echo $vehicle_counts['maintenance']; ?> Maint</span>
                     </div>
                 </div>
             </div>
@@ -372,17 +368,15 @@ require_once '../includes/sidebar.php';
 
         <!-- Card 3: Active Schedules -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card rounded-3 shadow-sm"
-                 style="border-left: 4px solid #d97706;">
-                <div class="stat-card-icon bg-warning-soft"
-                     style="width:58px;height:58px;border-radius:14px;">
+            <div class="stat-card stat-amber">
+                <div class="stat-card-icon">
                     <i class="fas fa-calendar-check" style="font-size:1.5rem;"></i>
                 </div>
                 <div class="stat-card-body">
                     <div class="stat-card-value"><?php echo number_format($total_active_schedules); ?></div>
-                    <div class="stat-card-label" style="font-weight:600;color:#374151;">Active Schedules</div>
-                    <div class="mt-1" style="font-size:0.75rem;color:#6b7280;">
-                        <i class="fas fa-spinner text-info me-1"></i>
+                    <div class="stat-card-label">Active Schedules</div>
+                    <div class="mt-1" style="font-size:.72rem;color:rgba(255,255,255,.65);">
+                        <i class="fas fa-spinner me-1"></i>
                         <?php echo $in_progress_count; ?> currently in progress
                     </div>
                 </div>
@@ -391,28 +385,20 @@ require_once '../includes/sidebar.php';
 
         <!-- Card 4: Completed This Month -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="stat-card rounded-3 shadow-sm"
-                 style="border-left: 4px solid #0d9488;">
-                <div class="stat-card-icon"
-                     style="width:58px;height:58px;border-radius:14px;background:#f0fdfa;color:#0d9488;">
+            <div class="stat-card stat-teal">
+                <div class="stat-card-icon">
                     <i class="fas fa-circle-check" style="font-size:1.5rem;"></i>
                 </div>
                 <div class="stat-card-body">
                     <div class="stat-card-value"><?php echo number_format($completed_this_month); ?></div>
-                    <div class="stat-card-label" style="font-weight:600;color:#374151;">Completed This Month</div>
-                    <div class="mt-1" style="font-size:0.75rem;">
+                    <div class="stat-card-label">Completed This Month</div>
+                    <div class="mt-1" style="font-size:.72rem;color:rgba(255,255,255,.65);">
                         <?php if ($completion_change > 0): ?>
-                            <span class="text-success">
-                                <i class="fas fa-arrow-trend-up me-1"></i>+<?php echo $completion_change; ?>% vs last month
-                            </span>
+                            <i class="fas fa-arrow-trend-up me-1"></i>+<?php echo $completion_change; ?>% vs last month
                         <?php elseif ($completion_change < 0): ?>
-                            <span class="text-danger">
-                                <i class="fas fa-arrow-trend-down me-1"></i><?php echo $completion_change; ?>% vs last month
-                            </span>
+                            <i class="fas fa-arrow-trend-down me-1"></i><?php echo $completion_change; ?>% vs last month
                         <?php else: ?>
-                            <span class="text-secondary">
-                                <i class="fas fa-minus me-1"></i>Same as last month
-                            </span>
+                            <i class="fas fa-minus me-1"></i>Same as last month
                         <?php endif; ?>
                     </div>
                 </div>
