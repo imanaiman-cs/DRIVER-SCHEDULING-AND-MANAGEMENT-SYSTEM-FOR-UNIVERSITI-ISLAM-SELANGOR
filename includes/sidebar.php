@@ -48,8 +48,8 @@ function submenuShow(array $pages, string $current): string
 // ── Admin page groups ────────────────────────────────────────────
 $driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'];
 $vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'];
-$schedule_pages = ['schedules.php', 'create_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php'];
-$report_pages   = ['report_performance.php', 'report_workload.php', 'report_vehicle_usage.php', 'report_monthly.php'];
+$schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php'];
+$report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
 ?>
 
 <!-- ================================================================
@@ -190,8 +190,8 @@ $report_pages   = ['report_performance.php', 'report_workload.php', 'report_vehi
                             <i class="fas fa-list fa-xs" aria-hidden="true"></i> All Schedules
                         </a>
                     </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('create_schedule.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/create_schedule.php" class="sidebar-sublink">
+                    <li class="sidebar-subitem <?php echo sidebarActive('add_schedule.php', $current_page); ?>">
+                        <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php" class="sidebar-sublink">
                             <i class="fas fa-calendar-plus fa-xs" aria-hidden="true"></i> Create Schedule
                         </a>
                     </li>
@@ -218,8 +218,8 @@ $report_pages   = ['report_performance.php', 'report_workload.php', 'report_vehi
                 </a>
                 <ul class="sidebar-submenu collapse <?php echo submenuShow($report_pages, $current_page); ?>"
                     id="reportsSubmenu">
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_performance.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_performance.php" class="sidebar-sublink">
+                    <li class="sidebar-subitem <?php echo sidebarActive('report_driver.php', $current_page); ?>">
+                        <a href="<?php echo SITE_URL; ?>/admin/report_driver.php" class="sidebar-sublink">
                             <i class="fas fa-trophy fa-xs" aria-hidden="true"></i> Driver Performance
                         </a>
                     </li>
@@ -228,8 +228,8 @@ $report_pages   = ['report_performance.php', 'report_workload.php', 'report_vehi
                             <i class="fas fa-chart-pie fa-xs" aria-hidden="true"></i> Workload
                         </a>
                     </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_vehicle_usage.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_vehicle_usage.php" class="sidebar-sublink">
+                    <li class="sidebar-subitem <?php echo sidebarActive('report_vehicle.php', $current_page); ?>">
+                        <a href="<?php echo SITE_URL; ?>/admin/report_vehicle.php" class="sidebar-sublink">
                             <i class="fas fa-car-side fa-xs" aria-hidden="true"></i> Vehicle Usage
                         </a>
                     </li>
@@ -259,8 +259,8 @@ $report_pages   = ['report_performance.php', 'report_workload.php', 'report_vehi
             <li class="sidebar-section-label">My Work</li>
 
             <!-- My Schedules -->
-            <li class="sidebar-item <?php echo sidebarActive(['my_schedules.php', 'view_schedule.php'], $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/my_schedules.php" class="sidebar-link">
+            <li class="sidebar-item <?php echo sidebarActive(['schedules.php', 'view_schedule.php'], $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="sidebar-link">
                     <span class="sidebar-icon"><i class="fas fa-calendar-days" aria-hidden="true"></i></span>
                     <span class="sidebar-label">My Schedules</span>
                 </a>

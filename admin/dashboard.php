@@ -786,7 +786,7 @@ require_once '../includes/sidebar.php';
                 <div class="content-card-body">
                     <div class="d-grid gap-2">
 
-                        <a href="<?php echo SITE_URL; ?>/admin/create_schedule.php"
+                        <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
                            style="background:linear-gradient(135deg,#003580,#0056b3);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
                            onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,53,128,0.35)';"
