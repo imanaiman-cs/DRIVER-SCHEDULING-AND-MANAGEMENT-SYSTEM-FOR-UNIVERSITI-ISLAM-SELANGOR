@@ -487,5 +487,23 @@ VALUES
 );
 
 -- ============================================================
+-- TABLE: messages
+-- Internal communication between admin and drivers
+-- ============================================================
+CREATE TABLE messages (
+    message_id  INT           NOT NULL AUTO_INCREMENT,
+    sender_id   INT           NOT NULL,
+    receiver_id INT           NOT NULL,
+    body        TEXT          NOT NULL,
+    is_read     TINYINT(1)    NOT NULL DEFAULT 0,
+    parent_id   INT           NULL DEFAULT NULL,
+    created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id),
+    CONSTRAINT fk_msg_sender   FOREIGN KEY (sender_id)   REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_msg_receiver FOREIGN KEY (receiver_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_msg_parent   FOREIGN KEY (parent_id)   REFERENCES messages(message_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- End of schema
 -- ============================================================

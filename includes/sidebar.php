@@ -50,6 +50,14 @@ $driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_dri
 $vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'];
 $schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
+
+// ── Unread message count ─────────────────────────────────────────
+$_sidebar_uid = (int)($_SESSION['user_id'] ?? 0);
+$_unread_msgs = 0;
+if ($_sidebar_uid > 0 && isset($conn)) {
+    $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
+    if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
+}
 ?>
 
 <!-- ================================================================
@@ -203,6 +211,22 @@ $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.p
                 </ul>
             </li>
 
+            <li class="sidebar-section-label">Communication</li>
+
+            <!-- Messages -->
+            <li class="sidebar-item <?php echo sidebarActive('messages.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/messages.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Messages</span>
+                    <?php if ($_unread_msgs > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#dc2626;font-size:0.65rem;min-width:18px;">
+                        <?php echo $_unread_msgs; ?>
+                    </span>
+                    <?php endif; ?>
+                </a>
+            </li>
+
             <li class="sidebar-section-label">Analytics</li>
 
             <!-- Reports ── with submenu -->
@@ -263,6 +287,22 @@ $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.p
                 <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="sidebar-link">
                     <span class="sidebar-icon"><i class="fas fa-calendar-days" aria-hidden="true"></i></span>
                     <span class="sidebar-label">My Schedules</span>
+                </a>
+            </li>
+
+            <li class="sidebar-section-label">Communication</li>
+
+            <!-- Messages -->
+            <li class="sidebar-item <?php echo sidebarActive('messages.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/driver/messages.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Messages</span>
+                    <?php if ($_unread_msgs > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#dc2626;font-size:0.65rem;min-width:18px;">
+                        <?php echo $_unread_msgs; ?>
+                    </span>
+                    <?php endif; ?>
                 </a>
             </li>
 
