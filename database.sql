@@ -41,6 +41,7 @@ CREATE TABLE drivers (
     license_class       VARCHAR(10)     NULL DEFAULT NULL,
     license_expiry      DATE            NULL DEFAULT NULL,
     status              ENUM('active','inactive','on_leave') NOT NULL DEFAULT 'active',
+    driver_type         ENUM('top_management','regular') NOT NULL DEFAULT 'regular',
     created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (driver_id),
@@ -87,6 +88,7 @@ CREATE TABLE schedules (
     priority_score  DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
     created_by      INT           NULL DEFAULT NULL,
     notes           TEXT          NULL DEFAULT NULL,
+    trip_type       ENUM('regular','top_management') NOT NULL DEFAULT 'regular',
     created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (schedule_id),
@@ -110,6 +112,26 @@ CREATE TABLE messages (
     CONSTRAINT fk_msg_sender   FOREIGN KEY (sender_id)   REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_msg_receiver FOREIGN KEY (receiver_id) REFERENCES users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_msg_parent   FOREIGN KEY (parent_id)   REFERENCES messages(message_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLE: leave_requests
+-- ============================================================
+CREATE TABLE leave_requests (
+    request_id   INT           NOT NULL AUTO_INCREMENT,
+    driver_id    INT           NOT NULL,
+    leave_type   ENUM('emergency','medical','annual','personal') NOT NULL DEFAULT 'personal',
+    start_date   DATE          NOT NULL,
+    end_date     DATE          NOT NULL,
+    reason       TEXT          NOT NULL,
+    status       ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    reviewed_by  INT           NULL DEFAULT NULL,
+    admin_notes  TEXT          NULL DEFAULT NULL,
+    created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (request_id),
+    CONSTRAINT fk_lr_driver   FOREIGN KEY (driver_id)   REFERENCES drivers(driver_id) ON DELETE CASCADE,
+    CONSTRAINT fk_lr_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(user_id)     ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -735,5 +757,96 @@ INSERT INTO messages (sender_id, receiver_id, body, is_read, created_at) VALUES
  0, '2026-07-02 10:00:00');
 
 -- ============================================================
--- End of schema – 52 schedules · 12 drivers · 10 vehicles · 26 messages
+-- UPDATE: driver_type assignments
+-- Top Management drivers: Ahmad Faizal(1), Hafizuddin(2), Khairul(4),
+--                         Zulkarnain(6), Fadzillah(9), Azhari(12)
+-- ============================================================
+UPDATE drivers SET driver_type = 'top_management'
+WHERE driver_id IN (1, 2, 4, 6, 9, 12);
+
+-- ============================================================
+-- UPDATE: trip_type assignments
+-- Top Management trips: Ministry, VIP, accreditation, national conferences,
+--                       convocation, senior management affairs
+-- ============================================================
+UPDATE schedules SET trip_type = 'top_management'
+WHERE schedule_id IN (2, 5, 11, 18, 20, 23, 25, 26, 30, 33, 36, 37, 38, 40, 42, 46, 47, 48, 49, 50);
+
+-- ============================================================
+-- SEED: leave_requests – 10 sample requests
+-- ============================================================
+INSERT INTO leave_requests
+    (driver_id, leave_type, start_date, end_date, reason, status, reviewed_by, admin_notes, created_at)
+VALUES
+(
+    6, 'medical', '2025-06-16', '2025-06-20',
+    'I am currently undergoing medical treatment for a knee injury sustained during duty. My doctor has advised complete rest for 5 days. Attached is the medical certificate from Hospital Tengku Ampuan Rahimah, Klang.',
+    'approved', 1,
+    'Medical leave approved. Please ensure fitness certificate is submitted before return to duty.',
+    '2025-06-14 10:00:00'
+),
+(
+    3, 'annual', '2025-07-14', '2025-07-18',
+    'I would like to apply for 5 days annual leave for family vacation in conjunction with school holidays. I have ensured that there are no scheduled trips assigned to me during this period.',
+    'approved', 1,
+    'Annual leave approved. No scheduled trips in this period.',
+    '2025-07-07 09:30:00'
+),
+(
+    5, 'emergency', '2025-11-03', '2025-11-03',
+    'My father was admitted to the hospital last night with a heart attack. I need to be by his side today and am unable to attend the assigned trip on 4 November 2025. I apologise for the late notice.',
+    'approved', 1,
+    'Emergency leave approved. Trip rescheduled. Please update us on your father\'s condition.',
+    '2025-11-03 06:45:00'
+),
+(
+    7, 'personal', '2025-12-22', '2025-12-24',
+    'I wish to apply for personal leave to attend my sister\'s wedding ceremony in Kelantan. The event spans 3 days. I have confirmed with colleagues that my duties can be covered during this period.',
+    'approved', 1,
+    'Personal leave approved. Congratulations to your family!',
+    '2025-12-10 14:00:00'
+),
+(
+    11, 'medical', '2026-01-12', '2026-01-14',
+    'I am experiencing severe flu and fever. I visited the clinic this morning and the doctor has recommended 3 days rest. I will submit the medical certificate upon recovery.',
+    'approved', 1,
+    'Medical leave approved. Rest well and submit MC upon return.',
+    '2026-01-12 07:30:00'
+),
+(
+    8, 'annual', '2026-03-23', '2026-03-27',
+    'I am applying for annual leave during the school holiday period to spend time with my family. I have checked the schedule and I have no assigned trips during this period.',
+    'approved', 1,
+    'Annual leave approved. Enjoy your family time.',
+    '2026-03-15 11:00:00'
+),
+(
+    10, 'emergency', '2026-05-13', '2026-05-13',
+    'My child was involved in a road accident this morning and has been admitted to Hospital Klang. I am unable to perform any duties today and request emergency leave. Sincerest apologies for the last-minute notice.',
+    'approved', 1,
+    'Emergency leave approved. We hope your child recovers quickly. Please keep us informed.',
+    '2026-05-13 08:15:00'
+),
+(
+    3, 'annual', '2026-08-04', '2026-08-08',
+    'Applying for 5 days annual leave to use my remaining leave entitlement. No scheduled trips assigned to me during this period. I have coordinated with the transport office beforehand.',
+    'pending', NULL, NULL,
+    '2026-07-01 09:00:00'
+),
+(
+    6, 'personal', '2026-07-28', '2026-07-29',
+    'I need to attend a family obligation in Johor Bahru and am requesting 2 days personal leave. I am currently on medical monitoring and this leave will allow me to consult my specialist in JB.',
+    'pending', NULL, NULL,
+    '2026-07-02 08:00:00'
+),
+(
+    5, 'annual', '2026-09-15', '2026-09-19',
+    'Request for annual leave during the Hari Malaysia long weekend period. I have no assigned trips during these dates. This will be used for a family road trip to Sabah.',
+    'rejected', 1,
+    'Leave rejected: you are scheduled for a trip on 2 September 2026 that overlaps with the preparation period. Please reapply after that trip is completed.',
+    '2026-08-20 10:30:00'
+);
+
+-- ============================================================
+-- End of schema – 52 schedules · 12 drivers · 10 vehicles · 26 messages · 10 leave requests
 -- ============================================================

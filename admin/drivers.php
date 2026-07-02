@@ -273,6 +273,7 @@ unset($d);
                                 <th>Priority Score</th>
                                 <th>Attendance %</th>
                                 <th>Performance</th>
+                                <th>Type</th>
                                 <th>Status</th>
                                 <th class="text-center">Actions</th>
                             </tr>
@@ -323,6 +324,15 @@ unset($d);
                                     </div>
                                 </td>
                                 <td class="small"><?php echo number_format((float)$d['performance_score'], 1); ?>/10</td>
+                                <td>
+                                    <?php if (($d['driver_type'] ?? 'regular') === 'top_management'): ?>
+                                    <span class="badge" style="background:#7c3aed;font-size:.72rem;">
+                                        <i class="fas fa-crown fa-xs me-1"></i>VIP
+                                    </span>
+                                    <?php else: ?>
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem;">Regular</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="badge <?php echo $statusClass; ?> rounded-pill">
                                         <?php echo $statusLabel; ?>
@@ -417,6 +427,7 @@ const DRIVERS_DATA = <?php
             'license_class'       => $d['license_class'] ?? '',
             'license_expiry'      => $d['license_expiry'] ?? '',
             'status'              => $d['status'],
+            'driver_type'         => $d['driver_type'] ?? 'regular',
             'priority_score'      => $d['priority_score'],
             'created_at'          => $d['created_at'] ?? '',
         ];
@@ -448,8 +459,8 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         pageLength:  25,
         responsive:  true,
         columnDefs: [
-            { orderable: false, targets: 9 },  // Actions column not sortable
-            { searchable: false, targets: 9 }
+            { orderable: false, targets: 10 },
+            { searchable: false, targets: 10 }
         ],
         language: {
             search:         'Search drivers:',
@@ -485,6 +496,12 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         // Status label/colour
         const statusMap = { active: ['Active','bg-success'], inactive: ['Inactive','bg-danger'], on_leave: ['On Leave','bg-warning text-dark'] };
         const [statusLabel, statusCls] = statusMap[d.status] || [d.status, 'bg-secondary'];
+
+        // Driver type
+        const typeLabel = d.driver_type === 'top_management' ? 'Top Management' : 'Regular';
+        const typeBadge = d.driver_type === 'top_management'
+            ? '<span class="badge" style="background:#7c3aed;"><i class="fas fa-crown me-1"></i>Top Management</span>'
+            : '<span class="badge bg-secondary">Regular</span>';
 
         // License expiry formatting
         const expiryFormatted = d.license_expiry

@@ -81,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $driver_id       = (int)($_POST['driver_id']       ?? 0);
     $status          = trim($_POST['status']           ?? 'pending');
     $notes           = trim($_POST['notes']            ?? '');
+    $trip_type       = trim($_POST['trip_type']        ?? 'regular');
 
     if (empty($trip_date))   $errors[] = 'Trip date is required.';
     if (empty($start_time))  $errors[] = 'Start time is required.';
@@ -93,6 +94,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!in_array($status, ['pending','approved','in_progress','completed','cancelled'])) {
         $status = 'pending';
+    }
+    if (!in_array($trip_type, ['regular','top_management'])) {
+        $trip_type = 'regular';
     }
 
     // ── Conflict check – vehicle (exclude this schedule) ────
@@ -177,14 +181,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  passenger_count = ?,
                  status          = ?,
                  priority_score  = ?,
-                 notes           = ?
+                 notes           = ?,
+                 trip_type       = ?
              WHERE schedule_id = ?"
         );
         $upd->bind_param(
-            'iisssssisdsi',
+            'iisssssisdssi',
             $did, $vid, $trip_date, $start_time, $end_time,
             $destination, $purpose, $passenger_count,
-            $status, $priority_score, $notes, $schedule_id
+            $status, $priority_score, $notes, $trip_type, $schedule_id
         );
 
         if ($upd->execute()) {
@@ -359,6 +364,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <?php echo ucwords(str_replace('_',' ', $st)); ?>
                                     </option>
                                     <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="trip_type">Trip Type</label>
+                                <?php $currentTripType = $old['trip_type'] ?? $schedule['trip_type'] ?? 'regular'; ?>
+                                <select class="form-select" id="trip_type" name="trip_type">
+                                    <option value="regular"        <?php echo $currentTripType === 'regular'        ? 'selected' : ''; ?>>Regular</option>
+                                    <option value="top_management" <?php echo $currentTripType === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
                             </div>
 

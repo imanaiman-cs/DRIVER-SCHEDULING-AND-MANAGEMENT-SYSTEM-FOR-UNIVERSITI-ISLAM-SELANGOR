@@ -26,6 +26,7 @@ $form = [
     'license_class'       => '',
     'license_expiry'      => '',
     'status'              => 'active',
+    'driver_type'         => 'regular',
 ];
 
 $errors = [];
@@ -47,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['license_class']       = trim($_POST['license_class']       ?? '');
     $form['license_expiry']      = trim($_POST['license_expiry']      ?? '');
     $form['status']              = trim($_POST['status']              ?? 'active');
+    $form['driver_type']         = trim($_POST['driver_type']         ?? 'regular');
 
     // ── Validation ───────────────────────────────────────────
     if ($form['employee_id'] === '') {
@@ -104,6 +106,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['status'] = 'active';
     }
 
+    if (!in_array($form['driver_type'], ['regular', 'top_management'], true)) {
+        $form['driver_type'] = 'regular';
+    }
+
     $allowed_classes = ['D', 'DA', 'GDL', 'PSV', 'E', ''];
     if (!in_array($form['license_class'], $allowed_classes, true)) {
         $form['license_class'] = '';
@@ -120,14 +126,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "INSERT INTO drivers
                 (employee_id, name, phone, email, address,
                  experience_years, attendance_rate, performance_score, certification_score,
-                 license_number, license_class, license_expiry, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
+                 license_number, license_class, license_expiry, status, driver_type, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
         );
 
         $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
 
         $stmt->bind_param(
-            'sssssddddssss',
+            'sssssddddsssss',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
@@ -137,7 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $form['license_number'],
             $form['license_class'],
             $expiry,
-            $form['status']
+            $form['status'],
+            $form['driver_type']
         );
 
         if ($stmt->execute()) {
@@ -408,6 +415,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="inactive" <?php echo $form['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                                     <option value="on_leave" <?php echo $form['status'] === 'on_leave' ? 'selected' : ''; ?>>On Leave</option>
                                 </select>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="driver_type" class="form-label">Driver Type</label>
+                                <select id="driver_type" name="driver_type" class="form-select">
+                                    <option value="regular"        <?php echo $form['driver_type'] === 'regular'        ? 'selected' : ''; ?>>Regular</option>
+                                    <option value="top_management" <?php echo $form['driver_type'] === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
+                                </select>
+                                <div class="form-text">Top Management drivers handle VIP and executive trips only.</div>
                             </div>
 
                         </div>

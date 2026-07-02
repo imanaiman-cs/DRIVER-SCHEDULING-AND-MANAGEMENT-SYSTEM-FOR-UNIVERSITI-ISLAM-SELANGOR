@@ -48,15 +48,21 @@ function submenuShow(array $pages, string $current): string
 // ── Admin page groups ────────────────────────────────────────────
 $driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'];
 $vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'];
-$schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php'];
+$schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php', 'calendar.php'];
+$leave_pages    = ['leave_requests.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
 
 // ── Unread message count ─────────────────────────────────────────
-$_sidebar_uid = (int)($_SESSION['user_id'] ?? 0);
-$_unread_msgs = 0;
+$_sidebar_uid   = (int)($_SESSION['user_id'] ?? 0);
+$_unread_msgs   = 0;
+$_pending_leaves = 0;
 if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
+    if ($role === 'admin' || $role === 'superadmin') {
+        $r2 = $conn->query("SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'");
+        if ($r2) $_pending_leaves = (int)$r2->fetch_assoc()['cnt'];
+    }
 }
 ?>
 
@@ -208,7 +214,26 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                             <i class="fas fa-wand-magic-sparkles fa-xs" aria-hidden="true"></i> Auto Assign
                         </a>
                     </li>
+                    <li class="sidebar-subitem <?php echo sidebarActive('calendar.php', $current_page); ?>">
+                        <a href="<?php echo SITE_URL; ?>/admin/calendar.php" class="sidebar-sublink">
+                            <i class="fas fa-calendar-week fa-xs" aria-hidden="true"></i> Calendar View
+                        </a>
+                    </li>
                 </ul>
+            </li>
+
+            <!-- Leave Requests -->
+            <li class="sidebar-item <?php echo sidebarActive($leave_pages, $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/leave_requests.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-calendar-xmark" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Leave Requests</span>
+                    <?php if ($_pending_leaves > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#f59e0b;font-size:0.65rem;min-width:18px;">
+                        <?php echo $_pending_leaves; ?>
+                    </span>
+                    <?php endif; ?>
+                </a>
             </li>
 
             <li class="sidebar-section-label">Communication</li>
@@ -287,6 +312,30 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="sidebar-link">
                     <span class="sidebar-icon"><i class="fas fa-calendar-days" aria-hidden="true"></i></span>
                     <span class="sidebar-label">My Schedules</span>
+                </a>
+            </li>
+
+            <!-- Calendar View -->
+            <li class="sidebar-item <?php echo sidebarActive('calendar.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/driver/calendar.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-calendar-week" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Calendar</span>
+                </a>
+            </li>
+
+            <!-- Leave Requests -->
+            <li class="sidebar-item <?php echo sidebarActive(['leave_request.php', 'my_leaves.php'], $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/driver/leave_request.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-calendar-xmark" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Leave Request</span>
+                </a>
+            </li>
+
+            <!-- My Leave History -->
+            <li class="sidebar-item <?php echo sidebarActive('my_leaves.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/driver/my_leaves.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">My Leave History</span>
                 </a>
             </li>
 

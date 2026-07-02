@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                            FROM schedules s
                            LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
                            WHERE s.driver_id IS NULL AND s.status = 'pending'
-                           ORDER BY s.trip_date ASC, s.start_time ASC";
+                           ORDER BY s.trip_type = 'top_management' DESC, s.trip_date ASC, s.start_time ASC";
         $unassigned_result = $conn->query($unassigned_sql);
 
         if (!$unassigned_result) {
@@ -47,10 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $end_time   = $schedule['end_time'];
                 $trip_hours = (strtotime($end_time) - strtotime($start_time)) / 3600;
 
+                $required_driver_type = ($schedule['trip_type'] ?? 'regular') === 'top_management'
+                    ? 'top_management' : 'regular';
+
                 $avail_sql = "
                     SELECT d.*
                     FROM drivers d
                     WHERE d.status = 'active'
+                      AND d.driver_type = ?
                       AND d.driver_id NOT IN (
                             SELECT driver_id FROM schedules
                             WHERE trip_date = ?
@@ -64,7 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                       )";
                 $stmt = $conn->prepare($avail_sql);
                 $stmt->bind_param(
-                    "sssssss",
+                    "ssssssss",
+                    $required_driver_type,
                     $trip_date,
                     $end_time,   $start_time,
                     $end_time,   $start_time,

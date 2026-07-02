@@ -54,6 +54,7 @@ $sql = "SELECT
             s.purpose,
             s.passenger_count,
             s.status,
+            s.trip_type,
             s.priority_score,
             s.notes,
             s.created_at,
@@ -390,6 +391,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <th>Vehicle</th>
                                 <th>Date</th>
                                 <th>Time</th>
+                                <th>Type</th>
                                 <th>Status</th>
                                 <th class="text-center">Actions</th>
                             </tr>
@@ -439,6 +441,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <td class="small fw-medium"><?php echo formatDate($s['trip_date']); ?></td>
                                 <td class="small text-nowrap">
                                     <?php echo formatTime($s['start_time']); ?> &ndash; <?php echo formatTime($s['end_time']); ?>
+                                </td>
+                                <td>
+                                    <?php if (($s['trip_type'] ?? 'regular') === 'top_management'): ?>
+                                    <span class="badge" style="background:#7c3aed;font-size:.72rem;">
+                                        <i class="fas fa-crown fa-xs me-1"></i>VIP
+                                    </span>
+                                    <?php else: ?>
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem;">Regular</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <span class="badge <?php echo $statusClass; ?> rounded-pill">
@@ -573,8 +584,8 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         pageLength: 25,
         responsive: true,
         columnDefs: [
-            { orderable: false, targets: 8 },
-            { searchable: false, targets: 8 }
+            { orderable: false, targets: 9 },
+            { searchable: false, targets: 9 }
         ],
         language: {
             search:      'Search schedules:',

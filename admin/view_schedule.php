@@ -157,7 +157,7 @@ require_once '../includes/sidebar.php';
                             </div>
                         </div>
 
-                        <div class="col-sm-6">
+                        <div class="col-sm-4">
                             <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
                                 Passengers
                             </div>
@@ -167,7 +167,24 @@ require_once '../includes/sidebar.php';
                             </div>
                         </div>
 
-                        <div class="col-sm-6">
+                        <div class="col-sm-4">
+                            <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+                                Trip Type
+                            </div>
+                            <div style="font-size:0.9rem;color:#374151;">
+                                <?php if (($schedule['trip_type'] ?? 'regular') === 'top_management'): ?>
+                                <span class="badge" style="background:#7c3aed;">
+                                    <i class="fas fa-crown me-1"></i>Top Management
+                                </span>
+                                <?php else: ?>
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-car me-1"></i>Regular
+                                </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-4">
                             <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
                                 Priority Score
                             </div>
