@@ -121,7 +121,7 @@ INSERT INTO users (username, password, email, full_name, role, driver_id) VALUES
     'admin',
     SHA2('admin123', 256),
     'admin@uis.edu.my',
-    'Encik Rozaimi bin Kamaruzzaman',
+    'Rozaimi bin Kamaruzzaman',
     'admin',
     NULL
 );
@@ -641,97 +641,97 @@ INSERT INTO messages (sender_id, receiver_id, body, is_read, created_at) VALUES
 
 -- Thread 1: Admin ↔ Khairul (drv004) – March 2025 Penang trip
 (1, 5,
- 'Assalamualaikum Encik Khairul. Sekadar ingin mengingatkan bahawa perjalanan ke USM Pulau Pinang pada 20 Mac 2025 telah diluluskan. Sila pastikan bas SEL 5678 B dalam keadaan baik sebelum berlepas.',
+ 'Hi Khairul, just a reminder that your trip to USM Penang on 20 March 2025 has been approved. Please ensure bus SEL 5678 B is in good condition before departure.',
  1, '2025-03-18 09:15:00'),
 (5, 1,
- 'Waalaikumsalam Encik Rozaimi. Terima kasih. Saya sudah semak kenderaan dan semuanya dalam keadaan baik. Anggaran masa bertolak jam 6:00 pagi, insya-Allah tepat masa.',
+ 'Thank you, Mr. Rozaimi. I have checked the vehicle and everything is in order. Estimated departure at 6:00 AM – will be on time.',
  1, '2025-03-18 10:02:00'),
 (1, 5,
- 'Bagus. Sila hubungi pejabat jika ada sebarang masalah semasa perjalanan. Selamat jalan!',
+ 'Good. Please contact the office if any issues arise during the journey. Safe travels!',
  1, '2025-03-18 10:30:00'),
 
 -- Thread 2: Admin ↔ Ahmad Faizal (drv001) – May 2025 student trip
 (1, 2,
- 'Encik Faizal, sila ambil maklum bahawa perjalanan lawatan kebajikan pelajar ke Putrajaya pada 12 Mei 2025 telah ditetapkan. Bas SEL 1234 A diperuntukkan untuk 44 penumpang.',
+ 'Dear Faizal, please be informed that the student welfare trip to Putrajaya on 12 May 2025 has been confirmed. Bus SEL 1234 A is allocated for 44 passengers.',
  1, '2025-05-09 14:00:00'),
 (2, 1,
- 'Baik, terima kasih. Saya akan pastikan bas bersih dan pendingin hawa berfungsi dengan baik. Ada tak senarai nama pelajar yang perlu saya terima dahulu?',
+ 'Understood, thank you. I will make sure the bus is clean and the air-conditioning is fully functional. Will I receive the passenger name list in advance?',
  1, '2025-05-09 15:22:00'),
 (1, 2,
- 'Senarai nama akan diberikan oleh AJK pelajar pada hari perjalanan. Encik Faizal hanya perlu pastikan bilangan penumpang tidak melebihi kapasiti kenderaan.',
+ 'The student committee will hand over the list on the day of departure. Please ensure the passenger count does not exceed the vehicle capacity at any point.',
  1, '2025-05-10 08:05:00'),
 
 -- Thread 3: Admin ↔ Fadzillah (drv009) – December 2025 Langkawi retreat
 (1, 10,
- 'Encik Fadzillah, tahniah! Anda dipilih sebagai pemandu utama untuk program retreat tahunan staf ke Langkawi pada 15 Disember 2025 kerana prestasi cemerlang anda sepanjang tahun ini.',
+ 'Congratulations, Fadzillah! You have been selected as the lead driver for the annual staff retreat to Langkawi on 15 December 2025, in recognition of your outstanding performance this year.',
  1, '2025-12-10 10:00:00'),
 (10, 1,
- 'Alhamdulillah, terima kasih atas kepercayaan Encik Rozaimi. Saya sedia untuk tugas ini. Boleh saya tahu jam berapa bertolak dari UIS?',
+ 'Thank you so much for the trust, Mr. Rozaimi. I am ready for this assignment. Could you let me know the exact departure time from UIS?',
  1, '2025-12-10 11:45:00'),
 (1, 10,
- 'Bertolak jam 8:00 pagi dari gerbang utama UIS. Sila hadir awal jam 7:30 untuk pemeriksaan kenderaan. Selamat bertugas!',
+ 'Departure is at 8:00 AM from the main gate. Please arrive by 7:30 AM for the vehicle pre-departure inspection. Have a safe journey!',
  1, '2025-12-10 14:20:00'),
 
 -- Thread 4: Driver Roslan (drv007) asking about November 2025 schedule
 (8, 1,
- 'Assalamualaikum Encik Rozaimi. Saya ingin bertanya mengenai jadual perjalanan saya untuk bulan November 2025. Pada sistem ada tugasan pada 19 November tetapi saya tidak menerima sebarang notifikasi rasmi.',
+ 'Good morning, Mr. Rozaimi. I would like to check on my schedule for November 2025. The system shows an assignment on 19 November, but I have not received any official notification yet.',
  1, '2025-11-16 09:00:00'),
 (1, 8,
- 'Waalaikumsalam Encik Roslan. Ya, tugasan tersebut adalah benar. Perjalanan ke Jabatan Imigresen Shah Alam pada 19 November jam 9:00 pagi. Sila guna kereta BDG 5500 F. Terima kasih.',
+ 'Good morning, Roslan. Yes, that assignment is confirmed. Trip to the Immigration Department, Shah Alam on 19 November at 9:00 AM. Please use car BDG 5500 F. Thank you.',
  1, '2025-11-16 10:30:00'),
 
 -- Thread 5: Admin ↔ Norhaslinda (drv003) – June 2026 cancelled trip
 (4, 1,
- 'Encik Rozaimi, saya terima maklumat pembatalan perjalanan ke Hospital Sultanah Bahiyah Alor Setar pada 17 Jun 2026. Adakah perjalanan ini akan dijadualkan semula?',
+ 'Mr. Rozaimi, I received the cancellation notice for the trip to Hospital Sultanah Bahiyah, Alor Setar on 17 June 2026. Will this trip be rescheduled?',
  1, '2026-06-18 08:30:00'),
 (1, 4,
- 'Ya Puan Norhaslinda. Perjalanan akan dijadualkan semula pada bulan Ogos 2026. Kami akan maklumkan tarikh baru secepat mungkin. Terima kasih atas kefahaman anda.',
+ 'Yes, Norhaslinda. The trip will be rescheduled in August 2026. We will notify you of the new date as soon as it is confirmed. Thank you for your understanding.',
  1, '2026-06-18 09:15:00'),
 
 -- Thread 6: Admin ↔ Muhammad Asyraf (drv008) – performance recognition
 (1, 9,
- 'Encik Asyraf, pihak pengurusan sangat berpuas hati dengan prestasi kerja anda. Kadar kehadiran dan maklum balas daripada penumpang adalah sangat positif. Teruskan usaha yang baik!',
+ 'Dear Asyraf, management is very pleased with your work performance this quarter. Your attendance rate and passenger feedback scores are both excellent. Keep up the great work!',
  1, '2025-10-05 11:00:00'),
 (9, 1,
- 'Terima kasih Encik Rozaimi. Saya akan terus berusaha memberikan perkhidmatan terbaik kepada semua pihak. Jika ada sebarang maklum balas yang perlu diperbaiki, sila beritahu saya.',
+ 'Thank you, Mr. Rozaimi. I will continue to provide the best service to all passengers and staff. Please do not hesitate to share any feedback or areas where I can improve.',
  1, '2025-10-05 12:30:00'),
 
 -- Thread 7: Admin ↔ Azhari (drv012) – welcome message
 (1, 13,
- 'Assalamualaikum Encik Azhari. Selamat datang ke pasukan pemandu UIS! Akaun anda telah diaktifkan. Nama pengguna: drv012, kata laluan: driver012@uis. Sila tukar kata laluan selepas log masuk pertama.',
+ 'Welcome to the UIS driver team, Azhari! Your account has been activated. Username: drv012, temporary password: driver012@uis. Please change your password after your first login.',
  1, '2025-01-05 08:00:00'),
 (13, 1,
- 'Waalaikumsalam. Terima kasih Encik Rozaimi. Saya sudah berjaya log masuk. Boleh saya tahu prosedur untuk mengemaskini maklumat peribadi saya dalam sistem?',
+ 'Thank you, Mr. Rozaimi. I have successfully logged in. Could you guide me on how to update my personal details in the system?',
  1, '2025-01-05 09:45:00'),
 (1, 13,
- 'Anda boleh kemaskini di bahagian "Profil Saya" dalam menu sebelah kiri. Jika ada sebarang masalah teknikal, hubungi pejabat kami. Selamat bertugas!',
+ 'You can update your profile under "My Profile" in the left sidebar menu. If you encounter any technical issues, please contact our office directly. Welcome aboard!',
  1, '2025-01-05 10:20:00'),
 
 -- Thread 8: Admin ↔ Khairul (drv004) – July 2026 current trip briefing
 (1, 5,
- 'Encik Khairul, perjalanan hari ini ke UIAM Gombak (02 Julai 2026) adalah seperti yang dijadualkan. Sila berlepas tepat jam 7:00 pagi. 35 penumpang telah disahkan.',
+ 'Good morning, Khairul. Today\'s trip to UIAM Gombak (2 July 2026) is on schedule. Please depart at exactly 7:00 AM. 35 passengers have been confirmed.',
  1, '2026-07-02 06:00:00'),
 (5, 1,
- 'Terima kasih Encik Rozaimi. Saya sudah berada di UIS dan bas dalam keadaan baik. Akan berlepas tepat masa insya-Allah.',
+ 'Good morning, Mr. Rozaimi. I am already at UIS and the bus is ready. Will depart on time as instructed.',
  1, '2026-07-02 06:35:00'),
 
 -- Thread 9: Driver Nurul Ain (drv010) asking about upcoming trips (unread)
 (11, 1,
- 'Encik Rozaimi, saya ingin bertanya tentang tugasan saya untuk bulan Ogos dan November 2026. Ada dua perjalanan yang tertera dalam sistem – boleh saya dapatkan butiran lanjut?',
+ 'Mr. Rozaimi, I would like to inquire about my upcoming assignments for August and November 2026. There are two trips listed in the system – could I get more details on each one?',
  0, '2026-07-01 14:00:00'),
 (1, 11,
- 'Ya Puan Nurul Ain. Tugasan pertama: 5 Ogos 2026 ke SSM Shah Alam (3 penumpang, kereta BDG 5500 F). Kedua: 18 November 2026 ke PICC Putrajaya (14 penumpang, minibus SEL 7890 G). Butiran penuh ada dalam sistem.',
+ 'Hi Nurul Ain. First assignment: 5 August 2026 to SSM Shah Alam (3 passengers, car BDG 5500 F). Second: 18 November 2026 to PICC Putrajaya (14 passengers, minibus SEL 7890 G). Full details are available in the system.',
  0, '2026-07-01 15:30:00'),
 
 -- Thread 10: Admin ↔ Mohd Hafizuddin (drv002) – July 2026 approved trip (unread)
 (1, 3,
- 'Encik Hafizuddin, perjalanan anda ke JAIS Shah Alam pada 10 Julai 2026 telah diluluskan. Bas BJK 6600 I diperuntukkan untuk 10 penumpang. Sila semak sistem untuk butiran masa perjalanan.',
+ 'Dear Hafizuddin, your trip to JAIS Shah Alam on 10 July 2026 has been approved. Bus BJK 6600 I is allocated for 10 passengers. Please check the system for the full trip details.',
  0, '2026-07-02 08:00:00'),
 (3, 1,
- 'Terima kasih Encik Rozaimi. Saya sudah semak. Insya-Allah saya akan bersedia. Ada kawasan letak kereta yang sesuai di JAIS Shah Alam?',
+ 'Thank you, Mr. Rozaimi. I have reviewed the details in the system. Is there adequate parking available at the JAIS Shah Alam building?',
  0, '2026-07-02 09:15:00'),
 (1, 3,
- 'Ada kawasan letak kereta percuma di hadapan bangunan JAIS. Tunjukkan kad tugas rasmi UIS kepada pengawal keselamatan. Selamat bertugas!',
+ 'Yes, there is free parking in front of the JAIS building. Please present your official UIS duty card to the security guard upon arrival. Safe trip!',
  0, '2026-07-02 10:00:00');
 
 -- ============================================================
