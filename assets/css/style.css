@@ -482,20 +482,25 @@ a:hover { color: var(--uis-primary); }
    ============================================================ */
 .desktop-header {
   display: none;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: var(--sidebar-width);
+  right: 0;
   z-index: 1020;
   height: var(--header-height);
-  background: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-xs), 0 1px 0 rgba(0,0,0,.06);
+  box-shadow: 0 1px 0 rgba(0,0,0,.08);
   align-items: center;
   padding: 0 1.75rem;
   gap: 1rem;
   border-bottom: 1px solid rgba(0,0,0,.06);
+  transition: left .3s ease;
 }
 @media (min-width: 992px) { .desktop-header { display: flex; } }
+body.sidebar-mini  .desktop-header { left: 72px; }
+body.sidebar-hidden .desktop-header { left: 0; }
 
 .desktop-header .breadcrumb { margin: 0; font-size: .80rem; background: transparent; padding: 0; }
 .desktop-header .breadcrumb-item a { color: var(--uis-secondary); }
