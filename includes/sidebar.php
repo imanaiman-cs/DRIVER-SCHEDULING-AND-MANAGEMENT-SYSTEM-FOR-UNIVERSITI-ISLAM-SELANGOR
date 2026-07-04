@@ -52,16 +52,19 @@ $schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'vi
 $leave_pages    = ['leave_requests.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
 
-// ── Unread message count ─────────────────────────────────────────
-$_sidebar_uid   = (int)($_SESSION['user_id'] ?? 0);
-$_unread_msgs   = 0;
-$_pending_leaves = 0;
+// ── Unread message count + pending alerts ────────────────────────
+$_sidebar_uid        = (int)($_SESSION['user_id'] ?? 0);
+$_unread_msgs        = 0;
+$_pending_leaves     = 0;
+$_pending_assignments = 0;
 if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
     if ($role === 'admin' || $role === 'superadmin') {
         $r2 = $conn->query("SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'");
         if ($r2) $_pending_leaves = (int)$r2->fetch_assoc()['cnt'];
+        $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND status NOT IN ('cancelled','completed')");
+        if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
     }
 }
 ?>
@@ -390,6 +393,148 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 </nav>
 
 <!-- ================================================================
+     DESKTOP HEADER (sticky top bar, hidden on mobile)
+     ================================================================ -->
+<header class="desktop-header" id="desktopHeader">
+
+    <!-- Sidebar mini-toggle -->
+    <button class="btn-sidebar-toggle" onclick="toggleSidebarMini()" aria-label="Toggle sidebar">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Breadcrumb / page title -->
+    <div class="flex-grow-1 min-width-0">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="<?php echo SITE_URL; ?>/<?php echo ($role === 'admin' || $role === 'superadmin') ? 'admin' : 'driver'; ?>/dashboard.php"
+                       style="color:var(--uis-secondary);">
+                        <i class="fas fa-home me-1"></i>Home
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    <?php echo htmlspecialchars($page_title ?? ''); ?>
+                </li>
+            </ol>
+        </nav>
+    </div>
+
+    <!-- Right controls -->
+    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+
+        <!-- Live clock (xl+ only) -->
+        <div class="d-none d-xl-block text-end me-1">
+            <div id="dhClock" style="font-size:.88rem;font-weight:700;color:var(--uis-primary);letter-spacing:.03em;white-space:nowrap;"></div>
+        </div>
+
+        <?php if ($role === 'admin' || $role === 'superadmin'):
+            $_dh_total = $_pending_leaves + $_pending_assignments; ?>
+        <!-- Notification bell (admin) -->
+        <div class="dropdown">
+            <button class="btn btn-light btn-sm position-relative rounded-circle"
+                    style="width:38px;height:38px;border:1.5px solid #e5e9f0;"
+                    data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
+                <i class="fas fa-bell" style="color:var(--uis-primary);"></i>
+                <?php if ($_dh_total > 0): ?>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      style="font-size:.58rem;"><?php echo $_dh_total; ?></span>
+                <?php endif; ?>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:260px;border:1px solid #e8edf5;border-radius:var(--radius-md);">
+                <li>
+                    <h6 class="dropdown-header"
+                        style="font-size:.74rem;font-weight:700;color:var(--uis-primary);text-transform:uppercase;letter-spacing:.06em;">
+                        Notifications
+                    </h6>
+                </li>
+                <?php if ($_pending_assignments > 0): ?>
+                <li>
+                    <a class="dropdown-item py-2" href="<?php echo SITE_URL; ?>/admin/schedules.php">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="width:28px;height:28px;">
+                                <i class="fas fa-calendar-xmark" style="color:#fff;font-size:.65rem;"></i>
+                            </div>
+                            <div style="font-size:.81rem;">
+                                <div class="fw-semibold"><?php echo $_pending_assignments; ?> unassigned schedule<?php echo $_pending_assignments > 1 ? 's' : ''; ?></div>
+                                <div class="text-muted" style="font-size:.72rem;">Drivers not yet assigned</div>
+                            </div>
+                        </div>
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if ($_pending_leaves > 0): ?>
+                <li>
+                    <a class="dropdown-item py-2" href="<?php echo SITE_URL; ?>/admin/leave_requests.php">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                 style="width:28px;height:28px;background:#f59e0b;">
+                                <i class="fas fa-calendar-minus" style="color:#fff;font-size:.65rem;"></i>
+                            </div>
+                            <div style="font-size:.81rem;">
+                                <div class="fw-semibold"><?php echo $_pending_leaves; ?> pending leave<?php echo $_pending_leaves > 1 ? 's' : ''; ?></div>
+                                <div class="text-muted" style="font-size:.72rem;">Awaiting review</div>
+                            </div>
+                        </div>
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if ($_dh_total === 0): ?>
+                <li>
+                    <span class="dropdown-item-text text-center py-3" style="font-size:.82rem;color:#9ca3af;">
+                        <i class="fas fa-check-circle text-success me-1"></i>All clear
+                    </span>
+                </li>
+                <?php endif; ?>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li>
+                    <a class="dropdown-item text-center py-2"
+                       href="<?php echo SITE_URL; ?>/admin/schedules.php"
+                       style="font-size:.79rem;color:var(--uis-primary);font-weight:600;">
+                        View All Schedules
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <?php endif; ?>
+
+        <!-- User dropdown -->
+        <div class="dropdown">
+            <button class="btn btn-light btn-sm d-flex align-items-center gap-2"
+                    style="border:1.5px solid #e5e9f0;border-radius:var(--radius-md);padding:5px 10px;"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                     style="width:26px;height:26px;background:linear-gradient(135deg,var(--uis-primary),var(--uis-secondary));color:#fff;font-size:.65rem;font-weight:700;">
+                    <?php echo htmlspecialchars($initials); ?>
+                </div>
+                <span class="d-none d-sm-inline" style="font-size:.82rem;font-weight:600;color:#1a2035;">
+                    <?php echo htmlspecialchars($full_name); ?>
+                </span>
+                <i class="fas fa-chevron-down" style="font-size:.6rem;color:#9ca3af;"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm"
+                style="border:1px solid #e8edf5;border-radius:var(--radius-md);">
+                <li>
+                    <span class="dropdown-item-text" style="font-size:.78rem;color:#6b7280;">
+                        Signed in as <strong style="color:#1a2035;"><?php echo htmlspecialchars($full_name); ?></strong>
+                        <span class="badge bg-secondary ms-1" style="font-size:.65rem;"><?php echo $role_label; ?></span>
+                    </span>
+                </li>
+                <li><hr class="dropdown-divider my-1"></li>
+                <li>
+                    <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
+                       onclick="return confirm('Are you sure you want to log out?');"
+                       style="font-size:.84rem;color:#dc2626;">
+                        <i class="fas fa-right-from-bracket me-2"></i>Log Out
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+    </div>
+</header>
+
+<!-- ================================================================
      SIDEBAR JAVASCRIPT
      ================================================================ -->
 <script>
@@ -440,5 +585,29 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 }
             });
         });
+
+    /* ── Desktop sidebar mini-toggle ── */
+    window.toggleSidebarMini = function () {
+        document.body.classList.toggle('sidebar-mini');
+    };
+
+    /* ── Desktop header live clock ── */
+    (function () {
+        var el = document.getElementById('dhClock');
+        if (!el) return;
+        function tick() {
+            var now  = new Date();
+            var h    = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+            var ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12; if (!h) h = 12;
+            el.textContent =
+                (h < 10 ? '0' : '') + h + ':' +
+                (m < 10 ? '0' : '') + m + ':' +
+                (s < 10 ? '0' : '') + s + ' ' + ampm;
+        }
+        tick();
+        setInterval(tick, 1000);
+    })();
+
 })();
 </script>

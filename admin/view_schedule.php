@@ -52,42 +52,17 @@ require_once '../includes/sidebar.php';
 
 <main class="main-content">
 
-    <!-- ── Desktop Top Navbar ─────────────────────────────────── -->
-    <div class="d-none d-lg-flex align-items-center justify-content-between mb-4 pb-3"
-         style="border-bottom: 2px solid #e5e9f0;">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1" style="font-size:0.78rem;">
-                    <li class="breadcrumb-item">
-                        <a href="<?php echo SITE_URL; ?>/admin/dashboard.php"
-                           class="text-decoration-none" style="color:var(--uis-primary);">
-                            <i class="fas fa-home me-1"></i>Home
-                        </a>
-                    </li>
-                    <li class="breadcrumb-item">
-                        <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
-                           class="text-decoration-none" style="color:var(--uis-primary);">Schedules</a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page">
-                        #<?php echo $schedule_id; ?>
-                    </li>
-                </ol>
-            </nav>
-            <h1 class="page-title mb-0" style="font-size:1.6rem;">
-                <i class="fas fa-calendar-days me-2" style="color:var(--uis-primary);"></i>
-                Schedule Details
-            </h1>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="<?php echo SITE_URL; ?>/admin/edit_schedule.php?id=<?php echo $schedule_id; ?>"
-               class="btn btn-uis-primary btn-sm">
-                <i class="fas fa-pen me-1"></i>Edit Schedule
-            </a>
-            <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
-               class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>Back
-            </a>
-        </div>
+    <!-- Desktop Top Navbar moved to sidebar.php -->
+    <!-- Action buttons -->
+    <div class="d-flex gap-2 mb-3">
+        <a href="<?php echo SITE_URL; ?>/admin/edit_schedule.php?id=<?php echo $schedule_id; ?>"
+           class="btn btn-uis-primary btn-sm">
+            <i class="fas fa-pen me-1"></i>Edit Schedule
+        </a>
+        <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Back
+        </a>
     </div>
 
     <?php showFlash(); ?>

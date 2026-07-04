@@ -192,9 +192,8 @@ require_once '../includes/sidebar.php';
      ============================================================ -->
 <main class="main-content">
 
-    <!-- ── Desktop Top Navbar ─────────────────────────────────── -->
-    <div class="d-none d-lg-flex align-items-center justify-content-between mb-4 pb-3"
-         style="border-bottom: 2px solid #e5e9f0;">
+    <!-- ── Desktop Top Navbar moved to sidebar.php ── -->
+    <div class="d-none">
 
         <!-- Left: breadcrumb + title -->
         <div>

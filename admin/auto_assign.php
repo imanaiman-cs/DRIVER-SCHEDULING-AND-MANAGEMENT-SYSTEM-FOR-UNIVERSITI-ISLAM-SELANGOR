@@ -218,30 +218,7 @@ require_once '../includes/sidebar.php';
 
 <main class="main-content">
 
-    <!-- ── Desktop Top Navbar ─────────────────────────────────── -->
-    <div class="d-none d-lg-flex align-items-center justify-content-between mb-4 pb-3"
-         style="border-bottom: 2px solid #e5e9f0;">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1" style="font-size:0.78rem;">
-                    <li class="breadcrumb-item">
-                        <a href="<?php echo SITE_URL; ?>/admin/dashboard.php"
-                           class="text-decoration-none" style="color:var(--uis-primary);">
-                            <i class="fas fa-home me-1"></i>Home
-                        </a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page">Auto Assign Drivers</li>
-                </ol>
-            </nav>
-            <h1 class="page-title mb-0" style="font-size:1.6rem;">
-                <i class="fas fa-wand-magic-sparkles me-2" style="color:var(--uis-primary);"></i>Auto Assign Drivers
-            </h1>
-            <p class="page-subtitle mb-0">Smart driver assignment using priority scoring and workload balancing.</p>
-        </div>
-        <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-arrow-left me-1"></i>Back to Schedules
-        </a>
-    </div>
+    <!-- Desktop Top Navbar moved to sidebar.php -->
 
     <?php showFlash(); ?>
 

@@ -86,32 +86,7 @@ require_once '../includes/sidebar.php';
 
 <main class="main-content">
 
-    <!-- ── Desktop Top Navbar ─────────────────────────────────── -->
-    <div class="d-none d-lg-flex align-items-center justify-content-between mb-4 pb-3"
-         style="border-bottom:2px solid #e5e9f0;">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1" style="font-size:0.78rem;">
-                    <li class="breadcrumb-item">
-                        <a href="<?php echo SITE_URL; ?>/driver/dashboard.php"
-                           class="text-decoration-none" style="color:var(--uis-primary);">
-                            <i class="fas fa-home me-1"></i>Home
-                        </a>
-                    </li>
-                    <li class="breadcrumb-item active">Messages</li>
-                </ol>
-            </nav>
-            <h1 class="page-title mb-0" style="font-size:1.6rem;">
-                <i class="fas fa-comments me-2" style="color:var(--uis-primary);"></i>Messages
-                <?php if ($unread_total > 0): ?>
-                <span class="badge ms-2" style="background:#dc2626;font-size:0.7rem;vertical-align:middle;">
-                    <?php echo $unread_total; ?> unread
-                </span>
-                <?php endif; ?>
-            </h1>
-            <p class="page-subtitle mb-0">Communicate with the administration team.</p>
-        </div>
-    </div>
+    <!-- Desktop Top Navbar moved to sidebar.php -->
 
     <?php showFlash(); ?>
 

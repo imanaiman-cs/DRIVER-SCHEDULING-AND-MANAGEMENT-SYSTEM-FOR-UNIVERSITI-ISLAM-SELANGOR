@@ -80,7 +80,7 @@ body {
 }
 
 @media (min-width: 992px) {
-  body { padding-left: var(--sidebar-width); transition: padding-left .3s ease; }
+  body { padding-left: var(--sidebar-width); padding-top: var(--header-height); transition: padding-left .3s ease; }
   body.sidebar-mini  { padding-left: 72px; }
   body.sidebar-hidden{ padding-left: 0; }
 }
