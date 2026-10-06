@@ -11,6 +11,7 @@ if (!isStaff() && !isAdmin()) {
 $trip_date  = trim($_GET['trip_date']  ?? '');
 $start_time = trim($_GET['start_time'] ?? '');
 $end_time   = trim($_GET['end_time']   ?? '');
+$passengers = max(1, (int)($_GET['passengers'] ?? 1));
 
 // Validate presence and format
 if ($trip_date === '' || $start_time === '' || $end_time === '') {
@@ -33,11 +34,13 @@ if ($end_time <= $start_time) {
     exit();
 }
 
-// Vehicles that are available and NOT booked on an overlapping schedule.
+// Vehicles that are available, big enough for the passenger count,
+// and NOT booked on an overlapping schedule.
 // Overlap test: existing.start_time < new_end AND existing.end_time > new_start
 $sql = "SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity
         FROM vehicles
         WHERE status = 'available'
+          AND capacity >= ?
           AND vehicle_id NOT IN (
                 SELECT vehicle_id FROM schedules
                 WHERE trip_date = ?
@@ -48,7 +51,7 @@ $sql = "SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity
         ORDER BY vehicle_type ASC, plate_number ASC";
 
 $stmt = $conn->prepare($sql);
-$stmt->bind_param('sss', $trip_date, $end_time, $start_time);
+$stmt->bind_param('isss', $passengers, $trip_date, $end_time, $start_time);
 $stmt->execute();
 $result = $stmt->get_result();
 

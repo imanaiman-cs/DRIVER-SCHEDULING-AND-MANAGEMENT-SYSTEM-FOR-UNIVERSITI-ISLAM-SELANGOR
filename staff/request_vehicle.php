@@ -72,12 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Passenger count must be at least 1.';
     }
 
-    // If a specific vehicle was chosen, re-verify it is actually free for that slot
+    // If a specific vehicle was chosen, re-verify it is actually free for
+    // that slot AND has enough seats for the passenger count
     if (empty($errors) && $vehicle_id !== null) {
         $stmt = $conn->prepare(
-            "SELECT vehicle_id FROM vehicles
+            "SELECT vehicle_id, capacity FROM vehicles
              WHERE vehicle_id = ?
                AND status = 'available'
+               AND capacity >= ?
                AND vehicle_id NOT IN (
                      SELECT vehicle_id FROM schedules
                      WHERE trip_date = ?
@@ -86,13 +88,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        AND (start_time < ? AND end_time > ?)
                )"
         );
-        $stmt->bind_param('isss', $vehicle_id, $trip_date, $end_time, $start_time);
+        $stmt->bind_param('iisss', $vehicle_id, $passenger_count, $trip_date, $end_time, $start_time);
         $stmt->execute();
         $free = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         if ($free === null) {
-            $errors[] = 'The selected vehicle is no longer available for that date and time. Please choose another vehicle.';
+            $errors[] = 'The selected vehicle is no longer available for that date/time or cannot fit your passenger count. Please choose another vehicle.';
             $form['vehicle_id'] = '';
         }
     }
@@ -416,7 +418,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         resetVehicleSelect('Loading available vehicles...');
         vehicleHint.textContent = '';
 
-        var params = new URLSearchParams({ trip_date: d, start_time: s, end_time: e });
+        var pax = parseInt(document.getElementById('passenger_count').value, 10) || 1;
+        var params = new URLSearchParams({ trip_date: d, start_time: s, end_time: e, passengers: pax });
 
         fetch(AJAX_URL + '?' + params.toString())
             .then(function (res) { return res.json(); })
@@ -438,10 +441,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         vehicleSel.appendChild(opt);
                     });
                     vehicleHint.textContent = data.vehicles.length + ' vehicle' +
-                        (data.vehicles.length !== 1 ? 's' : '') + ' free for this slot.';
+                        (data.vehicles.length !== 1 ? 's' : '') + ' free with enough seats for this slot.';
                     vehicleHint.className = 'form-text mt-1 text-success fw-semibold';
                 } else if (data.success) {
-                    vehicleHint.textContent = 'No specific vehicle is free for this slot. You may still submit with "Any available vehicle".';
+                    vehicleHint.textContent = 'No vehicle with enough seats is free for this slot. Reduce passengers, change the time, or submit with "Any available vehicle".';
                     vehicleHint.className = 'form-text mt-1 text-warning fw-semibold';
                 } else {
                     vehicleHint.textContent = data.message || 'Could not load vehicles.';
@@ -469,6 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     dateInput.addEventListener('change',  loadVehicles);
     startInput.addEventListener('change', loadVehicles);
     endInput.addEventListener('change',   loadVehicles);
+    document.getElementById('passenger_count').addEventListener('change', loadVehicles);
     purposeEl.addEventListener('input',   updateCharCount);
 
     updateCharCount();
