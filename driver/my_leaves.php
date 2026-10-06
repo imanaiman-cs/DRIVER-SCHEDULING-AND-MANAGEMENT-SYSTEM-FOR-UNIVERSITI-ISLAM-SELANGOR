@@ -55,7 +55,7 @@ foreach ($leaves as $l) {
     <?php showFlash(); ?>
 
     <!-- Page Header -->
-    <div style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%); border-radius: 14px; color: #fff; padding: 1.4rem 2rem; margin-bottom: 1.5rem;">
+    <div style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%); border-radius: 14px; color: #fff; padding: 1.4rem 2rem; margin-bottom: 1.5rem;">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <h4 class="fw-bold mb-1">
@@ -223,7 +223,7 @@ foreach ($leaves as $l) {
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content" style="border-radius:14px;overflow:hidden;">
             <div class="modal-header text-white border-0"
-                 style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%);">
+                 style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);">
                 <h5 class="modal-title fw-bold" id="detailsModalLabel">
                     <i class="fas fa-calendar-check me-2"></i>Leave Request Details
                 </h5>

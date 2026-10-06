@@ -113,9 +113,9 @@ require_once '../includes/sidebar.php';
                 ?>
                 <a href="<?php echo SITE_URL; ?>/driver/messages.php?to=<?php echo $aid; ?>"
                    class="d-flex align-items-center gap-3 px-3 py-3 text-decoration-none"
-                   style="border-bottom:1px solid #f0f4f8;background:<?php echo $is_active ? 'linear-gradient(135deg,#eff6ff,#e0f2fe)' : '#fff'; ?>;">
+                   style="border-bottom:1px solid #f0f4f8;background:<?php echo $is_active ? 'linear-gradient(135deg,#eef5f1,#e2f0e9)' : '#fff'; ?>;">
                     <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 position-relative"
-                         style="width:42px;height:42px;background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff;font-size:0.8rem;font-weight:700;">
+                         style="width:42px;height:42px;background:linear-gradient(135deg,#0b5d3b,#0b5d3b);color:#fff;font-size:0.8rem;font-weight:700;">
                         <?php echo htmlspecialchars($ini ?: 'A'); ?>
                         <?php if ($ucount > 0): ?>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill"
@@ -156,7 +156,7 @@ require_once '../includes/sidebar.php';
                         foreach (array_slice($parts, 0, 2) as $p) { $ini .= strtoupper($p[0]); }
                     ?>
                     <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                         style="width:40px;height:40px;background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff;font-size:0.78rem;font-weight:700;">
+                         style="width:40px;height:40px;background:linear-gradient(135deg,#0b5d3b,#0b5d3b);color:#fff;font-size:0.78rem;font-weight:700;">
                         <?php echo htmlspecialchars($ini ?: 'A'); ?>
                     </div>
                     <div>
@@ -183,7 +183,7 @@ require_once '../includes/sidebar.php';
                     <div class="d-flex <?php echo $is_mine ? 'justify-content-end' : 'justify-content-start'; ?>">
                         <?php if (!$is_mine): ?>
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 me-2"
-                             style="width:30px;height:30px;background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff;font-size:0.65rem;font-weight:700;align-self:flex-end;">
+                             style="width:30px;height:30px;background:linear-gradient(135deg,#0b5d3b,#0b5d3b);color:#fff;font-size:0.65rem;font-weight:700;align-self:flex-end;">
                             <?php echo htmlspecialchars($ini ?: 'A'); ?>
                         </div>
                         <?php endif; ?>

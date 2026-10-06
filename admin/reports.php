@@ -168,12 +168,12 @@ foreach ($monthly_raw as $row) {
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px;
             color: #fff;
             padding: 1.6rem 2rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
@@ -181,12 +181,12 @@ foreach ($monthly_raw as $row) {
         .stat-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             transition: transform .2s, box-shadow .2s;
         }
         .stat-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0,53,128,.16);
+            box-shadow: 0 6px 20px rgba(11,93,59,.16);
         }
         .stat-icon {
             width: 52px; height: 52px;
@@ -200,13 +200,13 @@ foreach ($monthly_raw as $row) {
         .report-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             transition: transform .2s, box-shadow .2s;
             overflow: hidden;
         }
         .report-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,53,128,.16);
+            box-shadow: 0 6px 20px rgba(11,93,59,.16);
         }
         .report-card .card-header {
             background: #f8f9fb;
@@ -229,7 +229,7 @@ foreach ($monthly_raw as $row) {
         .filter-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             margin-bottom: 1.5rem;
         }
         @media print {
@@ -483,7 +483,7 @@ foreach ($monthly_raw as $row) {
             datasets: [{
                 label: 'Performance Score',
                 data: driverScores,
-                backgroundColor: 'rgba(0,53,128,0.75)',
+                backgroundColor: 'rgba(11,93,59,0.75)',
                 borderRadius: 5,
                 borderSkipped: false,
             }]
@@ -523,7 +523,7 @@ foreach ($monthly_raw as $row) {
 
     // 3. Vehicle Usage – doughnut
     const doughnutColors = [
-        '#003580','#0056b3','#3b82f6','#60a5fa','#93c5fd','#bfdbfe'
+        '#07422a','#0f6b44','#2f9d6a','#67c492','#a7e0c2','#e0f3e9'
     ];
     new Chart(document.getElementById('chartVehicle'), {
         type: 'doughnut',

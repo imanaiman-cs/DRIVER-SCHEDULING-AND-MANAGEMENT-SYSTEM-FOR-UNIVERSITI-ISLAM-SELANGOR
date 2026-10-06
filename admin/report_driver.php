@@ -79,23 +79,23 @@ foreach ($rows as $r) {
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px; color: #fff;
             padding: 1.6rem 2rem; margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
 
-        .filter-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .chart-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .table-card   { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
+        .filter-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .chart-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .table-card   { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
         .table thead th {
             background: #f8f9fb; font-size: .78rem;
             text-transform: uppercase; letter-spacing: .06em;
             color: #4b5563; border-bottom: 2px solid #e5e7eb; white-space: nowrap;
         }
-        .table tbody tr:hover { background: #f0f5ff; }
+        .table tbody tr:hover { background: #f0f6f2; }
 
         .badge-rank { width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem; }
         .rank-gold   { background:#ffd700;color:#7a5800; }

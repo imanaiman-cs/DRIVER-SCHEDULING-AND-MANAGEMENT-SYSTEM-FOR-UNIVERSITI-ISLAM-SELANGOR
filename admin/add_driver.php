@@ -180,12 +180,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px;
             color: #fff;
             padding: 1.4rem 2rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.45rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .25rem 0 0; opacity: .8; font-size: .86rem; }
@@ -193,14 +193,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .form-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
         }
         .section-title {
             font-size: .78rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: .08em;
-            color: #003580;
+            color: #0b5d3b;
             border-bottom: 2px solid #e8f0fe;
             padding-bottom: .5rem;
             margin-bottom: 1.2rem;
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: border-color .2s, box-shadow .2s;
         }
         .form-control:focus, .form-select:focus {
-            border-color: #0056b3;
+            border-color: #15804f;
             box-shadow: 0 0 0 3px rgba(0,86,179,.12);
         }
         .form-control.is-invalid, .form-select.is-invalid {
@@ -240,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .priority-preview {
             border-radius: 12px;
             border: 2px dashed #c7d8f5;
-            background: #f0f5ff;
+            background: #f0f6f2;
             padding: 1.2rem 1.5rem;
             position: sticky;
             top: 1.5rem;
@@ -267,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center;
             font-size: .82rem;
             padding: .25rem 0;
-            border-bottom: 1px solid rgba(0,53,128,.06);
+            border-bottom: 1px solid rgba(11,93,59,.06);
         }
         .component-row:last-child { border-bottom: none; }
         .component-label { color: #6b7280; }
@@ -594,7 +594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-lg-4">
                 <div class="priority-preview">
                     <div class="mb-3 d-flex align-items-center gap-2">
-                        <div style="width:36px;height:36px;border-radius:10px;background:#003580;
+                        <div style="width:36px;height:36px;border-radius:10px;background:#0b5d3b;
                                     display:flex;align-items:center;justify-content:center;color:#fff;">
                             <i class="fas fa-bolt" aria-hidden="true"></i>
                         </div>
@@ -634,7 +634,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <div class="p-2 rounded-2" style="background:rgba(0,53,128,.06);font-size:.72rem;color:#6b7280;line-height:1.6;">
+                    <div class="p-2 rounded-2" style="background:rgba(11,93,59,.06);font-size:.72rem;color:#6b7280;line-height:1.6;">
                         <strong>Formula:</strong><br>
                         (Exp/20 &times; 10 &times; 0.30)<br>
                         + (Att/100 &times; 10 &times; 0.20)<br>

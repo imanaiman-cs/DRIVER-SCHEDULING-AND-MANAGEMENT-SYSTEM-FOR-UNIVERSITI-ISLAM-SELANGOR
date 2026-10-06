@@ -152,12 +152,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         .stat-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             transition: transform .2s, box-shadow .2s;
         }
         .stat-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0,53,128,.16);
+            box-shadow: 0 6px 20px rgba(11,93,59,.16);
         }
         .stat-card .stat-icon {
             width: 52px; height: 52px;
@@ -172,7 +172,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             border: none;
             border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
         }
         .table thead th {
             background: #f8f9fb;
@@ -183,7 +183,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             border-bottom: 2px solid #e5e7eb;
             white-space: nowrap;
         }
-        .table tbody tr:hover { background: #f0f5ff; }
+        .table tbody tr:hover { background: #f0f6f2; }
 
         .btn-action {
             padding: .28rem .6rem;
@@ -191,12 +191,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             border-radius: 7px;
         }
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px;
             color: #fff;
             padding: 1.6rem 2rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
@@ -204,7 +204,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
         .filter-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.07);
+            box-shadow: 0 2px 12px rgba(11,93,59,.07);
             margin-bottom: 1.25rem;
         }
 
@@ -444,7 +444,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 </td>
                                 <td>
                                     <?php if (($s['trip_type'] ?? 'regular') === 'top_management'): ?>
-                                    <span class="badge" style="background:#7c3aed;font-size:.72rem;">
+                                    <span class="badge" style="background:#9a7209;font-size:.72rem;">
                                         <i class="fas fa-crown fa-xs me-1"></i>VIP
                                     </span>
                                     <?php else: ?>
@@ -509,7 +509,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 <div class="modal fade" id="viewScheduleModal" tabindex="-1" aria-labelledby="viewScheduleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-3">
-            <div class="modal-header text-white" style="background: linear-gradient(135deg,#003580 0%,#0056b3 100%);">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
                 <h5 class="modal-title fw-bold" id="viewScheduleModalLabel">
                     <i class="fas fa-calendar-check me-2" aria-hidden="true"></i>
                     <span id="modalScheduleTitle">Schedule Details</span>

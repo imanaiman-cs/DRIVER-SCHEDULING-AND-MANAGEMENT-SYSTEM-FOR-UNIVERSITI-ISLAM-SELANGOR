@@ -51,7 +51,7 @@ unset($r);
 // ── Chart data ───────────────────────────────────────────────
 $chart_labels = array_column($rows, 'plate_number');
 $chart_counts = array_map('intval', array_column($rows, 'total_trips'));
-$doughnut_colors = ['#003580','#0056b3','#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe'];
+$doughnut_colors = ['#07422a','#0f6b44','#2f9d6a','#67c492','#a7e0c2','#e0f3e9','#f2faf6'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -77,10 +77,10 @@ $doughnut_colors = ['#003580','#0056b3','#3b82f6','#60a5fa','#93c5fd','#bfdbfe',
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .85; font-size: .88rem; }
 
-        .filter-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .chart-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .table-card  { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
-        .stat-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
+        .filter-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .chart-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .table-card  { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
+        .stat-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
 
         .table thead th {
             background: #f8f9fb; font-size: .78rem;

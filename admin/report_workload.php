@@ -113,10 +113,10 @@ foreach ($rows as $r) {
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; color:#1a2035; }
         .page-header p  { margin: .3rem 0 0; font-size: .88rem; color:#3d3000; }
 
-        .filter-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .chart-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .table-card   { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
-        .stat-card    { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
+        .filter-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .chart-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .table-card   { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
+        .stat-card    { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
 
         .table thead th {
             background: #f8f9fb; font-size: .78rem;
@@ -345,7 +345,7 @@ foreach ($rows as $r) {
                     label: 'Average',
                     data: Array(labels.length).fill(avg),
                     type: 'line',
-                    borderColor: '#003580',
+                    borderColor: '#0b5d3b',
                     borderDash: [6, 4],
                     borderWidth: 2,
                     pointRadius: 0,

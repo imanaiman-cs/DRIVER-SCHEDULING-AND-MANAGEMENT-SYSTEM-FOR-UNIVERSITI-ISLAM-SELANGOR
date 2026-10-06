@@ -134,7 +134,7 @@ require_once '../includes/sidebar.php';
                     <a href="<?php echo SITE_URL; ?>/admin/messages.php?to=<?php echo $drv['user_id']; ?>"
                        class="driver-contact-item d-flex align-items-center gap-3 px-3 py-3 text-decoration-none"
                        data-name="<?php echo htmlspecialchars(strtolower($drv['full_name'])); ?>"
-                       style="border-bottom:1px solid #f0f4f8;background:<?php echo $is_active ? 'linear-gradient(135deg,#eff6ff,#e0f2fe)' : '#fff'; ?>;transition:background 0.15s;">
+                       style="border-bottom:1px solid #f0f4f8;background:<?php echo $is_active ? 'linear-gradient(135deg,#eef5f1,#e2f0e9)' : '#fff'; ?>;transition:background 0.15s;">
                         <!-- Avatar -->
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 position-relative"
                              style="width:42px;height:42px;background:linear-gradient(135deg,var(--uis-primary),var(--uis-secondary));color:#fff;font-size:0.8rem;font-weight:700;">
@@ -216,7 +216,7 @@ require_once '../includes/sidebar.php';
                         </div>
                         <?php endif; ?>
                         <div style="max-width:70%;">
-                            <div style="background:<?php echo $is_mine ? 'linear-gradient(135deg,var(--uis-primary),#1d4ed8)' : '#fff' ?>;
+                            <div style="background:<?php echo $is_mine ? 'linear-gradient(135deg,var(--uis-primary),#0b5d3b)' : '#fff' ?>;
                                         color:<?php echo $is_mine ? '#fff' : '#1a2035'; ?>;
                                         padding:10px 14px;
                                         border-radius:<?php echo $is_mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px'; ?>;
@@ -248,7 +248,7 @@ require_once '../includes/sidebar.php';
                                       style="border-radius:var(--radius-md);border:1.5px solid #e5e9f0;font-size:0.84rem;resize:none;"
                                       onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit();}"></textarea>
                             <button type="submit" class="btn flex-shrink-0"
-                                    style="background:linear-gradient(135deg,var(--uis-primary),#1d4ed8);color:#fff;border:none;padding:10px 18px;border-radius:var(--radius-md);">
+                                    style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);color:#fff;border:none;padding:10px 18px;border-radius:var(--radius-md);">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
@@ -264,7 +264,7 @@ require_once '../includes/sidebar.php';
                      style="background:#f8fafc;">
                     <div class="text-center py-5" style="color:#9ca3af;">
                         <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                             style="width:72px;height:72px;background:linear-gradient(135deg,#e0f2fe,#bfdbfe);">
+                             style="width:72px;height:72px;background:linear-gradient(135deg,#e2f0e9,#cde7da);">
                             <i class="fas fa-comments fa-2x" style="color:var(--uis-primary);"></i>
                         </div>
                         <div style="font-size:0.9rem;font-weight:600;color:#374151;margin-bottom:4px;">

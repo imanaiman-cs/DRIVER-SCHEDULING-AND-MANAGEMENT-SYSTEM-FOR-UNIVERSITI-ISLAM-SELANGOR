@@ -482,7 +482,7 @@ require_once '../includes/sidebar.php';
                     <!-- Legend -->
                     <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
                         <?php
-                        $legend_colors = ['#ffc107','#003580','#0dcaf0','#198754','#6c757d'];
+                        $legend_colors = ['#ffc107','#0b5d3b','#0dcaf0','#198754','#6c757d'];
                         foreach ($status_labels as $li => $label):
                         ?>
                         <div class="d-flex align-items-center gap-1" style="font-size:0.75rem;">
@@ -563,15 +563,15 @@ require_once '../includes/sidebar.php';
                         <!-- In Use -->
                         <div class="col-6">
                             <div class="rounded-3 p-3 h-100"
-                                 style="background:#eff6ff;border:1.5px solid #bfdbfe;">
+                                 style="background:#ecfeff;border:1.5px solid #a5f3fc;">
                                 <div class="d-flex align-items-center gap-2 mb-2">
                                     <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                         style="width:34px;height:34px;background:#003580;">
+                                         style="width:34px;height:34px;background:#0b5d3b;">
                                         <i class="fas fa-road" style="color:#fff;font-size:0.75rem;"></i>
                                     </div>
-                                    <span style="font-size:0.78rem;font-weight:600;color:#1e40af;">In Use</span>
+                                    <span style="font-size:0.78rem;font-weight:600;color:#155e75;">In Use</span>
                                 </div>
-                                <div style="font-size:2rem;font-weight:700;color:#003580;line-height:1;">
+                                <div style="font-size:2rem;font-weight:700;color:#0b5d3b;line-height:1;">
                                     <?php echo $vehicle_counts['in_use']; ?>
                                 </div>
                                 <div style="font-size:0.72rem;color:#6b7280;margin-top:4px;">on active trips</div>
@@ -628,12 +628,12 @@ require_once '../includes/sidebar.php';
                             <?php $use_pct   = round(($vehicle_counts['in_use']    / $total_vehicles) * 100, 1); ?>
                             <?php $maint_pct = round(($vehicle_counts['maintenance']/ $total_vehicles) * 100, 1); ?>
                             <div class="progress-bar" style="width:<?php echo $avail_pct; ?>%;background:#059669;" title="Available"></div>
-                            <div class="progress-bar" style="width:<?php echo $use_pct; ?>%;background:#003580;" title="In Use"></div>
+                            <div class="progress-bar" style="width:<?php echo $use_pct; ?>%;background:#0b5d3b;" title="In Use"></div>
                             <div class="progress-bar" style="width:<?php echo $maint_pct; ?>%;background:#d97706;" title="Maintenance"></div>
                         </div>
                         <div class="d-flex gap-3 mt-1" style="font-size:0.7rem;color:#9ca3af;">
                             <span><span style="color:#059669;">&#9632;</span> Available</span>
-                            <span><span style="color:#003580;">&#9632;</span> In Use</span>
+                            <span><span style="color:#0b5d3b;">&#9632;</span> In Use</span>
                             <span><span style="color:#d97706;">&#9632;</span> Maintenance</span>
                         </div>
                     </div>
@@ -656,8 +656,8 @@ require_once '../includes/sidebar.php';
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#003580,#0056b3);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,53,128,0.35)';"
+                           style="background:linear-gradient(135deg,#0b5d3b,#15804f);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(11,93,59,0.35)';"
                            onmouseout="this.style.transform='';this.style.boxShadow='';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                  style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
@@ -704,8 +704,8 @@ require_once '../includes/sidebar.php';
 
                         <a href="<?php echo SITE_URL; ?>/admin/report_monthly.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(124,58,237,0.35)';"
+                           style="background:linear-gradient(135deg,#9a7209,#5b21b6);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(154,114,9,0.35)';"
                            onmouseout="this.style.transform='';this.style.boxShadow='';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                                  style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
@@ -771,7 +771,7 @@ $extra_js = <<<HTML
                 labels: labels,
                 datasets: [{
                     data:            values,
-                    backgroundColor: ['#ffc107','#003580','#0dcaf0','#198754','#6c757d'],
+                    backgroundColor: ['#ffc107','#0b5d3b','#0dcaf0','#198754','#6c757d'],
                     borderColor:     '#ffffff',
                     borderWidth:     3,
                     hoverOffset:     8
@@ -808,9 +808,9 @@ $extra_js = <<<HTML
         /* Gradient fill */
         var ctx  = el.getContext('2d');
         var grad = ctx.createLinearGradient(0, 0, 0, 260);
-        grad.addColorStop(0,   'rgba(0, 53, 128, 0.30)');
-        grad.addColorStop(0.6, 'rgba(0, 53, 128, 0.06)');
-        grad.addColorStop(1,   'rgba(0, 53, 128, 0.00)');
+        grad.addColorStop(0,   'rgba(11, 93, 59, 0.30)');
+        grad.addColorStop(0.6, 'rgba(11, 93, 59, 0.06)');
+        grad.addColorStop(1,   'rgba(11, 93, 59, 0.00)');
 
         new Chart(el, {
             type: 'line',
@@ -819,12 +819,12 @@ $extra_js = <<<HTML
                 datasets: [{
                     label:           'Schedules',
                     data:            values,
-                    borderColor:     '#003580',
+                    borderColor:     '#0b5d3b',
                     borderWidth:     2.5,
                     backgroundColor: grad,
                     fill:            true,
                     tension:         0.4,
-                    pointBackgroundColor: '#003580',
+                    pointBackgroundColor: '#0b5d3b',
                     pointBorderColor:     '#ffffff',
                     pointBorderWidth:     2,
                     pointRadius:          5,

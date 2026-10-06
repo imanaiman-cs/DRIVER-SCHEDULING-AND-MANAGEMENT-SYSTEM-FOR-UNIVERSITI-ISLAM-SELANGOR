@@ -148,7 +148,7 @@ require_once '../includes/sidebar.php';
                             </div>
                             <div style="font-size:0.9rem;color:#374151;">
                                 <?php if (($schedule['trip_type'] ?? 'regular') === 'top_management'): ?>
-                                <span class="badge" style="background:#7c3aed;">
+                                <span class="badge" style="background:#9a7209;">
                                     <i class="fas fa-crown me-1"></i>Top Management
                                 </span>
                                 <?php else: ?>

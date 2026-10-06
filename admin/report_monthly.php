@@ -108,10 +108,10 @@ $grand_rate      = $grand_total > 0 ? round($grand_completed / $grand_total * 10
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .85; font-size: .88rem; }
 
-        .filter-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .chart-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); margin-bottom: 1.5rem; }
-        .table-card  { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
-        .stat-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10); }
+        .filter-card { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .chart-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
+        .table-card  { border: none; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
+        .stat-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); }
 
         .table thead th {
             background: #f8f9fb; font-size: .78rem;
@@ -347,8 +347,8 @@ $grand_rate      = $grand_total > 0 ? round($grand_completed / $grand_total * 10
                     label: '<?php echo $prev_year; ?> (non-cancelled)',
                     data: prevYear,
                     type: 'line',
-                    borderColor: '#003580',
-                    backgroundColor: 'rgba(0,53,128,0.08)',
+                    borderColor: '#0b5d3b',
+                    backgroundColor: 'rgba(11,93,59,0.08)',
                     tension: 0.4,
                     borderWidth: 2,
                     pointRadius: 4,

@@ -104,14 +104,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            CSS CUSTOM PROPERTIES
         ============================================================ */
         :root {
-            --uis-primary:    #003580;
-            --uis-secondary:  #0056b3;
-            --uis-accent:     #ffd700;
-            --uis-dark:       #001f4d;
+            --uis-primary:    #0b5d3b;
+            --uis-secondary:  #15804f;
+            --uis-accent:     #c69214;
+            --uis-dark:       #07301f;
             --uis-light:      #e8f0fe;
-            --shadow-sm:      0 2px 8px rgba(0,53,128,.12);
-            --shadow-md:      0 8px 32px rgba(0,53,128,.18);
-            --shadow-lg:      0 20px 60px rgba(0,53,128,.25);
+            --shadow-sm:      0 2px 8px rgba(11,93,59,.12);
+            --shadow-md:      0 8px 32px rgba(11,93,59,.18);
+            --shadow-lg:      0 20px 60px rgba(11,93,59,.25);
             --radius-lg:      16px;
             --radius-xl:      24px;
             --transition:     all .3s cubic-bezier(.4,0,.2,1);
@@ -448,7 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,53,128,.35);
+            box-shadow: 0 8px 24px rgba(11,93,59,.35);
         }
 
         .btn-login:hover::after { background: rgba(255,255,255,.07); }

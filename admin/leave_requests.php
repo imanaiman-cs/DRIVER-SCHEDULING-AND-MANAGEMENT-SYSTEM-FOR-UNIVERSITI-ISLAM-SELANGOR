@@ -71,12 +71,12 @@ $display_requests = array_values($display_requests);
     <style>
         /* ── Page header ── */
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px;
             color: #fff;
             padding: 1.6rem 2rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
@@ -85,12 +85,12 @@ $display_requests = array_values($display_requests);
         .stat-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             transition: transform .2s, box-shadow .2s;
         }
         .stat-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0,53,128,.16);
+            box-shadow: 0 6px 20px rgba(11,93,59,.16);
         }
         .stat-icon {
             width: 52px; height: 52px;
@@ -115,7 +115,7 @@ $display_requests = array_values($display_requests);
             border: none;
             border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
         }
         .table thead th {
             background: #f8f9fb;
@@ -126,7 +126,7 @@ $display_requests = array_values($display_requests);
             border-bottom: 2px solid #e5e7eb;
             white-space: nowrap;
         }
-        .table tbody tr:hover { background: #f0f5ff; }
+        .table tbody tr:hover { background: #f0f6f2; }
 
         /* ── Action buttons ── */
         .btn-action {
@@ -144,12 +144,12 @@ $display_requests = array_values($display_requests);
             padding: .45rem 1rem;
         }
         .status-tabs .nav-link.active {
-            background: #003580;
+            background: #0b5d3b;
             color: #fff;
         }
         .status-tabs .nav-link:not(.active):hover {
-            background: #f0f5ff;
-            color: #003580;
+            background: #f0f6f2;
+            color: #0b5d3b;
         }
 
         /* ── Detail modal ── */
@@ -434,7 +434,7 @@ $display_requests = array_values($display_requests);
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-3">
             <div class="modal-header text-white"
-                 style="background: linear-gradient(135deg,#003580 0%,#0056b3 100%);">
+                 style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
                 <h5 class="modal-title fw-bold" id="viewLeaveModalLabel">
                     <i class="fas fa-calendar-xmark me-2" aria-hidden="true"></i>
                     Leave Request Details
@@ -459,7 +459,7 @@ $display_requests = array_values($display_requests);
     <div class="modal-dialog">
         <div class="modal-content rounded-3">
             <div class="modal-header text-white" id="actionModalHeader"
-                 style="background: linear-gradient(135deg,#003580 0%,#0056b3 100%);">
+                 style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
                 <h5 class="modal-title fw-bold" id="actionModalLabel">Confirm Action</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -601,7 +601,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             // Driver & status header
             + '<div class="col-12">'
             +   '<div class="d-flex align-items-center gap-3 flex-wrap">'
-            +     '<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#003580,#0056b3);'
+            +     '<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#0b5d3b,#15804f);'
             +          'display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;">'
             +       escHtml(r.driver_name.charAt(0).toUpperCase())
             +     '</div>'

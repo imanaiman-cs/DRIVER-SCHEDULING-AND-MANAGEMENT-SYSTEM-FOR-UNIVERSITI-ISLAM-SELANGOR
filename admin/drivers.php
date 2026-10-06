@@ -62,12 +62,12 @@ unset($d);
         .stat-card {
             border: none;
             border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
             transition: transform .2s, box-shadow .2s;
         }
         .stat-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(0,53,128,.16);
+            box-shadow: 0 6px 20px rgba(11,93,59,.16);
         }
         .stat-card .stat-icon {
             width: 52px; height: 52px;
@@ -92,7 +92,7 @@ unset($d);
             border: none;
             border-radius: 14px;
             overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,53,128,.10);
+            box-shadow: 0 2px 12px rgba(11,93,59,.10);
         }
         .table thead th {
             background: #f8f9fb;
@@ -103,7 +103,7 @@ unset($d);
             border-bottom: 2px solid #e5e7eb;
             white-space: nowrap;
         }
-        .table tbody tr:hover { background: #f0f5ff; }
+        .table tbody tr:hover { background: #f0f6f2; }
 
         /* ── Priority score badge ── */
         .badge-priority {
@@ -126,12 +126,12 @@ unset($d);
 
         /* ── Page header ── */
         .page-header {
-            background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px;
             color: #fff;
             padding: 1.6rem 2rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(0,53,128,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
@@ -326,7 +326,7 @@ unset($d);
                                 <td class="small"><?php echo number_format((float)$d['performance_score'], 1); ?>/10</td>
                                 <td>
                                     <?php if (($d['driver_type'] ?? 'regular') === 'top_management'): ?>
-                                    <span class="badge" style="background:#7c3aed;font-size:.72rem;">
+                                    <span class="badge" style="background:#9a7209;font-size:.72rem;">
                                         <i class="fas fa-crown fa-xs me-1"></i>VIP
                                     </span>
                                     <?php else: ?>
@@ -383,7 +383,7 @@ unset($d);
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-3">
             <div class="modal-header text-white"
-                 style="background: linear-gradient(135deg,#003580 0%,#0056b3 100%);">
+                 style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
                 <h5 class="modal-title fw-bold" id="viewDriverModalLabel">
                     <i class="fas fa-id-card me-2" aria-hidden="true"></i>
                     <span id="modalDriverName">Driver Details</span>
@@ -500,7 +500,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         // Driver type
         const typeLabel = d.driver_type === 'top_management' ? 'Top Management' : 'Regular';
         const typeBadge = d.driver_type === 'top_management'
-            ? '<span class="badge" style="background:#7c3aed;"><i class="fas fa-crown me-1"></i>Top Management</span>'
+            ? '<span class="badge" style="background:#9a7209;"><i class="fas fa-crown me-1"></i>Top Management</span>'
             : '<span class="badge bg-secondary">Regular</span>';
 
         // License expiry formatting
@@ -519,7 +519,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             <!-- Personal Information -->
             <div class="col-12">
                 <div class="d-flex align-items-center gap-2 mb-3">
-                    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#003580,#0056b3);
+                    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#0b5d3b,#15804f);
                                 display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;">
                         ${d.name.charAt(0).toUpperCase()}
                     </div>

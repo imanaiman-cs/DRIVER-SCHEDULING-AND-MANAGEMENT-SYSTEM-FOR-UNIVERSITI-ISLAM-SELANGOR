@@ -147,18 +147,18 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
             background: #fff;
             border-radius: 14px;
             padding: 1.25rem 1.25rem 1.5rem;
-            box-shadow: 0 2px 12px rgba(0, 53, 128, .10);
+            box-shadow: 0 2px 12px rgba(11, 93, 59, .10);
         }
 
         .fc .fc-toolbar-title {
             font-size: 1.15rem;
             font-weight: 700;
-            color: #003580;
+            color: #0b5d3b;
         }
 
         .fc .fc-button-primary {
-            background-color: #003580;
-            border-color: #003580;
+            background-color: #0b5d3b;
+            border-color: #0b5d3b;
             font-size: 0.82rem;
             font-weight: 600;
             border-radius: 8px;
@@ -207,11 +207,11 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
         }
 
         .fc .fc-day-today {
-            background: rgba(0, 53, 128, 0.05) !important;
+            background: rgba(11, 93, 59, 0.05) !important;
         }
 
         .fc .fc-day-today .fc-daygrid-day-number {
-            background: #003580;
+            background: #0b5d3b;
             color: #fff;
             border-radius: 50%;
             width: 26px;
@@ -228,7 +228,7 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
         .fc .fc-list-day-cushion {
             background: #f0f4fb !important;
             font-weight: 600;
-            color: #003580;
+            color: #0b5d3b;
             font-size: 0.82rem;
         }
 
@@ -299,7 +299,7 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            color: #003580;
+            color: #0b5d3b;
             font-size: 0.75rem;
         }
 
@@ -367,7 +367,7 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
         <div class="d-flex align-items-center gap-2">
             <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php"
                class="btn btn-sm"
-               style="background: #003580; color: #fff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; padding: 6px 14px;">
+               style="background: #0b5d3b; color: #fff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; padding: 6px 14px;">
                 <i class="fas fa-calendar-plus me-1"></i>New Schedule
             </a>
             <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
@@ -383,7 +383,7 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
     <!-- ================================================================
          PAGE HEADER BANNER
          ================================================================ -->
-    <div style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%); border-radius: 14px; color: #fff; padding: 1.6rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 16px rgba(0,53,128,.20);">
+    <div style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%); border-radius: 14px; color: #fff; padding: 1.6rem 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 16px rgba(11,93,59,.20);">
         <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3">
             <div>
                 <h2 class="mb-1" style="font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em;">
@@ -415,8 +415,8 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
 
         <!-- Total Schedules -->
         <div class="col-6 col-sm-4 col-lg-2">
-            <div class="cal-stat-card" style="background: #eff6ff; border: 1.5px solid #bfdbfe;">
-                <div class="cal-stat-icon" style="background: #003580;">
+            <div class="cal-stat-card" style="background: #eef5f1; border: 1.5px solid #cde7da;">
+                <div class="cal-stat-icon" style="background: #0b5d3b;">
                     <i class="fas fa-calendar-days"></i>
                 </div>
                 <div>
@@ -542,11 +542,11 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
      ================================================================ -->
 <div class="modal fade" id="tripDetailModal" tabindex="-1" aria-labelledby="tripDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-md">
-        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,53,128,.18);">
+        <div class="modal-content" style="border: none; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(11,93,59,.18);">
 
             <!-- Modal Header -->
             <div class="modal-header" id="modalHeader"
-                 style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%); padding: 1rem 1.25rem; border: none;">
+                 style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%); padding: 1rem 1.25rem; border: none;">
                 <div class="d-flex align-items-center gap-2 w-100">
                     <div style="width: 36px; height: 36px; border-radius: 9px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                         <i class="fas fa-calendar-check" style="color: #fff; font-size: 0.95rem;"></i>
@@ -632,7 +632,7 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
             <div class="modal-footer" style="border-top: 1px solid #f0f4f8; padding: 0.85rem 1.25rem; gap: 0.5rem;">
                 <a id="modalViewBtn" href="#"
                    class="btn btn-sm"
-                   style="background: #003580; color: #fff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; padding: 6px 16px;">
+                   style="background: #0b5d3b; color: #fff; border-radius: 8px; font-size: 0.82rem; font-weight: 600; padding: 6px 16px;">
                     <i class="fas fa-eye me-1"></i>View Full Details
                 </a>
                 <a id="modalEditBtn" href="#"

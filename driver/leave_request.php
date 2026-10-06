@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php showFlash(); ?>
 
     <!-- Page Header -->
-    <div style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%); border-radius: 14px; color: #fff; padding: 1.4rem 2rem; margin-bottom: 1.5rem;">
+    <div style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%); border-radius: 14px; color: #fff; padding: 1.4rem 2rem; margin-bottom: 1.5rem;">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <h4 class="fw-bold mb-1">
@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- ── Request Form ────────────────────────────────────────── -->
         <div class="col-lg-8">
-            <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10);">
+            <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
                 <div class="card-header bg-white border-bottom px-4 py-3" style="border-radius: 14px 14px 0 0;">
                     <h6 class="mb-0 fw-semibold">
                         <i class="fas fa-file-pen text-primary me-2"></i>Request Details
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- ── Leave Types Info Box ────────────────────────────────── -->
         <div class="col-lg-4">
-            <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,53,128,.10);">
+            <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
                 <div class="card-header bg-white border-bottom px-4 py-3" style="border-radius: 14px 14px 0 0;">
                     <h6 class="mb-0 fw-semibold">
                         <i class="fas fa-circle-info text-info me-2"></i>Leave Types Guide

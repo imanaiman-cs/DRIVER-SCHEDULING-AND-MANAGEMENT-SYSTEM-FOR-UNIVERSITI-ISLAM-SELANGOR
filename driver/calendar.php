@@ -108,7 +108,7 @@ foreach ($schedules as $r) {
             background: #fff;
             border-radius: 12px;
             padding: 1.25rem 1.5rem 1.5rem;
-            box-shadow: 0 2px 12px rgba(0,53,128,.07);
+            box-shadow: 0 2px 12px rgba(11,93,59,.07);
         }
         .fc .fc-toolbar-title {
             font-size: 1.15rem;
@@ -116,8 +116,8 @@ foreach ($schedules as $r) {
             color: #1a2035;
         }
         .fc .fc-button-primary {
-            background: #003580;
-            border-color: #003580;
+            background: #0b5d3b;
+            border-color: #0b5d3b;
             font-size: 0.82rem;
             font-weight: 600;
             border-radius: 7px !important;
@@ -128,8 +128,8 @@ foreach ($schedules as $r) {
             border-color: #002460;
         }
         .fc .fc-button-primary:not(:disabled).fc-button-active {
-            background: #0056b3;
-            border-color: #0056b3;
+            background: #15804f;
+            border-color: #15804f;
         }
         .fc-event {
             border: none !important;
@@ -147,13 +147,13 @@ foreach ($schedules as $r) {
             text-decoration: none !important;
         }
         .fc-list-event:hover td {
-            background: #eff6ff !important;
+            background: #eef5f1 !important;
         }
         .fc-col-header-cell {
-            background: #f0f5ff;
+            background: #f0f6f2;
             font-size: 0.8rem;
             font-weight: 700;
-            color: #003580;
+            color: #0b5d3b;
             text-transform: uppercase;
             letter-spacing: 0.04em;
         }
@@ -163,10 +163,10 @@ foreach ($schedules as $r) {
             font-weight: 500;
         }
         .fc-day-today {
-            background: #eff6ff !important;
+            background: #eef5f1 !important;
         }
         .fc-day-today .fc-daygrid-day-number {
-            background: #003580;
+            background: #0b5d3b;
             color: #fff;
             border-radius: 50%;
             width: 24px;
@@ -280,7 +280,7 @@ foreach ($schedules as $r) {
     <?php showFlash(); ?>
 
     <!-- ── Page header gradient ─────────────────────────────── -->
-    <div style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%);
+    <div style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
                 border-radius: 14px; color: #fff;
                 padding: 1.4rem 2rem; margin-bottom: 1.5rem;">
         <div class="row align-items-center g-3">
@@ -426,7 +426,7 @@ foreach ($schedules as $r) {
 
             <!-- Header -->
             <div class="modal-header text-white"
-                 style="background: linear-gradient(135deg, #003580 0%, #0056b3 100%); border: none; padding: 1.1rem 1.5rem;">
+                 style="background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%); border: none; padding: 1.1rem 1.5rem;">
                 <div class="d-flex align-items-center gap-3">
                     <div class="rounded-circle d-flex align-items-center justify-content-center"
                          style="width: 40px; height: 40px; background: rgba(255,255,255,.2); flex-shrink: 0;">

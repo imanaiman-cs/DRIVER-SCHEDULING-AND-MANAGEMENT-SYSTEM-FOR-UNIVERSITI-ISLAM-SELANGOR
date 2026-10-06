@@ -279,13 +279,13 @@ require_once '../includes/sidebar.php';
 
             <!-- Priority Score Formula -->
             <div class="content-card mb-3">
-                <div class="content-card-header" style="background:linear-gradient(135deg,var(--uis-primary),#1d4ed8);">
+                <div class="content-card-header" style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
                     <h5 class="content-card-title" style="color:#fff;">
                         <i class="fas fa-info-circle"></i> Priority Score Formula
                     </h5>
                 </div>
                 <div class="content-card-body">
-                    <div class="rounded-3 p-3 mb-3" style="background:#f0f4ff;border:1px solid #c7d7fe;font-family:monospace;font-size:0.82rem;color:#1e3a8a;line-height:1.8;">
+                    <div class="rounded-3 p-3 mb-3" style="background:#f0f4ff;border:1px solid #c7d7fe;font-family:monospace;font-size:0.82rem;color:#0b5d3b;line-height:1.8;">
                         Priority Score =<br>
                         &nbsp;&nbsp;(Experience &times; 30%) +<br>
                         &nbsp;&nbsp;(Attendance &times; 20%) +<br>
@@ -456,7 +456,7 @@ require_once '../includes/sidebar.php';
                     <div class="table-responsive">
                         <table class="table table-hover mb-0" style="font-size:0.83rem;">
                             <thead>
-                                <tr style="background:linear-gradient(135deg,var(--uis-primary),#1d4ed8);">
+                                <tr style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
                                     <th class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;white-space:nowrap;">#</th>
                                     <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
                                     <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date / Time</th>
@@ -542,7 +542,7 @@ require_once '../includes/sidebar.php';
                     <div class="table-responsive">
                         <table class="table table-hover mb-0" style="font-size:0.83rem;">
                             <thead>
-                                <tr style="background:linear-gradient(135deg,var(--uis-primary),#1d4ed8);">
+                                <tr style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
                                     <th class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">#</th>
                                     <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
                                     <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date</th>
