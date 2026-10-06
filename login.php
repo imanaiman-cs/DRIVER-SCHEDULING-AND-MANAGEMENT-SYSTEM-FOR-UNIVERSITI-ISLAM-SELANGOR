@@ -90,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login &mdash; Driver Scheduling &amp; Management System | UIS</title>
+    <link rel="icon" type="image/png" href="assets/images/uis-favicon.png">
 
     <!-- Bootstrap 5 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
@@ -261,8 +262,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* University crest / logo icon */
         .university-crest {
             width: 80px; height: 80px;
-            background: rgba(255,255,255,.12);
-            border: 3px solid rgba(255,215,0,.6);
+            background: rgba(255,255,255,.95);
+            border: 3px solid rgba(198,146,20,.65);
             border-radius: 50%;
             display: inline-flex;
             align-items: center;
@@ -559,7 +560,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- ── Branding header ── -->
             <div class="card-header-brand">
                 <div class="university-crest">
-                    <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+                    <img src="assets/images/uis-favicon.png" alt="UIS crest"
+                         style="width:72%;height:72%;object-fit:contain;">
                 </div>
                 <div class="brand-title">Universiti Islam Selangor</div>
                 <div class="divider-gold"></div>

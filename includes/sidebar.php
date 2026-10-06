@@ -83,7 +83,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <div class="sidebar-brand">
         <div class="sidebar-brand-inner">
             <div class="sidebar-logo-ring">
-                <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+                <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest">
             </div>
             <div class="sidebar-brand-text">
                 <span class="sidebar-brand-title">UIS</span>
@@ -382,7 +382,8 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         <i class="fas fa-bars" aria-hidden="true"></i>
     </button>
     <span class="topbar-title">
-        <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+        <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest"
+             style="height:26px;width:auto;">
         UIS Driver Management
     </span>
     <a href="<?php echo SITE_URL; ?>/logout.php" class="topbar-logout"

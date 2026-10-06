@@ -176,8 +176,8 @@ a:hover { color: var(--uis-primary); }
   flex-shrink: 0;
   width: 42px; height: 42px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(21,128,79,.6), rgba(11,93,59,.8));
-  border: 1.5px solid rgba(245,158,11,.5);
+  background: #fff;
+  border: 1.5px solid rgba(198,146,20,.55);
   display: flex;
   align-items: center;
   justify-content: center;
