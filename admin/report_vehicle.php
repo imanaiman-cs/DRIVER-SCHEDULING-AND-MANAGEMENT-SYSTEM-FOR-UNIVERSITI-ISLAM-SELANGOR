@@ -51,7 +51,7 @@ unset($r);
 // ── Chart data ───────────────────────────────────────────────
 $chart_labels = array_column($rows, 'plate_number');
 $chart_counts = array_map('intval', array_column($rows, 'total_trips'));
-$doughnut_colors = ['#07422a','#0f6b44','#2f9d6a','#67c492','#a7e0c2','#e0f3e9','#f2faf6'];
+$doughnut_colors = ['#0f7a4d','#d19a16','#0891b2','#d13438','#4668e0','#b4530a','#8656c9'];
 ?>
 <!DOCTYPE html>
 <html lang="en">

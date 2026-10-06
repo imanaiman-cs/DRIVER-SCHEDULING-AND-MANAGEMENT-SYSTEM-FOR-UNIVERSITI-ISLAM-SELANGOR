@@ -524,7 +524,7 @@ foreach ($monthly_raw as $row) {
 
     // 3. Vehicle Usage – doughnut
     const doughnutColors = [
-        '#07422a','#0f6b44','#2f9d6a','#67c492','#a7e0c2','#e0f3e9'
+        '#0f7a4d','#d19a16','#0891b2','#d13438','#4668e0','#b4530a'
     ];
     new Chart(document.getElementById('chartVehicle'), {
         type: 'doughnut',
