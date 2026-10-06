@@ -8,6 +8,10 @@ $success = '';
 if (isLoggedIn()) {
     if (isAdmin()) {
         header('Location: admin/dashboard.php');
+    } elseif (isStaff()) {
+        header('Location: staff/dashboard.php');
+    } elseif (isSupervisor()) {
+        header('Location: supervisor/approvals.php');
     } else {
         header('Location: driver/dashboard.php');
     }
@@ -71,9 +75,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['role']      = $user['role'];
             $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
             $_SESSION['driver_id'] = $driver_id;
+            $_SESSION['department']    = $user['department']    ?? null;
+            $_SESSION['supervisor_id'] = isset($user['supervisor_id']) ? (int)$user['supervisor_id'] : null;
 
             if ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
                 header('Location: admin/dashboard.php');
+            } elseif ($user['role'] === 'staff') {
+                header('Location: staff/dashboard.php');
+            } elseif ($user['role'] === 'supervisor') {
+                header('Location: supervisor/approvals.php');
             } else {
                 header('Location: driver/dashboard.php');
             }

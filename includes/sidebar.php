@@ -29,7 +29,17 @@ $role_label = match ($role) {
     'admin',
     'superadmin' => 'Administrator',
     'driver'     => 'Driver',
+    'staff'      => 'Staff',
+    'supervisor' => 'Head of Section',
     default      => ucfirst($role),
+};
+
+// Home URL for the current role (used by header breadcrumb)
+$_role_home = match ($role) {
+    'admin', 'superadmin' => 'admin/dashboard.php',
+    'staff'               => 'staff/dashboard.php',
+    'supervisor'          => 'supervisor/approvals.php',
+    default               => 'driver/dashboard.php',
 };
 
 // Helper: returns 'active' CSS class when $pages matches the current page
@@ -57,6 +67,8 @@ $_sidebar_uid        = (int)($_SESSION['user_id'] ?? 0);
 $_unread_msgs        = 0;
 $_pending_leaves     = 0;
 $_pending_assignments = 0;
+$_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
+$_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
 if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
@@ -65,6 +77,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         if ($r2) $_pending_leaves = (int)$r2->fetch_assoc()['cnt'];
         $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND status NOT IN ('cancelled','completed')");
         if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
+        $r4 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='approved'");
+        if ($r4) $_approved_requests = (int)$r4->fetch_assoc()['cnt'];
+    }
+    if ($role === 'supervisor') {
+        $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE supervisor_id=$_sidebar_uid AND status='pending'");
+        if ($r5) $_pending_approvals = (int)$r5->fetch_assoc()['cnt'];
     }
 }
 ?>
@@ -239,6 +257,20 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </a>
             </li>
 
+            <!-- Vehicle Requests (e-Kenderaan) -->
+            <li class="sidebar-item <?php echo sidebarActive('vehicle_requests.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/vehicle_requests.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-file-signature" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Vehicle Requests</span>
+                    <?php if ($_approved_requests > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#15803d;font-size:0.65rem;min-width:18px;">
+                        <?php echo $_approved_requests; ?>
+                    </span>
+                    <?php endif; ?>
+                </a>
+            </li>
+
             <li class="sidebar-section-label">Communication</li>
 
             <!-- Messages -->
@@ -291,6 +323,60 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                         </a>
                     </li>
                 </ul>
+            </li>
+
+            <?php elseif ($role === 'staff'): ?>
+            <!-- ====================================================
+                 STAFF MENU (e-Kenderaan)
+                 ==================================================== -->
+
+            <li class="sidebar-section-label">Main</li>
+
+            <!-- Dashboard -->
+            <li class="sidebar-item <?php echo sidebarActive('dashboard.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/staff/dashboard.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Dashboard</span>
+                </a>
+            </li>
+
+            <li class="sidebar-section-label">e-Kenderaan</li>
+
+            <!-- Request Vehicle -->
+            <li class="sidebar-item <?php echo sidebarActive('request_vehicle.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/staff/request_vehicle.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-file-circle-plus" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Request Vehicle</span>
+                </a>
+            </li>
+
+            <!-- My Requests -->
+            <li class="sidebar-item <?php echo sidebarActive('my_requests.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/staff/my_requests.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">My Requests</span>
+                </a>
+            </li>
+
+            <?php elseif ($role === 'supervisor'): ?>
+            <!-- ====================================================
+                 SUPERVISOR MENU (Head of Section)
+                 ==================================================== -->
+
+            <li class="sidebar-section-label">Approvals</li>
+
+            <!-- Pending Approvals -->
+            <li class="sidebar-item <?php echo sidebarActive('approvals.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/supervisor/approvals.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-stamp" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Vehicle Approvals</span>
+                    <?php if ($_pending_approvals > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#f59e0b;font-size:0.65rem;min-width:18px;">
+                        <?php echo $_pending_approvals; ?>
+                    </span>
+                    <?php endif; ?>
+                </a>
             </li>
 
             <?php else: ?>
@@ -408,7 +494,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item">
-                    <a href="<?php echo SITE_URL; ?>/<?php echo ($role === 'admin' || $role === 'superadmin') ? 'admin' : 'driver'; ?>/dashboard.php"
+                    <a href="<?php echo SITE_URL; ?>/<?php echo $_role_home; ?>"
                        style="color:var(--uis-secondary);">
                         <i class="fas fa-home me-1"></i>Home
                     </a>

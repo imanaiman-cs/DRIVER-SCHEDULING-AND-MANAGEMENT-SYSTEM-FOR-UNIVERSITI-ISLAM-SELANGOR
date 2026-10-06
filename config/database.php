@@ -109,6 +109,73 @@ function requireDriver(): void
     }
 }
 
+/**
+ * Returns true when the current session belongs to a staff user.
+ *
+ * @return bool
+ */
+function isStaff(): bool
+{
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'staff';
+}
+
+/**
+ * Returns true when the current session belongs to a supervisor
+ * (head of section) user.
+ *
+ * @return bool
+ */
+function isSupervisor(): bool
+{
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'supervisor';
+}
+
+/**
+ * Ensures the current user is a staff member.
+ *
+ * @return void
+ */
+function requireStaff(): void
+{
+    requireLogin();
+    if (!isStaff()) {
+        header('Location: ' . SITE_URL . '/login.php');
+        exit();
+    }
+}
+
+/**
+ * Ensures the current user is a supervisor (head of section).
+ *
+ * @return void
+ */
+function requireSupervisor(): void
+{
+    requireLogin();
+    if (!isSupervisor()) {
+        header('Location: ' . SITE_URL . '/login.php');
+        exit();
+    }
+}
+
+/**
+ * Returns a Bootstrap badge class string for a vehicle request status.
+ *
+ * @param string $status One of: pending, approved, rejected, processed
+ *
+ * @return string Bootstrap badge colour class
+ */
+function requestStatusBadgeClass(string $status): string
+{
+    return match ($status) {
+        'pending'   => 'bg-warning text-dark',
+        'approved'  => 'bg-success',
+        'rejected'  => 'bg-danger',
+        'processed' => 'bg-primary',
+        default     => 'bg-secondary',
+    };
+}
+
 // ============================================================
 // Priority score calculation
 // Formula:

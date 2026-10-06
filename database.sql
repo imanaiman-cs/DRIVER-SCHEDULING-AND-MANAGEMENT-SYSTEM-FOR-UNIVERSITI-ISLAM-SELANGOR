@@ -16,8 +16,10 @@ CREATE TABLE users (
     password     VARCHAR(255)  NOT NULL,
     email        VARCHAR(100)  NOT NULL,
     full_name    VARCHAR(100)  NOT NULL,
-    role         ENUM('admin','driver') NOT NULL DEFAULT 'admin',
+    role         ENUM('admin','driver','staff','supervisor') NOT NULL DEFAULT 'admin',
     driver_id    INT           NULL DEFAULT NULL,
+    department   VARCHAR(100)  NULL DEFAULT NULL,
+    supervisor_id INT          NULL DEFAULT NULL,
     created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
     UNIQUE KEY uq_users_username (username)
@@ -132,6 +134,35 @@ CREATE TABLE leave_requests (
     PRIMARY KEY (request_id),
     CONSTRAINT fk_lr_driver   FOREIGN KEY (driver_id)   REFERENCES drivers(driver_id) ON DELETE CASCADE,
     CONSTRAINT fk_lr_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(user_id)     ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLE: vehicle_requests (e-Kenderaan)
+-- Staff submit a vehicle request -> their supervisor (head of
+-- section) approves/rejects -> admin processes it into a schedule.
+-- ============================================================
+CREATE TABLE vehicle_requests (
+    request_id      INT           NOT NULL AUTO_INCREMENT,
+    staff_id        INT           NOT NULL,
+    vehicle_id      INT           NULL DEFAULT NULL,
+    trip_date       DATE          NOT NULL,
+    start_time      TIME          NOT NULL,
+    end_time        TIME          NOT NULL,
+    destination     VARCHAR(255)  NOT NULL,
+    purpose         TEXT          NOT NULL,
+    passenger_count INT           NOT NULL DEFAULT 1,
+    status          ENUM('pending','approved','rejected','processed') NOT NULL DEFAULT 'pending',
+    supervisor_id   INT           NULL DEFAULT NULL,
+    supervisor_notes TEXT         NULL DEFAULT NULL,
+    reviewed_at     TIMESTAMP     NULL DEFAULT NULL,
+    schedule_id     INT           NULL DEFAULT NULL,
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (request_id),
+    CONSTRAINT fk_vr_staff      FOREIGN KEY (staff_id)      REFERENCES users(user_id)        ON DELETE CASCADE,
+    CONSTRAINT fk_vr_vehicle    FOREIGN KEY (vehicle_id)    REFERENCES vehicles(vehicle_id)  ON DELETE SET NULL,
+    CONSTRAINT fk_vr_supervisor FOREIGN KEY (supervisor_id) REFERENCES users(user_id)        ON DELETE SET NULL,
+    CONSTRAINT fk_vr_schedule   FOREIGN KEY (schedule_id)   REFERENCES schedules(schedule_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -895,5 +926,95 @@ VALUES
 );
 
 -- ============================================================
--- End of schema – 52 schedules · 12 drivers · 10 vehicles · 26 messages · 10 leave requests
+-- SEED: supervisor + staff accounts (e-Kenderaan module)
+-- Supervisor login: hos001 / hos001@uis
+-- Staff logins:     stf001 / staff001@uis ... stf003 / staff003@uis
+-- ============================================================
+INSERT INTO users (username, password, email, full_name, role, driver_id, department, supervisor_id) VALUES
+(
+    'hos001',
+    SHA2('hos001@uis', 256),
+    'hafizi@uis.edu.my',
+    'Mohd Hafizi bin Harun',
+    'supervisor', NULL,
+    'Transport Unit', NULL
+);
+
+SET @sup_id := LAST_INSERT_ID();
+
+INSERT INTO users (username, password, email, full_name, role, driver_id, department, supervisor_id) VALUES
+(
+    'stf001',
+    SHA2('staff001@uis', 256),
+    'norliza@uis.edu.my',
+    'Norliza binti Abdul Rahman',
+    'staff', NULL,
+    'Faculty of Education', @sup_id
+),
+(
+    'stf002',
+    SHA2('staff002@uis', 256),
+    'syafiq@uis.edu.my',
+    'Muhammad Syafiq bin Zainal',
+    'staff', NULL,
+    'Registrar Office', @sup_id
+),
+(
+    'stf003',
+    SHA2('staff003@uis', 256),
+    'aishah@uis.edu.my',
+    'Siti Aishah binti Mohd Yusof',
+    'staff', NULL,
+    'Student Affairs Division', @sup_id
+);
+
+SET @stf1 := @sup_id + 1;
+SET @stf2 := @sup_id + 2;
+SET @stf3 := @sup_id + 3;
+
+-- ============================================================
+-- SEED: vehicle_requests – sample e-Kenderaan requests
+-- ============================================================
+INSERT INTO vehicle_requests
+    (staff_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count,
+     status, supervisor_id, supervisor_notes, reviewed_at, created_at)
+VALUES
+(
+    @stf1, 3, '2026-10-20', '08:30:00', '13:00:00',
+    'Kementerian Pendidikan Malaysia, Putrajaya',
+    'Submission of faculty accreditation documents and meeting with ministry officers.',
+    4, 'pending', @sup_id, NULL, NULL,
+    '2026-10-05 09:15:00'
+),
+(
+    @stf2, 7, '2026-10-22', '07:30:00', '17:30:00',
+    'Universiti Kebangsaan Malaysia, Bangi',
+    'Registrar office benchmarking visit for student records management system.',
+    10, 'approved', @sup_id,
+    'Approved. Please ensure the group departs on time.',
+    '2026-10-04 14:20:00',
+    '2026-10-03 11:00:00'
+),
+(
+    @stf3, 5, '2026-10-15', '09:00:00', '12:00:00',
+    'Majlis Perbandaran Kajang',
+    'Collection of student activity permit documents for convocation festival.',
+    2, 'rejected', @sup_id,
+    'Rejected: trip not justified for a vehicle booking. Please use the document courier service.',
+    '2026-10-02 16:45:00',
+    '2026-10-01 10:30:00'
+),
+(
+    @stf1, 1, '2026-10-28', '07:00:00', '18:00:00',
+    'Universiti Malaya, Kuala Lumpur',
+    'Faculty of Education staff attending the national TVET curriculum seminar.',
+    30, 'approved', @sup_id,
+    'Approved. Large group — please coordinate with the transport unit on pickup point.',
+    '2026-10-05 10:05:00',
+    '2026-10-04 08:50:00'
+);
+
+-- ============================================================
+-- End of schema – 52 schedules · 12 drivers · 19 vehicles · 26 messages · 10 leave requests · 4 vehicle requests
 -- ============================================================
