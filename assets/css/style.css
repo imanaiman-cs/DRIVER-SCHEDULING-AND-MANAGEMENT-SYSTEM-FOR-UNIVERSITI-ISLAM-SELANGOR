@@ -1404,7 +1404,7 @@ textarea.form-control { resize: vertical; min-height: 96px; }
   --bs-btn-active-bg: var(--uis-primary);
   --bs-btn-active-border-color: var(--uis-primary);
 }
-.bg-primary { background-color: var(--uis-primary) !important; }
+.bg-primary { background-color: rgba(11,93,59, var(--bs-bg-opacity, 1)) !important; }
 .text-primary { color: var(--uis-primary) !important; }
 .badge.bg-primary { background-color: var(--uis-primary) !important; }
 .form-control:focus, .form-select:focus {
