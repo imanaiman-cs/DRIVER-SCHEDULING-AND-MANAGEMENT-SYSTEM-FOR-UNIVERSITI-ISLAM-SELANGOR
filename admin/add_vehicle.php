@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Vehicle type
-    $allowed_types = ['Bus', 'Van', 'Car', 'Minibus'];
+    $allowed_types = ['Bus', 'Van', 'Car', 'Minibus', 'Lorry', 'Motorcycle'];
     if (!in_array($form['vehicle_type'], $allowed_types, true)) {
         $errors['vehicle_type'] = 'Please select a valid vehicle type.';
     }
@@ -347,6 +347,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'Van'     => ['fa-shuttle-van', 'Van',     '#198754'],
                                 'Car'     => ['fa-car',         'Car',     '#dc3545'],
                                 'Minibus' => ['fa-bus-simple',  'Minibus', '#6f42c1'],
+                                'Lorry'   => ['fa-truck',       'Lorry',   '#fd7e14'],
+                                'Motorcycle' => ['fa-motorcycle', 'Motorcycle', '#20c997'],
                             ];
                             foreach ($type_options as $val => [$icon, $label, $color]):
                                 $checked = ($form['vehicle_type'] === $val) ? 'checked' : '';

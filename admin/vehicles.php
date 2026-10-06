@@ -274,6 +274,8 @@ foreach ($vehicles as $v) {
                                     'Bus'    => ['fa-bus',           'rgba(13,110,253,.1)',  '#0d6efd'],
                                     'Van'    => ['fa-shuttle-van',   'rgba(25,135,84,.1)',   '#198754'],
                                     'Minibus'=> ['fa-bus-simple',    'rgba(111,66,193,.1)',  '#6f42c1'],
+                                    'Lorry'  => ['fa-truck',         'rgba(253,126,20,.1)',  '#fd7e14'],
+                                    'Motorcycle' => ['fa-motorcycle','rgba(32,201,151,.1)',  '#20c997'],
                                     default  => ['fa-car',           'rgba(220,53,69,.1)',   '#dc3545'],
                                 };
 

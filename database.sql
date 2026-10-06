@@ -54,7 +54,7 @@ CREATE TABLE drivers (
 CREATE TABLE vehicles (
     vehicle_id       INT          NOT NULL AUTO_INCREMENT,
     plate_number     VARCHAR(20)  NOT NULL,
-    vehicle_type     ENUM('Bus','Van','Car','Minibus') NOT NULL,
+    vehicle_type     ENUM('Bus','Van','Car','Minibus','Lorry','Motorcycle') NOT NULL,
     brand            VARCHAR(50)  NULL DEFAULT NULL,
     model            VARCHAR(50)  NULL DEFAULT NULL,
     year             INT          NULL DEFAULT NULL,
@@ -257,12 +257,12 @@ INSERT INTO vehicles
      fuel_type, status, last_maintenance, next_maintenance, mileage, notes)
 VALUES
 (
-    'SEL 1234 A', 'Bus', 'Hino', 'FB2W', 2019, 45, 'Diesel', 'available',
+    'BGN 9595', 'Bus', 'Hino', 'RK8J', 2019, 44, 'Diesel', 'available',
     '2026-04-10', '2026-10-10', 198500,
     'Main campus shuttle bus. Air-conditioned. GPS-tracked. Suitable for large groups.'
 ),
 (
-    'SEL 5678 B', 'Bus', 'Scania', 'K310', 2021, 50, 'Diesel', 'available',
+    'BNJ 9276', 'Bus', 'Hino', 'RN8J', 2021, 44, 'Diesel', 'available',
     '2026-05-20', '2026-11-20', 147300,
     'Long-distance university bus. Priority for inter-campus and interstate trips.'
 ),
@@ -297,7 +297,7 @@ VALUES
     'Premium minibus. Currently assigned for an ongoing trip.'
 ),
 (
-    'BJK 6600 I', 'Bus', 'Yutong', 'ZK6119HQ', 2020, 40, 'Diesel', 'available',
+    'BKH 9555', 'Bus', 'Nissan', 'Civilian', 2020, 40, 'Diesel', 'available',
     '2026-06-10', '2026-12-10', 134800,
     'Third bus for high-demand periods and large group trips.'
 ),
@@ -305,6 +305,53 @@ VALUES
     'BDF 7700 J', 'Car', 'Honda', 'Civic', 2019, 5, 'Petrol', 'retired',
     '2025-12-01', NULL, 241000,
     'Retired from service. High mileage. Pending disposal process.'
+),
+
+-- ── Real UIS fleet: buses, lorries, motorcycles ──────────────
+(
+    'BNE 3611', 'Bus', 'Nissan', 'Civilian', 2018, 40, 'Diesel', 'available',
+    '2026-05-15', '2026-11-15', 176400,
+    'University bus for campus shuttle and medium-distance group trips.'
+),
+(
+    'BHW 8595', 'Lorry', 'Nissan', 'Daihatsu', 2017, 3, 'Diesel', 'available',
+    '2026-04-22', '2026-10-22', 156900,
+    'Cargo lorry for logistics, equipment transport and event setup.'
+),
+(
+    'BLJ 9955', 'Lorry', 'Daihatsu', 'Gran Max', 2020, 3, 'Diesel', 'available',
+    '2026-05-30', '2026-11-30', 98200,
+    'Light cargo lorry for small deliveries and inter-department logistics.'
+),
+(
+    'BQC 9552', 'Lorry', 'Hino', '300 Series', 2021, 3, 'Diesel', 'available',
+    '2026-06-05', '2026-12-05', 87500,
+    'Heavy-duty lorry for large equipment and furniture transport.'
+),
+(
+    'BMX 1252', 'Motorcycle', 'Yamaha', 'LC135', 2019, 2, 'Petrol', 'available',
+    '2026-05-08', '2026-11-08', 45300,
+    'Dispatch motorcycle for document delivery and quick campus errands.'
+),
+(
+    'BMX 1253', 'Motorcycle', 'Yamaha', 'LC135', 2019, 2, 'Petrol', 'available',
+    '2026-05-08', '2026-11-08', 43100,
+    'Dispatch motorcycle for document delivery and quick campus errands.'
+),
+(
+    'BNE 543', 'Motorcycle', 'Honda', 'Wave', 2020, 2, 'Petrol', 'available',
+    '2026-04-25', '2026-10-25', 38700,
+    'Dispatch motorcycle for mail runs and nearby official errands.'
+),
+(
+    'BNE 544', 'Motorcycle', 'Honda', 'Wave', 2020, 2, 'Petrol', 'available',
+    '2026-04-25', '2026-10-25', 36200,
+    'Dispatch motorcycle for mail runs and nearby official errands.'
+),
+(
+    'BNE 546', 'Motorcycle', 'Honda', 'Wave', 2021, 2, 'Petrol', 'available',
+    '2026-05-18', '2026-11-18', 29800,
+    'Dispatch motorcycle for mail runs and nearby official errands.'
 );
 
 -- ============================================================
@@ -312,8 +359,8 @@ VALUES
 -- Driver priority scores:
 --   1=8.72  2=7.61  3=6.72  4=8.41  5=5.53
 --   7=4.72  8=6.56  9=9.31 10=6.16 12=7.38
--- Vehicles: 1=Bus Hino  2=Bus Scania  3=Van Hiace  5=Car X70
---           6=Car Bezza  7=Minibus Hiace  8=Minibus Sprinter  9=Bus Yutong
+-- Vehicles: 1=Bus Hino BGN9595  2=Bus Hino BNJ9276  3=Van Hiace  5=Car X70
+--           6=Car Bezza  7=Minibus Hiace  8=Minibus Sprinter  9=Bus Nissan BKH9555
 -- ============================================================
 INSERT INTO schedules
     (driver_id, vehicle_id, trip_date, start_time, end_time,
