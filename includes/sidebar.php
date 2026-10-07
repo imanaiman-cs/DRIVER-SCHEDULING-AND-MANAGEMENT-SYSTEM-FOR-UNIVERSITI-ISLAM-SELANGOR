@@ -59,13 +59,11 @@ function submenuShow(array $pages, string $current): string
 $driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'];
 $vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'];
 $schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php', 'calendar.php'];
-$leave_pages    = ['leave_requests.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
 
 // ── Unread message count + pending alerts ────────────────────────
 $_sidebar_uid        = (int)($_SESSION['user_id'] ?? 0);
 $_unread_msgs        = 0;
-$_pending_leaves     = 0;
 $_pending_assignments = 0;
 $_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
 $_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
@@ -73,8 +71,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
     if ($role === 'admin' || $role === 'superadmin') {
-        $r2 = $conn->query("SELECT COUNT(*) AS cnt FROM leave_requests WHERE status='pending'");
-        if ($r2) $_pending_leaves = (int)$r2->fetch_assoc()['cnt'];
         $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND status NOT IN ('cancelled','completed')");
         if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
         $r4 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='approved'");
@@ -243,20 +239,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </ul>
             </li>
 
-            <!-- Leave Requests -->
-            <li class="sidebar-item <?php echo sidebarActive($leave_pages, $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/leave_requests.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-calendar-xmark" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Leave Requests</span>
-                    <?php if ($_pending_leaves > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#f59e0b;font-size:0.65rem;min-width:18px;">
-                        <?php echo $_pending_leaves; ?>
-                    </span>
-                    <?php endif; ?>
-                </a>
-            </li>
-
             <!-- Vehicle Requests (e-Kenderaan) -->
             <li class="sidebar-item <?php echo sidebarActive('vehicle_requests.php', $current_page); ?>">
                 <a href="<?php echo SITE_URL; ?>/admin/vehicle_requests.php" class="sidebar-link">
@@ -412,22 +394,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </a>
             </li>
 
-            <!-- Leave Requests -->
-            <li class="sidebar-item <?php echo sidebarActive(['leave_request.php', 'my_leaves.php'], $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/leave_request.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-calendar-xmark" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Leave Request</span>
-                </a>
-            </li>
-
-            <!-- My Leave History -->
-            <li class="sidebar-item <?php echo sidebarActive('my_leaves.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/my_leaves.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">My Leave History</span>
-                </a>
-            </li>
-
             <li class="sidebar-section-label">Communication</li>
 
             <!-- Messages -->
@@ -515,7 +481,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         </div>
 
         <?php if ($role === 'admin' || $role === 'superadmin'):
-            $_dh_total = $_pending_leaves + $_pending_assignments; ?>
+            $_dh_total = $_pending_assignments; ?>
         <!-- Notification bell (admin) -->
         <div class="dropdown">
             <button class="btn btn-light btn-sm position-relative rounded-circle"
@@ -545,22 +511,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                             <div style="font-size:.81rem;">
                                 <div class="fw-semibold"><?php echo $_pending_assignments; ?> unassigned schedule<?php echo $_pending_assignments > 1 ? 's' : ''; ?></div>
                                 <div class="text-muted" style="font-size:.72rem;">Drivers not yet assigned</div>
-                            </div>
-                        </div>
-                    </a>
-                </li>
-                <?php endif; ?>
-                <?php if ($_pending_leaves > 0): ?>
-                <li>
-                    <a class="dropdown-item py-2" href="<?php echo SITE_URL; ?>/admin/leave_requests.php">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:28px;height:28px;background:#f59e0b;">
-                                <i class="fas fa-calendar-minus" style="color:#fff;font-size:.65rem;"></i>
-                            </div>
-                            <div style="font-size:.81rem;">
-                                <div class="fw-semibold"><?php echo $_pending_leaves; ?> pending leave<?php echo $_pending_leaves > 1 ? 's' : ''; ?></div>
-                                <div class="text-muted" style="font-size:.72rem;">Awaiting review</div>
                             </div>
                         </div>
                     </a>
