@@ -1,0 +1,46 @@
+UIS DRIVER SCHEDULING & MANAGEMENT SYSTEM
+DEMO LOGIN ACCOUNTS  (from database.sql - for testing only)
+=============================================================
+
+ADMIN
+  Username : admin
+  Password : admin123
+  Name     : Rozaimi bin Kamaruzzaman
+
+
+HEAD OF SECTION (SUPERVISOR)
+  Username : hos001
+  Password : hos001@uis
+  Name     : Mohd Hafizi bin Harun        (Transport Unit)
+
+
+STAFF  (all three report to hos001)
+  Username   Password       Name                          Department
+  ---------  -------------  ----------------------------  ---------------------------
+  stf001     staff001@uis   Norliza binti Abdul Rahman    Faculty of Education
+  stf002     staff002@uis   Muhammad Syafiq bin Zainal    Registrar Office
+  stf003     staff003@uis   Siti Aishah binti Mohd Yusof  Student Affairs Division
+
+
+DRIVERS  (password pattern: driver + number + @uis)
+  Username   Password       Name
+  ---------  -------------  ----------------------------------
+  drv001     driver001@uis  Ahmad Faizal bin Mohd Rashid
+  drv002     driver002@uis  Mohd Hafizuddin bin Zulkifli
+  drv003     driver003@uis  Norhaslinda binti Abdul Karim
+  drv004     driver004@uis  Khairul Anuar bin Ismail
+  drv005     driver005@uis  Siti Norzaharah binti Othman
+  drv006     driver006@uis  Zulkarnain bin Hamzah
+  drv007     driver007@uis  Roslan bin Abdul Wahab
+  drv008     driver008@uis  Muhammad Asyraf bin Che Hassan
+  drv009     driver009@uis  Fadzillah bin Mohd Noor
+  drv010     driver010@uis  Nurul Ain binti Saharuddin
+  drv011     driver011@uis  Hairul Nizam bin Kamaruddin
+  drv012     driver012@uis  Azhari bin Mahmud
+
+
+NOTES
+  - These are demo accounts created by importing database.sql.
+  - If you changed a password in your own database, use the new one.
+  - Accounts you add yourself later are not listed here.
+  - Change all passwords before any real use of the system.
