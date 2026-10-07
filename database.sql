@@ -1010,6 +1010,181 @@ VALUES
     '2026-10-04 08:50:00'
 );
 
+
 -- ============================================================
--- End of schema – 52 schedules · 12 drivers · 19 vehicles · 26 messages · 4 vehicle requests
+-- SEED: demo trips around "today" (relative to the import date)
+-- Gives every driver data for TODAY, THIS WEEK and THIS MONTH so the
+-- dashboards, calendars, reports and allocation scores look alive no
+-- matter when the database is imported.
+--   * Past dates      -> completed (a few cancelled)
+--   * Today           -> hand-written trips below (mix of statuses)
+--   * Future dates    -> approved / pending
+--   * Weekends        -> some Saturday/Sunday trips (weekend factor)
+-- Each statement skips a driver or vehicle that is already booked on
+-- that day, so the demo data never double-books anything.
+-- ============================================================
+
+-- Today's trips (hand-written so each driver sees something different)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(1,  5,  CURDATE(), '08:00:00', '11:30:00', 'Kementerian Pendidikan Malaysia, Putrajaya',
+ 'Meeting with ministry officers on programme accreditation', 3,
+ 'Prof. Madya Dr. Rohaizad bin Ismail', '019-7788 9900', 'Lobi Bangunan Pentadbiran',
+ 'in_progress', 8.72, 1, 'top_management', 'Departed on time.'),
+(1,  7,  CURDATE(), '14:00:00', '17:00:00', 'Bank Muamalat Malaysia, Kuala Lumpur',
+ 'Corporate banking appointment - Finance Department', 6,
+ 'Pn. Norliza binti Abdul Rahman', '012-3344 5566', 'Lobi Fakulti',
+ 'approved', 8.72, 1, 'top_management', NULL),
+(2,  1,  CURDATE(), '08:30:00', '12:30:00', 'Universiti Kebangsaan Malaysia, Bangi',
+ 'Inter-university collaboration meeting', 12,
+ 'Dr. Syafiq bin Zainal', '013-4455 6677', 'Pondok Pengawal Utama',
+ 'in_progress', 7.61, 1, 'top_management', NULL),
+(3,  6,  CURDATE(), '10:00:00', '12:00:00', 'Pejabat Tanah dan Galian Selangor, Shah Alam',
+ 'Document submission - Registrar Office', 3,
+ 'Pn. Siti Aishah binti Mohd Yusof', '014-5566 7788', 'Stor UIS',
+ 'approved', 6.72, 1, 'regular', NULL),
+(4,  9,  CURDATE(), '08:00:00', '17:00:00', 'Universiti Putra Malaysia, Serdang',
+ 'Faculty collaboration workshop', 35,
+ 'En. Faruq, En. Amir', '011-2835 4792', 'Lobi Bangunan Pentadbiran',
+ 'approved', 8.41, 1, 'top_management', 'Full-day programme.'),
+(5,  15, CURDATE(), '09:00:00', '11:00:00', 'Pejabat Pos Besar, Shah Alam',
+ 'Official mail and parcel delivery', 1,
+ 'En. Hafiz bin Ramli', '016-6677 8899', 'Stor UIS',
+ 'approved', 5.53, 1, 'regular', NULL),
+(7,  3,  CURDATE(), '13:00:00', '16:00:00', 'Hospital Shah Alam',
+ 'Staff medical appointment transport', 8,
+ 'En. Hafiz bin Ramli', '016-6677 8899', 'Perpustakaan UIS',
+ 'pending', 4.72, 1, 'regular', NULL),
+(9,  11, CURDATE(), '14:00:00', '18:00:00', 'Putrajaya International Convention Centre (PICC)',
+ 'Attending national higher-education forum', 30,
+ 'Prof. Madya Dr. Rohaizad bin Ismail', '019-7788 9900', 'Lobi Bangunan Pentadbiran',
+ 'approved', 9.31, 1, 'top_management', NULL),
+(12, 2,  CURDATE(), '07:30:00', '11:00:00', 'Jabatan Kemajuan Islam Malaysia (JAKIM), Putrajaya',
+ 'Programme accreditation briefing', 20,
+ 'Dr. Syafiq bin Zainal', '013-4455 6677', 'Pondok Pengawal Utama',
+ 'completed', 7.38, 1, 'top_management', 'Returned early.');
+
+-- Dates to fill: every day of the current month + 7 days either side of today
+DROP TEMPORARY TABLE IF EXISTS demo_dates;
+CREATE TEMPORARY TABLE demo_dates (
+    d   DATE NOT NULL PRIMARY KEY,
+    td  INT  NOT NULL,
+    dow TINYINT NOT NULL
+);
+INSERT IGNORE INTO demo_dates (d, td, dow)
+SELECT x.d, TO_DAYS(x.d), DAYOFWEEK(x.d)
+FROM (
+    SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01') + INTERVAL (t.n * 10 + u.n) DAY AS d
+    FROM (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3) t
+    CROSS JOIN (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+                UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
+    UNION
+    SELECT CURDATE() + INTERVAL (t.n * 10 + u.n - 7) DAY
+    FROM (SELECT 0 AS n UNION ALL SELECT 1) t
+    CROSS JOIN (SELECT 0 AS n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+                UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) u
+    WHERE t.n * 10 + u.n <= 14
+) x
+WHERE x.d <= LAST_DAY(CURDATE()) OR x.d <= CURDATE() + INTERVAL 7 DAY;
+
+-- Slot A: management trip, morning (car)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type)
+SELECT ELT(MOD(dd.td + 0, 5) + 1, 1, 2, 4, 9, 12), 5, dd.d, '08:00:00', '12:00:00',
+       ELT(MOD(dd.td + 0, 8) + 1, 'Kementerian Pendidikan Malaysia, Putrajaya', 'Jabatan Agama Islam Selangor (JAIS), Shah Alam', 'Universiti Kebangsaan Malaysia, Bangi', 'Bank Muamalat Malaysia, Kuala Lumpur', 'Majlis Agama Islam Selangor (MAIS), Shah Alam', 'Putrajaya International Convention Centre (PICC)', 'Jabatan Kemajuan Islam Malaysia (JAKIM), Putrajaya', 'Universiti Malaya, Kuala Lumpur'),
+       ELT(MOD(dd.td + 0, 8) + 1, 'Meeting with ministry officers on programme accreditation', 'Official courtesy visit and coordination meeting', 'Inter-university collaboration meeting', 'Corporate banking appointment - Finance Department', 'Management meeting and document submission', 'Attending national higher-education forum', 'Programme accreditation briefing', 'Academic benchmarking visit'),
+       2 + MOD(dd.td, 3),
+       ELT(MOD(dd.td, 6) + 1, 'En. Faruq, En. Amir', 'Pn. Norliza binti Abdul Rahman', 'Dr. Syafiq bin Zainal',
+                              'Pn. Siti Aishah binti Mohd Yusof', 'En. Hafiz bin Ramli', 'Prof. Madya Dr. Rohaizad bin Ismail'),
+       ELT(MOD(dd.td, 6) + 1, '011-2835 4792', '012-3344 5566', '013-4455 6677', '014-5566 7788', '016-6677 8899', '019-7788 9900'),
+       ELT(MOD(dd.td, 5) + 1, 'Stor UIS', 'Lobi Bangunan Pentadbiran', 'Pondok Pengawal Utama', 'Lobi Fakulti', 'Perpustakaan UIS'),
+       CASE WHEN dd.d < CURDATE() THEN IF(MOD(dd.td, 11) = 0, 'cancelled', 'completed') WHEN dd.d = CURDATE() THEN 'approved' ELSE IF(MOD(dd.td, 4) = 0, 'pending', 'approved') END,
+       ROUND(5 + MOD(dd.td * 7, 45) / 10, 2),
+       1, 'top_management'
+FROM demo_dates dd
+WHERE (dd.dow BETWEEN 2 AND 6 OR dd.dow = 7)
+  AND NOT EXISTS (
+        SELECT 1 FROM schedules x
+        WHERE x.trip_date = dd.d AND x.status <> 'cancelled'
+          AND (x.driver_id = ELT(MOD(dd.td + 0, 5) + 1, 1, 2, 4, 9, 12) OR x.vehicle_id = 5));
+
+-- Slot B: regular trip, morning (car)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type)
+SELECT ELT(MOD(dd.td + 0, 5) + 1, 3, 5, 7, 8, 10), 6, dd.d, '09:00:00', '13:00:00',
+       ELT(MOD(dd.td + 0, 8) + 1, 'Pejabat Tanah dan Galian Selangor, Shah Alam', 'Hospital Shah Alam', 'Majlis Bandaraya Shah Alam (MBSA)', 'Pejabat Pos Besar, Shah Alam', 'Politeknik Sultan Salahuddin Abdul Aziz Shah, Shah Alam', 'Kolej Komuniti Klang', 'Sekolah Menengah Agama Shah Alam', 'Pusat Zakat Selangor, Shah Alam'),
+       ELT(MOD(dd.td + 0, 8) + 1, 'Document submission - Registrar Office', 'Staff medical appointment transport', 'Permit renewal documentation submission', 'Official mail and parcel delivery', 'Student programme coordination', 'Student practical placement visit', 'Outreach programme logistics', 'Student welfare programme coordination'),
+       2 + MOD(dd.td, 3),
+       ELT(MOD(dd.td, 6) + 1, 'En. Faruq, En. Amir', 'Pn. Norliza binti Abdul Rahman', 'Dr. Syafiq bin Zainal',
+                              'Pn. Siti Aishah binti Mohd Yusof', 'En. Hafiz bin Ramli', 'Prof. Madya Dr. Rohaizad bin Ismail'),
+       ELT(MOD(dd.td, 6) + 1, '011-2835 4792', '012-3344 5566', '013-4455 6677', '014-5566 7788', '016-6677 8899', '019-7788 9900'),
+       ELT(MOD(dd.td, 5) + 1, 'Stor UIS', 'Lobi Bangunan Pentadbiran', 'Pondok Pengawal Utama', 'Lobi Fakulti', 'Perpustakaan UIS'),
+       CASE WHEN dd.d < CURDATE() THEN IF(MOD(dd.td, 11) = 0, 'cancelled', 'completed') WHEN dd.d = CURDATE() THEN 'approved' ELSE IF(MOD(dd.td, 4) = 0, 'pending', 'approved') END,
+       ROUND(5 + MOD(dd.td * 7, 45) / 10, 2),
+       1, 'regular'
+FROM demo_dates dd
+WHERE (dd.dow BETWEEN 2 AND 7 OR MOD(dd.td, 2) = 0)
+  AND NOT EXISTS (
+        SELECT 1 FROM schedules x
+        WHERE x.trip_date = dd.d AND x.status <> 'cancelled'
+          AND (x.driver_id = ELT(MOD(dd.td + 0, 5) + 1, 3, 5, 7, 8, 10) OR x.vehicle_id = 6));
+
+-- Slot C: management trip, afternoon (minibus)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type)
+SELECT ELT(MOD(dd.td + 2, 5) + 1, 1, 2, 4, 9, 12), 7, dd.d, '14:00:00', '17:30:00',
+       ELT(MOD(dd.td + 3, 8) + 1, 'Kementerian Pendidikan Malaysia, Putrajaya', 'Jabatan Agama Islam Selangor (JAIS), Shah Alam', 'Universiti Kebangsaan Malaysia, Bangi', 'Bank Muamalat Malaysia, Kuala Lumpur', 'Majlis Agama Islam Selangor (MAIS), Shah Alam', 'Putrajaya International Convention Centre (PICC)', 'Jabatan Kemajuan Islam Malaysia (JAKIM), Putrajaya', 'Universiti Malaya, Kuala Lumpur'),
+       ELT(MOD(dd.td + 3, 8) + 1, 'Meeting with ministry officers on programme accreditation', 'Official courtesy visit and coordination meeting', 'Inter-university collaboration meeting', 'Corporate banking appointment - Finance Department', 'Management meeting and document submission', 'Attending national higher-education forum', 'Programme accreditation briefing', 'Academic benchmarking visit'),
+       8 + MOD(dd.td, 7),
+       ELT(MOD(dd.td, 6) + 1, 'En. Faruq, En. Amir', 'Pn. Norliza binti Abdul Rahman', 'Dr. Syafiq bin Zainal',
+                              'Pn. Siti Aishah binti Mohd Yusof', 'En. Hafiz bin Ramli', 'Prof. Madya Dr. Rohaizad bin Ismail'),
+       ELT(MOD(dd.td, 6) + 1, '011-2835 4792', '012-3344 5566', '013-4455 6677', '014-5566 7788', '016-6677 8899', '019-7788 9900'),
+       ELT(MOD(dd.td, 5) + 1, 'Stor UIS', 'Lobi Bangunan Pentadbiran', 'Pondok Pengawal Utama', 'Lobi Fakulti', 'Perpustakaan UIS'),
+       CASE WHEN dd.d < CURDATE() THEN IF(MOD(dd.td, 11) = 0, 'cancelled', 'completed') WHEN dd.d = CURDATE() THEN 'approved' ELSE IF(MOD(dd.td, 4) = 0, 'pending', 'approved') END,
+       ROUND(5 + MOD(dd.td * 7, 45) / 10, 2),
+       1, 'top_management'
+FROM demo_dates dd
+WHERE dd.dow BETWEEN 2 AND 6 AND MOD(dd.td, 3) = 0
+  AND NOT EXISTS (
+        SELECT 1 FROM schedules x
+        WHERE x.trip_date = dd.d AND x.status <> 'cancelled'
+          AND (x.driver_id = ELT(MOD(dd.td + 2, 5) + 1, 1, 2, 4, 9, 12) OR x.vehicle_id = 7));
+
+-- Slot D: regular trip, afternoon (van)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type)
+SELECT ELT(MOD(dd.td + 2, 5) + 1, 3, 5, 7, 8, 10), 3, dd.d, '14:30:00', '17:00:00',
+       ELT(MOD(dd.td + 3, 8) + 1, 'Pejabat Tanah dan Galian Selangor, Shah Alam', 'Hospital Shah Alam', 'Majlis Bandaraya Shah Alam (MBSA)', 'Pejabat Pos Besar, Shah Alam', 'Politeknik Sultan Salahuddin Abdul Aziz Shah, Shah Alam', 'Kolej Komuniti Klang', 'Sekolah Menengah Agama Shah Alam', 'Pusat Zakat Selangor, Shah Alam'),
+       ELT(MOD(dd.td + 3, 8) + 1, 'Document submission - Registrar Office', 'Staff medical appointment transport', 'Permit renewal documentation submission', 'Official mail and parcel delivery', 'Student programme coordination', 'Student practical placement visit', 'Outreach programme logistics', 'Student welfare programme coordination'),
+       6 + MOD(dd.td, 6),
+       ELT(MOD(dd.td, 6) + 1, 'En. Faruq, En. Amir', 'Pn. Norliza binti Abdul Rahman', 'Dr. Syafiq bin Zainal',
+                              'Pn. Siti Aishah binti Mohd Yusof', 'En. Hafiz bin Ramli', 'Prof. Madya Dr. Rohaizad bin Ismail'),
+       ELT(MOD(dd.td, 6) + 1, '011-2835 4792', '012-3344 5566', '013-4455 6677', '014-5566 7788', '016-6677 8899', '019-7788 9900'),
+       ELT(MOD(dd.td, 5) + 1, 'Stor UIS', 'Lobi Bangunan Pentadbiran', 'Pondok Pengawal Utama', 'Lobi Fakulti', 'Perpustakaan UIS'),
+       CASE WHEN dd.d < CURDATE() THEN IF(MOD(dd.td, 11) = 0, 'cancelled', 'completed') WHEN dd.d = CURDATE() THEN 'approved' ELSE IF(MOD(dd.td, 4) = 0, 'pending', 'approved') END,
+       ROUND(5 + MOD(dd.td * 7, 45) / 10, 2),
+       1, 'regular'
+FROM demo_dates dd
+WHERE dd.dow BETWEEN 2 AND 6 AND MOD(dd.td, 3) = 1
+  AND NOT EXISTS (
+        SELECT 1 FROM schedules x
+        WHERE x.trip_date = dd.d AND x.status <> 'cancelled'
+          AND (x.driver_id = ELT(MOD(dd.td + 2, 5) + 1, 3, 5, 7, 8, 10) OR x.vehicle_id = 3));
+
+DROP TEMPORARY TABLE IF EXISTS demo_dates;
+
+-- ============================================================
+-- End of schema – 12 drivers · 19 vehicles · 26 messages · 4 vehicle requests
+--   · 52 fixed schedules (2025–2026) + demo trips around the import date
 -- ============================================================

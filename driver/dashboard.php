@@ -175,9 +175,6 @@ require_once '../includes/sidebar.php';
             <?php else: ?>
             <?php foreach ($today_schedules as $ts): ?>
             <div class="border rounded-3 p-3 mb-3 position-relative <?= $ts['status']==='in_progress'?'border-info border-2':'' ?>">
-              <?php if ($ts['status']==='in_progress'): ?>
-              <span class="position-absolute top-0 end-0 badge bg-info rounded-0 rounded-bottom-start">In Progress</span>
-              <?php endif; ?>
               <div class="d-flex gap-3 align-items-start">
                 <div class="text-center bg-primary text-white rounded-3 px-3 py-2" style="min-width:80px">
                   <div class="fw-bold"><?= substr($ts['start_time'],0,5) ?></div>
