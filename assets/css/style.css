@@ -1550,3 +1550,35 @@ main:focus { outline: none; }
     scroll-behavior: auto !important;
   }
 }
+
+
+/* ============================================================
+   DRIVER DASHBOARD — welcome banner and score bars
+   ============================================================ */
+.driver-hero {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem;
+  padding: 1.5rem 1.75rem;
+  border-radius: var(--radius-lg, 14px);
+  color: #fff;
+  background: linear-gradient(135deg, #0a4d31 0%, #0e6b45 100%);
+  box-shadow: var(--shadow-sm);
+}
+.driver-hero-title { font-size: 1.5rem; font-weight: 800; margin: 0 0 .35rem; color: #fff; }
+.driver-hero-meta  { margin: 0; display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; font-size: .9rem; color: rgba(255,255,255,.85); }
+.driver-hero-score {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 150px; padding: .7rem 1.4rem;
+  background: #fff; border-radius: 12px; text-align: center;
+}
+.driver-hero-score-label { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #64748b; }
+.driver-hero-score-value { font-size: 2rem; font-weight: 800; line-height: 1.15; }
+.driver-hero-score-value small { font-size: .95rem; font-weight: 600; color: #94a3b8; margin-left: .15rem; }
+.driver-hero-score-value.score-good { color: #15803d; }
+.driver-hero-score-value.score-fair { color: #b45309; }
+.driver-hero-score-value.score-low  { color: #b91c1c; }
+
+.progress { background: #e8eeea; border-radius: 999px; }
+.progress-bar.bar-green { background: #0b5d3b; }
+.progress-bar.bar-gold  { background: #c69214; }
+.progress-bar.bar-teal  { background: #0f766e; }

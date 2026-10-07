@@ -67,28 +67,12 @@ require_once '../includes/header.php';
 require_once '../includes/sidebar.php';
 ?>
 
-<div class="main-content">
-  <!-- Top Bar -->
-  <div class="topbar d-flex align-items-center justify-content-between px-4 py-2 bg-white shadow-sm">
-    <div class="d-flex align-items-center gap-3">
-      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" aria-label="Open navigation menu"><i class="fas fa-bars"></i></button>
-      <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="dashboard.php">Dashboard</a></li>
-        <li class="breadcrumb-item active">My Schedules</li>
-      </ol></nav>
-    </div>
-    <div class="d-flex align-items-center gap-3">
-      <small class="text-muted"><?= date('D, d M Y') ?></small>
-      <a href="../logout.php" class="btn btn-sm btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i>Logout</a>
-    </div>
-  </div>
-
-  <div class="container-fluid p-4">
+<main class="main-content">
     <?php showFlash(); ?>
 
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
-        <h4 class="fw-bold text-primary mb-1"><i class="fas fa-calendar-alt me-2"></i>My Schedules</h4>
+        <h1 class="h4 fw-bold text-primary mb-1"><i class="fas fa-calendar-alt me-2"></i>My Schedules</h1>
         <p class="text-muted mb-0">View and manage your assigned trips.</p>
       </div>
     </div>
@@ -210,8 +194,7 @@ require_once '../includes/sidebar.php';
         <?php endif; ?>
       </div>
     </div>
-  </div>
-</div>
+</main>
 
 <!-- View Details Modal -->
 <div class="modal fade" id="viewModal" tabindex="-1">
@@ -239,8 +222,8 @@ function viewDetails(s){
   const sc=statMap[s.status]||"secondary";
   document.getElementById("viewModalBody").innerHTML=`
     <div class="row g-3">
-      <div class="col-md-6"><label class="text-muted small">Destination</label><div class="fw-semibold">${s.destination}</div></div>
-      <div class="col-md-6"><label class="text-muted small">Purpose</label><div class="fw-semibold">${s.purpose||"—"}</div></div>
+      <div class="col-md-6"><label class="text-muted small">Destination</label><div class="fw-semibold">${esc(s.destination)}</div></div>
+      <div class="col-md-6"><label class="text-muted small">Purpose</label><div class="fw-semibold">${esc(s.purpose)||"—"}</div></div>
       <div class="col-md-4"><label class="text-muted small">Date</label><div class="fw-semibold">${s.trip_date}</div></div>
       <div class="col-md-4"><label class="text-muted small">Start Time</label><div class="fw-semibold">${s.start_time}</div></div>
       <div class="col-md-4"><label class="text-muted small">End Time</label><div class="fw-semibold">${s.end_time}</div></div>
@@ -254,7 +237,7 @@ function viewDetails(s){
         <div class="text-muted small">If the officer is late past the scheduled time, contact the officer for further action.</div>
       </div>
       ${s.driver_id?`<div class="col-12"><a href="'.SITE_URL.'/driver/task_sheet.php?id=${parseInt(s.schedule_id,10)}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>Print Task Sheet</a></div>`:""}
-      ${s.notes?`<div class="col-12"><label class="text-muted small">Notes</label><div>${s.notes}</div></div>`:""}
+      ${s.notes?`<div class="col-12"><label class="text-muted small">Notes</label><div>${esc(s.notes)}</div></div>`:""}
     </div>
   `;
   new bootstrap.Modal(document.getElementById("viewModal")).show();

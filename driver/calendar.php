@@ -250,38 +250,6 @@ foreach ($schedules as $r) {
 
 <main class="main-content p-4">
 
-    <!-- ── Breadcrumb / top bar (desktop) ──────────────────── -->
-    <div class="d-none d-lg-flex align-items-center justify-content-between mb-4 pb-3"
-         style="border-bottom: 2px solid #e5e9f0;">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-1" style="font-size: .78rem;">
-                    <li class="breadcrumb-item">
-                        <a href="<?php echo SITE_URL; ?>/driver/dashboard.php"
-                           class="text-decoration-none" style="color: var(--uis-primary);">
-                            <i class="fas fa-home me-1"></i>Home
-                        </a>
-                    </li>
-                    <li class="breadcrumb-item active">Calendar</li>
-                </ol>
-            </nav>
-            <h1 class="page-title mb-0" style="font-size: 1.6rem;">
-                <i class="fas fa-calendar-week me-2" style="color: var(--uis-primary);"></i>My Calendar
-            </h1>
-            <p class="page-subtitle mb-0">Visual overview of your assigned trips.</p>
-        </div>
-        <div class="d-flex gap-2">
-            <a href="<?php echo SITE_URL; ?>/driver/schedules.php"
-               class="btn btn-outline-primary btn-sm">
-                <i class="fas fa-list me-1"></i>List View
-            </a>
-            <a href="<?php echo SITE_URL; ?>/driver/dashboard.php"
-               class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-gauge-high me-1"></i>Dashboard
-            </a>
-        </div>
-    </div>
-
     <?php showFlash(); ?>
 
     <!-- ── Page header gradient ─────────────────────────────── -->
@@ -300,6 +268,9 @@ foreach ($schedules as $r) {
                     <i class="fas fa-calendar me-1"></i>
                     <?php echo date('l, d F Y'); ?>
                 </p>
+                <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="btn btn-light btn-sm mt-3">
+                    <i class="fas fa-list me-1"></i>List View
+                </a>
             </div>
             <div class="col-lg-6">
                 <div class="row g-2">

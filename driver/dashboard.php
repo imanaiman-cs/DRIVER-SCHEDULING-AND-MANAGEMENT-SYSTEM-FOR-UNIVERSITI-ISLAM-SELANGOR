@@ -99,51 +99,24 @@ require_once '../includes/header.php';
 require_once '../includes/sidebar.php';
 ?>
 
-<div class="main-content">
-  <!-- Top Bar -->
-  <div class="topbar d-flex align-items-center justify-content-between px-4 py-2 bg-white shadow-sm">
-    <div class="d-flex align-items-center gap-3">
-      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" aria-label="Open navigation menu">
-        <i class="fas fa-bars"></i>
-      </button>
-      <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item active">Dashboard</li>
-      </ol></nav>
-    </div>
-    <div class="d-flex align-items-center gap-3">
-      <small class="text-muted" id="liveClock"></small>
-      <a href="../logout.php" class="btn btn-sm btn-outline-danger"><i class="fas fa-sign-out-alt me-1"></i>Logout</a>
-    </div>
-  </div>
-
-  <div class="container-fluid p-4">
+<main class="main-content">
     <?php showFlash(); ?>
 
     <!-- Welcome Banner -->
-    <div class="card border-0 shadow-sm mb-4 bg-primary text-white">
-      <div class="card-body py-4">
-        <div class="row align-items-center">
-          <div class="col-md-8">
-            <h4 class="fw-bold mb-1">Welcome back, <?= htmlspecialchars($driver['name']) ?>!</h4>
-            <p class="mb-0 opacity-75">
-              <i class="fas fa-id-badge me-2"></i><?= htmlspecialchars($driver['employee_id'] ?? 'N/A') ?>
-              &nbsp;&bull;&nbsp;
-              <i class="fas fa-calendar-day me-2"></i><?= date('l, d F Y') ?>
-            </p>
-          </div>
-          <div class="col-md-4 text-md-end mt-3 mt-md-0">
-            <?php $sc = $priority_score; $bc = $sc>=7?'success':($sc>=5?'warning':'danger'); ?>
-            <div class="d-inline-block bg-white bg-opacity-20 rounded-3 px-4 py-2">
-              <div class="small opacity-75">Allocation Score</div>
-              <div class="h2 fw-bold mb-0">
-                <span class="badge bg-<?= $bc ?> fs-5"><?= $priority_score ?></span>
-                <small class="fs-6 opacity-75">/10</small>
-              </div>
-            </div>
-          </div>
-        </div>
+    <?php $sc = $priority_score; $score_tone = $sc>=7 ? 'good' : ($sc>=5 ? 'fair' : 'low'); ?>
+    <section class="driver-hero mb-4" aria-label="Welcome">
+      <div class="driver-hero-text">
+        <h1 class="driver-hero-title">Welcome back, <?= htmlspecialchars($driver['name']) ?></h1>
+        <p class="driver-hero-meta">
+          <span><i class="fas fa-id-badge me-2"></i><?= htmlspecialchars($driver['employee_id'] ?? 'N/A') ?></span>
+          <span><i class="fas fa-calendar-day me-2"></i><?= date('l, d F Y') ?></span>
+        </p>
       </div>
-    </div>
+      <div class="driver-hero-score" title="Higher score = higher chance of being assigned the next job">
+        <span class="driver-hero-score-label">Allocation Score</span>
+        <span class="driver-hero-score-value score-<?= $score_tone ?>"><?= $priority_score ?><small>/10</small></span>
+      </div>
+    </section>
 
     <!-- Stat Cards -->
     <div class="row g-3 mb-4">
@@ -265,9 +238,9 @@ require_once '../includes/sidebar.php';
             $weekend_factor = 1 - min($month_weekend / 4, 1);
             $exp_factor     = min(((float)$driver['experience_years']) / 20, 1);
             $metrics = [
-                ['label'=>'Tasks this month','value'=>$task_factor*10,'raw'=>$month_tasks.' task'.($month_tasks!==1?'s':''),'weight'=>50,'color'=>'primary'],
-                ['label'=>'Weekend tasks','value'=>$weekend_factor*10,'raw'=>$month_weekend.' weekend task'.($month_weekend!==1?'s':''),'weight'=>30,'color'=>'info'],
-                ['label'=>'Experience','value'=>$exp_factor*10,'raw'=>$driver['experience_years'].' yrs','weight'=>20,'color'=>'success'],
+                ['label'=>'Tasks this month','value'=>$task_factor*10,'raw'=>$month_tasks.' task'.($month_tasks!==1?'s':''),'weight'=>50,'color'=>'green'],
+                ['label'=>'Weekend tasks','value'=>$weekend_factor*10,'raw'=>$month_weekend.' weekend task'.($month_weekend!==1?'s':''),'weight'=>30,'color'=>'gold'],
+                ['label'=>'Experience','value'=>$exp_factor*10,'raw'=>$driver['experience_years'].' yrs','weight'=>20,'color'=>'teal'],
             ];
             foreach ($metrics as $m):
             $pct = ($m['value']/10)*100;
@@ -278,7 +251,7 @@ require_once '../includes/sidebar.php';
                 <small class="text-muted"><?= $m['raw'] ?></small>
               </div>
               <div class="progress" style="height:8px">
-                <div class="progress-bar bg-<?= $m['color'] ?>" style="width:<?= round($pct) ?>%"></div>
+                <div class="progress-bar bar-<?= $m['color'] ?>" role="progressbar" aria-valuenow="<?= round($pct) ?>" aria-valuemin="0" aria-valuemax="100" style="width:<?= round($pct) ?>%"></div>
               </div>
             </div>
             <?php endforeach; ?>
@@ -298,7 +271,7 @@ require_once '../includes/sidebar.php';
         <!-- Upcoming -->
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white border-bottom d-flex justify-content-between">
-            <h6 class="mb-0 fw-semibold"><i class="fas fa-calendar-alt text-info me-2"></i>Upcoming Trips</h6>
+            <h6 class="mb-0 fw-semibold"><i class="fas fa-calendar-alt text-primary me-2"></i>Upcoming Trips</h6>
             <a href="schedules.php" class="btn btn-sm btn-outline-primary">View All</a>
           </div>
           <div class="card-body p-0">
@@ -364,19 +337,10 @@ require_once '../includes/sidebar.php';
       </div>
     </div>
     <?php endif; ?>
-  </div>
-</div>
+</main>
 
 <?php
 $extra_js = '<script>
-(function(){
-  function tick(){
-    const el=document.getElementById("liveClock");
-    if(el) el.textContent=new Date().toLocaleString("en-MY",{weekday:"short",year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"});
-  }
-  tick(); setInterval(tick,1000);
-})();
-
 function updateStatus(scheduleId, newStatus, btn){
   const dialogs={
     in_progress:{title:"Start this trip?",text:"The trip will be marked as In Progress.",confirmText:"Start Trip"},

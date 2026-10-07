@@ -13,6 +13,12 @@ define('SITE_URL',  'http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FO
 define('SITE_NAME', 'UIS Driver Management System');
 
 // ============================================================
+// Time zone — the system runs on Malaysia time (UTC+8). Without this
+// PHP falls back to UTC, so "today" is wrong between 00:00 and 08:00.
+// ============================================================
+date_default_timezone_set('Asia/Kuala_Lumpur');
+
+// ============================================================
 // Database connection
 // ============================================================
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
@@ -22,6 +28,7 @@ if ($conn->connect_error) {
 }
 
 $conn->set_charset("utf8mb4");
+$conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with PHP
 
 // ============================================================
 // Session initialisation
