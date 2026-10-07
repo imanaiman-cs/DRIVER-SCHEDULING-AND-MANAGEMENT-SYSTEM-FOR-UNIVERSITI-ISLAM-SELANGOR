@@ -483,12 +483,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <!-- Right controls -->
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
 
-        <!-- Help -->
-        <a href="<?php echo SITE_URL; ?>/help.php" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center"
-           style="width:38px;height:38px;border:1.5px solid #e5e9f0;" title="Help &amp; User Guide" aria-label="Help and user guide">
-            <i class="fas fa-question" style="color:var(--uis-primary);" aria-hidden="true"></i>
-        </a>
-
         <!-- Live clock (xl+ only) -->
         <div class="d-none d-xl-block text-end me-1">
             <div id="dhClock" style="font-size:.88rem;font-weight:700;color:var(--uis-primary);letter-spacing:.03em;white-space:nowrap;"></div>
