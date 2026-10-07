@@ -316,6 +316,26 @@
         });
     }, true);
 
+    // Reload via keyboard (F5, Ctrl/Cmd+R) is also routed through the styled dialog.
+    document.addEventListener('keydown', function (event) {
+        var key = (event.key || '').toLowerCase();
+        var isReload = key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r');
+        if (!isReload || event.altKey || !hasUnsavedForm()) { return; }
+        event.preventDefault();
+        var hard = event.shiftKey || event.ctrlKey && key === 'f5';
+        window.UIS.confirm({
+            title: 'Reload this page?',
+            text: 'You have unsaved changes. If you reload now, the information you entered will be lost.',
+            confirmText: 'Reload page',
+            cancelText: 'Stay on page',
+            tone: 'warning'
+        }).then(function (ok) {
+            if (!ok) { return; }
+            document.querySelectorAll('form').forEach(function (f) { f.dirty = false; });
+            window.location.reload(hard);
+        });
+    });
+
     // Fallback for closing the tab, refreshing or typing a URL: the browser
     // draws this dialog itself, so its look cannot be changed from the page.
     window.addEventListener('beforeunload', function (event) {
