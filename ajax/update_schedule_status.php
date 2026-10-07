@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/mailer.php';
 requireLogin();
 header('Content-Type: application/json');
 
@@ -26,6 +27,18 @@ $allowed_statuses = ['in_progress', 'completed', 'cancelled'];
 if (!in_array($new_status, $allowed_statuses)) {
     echo json_encode(['success' => false, 'message' => 'Invalid status.']);
     exit();
+}
+
+// E-mail drivers only for admin changes (e.g. cancelling). A driver starting
+// or completing their own trip must never trigger an e-mail.
+$notify_driver = isAdmin() && !isDriver();
+$before        = null;
+if ($notify_driver) {
+    try {
+        $before = snapshotSchedule($conn, $schedule_id);
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+    }
 }
 
 // Drivers can only update their own schedules
@@ -53,6 +66,13 @@ if ($stmt->execute()) {
     if ($stmt->affected_rows === 0) {
         echo json_encode(['success' => false, 'message' => 'Schedule not found or no change made.']);
     } else {
+        if ($notify_driver && $before !== null) {
+            try {
+                notifyScheduleChanged($conn, $before, $schedule_id);
+            } catch (Throwable $e) {
+                error_log($e->getMessage());
+            }
+        }
         echo json_encode([
             'success' => true,
             'message' => 'Status updated to ' . ucfirst(str_replace('_', ' ', $new_status))

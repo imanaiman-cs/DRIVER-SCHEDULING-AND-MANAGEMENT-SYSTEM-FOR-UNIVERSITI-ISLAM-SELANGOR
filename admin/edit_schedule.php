@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/mailer.php';
 requireAdmin();
 
 $page_title   = 'Edit Schedule';
@@ -219,6 +220,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $officer_phone_db = $officer_phone === '' ? null : $officer_phone;
         $waiting_place_db = $waiting_place === '' ? null : $waiting_place;
 
+        // Snapshot before the update so the e-mail layer can tell what changed
+        $before = null;
+        try {
+            $before = snapshotSchedule($conn, $schedule_id);
+        } catch (Throwable $e) {
+            error_log($e->getMessage());
+        }
+
         $upd = $conn->prepare(
             "UPDATE schedules SET
                  driver_id       = ?,
@@ -248,7 +257,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($upd->execute()) {
             $upd->close();
-            setFlash('success', "Schedule #" . str_pad($schedule_id, 4, '0', STR_PAD_LEFT) . " updated successfully.");
+
+            $email_note = '';
+            if ($before !== null) {
+                try {
+                    $email_results = notifyScheduleChanged($conn, $before, $schedule_id);
+                    if (!empty($email_results)) {
+                        $email_note = emailSummary($email_results);
+                    }
+                } catch (Throwable $e) {
+                    error_log($e->getMessage());
+                }
+            }
+
+            setFlash('success', "Schedule #" . str_pad($schedule_id, 4, '0', STR_PAD_LEFT) . " updated successfully." . ($email_note !== '' ? ' ' . htmlspecialchars($email_note) : ''));
             header('Location: ' . SITE_URL . '/admin/schedules.php');
             exit();
         } else {

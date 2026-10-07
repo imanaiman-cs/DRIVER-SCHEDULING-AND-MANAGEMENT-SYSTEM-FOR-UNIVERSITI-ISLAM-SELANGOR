@@ -65,6 +65,7 @@ $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.p
 $_sidebar_uid        = (int)($_SESSION['user_id'] ?? 0);
 $_unread_msgs        = 0;
 $_pending_assignments = 0;
+$_failed_emails      = 0;   // admin: e-mails that failed in the last 7 days
 $_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
 $_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
 if ($_sidebar_uid > 0 && isset($conn)) {
@@ -75,6 +76,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
         $r4 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='approved'");
         if ($r4) $_approved_requests = (int)$r4->fetch_assoc()['cnt'];
+        try {   // the table may not exist yet on a database that has not been re-imported
+            $r6 = $conn->query("SELECT COUNT(*) AS cnt FROM email_log WHERE status='failed' AND created_at >= (NOW() - INTERVAL 7 DAY)");
+            if ($r6) $_failed_emails = (int)$r6->fetch_assoc()['cnt'];
+        } catch (Throwable $e) {
+            $_failed_emails = 0;
+        }
     }
     if ($role === 'supervisor') {
         $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE supervisor_id=$_sidebar_uid AND status='pending'");
@@ -250,6 +257,21 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     <span class="ms-auto badge rounded-pill"
                           style="background:#15803d;font-size:0.65rem;min-width:18px;">
                         <?php echo $_approved_requests; ?>
+                    </span>
+                    <?php endif; ?>
+                </a>
+            </li>
+
+            <!-- Notifications (driver e-mails) -->
+            <li class="sidebar-item <?php echo sidebarActive('notifications.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/notifications.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-envelope-circle-check" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Notifications</span>
+                    <?php if ($_failed_emails > 0): ?>
+                    <span class="ms-auto badge rounded-pill"
+                          style="background:#dc2626;font-size:0.65rem;min-width:18px;"
+                          title="E-mails that failed in the last 7 days">
+                        <?php echo $_failed_emails; ?>
                     </span>
                     <?php endif; ?>
                 </a>

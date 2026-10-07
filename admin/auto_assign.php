@@ -9,11 +9,13 @@ $page_title   = 'Auto Assign Drivers';
 $current_page = 'auto_assign.php';
 
 require_once '../config/database.php';
+require_once '../includes/mailer.php';
 requireAdmin();
 
 $assignments   = [];
 $errors        = [];
 $success_count = 0;
+$assigned_ids  = [];   // schedule_ids actually assigned (confirm mode only)
 $preview_mode  = true;
 
 // ── Run Assignment Algorithm ─────────────────────────────────
@@ -181,7 +183,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if ($confirm) {
                     $upd = $conn->prepare("UPDATE schedules SET driver_id = ?, priority_score = ?, status = 'approved', updated_at = NOW() WHERE schedule_id = ?");
                     $upd->bind_param("idi", $did, $chosen['priority'], $schedule['schedule_id']);
-                    $upd->execute();
+                    if ($upd->execute()) {
+                        $assigned_ids[] = (int)$schedule['schedule_id'];
+                    }
                     $success_count++;
                 }
 
@@ -197,7 +201,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
 
             if ($confirm && $success_count > 0) {
-                setFlash('success', "$success_count schedule(s) successfully assigned.");
+                // One digest e-mail per driver for the whole batch. Never sent in preview mode.
+                $email_note = '';
+                if ($assigned_ids) {
+                    try {
+                        $email_results = notifyDriversAssigned($conn, $assigned_ids);
+                        $email_note    = emailSummary($email_results);
+                    } catch (Throwable $e) {
+                        error_log($e->getMessage());
+                    }
+                }
+                setFlash('success', trim("{$success_count} schedule(s) successfully assigned. " . $email_note));
             }
             $preview_mode = !$confirm;
         }

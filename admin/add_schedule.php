@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/mailer.php';
 requireAdmin();
 
 $page_title   = 'Create Schedule';
@@ -186,7 +187,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($ins->execute()) {
             $new_id = $ins->insert_id;
             $ins->close();
-            setFlash('success', "Schedule #" . str_pad($new_id, 4, '0', STR_PAD_LEFT) . " to <strong>" . htmlspecialchars($destination) . "</strong> created successfully." . ($did === null ? " It will be auto-assigned." : ""));
+
+            // E-mail the driver when one was chosen (never breaks the save)
+            $email_note = '';
+            if ($did !== null && $status !== 'cancelled') {
+                try {
+                    $email_results = notifyDriversAssigned($conn, [(int)$new_id]);
+                    $email_note    = emailSummary($email_results);
+                } catch (Throwable $e) {
+                    error_log($e->getMessage());
+                }
+            }
+
+            setFlash('success', "Schedule #" . str_pad($new_id, 4, '0', STR_PAD_LEFT) . " to <strong>" . htmlspecialchars($destination) . "</strong> created successfully." . ($did === null ? " It will be auto-assigned." : "") . ($email_note !== '' ? ' ' . htmlspecialchars($email_note) : ''));
             header('Location: ' . SITE_URL . '/admin/schedules.php');
             exit();
         } else {

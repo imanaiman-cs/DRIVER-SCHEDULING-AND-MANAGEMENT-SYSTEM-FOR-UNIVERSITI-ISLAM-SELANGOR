@@ -1,5 +1,6 @@
 <?php
 require_once '../config/database.php';
+require_once '../includes/mailer.php';
 requireAdmin();
 header('Content-Type: application/json');
 
@@ -21,10 +22,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
         exit();
     }
 
+    // Snapshot before deleting so the driver can still be told which task was cancelled
+    $before = null;
+    try {
+        $before = snapshotSchedule($conn, $id);
+    } catch (Throwable $e) {
+        error_log($e->getMessage());
+    }
+
     $stmt = $conn->prepare("DELETE FROM schedules WHERE schedule_id = ?");
     $stmt->bind_param("i", $id);
     if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Schedule deleted successfully.']);
+        $message = 'Schedule deleted successfully.';
+        try {
+            $email_results = notifyScheduleDeleted($conn, $before);
+            foreach ($email_results as $r) {
+                if (($r['status'] ?? '') === 'sent') {
+                    $message .= ' The driver was notified by e-mail.';
+                    break;
+                }
+            }
+        } catch (Throwable $e) {
+            error_log($e->getMessage());
+        }
+        echo json_encode(['success' => true, 'message' => $message]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Failed to delete schedule.']);
     }
