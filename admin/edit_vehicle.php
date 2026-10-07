@@ -778,12 +778,12 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
 
         <!-- ── Form Actions ────────────────────────────────────── -->
         <div class="d-flex gap-2 justify-content-end mb-4">
+            <a href="<?php echo SITE_URL; ?>/admin/vehicles.php" class="btn btn-outline-secondary px-4">
+                <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
+            </a>
             <button type="submit" class="btn btn-primary fw-semibold px-4">
                 <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Changes
             </button>
-            <a href="<?php echo SITE_URL; ?>/admin/vehicles.php" class="btn btn-secondary">
-                <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
-            </a>
         </div>
 
     </form>

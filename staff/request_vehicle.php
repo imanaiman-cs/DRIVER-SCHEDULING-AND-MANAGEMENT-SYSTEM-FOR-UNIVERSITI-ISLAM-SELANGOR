@@ -565,13 +565,13 @@ if ($stmt) {
             </div>
 
             <!-- Actions -->
-            <div class="d-flex gap-2 flex-wrap">
-                <button type="submit" class="btn btn-primary px-4 fw-semibold">
-                    <i class="fas fa-paper-plane me-2"></i>Submit Request
-                </button>
+            <div class="d-flex gap-2 justify-content-end flex-wrap">
                 <a href="my_requests.php" class="btn btn-outline-secondary px-4">
                     <i class="fas fa-xmark me-1"></i>Cancel
                 </a>
+                <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                    <i class="fas fa-paper-plane me-2"></i>Submit Request
+                </button>
             </div>
             </form>
         </div>

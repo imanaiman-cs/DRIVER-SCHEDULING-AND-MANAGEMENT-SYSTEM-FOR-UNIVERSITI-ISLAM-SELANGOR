@@ -668,12 +668,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <!-- Action buttons -->
                 <div class="d-flex gap-2 justify-content-end">
-                    <button type="submit" class="btn btn-primary px-5 fw-semibold">
-                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Driver
-                    </button>
                     <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="btn btn-outline-secondary px-4">
                         <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
                     </a>
+                    <button type="submit" class="btn btn-primary px-5 fw-semibold">
+                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Driver
+                    </button>
                 </div>
 
             </div><!-- /left col -->
