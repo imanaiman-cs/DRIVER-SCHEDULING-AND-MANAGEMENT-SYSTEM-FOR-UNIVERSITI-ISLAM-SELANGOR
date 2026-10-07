@@ -1,8 +1,16 @@
 <?php
+// Set to true to make at least one supporting document mandatory.
+const REQUIRE_SUPPORTING_DOCUMENT = false;
+const MAX_SUPPORTING_DOCUMENTS    = 5;
+const MAX_DOCUMENT_BYTES          = 5242880; // 5 MB
+
 $page_title   = 'Request Vehicle';
 $current_page = 'request_vehicle.php';
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireStaff();
+
+$doc_types = documentTypes();
 
 $staff_id      = (int)$_SESSION['user_id'];
 $full_name     = $_SESSION['full_name']  ?? '';
@@ -26,6 +34,7 @@ $form   = [
     'officer_phone'   => '',
     'waiting_place'   => '',
 ];
+$had_files = false; // true when the failed POST contained chosen files
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trip_date       = trim($_POST['trip_date']       ?? '');
@@ -95,6 +104,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $waiting_place_db = $waiting_place !== '' ? $waiting_place : null;
 
+    // Supporting documents: gather chosen files (keyed by their form row index)
+    $files     = collectUploadedFiles('docs');
+    $had_files = !empty($files);
+
+    // A POST larger than post_max_size arrives with $_POST and $_FILES both empty
+    if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        $errors[] = 'The submitted form was too large and was not received. Each document must be 5 MB or smaller.';
+    }
+    if (count($files) > MAX_SUPPORTING_DOCUMENTS) {
+        $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' supporting documents.';
+    } elseif (REQUIRE_SUPPORTING_DOCUMENT && empty($files)) {
+        $errors[] = 'Please attach at least one supporting document.';
+    }
+
     // If a specific vehicle was chosen, re-verify it is actually free for
     // that slot AND has enough seats for the passenger count
     if (empty($errors) && $vehicle_id !== null) {
@@ -122,29 +145,115 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (empty($errors)) {
-        $stmt = $conn->prepare(
-            "INSERT INTO vehicle_requests
-                 (staff_id, vehicle_id, trip_date, start_time, end_time,
-                  destination, purpose, passenger_count, supervisor_id,
-                  officer_name, officer_phone, waiting_place)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->bind_param(
-            'iisssssiisss',
-            $staff_id, $vehicle_id, $trip_date, $start_time, $end_time,
-            $destination, $purpose, $passenger_count, $supervisor_id,
-            $officer_name, $officer_phone, $waiting_place_db
-        );
+    // Store the uploaded documents (only once everything else is valid)
+    $saved_docs = [];
+    if (empty($errors) && !empty($files)) {
+        $valid_types = array_keys($doc_types);
+        $posted_types = (isset($_POST['doc_type']) && is_array($_POST['doc_type'])) ? $_POST['doc_type'] : [];
 
-        if ($stmt->execute()) {
+        foreach ($files as $i => $file) {
+            $type = $posted_types[$i] ?? 'other';
+            if (!is_string($type) || !in_array($type, $valid_types, true)) {
+                $type = 'other';
+            }
+
+            $res = saveUploadedDocument($file, MAX_DOCUMENT_BYTES);
+            if (empty($res['ok'])) {
+                // Roll back files already stored during this request
+                foreach ($saved_docs as $d) {
+                    deleteStoredDocument($d['path']);
+                }
+                $saved_docs = [];
+                $label = mb_strimwidth((string)($file['name'] ?? ''), 0, 80, '...');
+                $errors[] = 'Document "' . $label . '": ' . ($res['error'] ?? 'the file could not be uploaded.');
+                break;
+            }
+
+            $saved_docs[] = [
+                'type' => $type,
+                'name' => (string)$res['original_name'],
+                'path' => (string)$res['path'],
+                'mime' => (string)$res['mime'],
+                'size' => (int)$res['size'],
+            ];
+        }
+    }
+
+    if (empty($errors)) {
+        $in_transaction = false;
+        try {
+            $conn->begin_transaction();
+            $in_transaction = true;
+
+            $stmt = $conn->prepare(
+                "INSERT INTO vehicle_requests
+                     (staff_id, vehicle_id, trip_date, start_time, end_time,
+                      destination, purpose, passenger_count, supervisor_id,
+                      officer_name, officer_phone, waiting_place)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            if (!$stmt) {
+                throw new RuntimeException('Could not prepare the request insert.');
+            }
+            $stmt->bind_param(
+                'iisssssiisss',
+                $staff_id, $vehicle_id, $trip_date, $start_time, $end_time,
+                $destination, $purpose, $passenger_count, $supervisor_id,
+                $officer_name, $officer_phone, $waiting_place_db
+            );
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new RuntimeException('Could not save the request.');
+            }
+            $new_request_id = (int)$stmt->insert_id;
             $stmt->close();
-            setFlash('success', 'Vehicle request submitted. Awaiting your Head of Section approval.');
+
+            if (!empty($saved_docs)) {
+                $doc_stmt = $conn->prepare(
+                    "INSERT INTO request_documents
+                         (request_id, doc_type, original_name, stored_path, mime_type, file_size)
+                     VALUES (?, ?, ?, ?, ?, ?)"
+                );
+                if (!$doc_stmt) {
+                    throw new RuntimeException('Could not prepare the document insert.');
+                }
+                foreach ($saved_docs as $d) {
+                    $doc_stmt->bind_param(
+                        'issssi',
+                        $new_request_id, $d['type'], $d['name'], $d['path'], $d['mime'], $d['size']
+                    );
+                    if (!$doc_stmt->execute()) {
+                        $doc_stmt->close();
+                        throw new RuntimeException('Could not save a supporting document.');
+                    }
+                }
+                $doc_stmt->close();
+            }
+
+            $conn->commit();
+            $in_transaction = false;
+
+            $doc_count = count($saved_docs);
+            setFlash(
+                'success',
+                $doc_count > 0
+                    ? 'Vehicle request submitted with ' . $doc_count . ' supporting document' . ($doc_count !== 1 ? 's' : '') . '. Awaiting your Head of Section approval.'
+                    : 'Vehicle request submitted. Awaiting your Head of Section approval.'
+            );
             header('Location: my_requests.php');
             exit();
-        } else {
+        } catch (Throwable $ex) {
+            if ($in_transaction) {
+                try {
+                    $conn->rollback();
+                } catch (Throwable $rollbackEx) {
+                    // ignore: connection may already be gone
+                }
+            }
+            foreach ($saved_docs as $d) {
+                deleteStoredDocument($d['path']);
+            }
             $errors[] = 'A database error occurred. Please try again.';
-            $stmt->close();
         }
     }
 }
@@ -205,14 +314,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- ── Request Form ────────────────────────────────────────── -->
         <div class="col-lg-8">
-            <div class="card" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
+            <form method="POST" action="" enctype="multipart/form-data" id="requestForm" novalidate>
+            <div class="card mb-4" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
                 <div class="card-header bg-white border-bottom px-4 py-3" style="border-radius: 14px 14px 0 0;">
                     <h6 class="mb-0 fw-semibold">
                         <i class="fas fa-file-pen text-primary me-2"></i>Trip Details
                     </h6>
                 </div>
                 <div class="card-body px-4 py-4">
-                    <form method="POST" action="" novalidate>
 
                         <!-- Trip Date -->
                         <div class="mb-4">
@@ -324,19 +433,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
 
-                        <!-- Actions -->
-                        <div class="d-flex gap-2 flex-wrap">
-                            <button type="submit" class="btn btn-primary px-4 fw-semibold">
-                                <i class="fas fa-paper-plane me-2"></i>Submit Request
-                            </button>
-                            <a href="my_requests.php" class="btn btn-outline-secondary px-4">
-                                <i class="fas fa-xmark me-1"></i>Cancel
-                            </a>
-                        </div>
-
-                    </form>
                 </div>
             </div>
+
+            <!-- Supporting Documents -->
+            <div class="card mb-4" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
+                <div class="card-header bg-white border-bottom px-4 py-3" style="border-radius: 14px 14px 0 0;">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="fas fa-paperclip text-primary me-2"></i>Supporting Documents
+                        <?php if (REQUIRE_SUPPORTING_DOCUMENT): ?>
+                            <span class="text-danger">*</span>
+                        <?php else: ?>
+                            <span class="text-muted fw-normal small">(optional)</span>
+                        <?php endif; ?>
+                    </h6>
+                </div>
+                <div class="card-body px-4 py-4">
+
+                    <?php if (!empty($errors) && $had_files): ?>
+                    <div class="alert alert-warning py-2 px-3 mb-3" style="font-size:0.85rem;border-radius:8px;">
+                        <i class="fas fa-paperclip me-1"></i>Please re-attach your documents.
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="form-text mb-3 mt-0">
+                        <i class="fas fa-circle-info me-1" style="color: var(--uis-primary);"></i>
+                        Attach any letters needed for approval &mdash; e.g. Release Letter (Surat Pelepasan) or Seminar Letter.
+                        PDF, JPG, PNG or WebP &middot; max 5 MB each &middot; up to 5 files.
+                    </div>
+
+                    <div id="docRows">
+                        <div class="doc-row border rounded-3 p-3 mb-2">
+                            <div class="row g-2 align-items-start">
+                                <div class="col-md-5">
+                                    <select class="form-select doc-type" name="doc_type[]" aria-label="Document type">
+                                        <?php foreach ($doc_types as $key => $label): ?>
+                                        <option value="<?= htmlspecialchars((string)$key) ?>"<?= $key === 'release_letter' ? ' selected' : '' ?>><?= htmlspecialchars((string)$label) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <input type="file" class="form-control doc-file" name="docs[]"
+                                           accept="application/pdf,image/jpeg,image/png,image/webp"
+                                           aria-label="Document file">
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-danger doc-remove" title="Remove document" aria-label="Remove document">
+                                        <i class="fas fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-text mt-1 doc-info"></div>
+                        </div>
+                    </div>
+
+                    <div id="docFormError" class="text-danger fw-semibold small mt-2" role="alert" style="display:none;"></div>
+
+                    <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addDocBtn">
+                        <i class="fas fa-plus me-1"></i>Add another document
+                    </button>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary px-4 fw-semibold">
+                    <i class="fas fa-paper-plane me-2"></i>Submit Request
+                </button>
+                <a href="my_requests.php" class="btn btn-outline-secondary px-4">
+                    <i class="fas fa-xmark me-1"></i>Cancel
+                </a>
+            </div>
+            </form>
         </div>
 
         <!-- ── How It Works Info Box ───────────────────────────────── -->
@@ -361,7 +529,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="fw-semibold small mb-1">Submit Request</div>
                             <div class="text-muted" style="font-size:0.82rem;">
                                 Fill in your trip details at least 3 days before the trip date,
-                                as required by UIS transport policy.
+                                as required by UIS transport policy, and attach any supporting
+                                letters (e.g. Release Letter or Seminar Letter).
                             </div>
                         </div>
                     </div>
@@ -530,6 +699,140 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     endInput.addEventListener('change',   loadVehicles);
     document.getElementById('passenger_count').addEventListener('change', loadVehicles);
     purposeEl.addEventListener('input',   updateCharCount);
+
+    // ── Supporting documents ─────────────────────────────────────
+    var MAX_DOCS       = <?= (int)MAX_SUPPORTING_DOCUMENTS ?>;
+    var MAX_BYTES      = <?= (int)MAX_DOCUMENT_BYTES ?>;
+    var DOC_REQUIRED   = <?= REQUIRE_SUPPORTING_DOCUMENT ? 'true' : 'false' ?>;
+    var ALLOWED_MIME   = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    var ALLOWED_EXT    = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    var form        = document.getElementById('requestForm');
+    var docRows     = document.getElementById('docRows');
+    var addDocBtn   = document.getElementById('addDocBtn');
+    var docFormErr  = document.getElementById('docFormError');
+    var rowTemplate = docRows.querySelector('.doc-row').cloneNode(true);
+
+    function formatSize(bytes) {
+        if (bytes < 1024) { return bytes + ' B'; }
+        if (bytes < 1048576) { return (bytes / 1024).toFixed(1) + ' KB'; }
+        return (bytes / 1048576).toFixed(2) + ' MB';
+    }
+
+    function isAllowedType(file) {
+        if (file.type) { return ALLOWED_MIME.indexOf(file.type) !== -1; }
+        var ext = (file.name.split('.').pop() || '').toLowerCase();
+        return ALLOWED_EXT.indexOf(ext) !== -1;
+    }
+
+    function setInfo(row, text, cls) {
+        var info = row.querySelector('.doc-info');
+        info.textContent = text;
+        info.className   = 'form-text mt-1 doc-info' + (cls ? ' ' + cls : '');
+    }
+
+    // Returns true when the row's chosen file (if any) is acceptable
+    function checkRow(row) {
+        var input = row.querySelector('.doc-file');
+        if (!input.files || input.files.length === 0) {
+            setInfo(row, '', '');
+            return true;
+        }
+        var f = input.files[0];
+        if (!isAllowedType(f)) {
+            setInfo(row, f.name + ' — unsupported file type. Use PDF, JPG, PNG or WebP.', 'text-danger fw-semibold');
+            return false;
+        }
+        if (f.size > MAX_BYTES) {
+            setInfo(row, f.name + ' (' + formatSize(f.size) + ') — too large. Maximum size is 5 MB.', 'text-danger fw-semibold');
+            return false;
+        }
+        setInfo(row, f.name + ' (' + formatSize(f.size) + ')', 'text-success');
+        return true;
+    }
+
+    function rowCount() {
+        return docRows.querySelectorAll('.doc-row').length;
+    }
+
+    function refreshAddButton() {
+        addDocBtn.disabled = rowCount() >= MAX_DOCS;
+    }
+
+    function showDocError(msg) {
+        docFormErr.textContent   = msg;
+        docFormErr.style.display = msg ? '' : 'none';
+    }
+
+    // Pick the first document type not yet used by another row
+    function nextFreeType(selectEl) {
+        var used = {};
+        Array.prototype.forEach.call(docRows.querySelectorAll('.doc-type'), function (s) {
+            used[s.value] = true;
+        });
+        var chosen = 'other';
+        Array.prototype.some.call(selectEl.options, function (o) {
+            if (o.value !== 'other' && !used[o.value]) { chosen = o.value; return true; }
+            return false;
+        });
+        return chosen;
+    }
+
+    function addRow() {
+        if (rowCount() >= MAX_DOCS) { return; }
+        var row = rowTemplate.cloneNode(true);
+        row.querySelector('.doc-file').value = '';
+        setInfo(row, '', '');
+        docRows.appendChild(row);
+        var sel = row.querySelector('.doc-type');
+        sel.value = nextFreeType(sel);
+        refreshAddButton();
+        row.querySelector('.doc-file').focus();
+    }
+
+    addDocBtn.addEventListener('click', addRow);
+
+    docRows.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('.doc-remove');
+        if (!btn) { return; }
+        var row = btn.closest('.doc-row');
+        if (rowCount() > 1) {
+            row.parentNode.removeChild(row);
+        } else {
+            // Last row: clear it instead of removing it
+            row.querySelector('.doc-file').value = '';
+            setInfo(row, '', '');
+        }
+        showDocError('');
+        refreshAddButton();
+    });
+
+    docRows.addEventListener('change', function (ev) {
+        if (ev.target.classList.contains('doc-file')) {
+            checkRow(ev.target.closest('.doc-row'));
+            showDocError('');
+        }
+    });
+
+    form.addEventListener('submit', function (ev) {
+        var rows = docRows.querySelectorAll('.doc-row');
+        var allOk = true, anyFile = false;
+        Array.prototype.forEach.call(rows, function (row) {
+            if (row.querySelector('.doc-file').files.length > 0) { anyFile = true; }
+            if (!checkRow(row)) { allOk = false; }
+        });
+        if (!allOk) {
+            ev.preventDefault();
+            showDocError('Please fix or remove the highlighted documents before submitting.');
+            docFormErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (DOC_REQUIRED && !anyFile) {
+            ev.preventDefault();
+            showDocError('Please attach at least one supporting document.');
+            docFormErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    refreshAddButton();
 
     updateCharCount();
     loadVehicles();

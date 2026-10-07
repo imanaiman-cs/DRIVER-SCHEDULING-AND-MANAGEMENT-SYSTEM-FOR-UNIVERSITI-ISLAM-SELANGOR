@@ -9,6 +9,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 $page_title   = 'Vehicle Requests';
@@ -29,6 +30,27 @@ $sql = "
 ";
 $result       = $conn->query($sql);
 $all_requests = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+
+// ── Supporting documents (one query for all requests) ────────
+$request_documents = [];
+if ($all_requests) {
+    $raw_docs = getRequestDocuments($conn, array_map('intval', array_column($all_requests, 'request_id')));
+    foreach ($raw_docs as $rid => $docs) {
+        foreach ($docs as $d) {
+            $request_documents[(int)$rid][] = [
+                'doc_id'         => (int)$d['doc_id'],
+                'doc_type'       => $d['doc_type'],
+                'doc_type_label' => $d['doc_type_label'],
+                'original_name'  => $d['original_name'],
+                'mime_type'      => $d['mime_type'],
+                'file_size'      => (int)$d['file_size'],
+                'size_label'     => formatFileSize((int)$d['file_size']),
+                'uploaded_at'    => $d['uploaded_at'],
+                'url'            => $d['url'],
+            ];
+        }
+    }
+}
 
 // ── Summary counts ───────────────────────────────────────────
 $total     = count($all_requests);
@@ -348,10 +370,20 @@ $display_requests = array_values($display_requests);
                                 $status_badge = requestStatusBadgeClass($req['status']);
                                 $status_label = ucfirst($req['status']);
                                 $submitted    = date('d M Y', strtotime($req['created_at']));
+                                $doc_count    = count($request_documents[(int)$req['request_id']] ?? []);
                             ?>
                             <tr>
                                 <td>
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($req['staff_name']); ?></div>
+                                    <div class="fw-semibold">
+                                        <?php echo htmlspecialchars($req['staff_name']); ?>
+                                        <?php if ($doc_count > 0): ?>
+                                        <span class="badge rounded-pill ms-1 align-middle"
+                                              style="background:#e8f5ee;color:#0b5d3b;font-weight:600;"
+                                              title="<?php echo $doc_count; ?> supporting document(s) attached">
+                                            <i class="fas fa-paperclip me-1" aria-hidden="true"></i><?php echo $doc_count; ?>
+                                        </span>
+                                        <?php endif; ?>
+                                    </div>
                                     <div class="small text-muted"><?php echo htmlspecialchars($req['department'] ?? '—'); ?></div>
                                 </td>
                                 <td class="small">
@@ -516,6 +548,7 @@ const REQUEST_DATA = <?php
             'status'           => $r['status'],
             'schedule_id'      => $r['schedule_id'] !== null ? (int)$r['schedule_id'] : null,
             'created_at'       => $r['created_at'],
+            'documents'        => $request_documents[(int)$r['request_id']] ?? [],
         ];
     }
     echo json_encode($json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
@@ -548,6 +581,44 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // ── Supporting documents list (URLs come from the server only) ──
+    function documentsHtml(docs) {
+        if (!docs || !docs.length) {
+            return '<div class="small text-muted">No documents attached.</div>';
+        }
+        var html = '<ul class="list-unstyled mb-0">';
+        docs.forEach(function (d) {
+            var isPdf = d.mime_type === 'application/pdf';
+            var icon  = isPdf
+                ? '<i class="fas fa-file-pdf fa-lg" style="color:#b91c1c;"></i>'
+                : '<i class="fas fa-file-image fa-lg" style="color:#0b5d3b;"></i>';
+            var url = String(d.url || '');
+            var dl  = url + (url.indexOf('?') === -1 ? '?download=1' : '&download=1');
+            html +=
+                '<li class="d-flex align-items-center gap-2 p-2 mb-2 border rounded bg-white">'
+              +   '<span class="flex-shrink-0 text-center" style="width:1.6rem;">' + icon + '</span>'
+              +   '<div class="flex-grow-1" style="min-width:0;">'
+              +     '<div class="text-truncate fw-semibold small" title="' + escHtml(d.original_name) + '">'
+              +       escHtml(d.original_name)
+              +     '</div>'
+              +     '<div class="d-flex align-items-center gap-2 flex-wrap">'
+              +       '<span class="badge rounded-pill" style="background:#e8f5ee;color:#0b5d3b;font-weight:600;">'
+              +         escHtml(d.doc_type_label)
+              +       '</span>'
+              +       '<span class="text-muted" style="font-size:0.75rem;">' + escHtml(d.size_label) + '</span>'
+              +     '</div>'
+              +   '</div>'
+              +   '<div class="flex-shrink-0 d-flex gap-1">'
+              +     '<a href="' + escHtml(url) + '" target="_blank" rel="noopener" '
+              +        'class="btn btn-sm btn-outline-success py-0 px-2"><i class="fas fa-eye me-1"></i>View</a>'
+              +     '<a href="' + escHtml(dl) + '" rel="noopener" '
+              +        'class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="fas fa-download me-1"></i>Download</a>'
+              +   '</div>'
+              + '</li>';
+        });
+        return html + '</ul>';
     }
 
     // ── Phone number as tel: link ───────────────────────────
@@ -688,6 +759,12 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div>'
             + '</div>'
 
+            // Supporting documents
+            + '<div class="col-12">'
+            +   '<div class="detail-label">Supporting Documents</div>'
+            +   documentsHtml(r.documents)
+            + '</div>'
+
             // Purpose
             + '<div class="col-12">'
             +   '<div class="detail-label">Purpose</div>'
@@ -764,6 +841,13 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '&mdash;') + '</div></div>'
             + '<div class="col-12"><div class="detail-label">Vehicle</div>'
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div></div>'
+            + '<div class="col-12"><div class="detail-label">Supporting Documents</div>'
+            +   '<div class="detail-value">'
+            +     ((r.documents && r.documents.length)
+                    ? '<i class="fas fa-paperclip me-1" style="color:#0b5d3b;" aria-hidden="true"></i>'
+                      + r.documents.length + ' document(s) attached'
+                    : '<span class="text-muted fw-normal">No documents attached.</span>')
+            +   '</div></div>'
             + '</div>';
 
         document.getElementById('processSummary').innerHTML = summary;

@@ -153,6 +153,27 @@ CREATE TABLE vehicle_requests (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- TABLE: request_documents
+-- Supporting documents (PDF / image) attached to a vehicle
+-- request, e.g. release letter, seminar/invitation letter.
+-- Files live in uploads/documents/ and are served only through
+-- ajax/get_document.php (access-checked).
+-- ============================================================
+CREATE TABLE request_documents (
+    doc_id        INT           NOT NULL AUTO_INCREMENT,
+    request_id    INT           NOT NULL,
+    doc_type      ENUM('release_letter','seminar_letter','approval_letter','programme','other') NOT NULL DEFAULT 'other',
+    original_name VARCHAR(255)  NOT NULL,
+    stored_path   VARCHAR(255)  NOT NULL,
+    mime_type     VARCHAR(100)  NOT NULL,
+    file_size     INT           NOT NULL,
+    uploaded_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (doc_id),
+    INDEX idx_rd_request (request_id),
+    CONSTRAINT fk_rd_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- SEED: users – admin account
 -- Login: username=admin / password=admin123
 -- ============================================================

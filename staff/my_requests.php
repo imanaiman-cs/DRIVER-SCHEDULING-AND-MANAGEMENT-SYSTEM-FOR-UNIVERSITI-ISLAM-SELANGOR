@@ -2,6 +2,7 @@
 $page_title   = 'My Requests';
 $current_page = 'my_requests.php';
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireStaff();
 
 $staff_id = (int)$_SESSION['user_id'];
@@ -19,6 +20,29 @@ $stmt->bind_param('i', $staff_id);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+// Supporting documents (one query for all requests) – attach to each request
+$docs_by_request = $requests
+    ? getRequestDocuments($conn, array_map('intval', array_column($requests, 'request_id')))
+    : [];
+foreach ($requests as &$req_row) {
+    $req_docs = [];
+    foreach ($docs_by_request[(int)$req_row['request_id']] ?? [] as $d) {
+        $req_docs[] = [
+            'doc_id'         => (int)$d['doc_id'],
+            'doc_type'       => $d['doc_type'],
+            'doc_type_label' => $d['doc_type_label'],
+            'original_name'  => $d['original_name'],
+            'mime_type'      => $d['mime_type'],
+            'file_size'      => (int)$d['file_size'],
+            'size_label'     => formatFileSize((int)$d['file_size']),
+            'uploaded_at'    => $d['uploaded_at'],
+            'url'            => $d['url'],
+        ];
+    }
+    $req_row['documents'] = $req_docs;
+}
+unset($req_row);
 
 // Summary counts
 $total    = count($requests);
@@ -181,6 +205,13 @@ foreach ($requests as $r) {
                                       title="<?= htmlspecialchars($r['destination']) ?>">
                                     <?= htmlspecialchars($r['destination']) ?>
                                 </span>
+                                <?php if (!empty($r['documents'])): ?>
+                                <span class="badge rounded-pill ms-1 align-middle"
+                                      style="background:#e8f5ee;color:#0b5d3b;font-weight:600;"
+                                      title="<?= count($r['documents']) ?> supporting document(s) attached">
+                                    <i class="fas fa-paperclip me-1"></i><?= count($r['documents']) ?>
+                                </span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if (!empty($r['plate_number'])): ?>
@@ -396,6 +427,10 @@ var REQUESTS_DATA = <?= json_encode(
                     supervisorHtml +
                 '</div>' +
                 notesHtml +
+                '<div class="col-12">' +
+                    label('Supporting Documents') +
+                    documentsHtml(r.documents) +
+                '</div>' +
                 '<div class="col-sm-6">' +
                     label('Submitted On') +
                     '<div class="fw-semibold mt-1">' + escHtml(submittedFormatted) + '</div>' +
@@ -416,6 +451,44 @@ var REQUESTS_DATA = <?= json_encode(
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // Supporting documents list (URLs come from the server only; text is escaped)
+    function documentsHtml(docs) {
+        if (!docs || !docs.length) {
+            return '<div class="mt-1 small text-muted">No documents attached.</div>';
+        }
+        var html = '<ul class="list-unstyled mb-0 mt-1">';
+        docs.forEach(function (d) {
+            var isPdf = d.mime_type === 'application/pdf';
+            var icon  = isPdf
+                ? '<i class="fas fa-file-pdf fa-lg" style="color:#b91c1c;"></i>'
+                : '<i class="fas fa-file-image fa-lg" style="color:#0b5d3b;"></i>';
+            var url = String(d.url || '');
+            var dl  = url + (url.indexOf('?') === -1 ? '?download=1' : '&download=1');
+            html +=
+                '<li class="d-flex align-items-center gap-2 p-2 mb-2 border rounded bg-white">' +
+                    '<span class="flex-shrink-0 text-center" style="width:1.6rem;">' + icon + '</span>' +
+                    '<div class="flex-grow-1" style="min-width:0;">' +
+                        '<div class="text-truncate fw-semibold small" title="' + escHtml(d.original_name) + '">' +
+                            escHtml(d.original_name) +
+                        '</div>' +
+                        '<div class="d-flex align-items-center gap-2 flex-wrap">' +
+                            '<span class="badge rounded-pill" style="background:#e8f5ee;color:#0b5d3b;font-weight:600;">' +
+                                escHtml(d.doc_type_label) +
+                            '</span>' +
+                            '<span class="text-muted" style="font-size:0.75rem;">' + escHtml(d.size_label) + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="flex-shrink-0 d-flex gap-1">' +
+                        '<a href="' + escHtml(url) + '" target="_blank" rel="noopener" ' +
+                           'class="btn btn-sm btn-outline-success py-0 px-2"><i class="fas fa-eye me-1"></i>View</a>' +
+                        '<a href="' + escHtml(dl) + '" rel="noopener" ' +
+                           'class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="fas fa-download me-1"></i>Download</a>' +
+                    '</div>' +
+                '</li>';
+        });
+        return html + '</ul>';
     }
 
     function telHtml(phone) {
