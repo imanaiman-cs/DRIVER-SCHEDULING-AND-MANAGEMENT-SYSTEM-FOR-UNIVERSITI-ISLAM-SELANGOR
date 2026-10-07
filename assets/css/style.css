@@ -591,7 +591,7 @@ body.sidebar-hidden .desktop-header { left: 0; }
 .page-header .page-title {
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--uis-primary);
+  color: inherit;
   margin: 0;
   display: flex;
   align-items: center;
@@ -1406,7 +1406,7 @@ textarea.form-control { resize: vertical; min-height: 96px; }
 }
 .bg-primary { background-color: rgba(11,93,59, var(--bs-bg-opacity, 1)) !important; }
 .text-primary { color: var(--uis-primary) !important; }
-.badge.bg-primary { background-color: var(--uis-primary) !important; }
+.badge.bg-primary { background-color: rgba(11,93,59, var(--bs-bg-opacity, 1)) !important; }
 .form-control:focus, .form-select:focus {
   border-color: var(--uis-secondary);
   box-shadow: 0 0 0 .2rem rgba(21,128,79,.15);
