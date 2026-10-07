@@ -261,17 +261,26 @@ function viewDetails(s){
 }
 
 function updateStatus(scheduleId, newStatus, btn){
-  const labels={in_progress:"Start this trip now?",completed:"Mark trip as completed?"};
-  if(!confirm(labels[newStatus]||"Update status?")) return;
-  btn.disabled=true;
-  fetch("../ajax/update_schedule_status.php",{
-    method:"POST",
-    headers:{"Content-Type":"application/x-www-form-urlencoded"},
-    body:"schedule_id="+scheduleId+"&status="+newStatus
-  })
-  .then(r=>r.json())
-  .then(d=>{ if(d.success) location.reload(); else{ alert(d.message||"Failed"); btn.disabled=false; }})
-  .catch(()=>{ alert("Network error"); btn.disabled=false; });
+  const dialogs={
+    in_progress:{title:"Start this trip?",text:"The trip will be marked as In Progress.",confirmText:"Start Trip"},
+    completed:{title:"Complete this trip?",text:"The trip will be marked as completed. This cannot be undone.",confirmText:"Mark Completed"}
+  };
+  const d=dialogs[newStatus]||{title:"Update status?",text:"",confirmText:"Update"};
+  UIS.confirm({title:d.title,text:d.text,confirmText:d.confirmText,tone:"primary",icon:newStatus==="completed"?"fa-circle-check":"fa-play"}).then(function(ok){
+    if(!ok) return;
+    btn.disabled=true;
+    fetch("../ajax/update_schedule_status.php",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:"schedule_id="+scheduleId+"&status="+newStatus
+    })
+    .then(r=>r.json())
+    .then(data=>{
+      if(data.success){ location.reload(); }
+      else{ UIS.alert(data.message||"The status could not be updated.",{title:"Update failed",tone:"danger"}); btn.disabled=false; }
+    })
+    .catch(()=>{ UIS.alert("Please check your connection and try again.",{title:"Network error",tone:"danger"}); btn.disabled=false; });
+  });
 }
 </script>';
 require_once '../includes/footer.php';

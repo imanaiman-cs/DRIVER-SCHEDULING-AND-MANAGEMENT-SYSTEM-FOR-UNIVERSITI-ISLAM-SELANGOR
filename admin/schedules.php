@@ -577,7 +577,6 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <!-- SweetAlert2 -->
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- Custom JS -->
 <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
 

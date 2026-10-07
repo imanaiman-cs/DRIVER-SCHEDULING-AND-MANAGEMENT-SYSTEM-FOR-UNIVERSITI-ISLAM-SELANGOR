@@ -1421,3 +1421,86 @@ textarea.form-control { resize: vertical; min-height: 96px; }
   background-color: var(--uis-primary);
   border-color: var(--uis-primary);
 }
+
+/* ============================================================
+   POPUP DIALOGS — SweetAlert2 theme + UIS dialogs (assets/js/ui.js)
+   ============================================================ */
+.swal2-container { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.swal2-container.swal2-backdrop-show,
+.swal2-container.swal2-noanimation { background: rgba(14,31,23,.55) !important; }
+
+.swal2-popup {
+  --swal2-confirm-button-background-color: #0b5d3b;
+  font-family: var(--font-base);
+  border-radius: 18px;
+  padding: 1.9rem 1.6rem 1.5rem;
+  width: 27em;
+  max-width: 92vw;
+  box-shadow: 0 28px 64px -14px rgba(14,31,23,.50);
+}
+.swal2-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1a2035;
+  padding: .25rem 0 0;
+}
+.swal2-html-container, .swal2-popup .swal2-html-container {
+  font-size: .92rem;
+  line-height: 1.55;
+  color: #4b5563;
+  margin-top: .6rem;
+}
+.swal2-actions { gap: .6rem; margin-top: 1.5rem; }
+
+/* Pages that still call Swal with its default button styling */
+.swal2-styled.swal2-confirm:not([style*="background-color"]) { background: #0b5d3b; }
+.swal2-styled.swal2-confirm:not([style*="background-color"]):hover { background: #15804f; }
+.swal2-styled { border-radius: 10px; font-weight: 700; font-size: .9rem; padding: .62rem 1.4rem; box-shadow: none; }
+.swal2-styled:focus { box-shadow: 0 0 0 3px rgba(21,128,79,.25) !important; }
+.swal2-icon.swal2-success { border-color: #bfe3cf; color: #15803d; }
+.swal2-icon.swal2-success .swal2-success-line-tip,
+.swal2-icon.swal2-success .swal2-success-line-long { background-color: #15803d; }
+.swal2-icon.swal2-success [class^=swal2-success-circular-line] { background: transparent; }
+.swal2-icon.swal2-success .swal2-success-ring { border-color: rgba(21,128,61,.25); }
+.swal2-icon.swal2-warning { border-color: #f1d28a; color: #b45309; }
+.swal2-icon.swal2-error   { border-color: #f4b4b4; color: #b91c1c; }
+.swal2-icon.swal2-error [class^=swal2-x-mark-line] { background-color: #b91c1c; }
+.swal2-timer-progress-bar { background: rgba(11,93,59,.35); }
+
+/* UIS dialogs (UIS.confirm / UIS.alert / data-confirm) */
+.uis-swal { text-align: center; }
+.swal2-icon.uis-swal-icon {
+  width: 68px; height: 68px;
+  margin: .1rem auto 1rem;
+  border: 0;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.7rem;
+}
+.swal2-icon.uis-swal-icon .swal2-icon-content { font-size: inherit; line-height: 1; }
+.swal2-icon.uis-swal-icon.uis-swal-icon--primary { background: #eef5f1; color: #0b5d3b; border-color: transparent; }
+.swal2-icon.uis-swal-icon.uis-swal-icon--danger  { background: #fee2e2; color: #b91c1c; border-color: transparent; }
+.swal2-icon.uis-swal-icon.uis-swal-icon--warning { background: #fef3c7; color: #b45309; border-color: transparent; }
+
+.uis-swal-actions { width: 100%; }
+.uis-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--font-base);
+  font-weight: 700;
+  font-size: .9rem;
+  padding: .64rem 1.4rem;
+  min-width: 112px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.uis-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(21,128,79,.30); }
+.uis-btn--primary { background: #0b5d3b; color: #fff; }
+.uis-btn--primary:hover { background: #15804f; }
+.uis-btn--danger  { background: #b91c1c; color: #fff; }
+.uis-btn--danger:hover  { background: #991b1b; }
+.uis-btn--danger:focus-visible { box-shadow: 0 0 0 3px rgba(185,28,28,.30); }
+.uis-btn--warning { background: #b45309; color: #fff; }
+.uis-btn--warning:hover { background: #92400e; }
+.uis-btn--ghost { background: #fff; color: #374151; border-color: #d1d5db; }
+.uis-btn--ghost:hover { background: #f3f4f6; }

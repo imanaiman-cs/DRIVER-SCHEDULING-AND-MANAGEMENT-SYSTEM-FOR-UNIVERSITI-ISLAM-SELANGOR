@@ -397,7 +397,9 @@ require_once '../includes/sidebar.php';
                         <button type="submit"
                                 class="btn w-100 fw-semibold"
                                 style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;padding:10px;"
-                                onclick="return confirm('Confirm all <?php echo $confirm_count; ?> assignment(s)?')">
+                                data-confirm="<?php echo (int)$confirm_count; ?> schedule(s) will be assigned to the recommended drivers shown in the preview."
+                                data-confirm-title="Apply assignments?" data-confirm-button="Confirm &amp; Apply"
+                                data-confirm-icon="fa-wand-magic-sparkles">
                             <i class="fas fa-circle-check me-2"></i>Confirm &amp; Apply (<?php echo $confirm_count; ?>)
                         </button>
                     </form>

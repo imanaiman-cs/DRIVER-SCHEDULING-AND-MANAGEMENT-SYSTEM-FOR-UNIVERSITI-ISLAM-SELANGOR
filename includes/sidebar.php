@@ -418,7 +418,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <!-- ── Sidebar Footer / Logout ───────────────────────────────── -->
     <div class="sidebar-footer">
         <a href="<?php echo SITE_URL; ?>/logout.php" class="sidebar-logout-btn"
-           onclick="return confirm('Are you sure you want to log out?');">
+           data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
             <span class="sidebar-icon"><i class="fas fa-right-from-bracket" aria-hidden="true"></i></span>
             <span class="sidebar-label">Log Out</span>
         </a>
@@ -439,7 +439,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         UIS Driver Management
     </span>
     <a href="<?php echo SITE_URL; ?>/logout.php" class="topbar-logout"
-       onclick="return confirm('Are you sure you want to log out?');"
+       data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
        aria-label="Log out">
         <i class="fas fa-right-from-bracket" aria-hidden="true"></i>
     </a>
@@ -560,7 +560,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <li><hr class="dropdown-divider my-1"></li>
                 <li>
                     <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
-                       onclick="return confirm('Are you sure you want to log out?');"
+                       data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
                        style="font-size:.84rem;color:#dc2626;">
                         <i class="fas fa-right-from-bracket me-2"></i>Log Out
                     </a>
@@ -570,6 +570,10 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 
     </div>
 </header>
+
+<!-- Shared popup dialogs (SweetAlert2 + UIS theme) -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 
 <!-- ================================================================
      SIDEBAR JAVASCRIPT
