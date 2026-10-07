@@ -124,6 +124,12 @@ CREATE TABLE messages (
 -- TABLE: vehicle_requests (e-Kenderaan)
 -- Staff submit a vehicle request -> their supervisor (head of
 -- section) approves/rejects -> admin processes it into a schedule.
+-- Staff may withdraw a request while it is still 'pending'
+-- (status 'cancelled', cancelled_at set).
+-- Upgrading an existing database:
+--   ALTER TABLE vehicle_requests
+--     MODIFY status ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
+--     ADD COLUMN cancelled_at TIMESTAMP NULL DEFAULT NULL AFTER reviewed_at;
 -- ============================================================
 CREATE TABLE vehicle_requests (
     request_id      INT           NOT NULL AUTO_INCREMENT,
@@ -138,10 +144,11 @@ CREATE TABLE vehicle_requests (
     officer_name    VARCHAR(255)  NULL DEFAULT NULL,
     officer_phone   VARCHAR(50)   NULL DEFAULT NULL,
     waiting_place   VARCHAR(150)  NULL DEFAULT NULL,
-    status          ENUM('pending','approved','rejected','processed') NOT NULL DEFAULT 'pending',
+    status          ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
     supervisor_id   INT           NULL DEFAULT NULL,
     supervisor_notes TEXT         NULL DEFAULT NULL,
     reviewed_at     TIMESTAMP     NULL DEFAULT NULL,
+    cancelled_at    TIMESTAMP     NULL DEFAULT NULL,
     schedule_id     INT           NULL DEFAULT NULL,
     created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

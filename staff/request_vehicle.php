@@ -257,6 +257,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// ── Suggestions from this staff member's previous requests ───────
+// (recognition rather than recall: most recent distinct values first)
+$suggest = ['destination' => [], 'officer_name' => [], 'officer_phone' => [], 'waiting_place' => []];
+foreach (array_keys($suggest) as $col) {   // $col comes from this fixed list only
+    $stmt = $conn->prepare(
+        "SELECT `$col` AS val
+         FROM vehicle_requests
+         WHERE staff_id = ? AND `$col` IS NOT NULL AND `$col` <> ''
+         GROUP BY `$col`
+         ORDER BY MAX(created_at) DESC, MAX(request_id) DESC
+         LIMIT 8"
+    );
+    if ($stmt) {
+        $stmt->bind_param('i', $staff_id);
+        $stmt->execute();
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+            $suggest[$col][] = $row['val'];
+        }
+        $stmt->close();
+    }
+}
+
+// officer name -> phone / waiting place last used with it (newest wins)
+$officer_map = [];
+$stmt = $conn->prepare(
+    "SELECT officer_name, officer_phone, waiting_place
+     FROM vehicle_requests
+     WHERE staff_id = ? AND officer_name IS NOT NULL AND officer_name <> ''
+     ORDER BY created_at DESC, request_id DESC
+     LIMIT 50"
+);
+if ($stmt) {
+    $stmt->bind_param('i', $staff_id);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        if (!isset($officer_map[$row['officer_name']])) {
+            $officer_map[$row['officer_name']] = [
+                'phone' => (string)($row['officer_phone'] ?? ''),
+                'place' => (string)($row['waiting_place'] ?? ''),
+            ];
+        }
+    }
+    $stmt->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -363,7 +408,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </label>
                             <input type="text" class="form-control" id="destination" name="destination"
                                    value="<?= htmlspecialchars($form['destination']) ?>"
-                                   maxlength="255" placeholder="e.g. Putrajaya International Convention Centre" required>
+                                   maxlength="255" placeholder="e.g. Putrajaya International Convention Centre" required
+                                   list="dlDestinations" autocomplete="off">
+                            <datalist id="dlDestinations">
+                                <?php foreach ($suggest['destination'] as $opt): ?>
+                                <option value="<?= htmlspecialchars($opt) ?>">
+                                <?php endforeach; ?>
+                            </datalist>
                         </div>
 
                         <!-- Purpose -->
@@ -409,7 +460,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </label>
                             <input type="text" class="form-control" id="officer_name" name="officer_name"
                                    value="<?= htmlspecialchars($form['officer_name']) ?>"
-                                   maxlength="255" placeholder="e.g. En. Faruq, En. Amir" required>
+                                   maxlength="255" placeholder="e.g. En. Faruq, En. Amir" required
+                                   list="dlOfficerNames" autocomplete="off">
+                            <datalist id="dlOfficerNames">
+                                <?php foreach ($suggest['officer_name'] as $opt): ?>
+                                <option value="<?= htmlspecialchars($opt) ?>">
+                                <?php endforeach; ?>
+                            </datalist>
                             <div class="form-text mt-1">Person(s) the driver will serve; separate names with commas</div>
                         </div>
 
@@ -421,7 +478,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </label>
                                 <input type="tel" class="form-control" id="officer_phone" name="officer_phone"
                                        value="<?= htmlspecialchars($form['officer_phone']) ?>"
-                                       maxlength="50" placeholder="e.g. 011-2835 4792" required>
+                                       maxlength="50" placeholder="e.g. 011-2835 4792" required
+                                       list="dlOfficerPhones" autocomplete="off">
+                                <datalist id="dlOfficerPhones">
+                                    <?php foreach ($suggest['officer_phone'] as $opt): ?>
+                                    <option value="<?= htmlspecialchars($opt) ?>">
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold" for="waiting_place">
@@ -429,7 +492,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </label>
                                 <input type="text" class="form-control" id="waiting_place" name="waiting_place"
                                        value="<?= htmlspecialchars($form['waiting_place']) ?>"
-                                       maxlength="150" placeholder="e.g. Stor UIS">
+                                       maxlength="150" placeholder="e.g. Stor UIS"
+                                       list="dlWaitingPlaces" autocomplete="off">
+                                <datalist id="dlWaitingPlaces">
+                                    <?php foreach ($suggest['waiting_place'] as $opt): ?>
+                                    <option value="<?= htmlspecialchars($opt) ?>">
+                                    <?php endforeach; ?>
+                                </datalist>
                             </div>
                         </div>
 
@@ -836,6 +905,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     updateCharCount();
     loadVehicles();
+
+    // ── Reuse previous answers: officer name -> phone / waiting place ──
+    var OFFICER_MAP = <?= json_encode(
+        $officer_map,
+        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+    ) ?>;
+    var officerNameEl  = document.getElementById('officer_name');
+    var officerPhoneEl = document.getElementById('officer_phone');
+    var waitingEl      = document.getElementById('waiting_place');
+
+    function fillFromOfficer() {
+        var typed = officerNameEl.value.trim().toLowerCase();
+        if (!typed) return;
+        var match = null;
+        Object.keys(OFFICER_MAP).forEach(function (name) {
+            if (match === null && name.trim().toLowerCase() === typed) match = OFFICER_MAP[name];
+        });
+        if (!match) return;
+        if (officerPhoneEl.value.trim() === '' && match.phone) officerPhoneEl.value = match.phone;
+        if (waitingEl.value.trim() === ''      && match.place) waitingEl.value      = match.place;
+    }
+    officerNameEl.addEventListener('change', fillFromOfficer);
+    officerNameEl.addEventListener('input',  fillFromOfficer);
 })();
 </script>
 </body>

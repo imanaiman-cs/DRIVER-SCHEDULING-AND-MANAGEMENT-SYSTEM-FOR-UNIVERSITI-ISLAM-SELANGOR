@@ -42,6 +42,15 @@ $stmt->execute();
 $recent_requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// One-line "what happens next" hint shown under each status badge
+$status_hints = [
+    'pending'   => 'Waiting for your Head of Section',
+    'approved'  => 'Waiting for the transport unit to assign a driver',
+    'processed' => 'Driver and vehicle assigned',
+    'rejected'  => 'See supervisor notes',
+    'cancelled' => 'Withdrawn by you',
+];
+
 // ── Upcoming approved/processed trips ────────────────────────────
 $stmt = $conn->prepare("
     SELECT vr.*, v.plate_number
@@ -154,9 +163,9 @@ $stmt->close();
                     <div class="text-center py-5">
                         <i class="fas fa-file-circle-plus fa-3x text-muted mb-3"></i>
                         <h6 class="text-muted">No requests yet</h6>
-                        <p class="text-muted small mb-3">You have not submitted any vehicle requests.</p>
+                        <p class="text-muted small mb-3">You have not made any requests yet. Requests must be submitted at least 3 days before the trip.</p>
                         <a href="request_vehicle.php" class="btn btn-primary btn-sm">
-                            <i class="fas fa-plus me-1"></i>Request a Vehicle
+                            <i class="fas fa-plus me-1"></i>Request a vehicle
                         </a>
                     </div>
                     <?php else: ?>
@@ -192,8 +201,13 @@ $stmt->close();
                                     </td>
                                     <td>
                                         <span class="badge <?= requestStatusBadgeClass($r['status']) ?>">
-                                            <?= ucfirst($r['status']) ?>
+                                            <?= htmlspecialchars(ucfirst($r['status'])) ?>
                                         </span>
+                                        <?php if (isset($status_hints[$r['status']])): ?>
+                                        <div class="text-muted mt-1" style="font-size:0.74rem;line-height:1.3;">
+                                            <?= htmlspecialchars($status_hints[$r['status']]) ?>
+                                        </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td><span class="small text-muted"><?= formatDate($r['created_at']) ?></span></td>
                                 </tr>

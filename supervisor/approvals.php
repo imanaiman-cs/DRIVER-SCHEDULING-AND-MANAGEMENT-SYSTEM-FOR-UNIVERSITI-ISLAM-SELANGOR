@@ -59,6 +59,7 @@ $pending   = 0;
 $approved  = 0;
 $rejected  = 0;
 $processed = 0;
+$cancelled = 0;   // withdrawn by staff – never counted as pending
 
 foreach ($all_requests as $r) {
     switch ($r['status']) {
@@ -66,12 +67,13 @@ foreach ($all_requests as $r) {
         case 'approved':  $approved++;  break;
         case 'rejected':  $rejected++;  break;
         case 'processed': $processed++; break;
+        case 'cancelled': $cancelled++; break;
     }
 }
 
 // ── Apply tab filter ─────────────────────────────────────────
 $active_tab = $_GET['status'] ?? 'all';
-$active_tab = in_array($active_tab, ['all', 'pending', 'approved', 'rejected', 'processed'], true)
+$active_tab = in_array($active_tab, ['all', 'pending', 'approved', 'rejected', 'processed', 'cancelled'], true)
     ? $active_tab
     : 'all';
 
@@ -335,6 +337,17 @@ $display_requests = array_values($display_requests);
                         <a class="nav-link <?php echo $active_tab === 'processed' ? 'active' : ''; ?>"
                            href="?status=processed">
                             Processed
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo $active_tab === 'cancelled' ? 'active' : ''; ?>"
+                           href="?status=cancelled">
+                            Cancelled
+                            <?php if ($cancelled > 0): ?>
+                            <span class="badge ms-1 <?php echo $active_tab === 'cancelled' ? 'bg-white text-secondary' : 'bg-secondary'; ?> rounded-pill">
+                                <?php echo $cancelled; ?>
+                            </span>
+                            <?php endif; ?>
                         </a>
                     </li>
                 </ul>
@@ -671,6 +684,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         approved:  'bg-success',
         rejected:  'bg-danger',
         processed: 'bg-primary',
+        cancelled: 'bg-secondary',
     };
 
     // ── DataTable initialisation ─────────────────────────────
@@ -787,8 +801,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '</div>'
             + '</div>';
 
-        // Supervisor notes & review date (only when reviewed)
-        if (r.status !== 'pending') {
+        // Supervisor notes & review date (only when reviewed; a request
+        // cancelled by staff while pending was never reviewed)
+        if (r.status !== 'pending' && r.status !== 'cancelled') {
             body += '<div class="col-12">'
                   +   '<hr class="mb-2">'
                   +   '<div class="detail-label">Supervisor Notes</div>'

@@ -58,6 +58,7 @@ $approved  = 0;   // supervisor-approved, awaiting admin processing
 $pending   = 0;   // awaiting supervisor review
 $processed = 0;
 $rejected  = 0;
+$cancelled = 0;   // withdrawn by staff – never counted as pending/awaiting
 
 foreach ($all_requests as $r) {
     switch ($r['status']) {
@@ -65,12 +66,13 @@ foreach ($all_requests as $r) {
         case 'pending':   $pending++;   break;
         case 'processed': $processed++; break;
         case 'rejected':  $rejected++;  break;
+        case 'cancelled': $cancelled++; break;
     }
 }
 
 // ── Apply tab filter ─────────────────────────────────────────
 $active_tab = $_GET['status'] ?? 'all';
-$active_tab = in_array($active_tab, ['all', 'approved', 'pending', 'processed', 'rejected'], true)
+$active_tab = in_array($active_tab, ['all', 'approved', 'pending', 'processed', 'rejected', 'cancelled'], true)
     ? $active_tab
     : 'all';
 
@@ -342,6 +344,17 @@ $display_requests = array_values($display_requests);
                         <a class="nav-link <?php echo $active_tab === 'rejected' ? 'active' : ''; ?>"
                            href="?status=rejected">
                             Rejected
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo $active_tab === 'cancelled' ? 'active' : ''; ?>"
+                           href="?status=cancelled">
+                            Cancelled
+                            <?php if ($cancelled > 0): ?>
+                            <span class="badge ms-1 <?php echo $active_tab === 'cancelled' ? 'bg-white text-secondary' : 'bg-secondary'; ?> rounded-pill">
+                                <?php echo $cancelled; ?>
+                            </span>
+                            <?php endif; ?>
                         </a>
                     </li>
                 </ul>
@@ -652,6 +665,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         approved:  'bg-success',
         rejected:  'bg-danger',
         processed: 'bg-primary',
+        cancelled: 'bg-secondary',
     };
 
     var statusLabelMap = {
@@ -659,6 +673,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         approved:  'Awaiting Processing',
         rejected:  'Rejected',
         processed: 'Processed',
+        cancelled: 'Cancelled',
     };
 
     function findRequest(requestId) {
@@ -772,8 +787,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '</div>'
             + '</div>';
 
-        // Supervisor review (shown once a supervisor is involved)
-        if (r.status !== 'pending') {
+        // Supervisor review (shown once a supervisor has reviewed it; a
+        // request cancelled by staff while pending was never reviewed)
+        if (r.status !== 'pending' && r.status !== 'cancelled') {
             body += '<div class="col-12"><hr class="mb-2">'
                   +   '<div class="detail-label">Reviewed By (Supervisor)</div>'
                   +   '<div class="detail-value">' + (r.supervisor_name ? escHtml(r.supervisor_name) : '&mdash;') + '</div>'

@@ -161,7 +161,7 @@ function requireSupervisor(): void
 /**
  * Returns a Bootstrap badge class string for a vehicle request status.
  *
- * @param string $status One of: pending, approved, rejected, processed
+ * @param string $status One of: pending, approved, rejected, processed, cancelled
  *
  * @return string Bootstrap badge colour class
  */
@@ -172,6 +172,7 @@ function requestStatusBadgeClass(string $status): string
         'approved'  => 'bg-success',
         'rejected'  => 'bg-danger',
         'processed' => 'bg-primary',
+        'cancelled' => 'bg-secondary',
         default     => 'bg-secondary',
     };
 }

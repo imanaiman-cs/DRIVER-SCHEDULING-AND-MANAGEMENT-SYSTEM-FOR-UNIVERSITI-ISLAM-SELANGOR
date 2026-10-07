@@ -49,10 +49,12 @@ $total    = count($requests);
 $pending  = 0;
 $approved = 0;
 $rejected = 0;
+$cancelled = 0;
 foreach ($requests as $r) {
     if ($r['status'] === 'pending')  $pending++;
     if ($r['status'] === 'approved') $approved++;
     if ($r['status'] === 'rejected') $rejected++;
+    if ($r['status'] === 'cancelled') $cancelled++;
 }
 ?>
 <!DOCTYPE html>
@@ -73,6 +75,42 @@ foreach ($requests as $r) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <style>
+        /* ── Request progress tracker (view modal) ───────────────── */
+        .uis-stepper { list-style: none; margin: 0 0 1.25rem; padding: 0; display: flex; }
+        .uis-step { flex: 1 1 0; min-width: 0; position: relative; text-align: center; padding: 0 .25rem; }
+        .uis-step:not(:first-child)::before {
+            content: ''; position: absolute; top: 15px; right: 50%; width: 100%;
+            height: 3px; background: #d5dbd8; z-index: 0;
+        }
+        .uis-step.is-done::before,
+        .uis-step.is-current::before,
+        .uis-step.is-rejected::before { background: #0b5d3b; }
+        .uis-step.is-cancelled::before { background: #adb5bd; }
+        .uis-step-dot {
+            position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%;
+            margin: 0 auto .4rem; display: flex; align-items: center; justify-content: center;
+            font-size: .8rem; font-weight: 700; background: #e9ecef; color: #6c757d;
+            border: 2px solid #d5dbd8;
+        }
+        .uis-step.is-done .uis-step-dot     { background: #0b5d3b; border-color: #0b5d3b; color: #fff; }
+        .uis-step.is-current .uis-step-dot  {
+            background: #fff; border-color: #0b5d3b; color: #0b5d3b;
+            animation: uis-step-pulse 2s ease-out infinite;
+        }
+        .uis-step.is-rejected .uis-step-dot  { background: #dc3545; border-color: #dc3545; color: #fff; }
+        .uis-step.is-cancelled .uis-step-dot { background: #6c757d; border-color: #6c757d; color: #fff; }
+        .uis-step-title { display: block; font-size: .74rem; font-weight: 600; line-height: 1.25; color: #212529; }
+        .uis-step.is-upcoming .uis-step-title { color: #6c757d; font-weight: 500; }
+        .uis-step-meta  { display: block; font-size: .7rem; color: #6c757d; margin-top: .15rem; }
+        .uis-step.is-rejected .uis-step-meta  { color: #b02a37; font-weight: 600; }
+        .uis-step.is-cancelled .uis-step-meta { color: #495057; font-weight: 600; }
+        @keyframes uis-step-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(21, 128, 79, .45); }
+            70%  { box-shadow: 0 0 0 8px rgba(21, 128, 79, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(21, 128, 79, 0); }
+        }
+    </style>
 </head>
 <body>
 <?php require_once '../includes/sidebar.php'; ?>
@@ -104,14 +142,16 @@ foreach ($requests as $r) {
                 <span class="badge bg-warning text-dark ms-1">Pending</span> waiting for your Head of Section's decision &nbsp;&bull;&nbsp;
                 <span class="badge bg-success">Approved</span> waiting for the transport unit to assign a driver &nbsp;&bull;&nbsp;
                 <span class="badge bg-primary">Processed</span> driver &amp; vehicle assigned &nbsp;&bull;&nbsp;
-                <span class="badge bg-danger">Rejected</span> see supervisor notes for the reason.
+                <span class="badge bg-danger">Rejected</span> see supervisor notes for the reason &nbsp;&bull;&nbsp;
+                <span class="badge bg-secondary">Cancelled</span> withdrawn by you.
+                <div class="mt-1 text-muted">You can cancel a request yourself while it is still <em>Pending</em>. Once your Head of Section has reviewed it, please contact the transport unit.</div>
             </div>
         </div>
     </div>
 
     <!-- Summary Stat Cards -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm h-100" style="border-radius:12px;">
                 <div class="card-body py-3">
                     <div class="h3 fw-bold text-primary mb-1"><?= $total ?></div>
@@ -119,7 +159,7 @@ foreach ($requests as $r) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm h-100"
                  style="border-radius:12px;border-left:4px solid #f59e0b !important;">
                 <div class="card-body py-3">
@@ -128,7 +168,7 @@ foreach ($requests as $r) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm h-100"
                  style="border-radius:12px;border-left:4px solid #198754 !important;">
                 <div class="card-body py-3">
@@ -137,12 +177,21 @@ foreach ($requests as $r) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm h-100"
                  style="border-radius:12px;border-left:4px solid #dc3545 !important;">
                 <div class="card-body py-3">
                     <div class="h3 fw-bold text-danger mb-1"><?= $rejected ?></div>
                     <div class="small text-muted fw-semibold">Rejected</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card text-center border-0 shadow-sm h-100"
+                 style="border-radius:12px;border-left:4px solid #6c757d !important;">
+                <div class="card-body py-3">
+                    <div class="h3 fw-bold text-secondary mb-1"><?= $cancelled ?></div>
+                    <div class="small text-muted fw-semibold">Cancelled</div>
                 </div>
             </div>
         </div>
@@ -159,10 +208,10 @@ foreach ($requests as $r) {
             <?php if (empty($requests)): ?>
             <div class="text-center py-5">
                 <i class="fas fa-file-circle-plus fa-3x text-muted mb-3"></i>
-                <h6 class="text-muted">No requests found</h6>
-                <p class="text-muted small mb-3">You have not submitted any vehicle requests yet.</p>
+                <h6 class="text-muted">No requests yet</h6>
+                <p class="text-muted small mb-3">You have not made any requests yet. Requests must be submitted at least 3 days before the trip.</p>
                 <a href="request_vehicle.php" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus me-1"></i>Request a Vehicle
+                    <i class="fas fa-plus me-1"></i>Request a vehicle
                 </a>
             </div>
             <?php else: ?>
@@ -187,6 +236,7 @@ foreach ($requests as $r) {
                             'approved'  => ['success',           'check-circle',  'Approved'],
                             'rejected'  => ['danger',            'times-circle',  'Rejected'],
                             'processed' => ['primary',           'user-check',    'Processed — driver assigned'],
+                            'cancelled' => ['secondary',         'ban',           'Cancelled'],
                         ];
                         [$sc, $si, $sl] = $status_map[$r['status']] ?? ['secondary', 'circle', ucfirst($r['status'])];
                         ?>
@@ -231,11 +281,20 @@ foreach ($requests as $r) {
                                 <span class="small text-muted"><?= formatDate($r['created_at']) ?></span>
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary"
-                                        onclick="viewDetails(<?= (int)$r['request_id'] ?>)"
-                                        title="View Details">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </button>
+                                <div class="d-flex gap-1 flex-nowrap">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            onclick="viewDetails(<?= (int)$r['request_id'] ?>)"
+                                            title="View Details">
+                                        <i class="fas fa-eye me-1"></i>View
+                                    </button>
+                                    <?php if ($r['status'] === 'pending'): ?>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="cancelRequest(<?= (int)$r['request_id'] ?>)"
+                                            title="Cancel this request">
+                                        <i class="fas fa-ban me-1"></i>Cancel request
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -264,6 +323,9 @@ foreach ($requests as $r) {
                 <p class="text-muted text-center py-3">Loading...</p>
             </div>
             <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-danger me-auto d-none" id="detailsCancelBtn">
+                    <i class="fas fa-ban me-1"></i>Cancel request
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-xmark me-1"></i>Close
                 </button>
@@ -323,8 +385,90 @@ var REQUESTS_DATA = <?= json_encode(
         pending:   { color: 'warning text-dark', icon: 'clock',        label: 'Pending' },
         approved:  { color: 'success',           icon: 'check-circle', label: 'Approved' },
         rejected:  { color: 'danger',            icon: 'times-circle', label: 'Rejected' },
-        processed: { color: 'primary',           icon: 'user-check',   label: 'Processed — driver assigned' }
+        processed: { color: 'primary',           icon: 'user-check',   label: 'Processed — driver assigned' },
+        cancelled: { color: 'secondary',         icon: 'ban',          label: 'Cancelled' }
     };
+
+    // ── Progress tracker state (pure logic: status + dates -> steps) ─
+    // <stepper-logic>
+    function requestSteps(status, dates) {
+        dates = dates || {};
+        var titles = ['Submitted', 'Head of Section review',
+                      'Transport unit processing', 'Driver & vehicle assigned'];
+        var states;
+        switch (status) {
+            case 'approved':  states = ['done', 'done',      'current',  'upcoming']; break;
+            case 'processed': states = ['done', 'done',      'done',     'done'];     break;
+            case 'rejected':  states = ['done', 'rejected',  'upcoming', 'upcoming']; break;
+            case 'cancelled': states = ['done', 'cancelled', 'upcoming', 'upcoming']; break;
+            default:          states = ['done', 'current',   'upcoming', 'upcoming']; // pending
+        }
+        var stopped = (status === 'rejected' || status === 'cancelled');
+        var stepDates = [dates.created || null, null, null, null];
+        if (status === 'approved' || status === 'processed' || status === 'rejected') {
+            stepDates[1] = dates.reviewed || null;
+        } else if (status === 'cancelled') {
+            stepDates[1] = dates.cancelled || null;
+        }
+        var texts = {
+            done:      'Completed',
+            current:   'In progress',
+            upcoming:  stopped ? 'Not reached' : 'Not started',
+            rejected:  'Rejected',
+            cancelled: 'Cancelled'
+        };
+        return titles.map(function (title, i) {
+            return { number: i + 1, title: title, state: states[i],
+                     text: texts[states[i]], date: stepDates[i] };
+        });
+    }
+    // </stepper-logic>
+
+    // Horizontal 4-step tracker shown at the top of the details modal
+    function stepperHtml(r) {
+        var steps = requestSteps(r.status, {
+            created:   r.created_at,
+            reviewed:  r.reviewed_at,
+            cancelled: r.cancelled_at
+        });
+        var html = '<ol class="uis-stepper" aria-label="Request progress">';
+        steps.forEach(function (st) {
+            var inner;
+            if (st.state === 'done')           inner = '<i class="fas fa-check"></i>';
+            else if (st.state === 'rejected')  inner = '<i class="fas fa-xmark"></i>';
+            else if (st.state === 'cancelled') inner = '<i class="fas fa-ban"></i>';
+            else                               inner = String(st.number);
+
+            var visible = '';
+            if (st.state === 'rejected' || st.state === 'cancelled') {
+                visible += '<span class="uis-step-meta" aria-hidden="true">' + escHtml(st.text) + '</span>';
+            }
+            if (st.date) {
+                visible += '<span class="uis-step-meta">' + escHtml(fmtDate(String(st.date).substring(0, 10))) + '</span>';
+            }
+
+            html += '<li class="uis-step is-' + st.state + '"' +
+                        (st.state === 'current' || st.state === 'rejected' || st.state === 'cancelled'
+                            ? ' aria-current="step"' : '') + '>' +
+                        '<span class="uis-step-dot" aria-hidden="true">' + inner + '</span>' +
+                        '<span class="uis-step-title">' + escHtml(st.title) +
+                            '<span class="visually-hidden"> (step ' + st.number + ' of 4): ' + escHtml(st.text) + '</span>' +
+                        '</span>' +
+                        visible +
+                    '</li>';
+        });
+        html += '</ol>';
+
+        if (r.status === 'rejected') {
+            html += '<div class="alert alert-danger py-2 px-3 small" role="note">' +
+                        '<i class="fas fa-circle-xmark me-1"></i><strong>Rejected by your Head of Section.</strong> ' +
+                        (r.supervisor_notes
+                            ? escHtml(r.supervisor_notes)
+                            : '<span class="fst-italic">No reason was provided.</span>') +
+                    '</div>';
+        }
+        return html;
+    }
 
     // ── View Details modal ───────────────────────────────────────────
     window.viewDetails = function (requestId) {
@@ -353,7 +497,7 @@ var REQUESTS_DATA = <?= json_encode(
             : '<div class="mt-1"><span class="text-muted fst-italic">Not yet reviewed</span></div>';
 
         var notesHtml = '';
-        if (reviewed) {
+        if (reviewed && r.status !== 'rejected') {   // rejected notes are shown with the tracker
             notesHtml =
                 '<div class="col-12">' +
                     label('Supervisor Notes') +
@@ -371,6 +515,7 @@ var REQUESTS_DATA = <?= json_encode(
             : '—';
 
         document.getElementById('detailsModalBody').innerHTML =
+            stepperHtml(r) +
             '<div class="row g-3">' +
                 '<div class="col-sm-6">' +
                     label('Status') +
@@ -437,7 +582,68 @@ var REQUESTS_DATA = <?= json_encode(
                 '</div>' +
             '</div>';
 
+        // Cancel is only offered while the request still awaits the supervisor
+        var cancelBtn = document.getElementById('detailsCancelBtn');
+        if (cancelBtn) {
+            cancelBtn.classList.toggle('d-none', r.status !== 'pending');
+            cancelBtn.onclick = function () { cancelRequest(requestId); };
+        }
+
         new bootstrap.Modal(document.getElementById('detailsModal')).show();
+    };
+
+    // ── Cancel (withdraw) a pending request ──────────────────────────
+    window.cancelRequest = function (requestId) {
+        var r = REQUESTS_DATA[requestId];
+        if (!r || r.status !== 'pending') return;
+
+        UIS.confirm({
+            title:       'Cancel this request?',
+            text:        'Your Head of Section will no longer see it. You can submit a new request at any time.',
+            confirmText: 'Yes, cancel request',
+            cancelText:  'Keep request',
+            tone:        'danger',
+            icon:        'fa-ban'
+        }).then(function (ok) {
+            if (!ok) return;
+
+            var body = new URLSearchParams();
+            body.append('request_id', String(requestId));
+
+            fetch('../ajax/cancel_request.php', {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers:     { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body:        body.toString()
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data && data.success) {
+                    var done = window.Swal
+                        ? window.Swal.fire({
+                              icon:              'success',
+                              title:             'Request cancelled',
+                              text:              data.message,
+                              confirmButtonText: 'OK',
+                              buttonsStyling:    false,
+                              customClass: {
+                                  popup:         'uis-swal',
+                                  confirmButton: 'uis-btn uis-btn--primary',
+                                  actions:       'uis-swal-actions'
+                              }
+                          })
+                        : UIS.alert(data.message, { title: 'Request cancelled' });
+                    Promise.resolve(done).then(function () { window.location.reload(); });
+                } else {
+                    UIS.alert((data && data.message) || 'The request could not be cancelled.',
+                              { title: 'Could not cancel', tone: 'danger' });
+                }
+            })
+            .catch(function () {
+                UIS.alert('Network error. Please check your connection and try again.',
+                          { title: 'Could not cancel', tone: 'danger' });
+            });
+        });
     };
 
     // ── Helpers ──────────────────────────────────────────────────────
