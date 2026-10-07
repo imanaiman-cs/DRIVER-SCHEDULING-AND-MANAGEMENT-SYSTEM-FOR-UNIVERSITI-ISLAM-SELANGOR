@@ -283,10 +283,43 @@
             form.addEventListener('change', function () { form.dirty = true; });
         });
     });
-    window.addEventListener('beforeunload', function (event) {
+    function hasUnsavedForm() {
         var dirty = false;
         document.querySelectorAll('form').forEach(function (f) { if (f.dirty) { dirty = true; } });
-        if (dirty) {
+        return dirty;
+    }
+
+    // In-site navigation (sidebar, breadcrumbs, Cancel…) gets the styled dialog.
+    document.addEventListener('click', function (event) {
+        if (event.defaultPrevented || event.button !== 0) { return; }
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) { return; }
+        var link = event.target.closest ? event.target.closest('a[href]') : null;
+        if (!link || link.hasAttribute('data-confirm') || link.hasAttribute('download')) { return; }
+        var href = link.getAttribute('href') || '';
+        if (href === '' || href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) { return; }
+        if (link.target && link.target !== '_self') { return; }
+        if (link.getAttribute('data-bs-toggle')) { return; }
+        if (!hasUnsavedForm()) { return; }
+
+        event.preventDefault();
+        event.stopPropagation();
+        window.UIS.confirm({
+            title: 'Leave this page?',
+            text: 'You have unsaved changes. If you leave now, the information you entered will be lost.',
+            confirmText: 'Leave page',
+            cancelText: 'Stay on page',
+            tone: 'warning'
+        }).then(function (ok) {
+            if (!ok) { return; }
+            document.querySelectorAll('form').forEach(function (f) { f.dirty = false; });
+            window.location.href = link.href;
+        });
+    }, true);
+
+    // Fallback for closing the tab, refreshing or typing a URL: the browser
+    // draws this dialog itself, so its look cannot be changed from the page.
+    window.addEventListener('beforeunload', function (event) {
+        if (hasUnsavedForm()) {
             event.preventDefault();
             event.returnValue = '';
         }
