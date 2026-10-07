@@ -419,6 +419,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 
     <!-- ── Sidebar Footer / Logout ───────────────────────────────── -->
     <div class="sidebar-footer">
+        <a href="<?php echo SITE_URL; ?>/help.php"
+           class="sidebar-logout-btn mb-1 <?php echo $current_page === 'help.php' ? 'active' : ''; ?>"
+           style="background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);">
+            <span class="sidebar-icon"><i class="fas fa-circle-question" aria-hidden="true"></i></span>
+            <span class="sidebar-label">Help &amp; Guide</span>
+        </a>
         <a href="<?php echo SITE_URL; ?>/logout.php" class="sidebar-logout-btn"
            data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
             <span class="sidebar-icon"><i class="fas fa-right-from-bracket" aria-hidden="true"></i></span>
@@ -476,6 +482,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 
     <!-- Right controls -->
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
+
+        <!-- Help -->
+        <a href="<?php echo SITE_URL; ?>/help.php" class="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center"
+           style="width:38px;height:38px;border:1.5px solid #e5e9f0;" title="Help &amp; User Guide" aria-label="Help and user guide">
+            <i class="fas fa-question" style="color:var(--uis-primary);" aria-hidden="true"></i>
+        </a>
 
         <!-- Live clock (xl+ only) -->
         <div class="d-none d-xl-block text-end me-1">
