@@ -570,3 +570,47 @@ function vehicleStatusBadgeClass(string $status): string
         default       => 'bg-dark',
     };
 }
+
+// ============================================================
+// Photo helpers (vehicles and drivers)
+// Uploaded photos are stored as a path relative to the project
+// root (e.g. 'uploads/vehicles/abc123.jpg') in the `photo` column.
+// When no photo has been uploaded, a bundled placeholder is used.
+// ============================================================
+
+/**
+ * Returns the URL of a vehicle's photo, or a type-specific illustration
+ * when no photo has been uploaded.
+ *
+ * @param string|null $photo        Stored relative path, or null
+ * @param string      $vehicle_type Bus, Minibus, Van, Car, Lorry or Motorcycle
+ *
+ * @return string
+ */
+function vehiclePhotoUrl(?string $photo, string $vehicle_type = 'Car'): string
+{
+    if (!empty($photo)) {
+        return SITE_URL . '/' . ltrim($photo, '/');
+    }
+    $slug = strtolower($vehicle_type);
+    if (!in_array($slug, ['bus', 'minibus', 'van', 'car', 'lorry', 'motorcycle'], true)) {
+        $slug = 'car';
+    }
+    return SITE_URL . '/assets/images/vehicles/' . $slug . '.svg';
+}
+
+/**
+ * Returns the URL of a driver's photo, or the dummy avatar when no photo
+ * has been uploaded.
+ *
+ * @param string|null $photo Stored relative path, or null
+ *
+ * @return string
+ */
+function driverPhotoUrl(?string $photo): string
+{
+    if (!empty($photo)) {
+        return SITE_URL . '/' . ltrim($photo, '/');
+    }
+    return SITE_URL . '/assets/images/drivers/avatar.svg';
+}

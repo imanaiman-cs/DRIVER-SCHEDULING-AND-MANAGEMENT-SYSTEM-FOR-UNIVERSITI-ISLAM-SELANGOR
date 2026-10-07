@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <rect width="400" height="240" rx="16" fill="#eef5f1"/>
+  <ellipse cx="200" cy="206" rx="170" ry="9" fill="#0b5d3b" opacity="0.12"/>
+  <!-- wheels -->
+  <g>
+    <circle cx="100" cy="158" r="44" fill="none" stroke="#1f2937" stroke-width="10"/>
+    <circle cx="100" cy="158" r="28" fill="none" stroke="#9ca3af" stroke-width="2"/>
+    <circle cx="100" cy="158" r="12" fill="#9ca3af"/><circle cx="100" cy="158" r="4" fill="#374151"/>
+    <circle cx="300" cy="158" r="44" fill="none" stroke="#1f2937" stroke-width="10"/>
+    <circle cx="300" cy="158" r="28" fill="none" stroke="#9ca3af" stroke-width="2"/>
+    <circle cx="300" cy="158" r="12" fill="#9ca3af"/><circle cx="300" cy="158" r="4" fill="#374151"/>
+  </g>
+  <!-- exhaust -->
+  <path d="M184 170h-62q-12 0-12 8" fill="none" stroke="#9ca3af" stroke-width="9" stroke-linecap="round"/>
+  <!-- swingarm -->
+  <path d="M100 158L190 154" stroke="#374151" stroke-width="8" stroke-linecap="round"/>
+  <!-- frame -->
+  <path d="M258 92L206 138M196 108L126 112M200 140L112 120" stroke="#374151" stroke-width="6" stroke-linecap="round" fill="none"/>
+  <!-- rear fender, tail cowl, seat -->
+  <path d="M60 128a52 52 0 0 1 66-20" fill="none" stroke="#0b5d3b" stroke-width="7" stroke-linecap="round"/>
+  <path d="M72 108q0-14 18-14h46v16H80q-8 0-8-2z" fill="#15804f"/>
+  <path d="M134 94q32-5 62 3v12q-30 6-62 1z" fill="#1f2937"/>
+  <!-- engine -->
+  <rect x="172" y="126" width="62" height="48" rx="12" fill="#374151"/>
+  <rect x="180" y="118" width="46" height="14" rx="3" fill="#374151"/>
+  <circle cx="204" cy="152" r="15" fill="#9ca3af"/><circle cx="204" cy="152" r="6" fill="#374151"/>
+  <!-- tank -->
+  <path d="M172 100q22-16 64-12l24 8q6 4 2 10l-10 14h-76q-8-4-4-20z" fill="#0b5d3b"/>
+  <path d="M188 99q20-7 44-4" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <!-- front fork -->
+  <path d="M300 158L262 78" stroke="#9ca3af" stroke-width="8" stroke-linecap="round"/>
+  <path d="M296 148L270 94" stroke="#374151" stroke-width="5" stroke-linecap="round"/>
+  <!-- front fender -->
+  <path d="M262 124a52 52 0 0 1 72 6" fill="none" stroke="#0b5d3b" stroke-width="7" stroke-linecap="round"/>
+  <!-- handlebar -->
+  <path d="M260 76L242 66" stroke="#1f2937" stroke-width="7" stroke-linecap="round"/>
+  <rect x="254" y="72" width="12" height="10" rx="3" fill="#374151"/>
+  <!-- headlight -->
+  <circle cx="284" cy="102" r="14" fill="#374151"/>
+  <circle cx="286" cy="102" r="10" fill="#f5d776"/>
+</svg>

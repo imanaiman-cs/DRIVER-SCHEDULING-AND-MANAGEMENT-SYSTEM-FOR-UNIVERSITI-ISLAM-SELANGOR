@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 header('Content-Type: application/json');
@@ -18,17 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
         exit();
     }
 
-    // Verify the driver actually exists
-    $exists = $conn->prepare("SELECT driver_id FROM drivers WHERE driver_id = ? LIMIT 1");
+    // Verify the driver actually exists (and remember the photo path)
+    $exists = $conn->prepare("SELECT driver_id, photo FROM drivers WHERE driver_id = ? LIMIT 1");
     $exists->bind_param('i', $id);
     $exists->execute();
-    $exists->store_result();
-    if ($exists->num_rows === 0) {
-        $exists->close();
+    $driver_row = $exists->get_result()->fetch_assoc();
+    $exists->close();
+    if (!$driver_row) {
         echo json_encode(['success' => false, 'message' => 'Driver not found.']);
         exit();
     }
-    $exists->close();
+    $photo_path = $driver_row['photo'];
 
     // Check if driver has active schedules
     $check = $conn->prepare(
@@ -56,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
 
     if ($stmt->execute()) {
         $stmt->close();
+        deleteUploadedImage($photo_path);
         echo json_encode(['success' => true, 'message' => 'Driver deleted successfully.']);
     } else {
         $stmt->close();

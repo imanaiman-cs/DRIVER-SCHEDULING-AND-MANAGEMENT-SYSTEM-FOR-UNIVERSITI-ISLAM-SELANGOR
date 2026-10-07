@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 $page_title   = 'Edit Vehicle';
@@ -158,6 +159,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['mileage'] = 'Mileage cannot be negative.';
     }
 
+    // Photo (optional) – stored only after all other validation passes
+    $old_photo   = $vehicle['photo'] ?? null;
+    $photo_path  = $old_photo;      // value written to the DB
+    $new_upload  = null;            // path of a freshly uploaded file
+    $remove_photo = !empty($_POST['remove_photo']);
+    if (empty($errors)) {
+        $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'vehicles');
+        if (!$up['ok']) {
+            $errors['photo'] = $up['error'];
+        } elseif ($up['path'] !== null) {
+            $new_upload = $up['path'];
+            $photo_path = $new_upload;
+        } elseif ($remove_photo) {
+            $photo_path = null;
+        }
+    }
+
     // ── Update if no errors ───────────────────────────────────
     if (empty($errors)) {
         $stmt = $conn->prepare(
@@ -173,11 +191,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 last_maintenance = ?,
                 next_maintenance = ?,
                 mileage          = ?,
-                notes            = ?
+                notes            = ?,
+                photo            = ?
              WHERE vehicle_id = ?"
         );
         $stmt->bind_param(
-            'ssssiiisssisi',
+            'ssssiiisssissi',
             $form['plate_number'],
             $form['vehicle_type'],
             $form['brand'],
@@ -190,15 +209,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $next_maint_val,
             $mileage_val,
             $form['notes'],
+            $photo_path,
             $vehicle_id
         );
 
         if ($stmt->execute()) {
+            // Remove the replaced / removed photo only after the UPDATE succeeded
+            if ($old_photo !== null && $old_photo !== $photo_path) {
+                deleteUploadedImage($old_photo);
+            }
             setFlash('success', 'Vehicle <strong>' . htmlspecialchars($form['plate_number']) . '</strong> updated successfully.');
             header('Location: ' . SITE_URL . '/admin/vehicles.php');
             exit();
         } else {
             $errors['db'] = 'Database error: ' . htmlspecialchars($conn->error);
+            // Update failed – do not leave an orphaned upload behind
+            deleteUploadedImage($new_upload);
         }
         $stmt->close();
     }
@@ -282,6 +308,16 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
         }
         .type-radio { display: none; }
         .type-icon { font-size: 1.4rem; margin-bottom: .3rem; }
+
+        .photo-preview {
+            width: 100%;
+            max-width: 220px;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 1.5px solid #e5e7eb;
+            background: #f8f9fb;
+        }
 
         .last-trip-card {
             border-left: 4px solid #15804f;
@@ -373,6 +409,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
 
     <form method="POST"
           action="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo $vehicle_id; ?>"
+          enctype="multipart/form-data"
           novalidate
           id="editVehicleForm">
 
@@ -480,6 +517,45 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                     </div>
 
                 </div><!-- /.row -->
+            </div>
+        </div>
+
+        <!-- ── Photo ───────────────────────────────────────────── -->
+        <?php $has_photo = !empty($vehicle['photo']); ?>
+        <div class="card form-card">
+            <div class="card-header">
+                <span class="section-icon"><i class="fas fa-image" aria-hidden="true"></i></span>
+                Photo
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4 col-lg-3">
+                        <img id="photoPreview"
+                             class="photo-preview"
+                             src="<?php echo htmlspecialchars(vehiclePhotoUrl($vehicle['photo'] ?? null, $form['vehicle_type'])); ?>"
+                             data-base="<?php echo htmlspecialchars(SITE_URL . '/assets/images/vehicles/'); ?>"
+                             data-has-photo="<?php echo $has_photo ? '1' : '0'; ?>"
+                             alt="Vehicle photo preview">
+                    </div>
+                    <div class="col-md-8 col-lg-9">
+                        <label for="photo" class="form-label fw-semibold">Photo</label>
+                        <input type="file"
+                               class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
+                               id="photo"
+                               name="photo"
+                               accept="image/jpeg,image/png,image/webp">
+                        <?php if (isset($errors['photo'])): ?>
+                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                        <?php endif; ?>
+                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                        <?php if ($has_photo): ?>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
+                            <label class="form-check-label small" for="remove_photo">Remove photo</label>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -702,6 +778,42 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
             } else {
                 nextMaint.removeAttribute('min');
             }
+        });
+    }
+
+    // ── Photo live preview ────────────────────────────────────
+    var photoInput   = document.getElementById('photo');
+    var photoPreview = document.getElementById('photoPreview');
+    var removeBox    = document.getElementById('remove_photo');
+    var originalSrc  = photoPreview ? photoPreview.getAttribute('src') : '';
+    var hasPhoto     = photoPreview && photoPreview.getAttribute('data-has-photo') === '1';
+
+    function typeIllustration() {
+        var checked = document.querySelector('input[name="vehicle_type"]:checked');
+        var slug = checked ? checked.value.toLowerCase() : 'car';
+        return photoPreview.getAttribute('data-base') + slug + '.svg';
+    }
+
+    function refreshPreview() {
+        var f = photoInput && photoInput.files && photoInput.files[0];
+        if (f && f.type.indexOf('image/') === 0) {
+            var reader = new FileReader();
+            reader.onload = function (ev) { photoPreview.src = ev.target.result; };
+            reader.readAsDataURL(f);
+        } else if (hasPhoto && !(removeBox && removeBox.checked)) {
+            photoPreview.src = originalSrc;
+        } else {
+            photoPreview.src = typeIllustration();
+        }
+    }
+
+    if (photoInput && photoPreview) {
+        photoInput.addEventListener('change', refreshPreview);
+        if (removeBox) { removeBox.addEventListener('change', refreshPreview); }
+        document.querySelectorAll('input[name="vehicle_type"]').forEach(function (r) {
+            r.addEventListener('change', function () {
+                if (!hasPhoto || (removeBox && removeBox.checked)) { refreshPreview(); }
+            });
         });
     }
 

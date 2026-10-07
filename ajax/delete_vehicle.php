@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 header('Content-Type: application/json');
@@ -43,11 +44,23 @@ if ($cnt > 0) {
     exit();
 }
 
+// ── Fetch the photo path so the file can be removed after delete ──
+$photo_path = null;
+$pq = $conn->prepare("SELECT photo FROM vehicles WHERE vehicle_id = ? LIMIT 1");
+$pq->bind_param('i', $id);
+$pq->execute();
+$prow = $pq->get_result()->fetch_assoc();
+$pq->close();
+if ($prow) {
+    $photo_path = $prow['photo'];
+}
+
 // ── Perform delete ────────────────────────────────────────────
 $stmt = $conn->prepare("DELETE FROM vehicles WHERE vehicle_id = ?");
 $stmt->bind_param('i', $id);
 
 if ($stmt->execute()) {
+    deleteUploadedImage($photo_path);
     echo json_encode(['success' => true, 'message' => 'Vehicle deleted successfully.']);
 } else {
     echo json_encode(['success' => false, 'message' => 'Failed to delete vehicle. Please try again.']);

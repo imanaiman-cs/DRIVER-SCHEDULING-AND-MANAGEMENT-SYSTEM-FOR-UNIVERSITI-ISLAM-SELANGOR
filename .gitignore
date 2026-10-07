@@ -1,0 +1,5 @@
+# Uploaded photos (keep the folders, ignore the files)
+uploads/vehicles/*
+uploads/drivers/*
+!uploads/vehicles/.gitkeep
+!uploads/drivers/.gitkeep

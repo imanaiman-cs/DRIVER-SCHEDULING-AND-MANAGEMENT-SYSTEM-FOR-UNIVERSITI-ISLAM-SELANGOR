@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 $page_title   = 'Add New Driver';
@@ -116,6 +117,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['license_class'] = array_values(array_intersect($allowed_classes, $form['license_class']));
     }
 
+    // Photo (optional) – stored only after all other validation passes
+    $photo_path = null;
+    if (empty($errors)) {
+        $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'drivers');
+        if (!$up['ok']) {
+            $errors['photo'] = $up['error'];
+        } else {
+            $photo_path = $up['path'];
+        }
+    }
+
     // ── Insert if no errors ──────────────────────────────────
     if (empty($errors)) {
         $exp   = (float)$form['experience_years'];
@@ -127,14 +139,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "INSERT INTO drivers
                 (employee_id, name, phone, email, address,
                  experience_years, performance_score, certification_score,
-                 license_number, license_class, license_expiry, status, driver_type, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
+                 license_number, license_class, license_expiry, status, driver_type, photo, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
         );
 
         $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
 
         $stmt->bind_param(
-            'sssssdddsssss',
+            'sssssdddssssss',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
@@ -145,7 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $license_class_csv,
             $expiry,
             $form['status'],
-            $form['driver_type']
+            $form['driver_type'],
+            $photo_path
         );
 
         if ($stmt->execute()) {
@@ -156,6 +169,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $stmt->close();
             $errors['db'] = 'A database error occurred. Please try again.';
+            // Insert failed – do not leave an orphaned upload behind
+            deleteUploadedImage($photo_path);
         }
     }
 }
@@ -281,6 +296,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .score-low    { color: #991b1b; }
 
         .required-star { color: #dc3545; }
+
+        .photo-preview-circle {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e5e7eb;
+            background: #f8f9fb;
+        }
     </style>
 </head>
 <body>
@@ -314,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="add_driver.php" id="addDriverForm" novalidate>
+    <form method="POST" action="add_driver.php" id="addDriverForm" enctype="multipart/form-data" novalidate>
 
         <div class="row g-4">
 
@@ -328,6 +352,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-user me-1"></i> Personal Information
                         </div>
                         <div class="row g-3">
+
+                            <div class="col-12">
+                                <label for="photo" class="form-label">Photo</label>
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <img id="photoPreview"
+                                         class="photo-preview-circle"
+                                         src="<?php echo htmlspecialchars(driverPhotoUrl(null)); ?>"
+                                         alt="Driver photo preview">
+                                    <div class="flex-grow-1" style="min-width:220px;">
+                                        <input type="file"
+                                               id="photo"
+                                               name="photo"
+                                               class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
+                                               accept="image/jpeg,image/png,image/webp">
+                                        <?php if (isset($errors['photo'])): ?>
+                                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                                        <?php endif; ?>
+                                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="col-md-6">
                                 <label for="employee_id" class="form-label">
@@ -614,6 +659,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 (function () {
     'use strict';
+
+    // ── Photo live preview ───────────────────────────────────
+    var photoInput   = document.getElementById('photo');
+    var photoPreview = document.getElementById('photoPreview');
+    if (photoInput && photoPreview) {
+        var defaultSrc = photoPreview.getAttribute('src');
+        photoInput.addEventListener('change', function () {
+            var f = this.files && this.files[0];
+            if (f && f.type.indexOf('image/') === 0) {
+                var reader = new FileReader();
+                reader.onload = function (ev) { photoPreview.src = ev.target.result; };
+                reader.readAsDataURL(f);
+            } else {
+                photoPreview.src = defaultSrc;
+            }
+        });
+    }
 
     // ── Client-side validation ───────────────────────────────
     var form = document.getElementById('addDriverForm');

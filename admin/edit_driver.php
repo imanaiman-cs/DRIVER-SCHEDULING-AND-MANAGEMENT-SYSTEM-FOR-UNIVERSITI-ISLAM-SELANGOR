@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 $page_title   = 'Edit Driver';
@@ -151,6 +152,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['license_class'] = array_values(array_intersect($allowed_classes, $form['license_class']));
     }
 
+    // Photo (optional) – stored only after all other validation passes
+    $old_photo    = $driver['photo'] ?? null;
+    $photo_path   = $old_photo;     // value written to the DB
+    $new_upload   = null;           // path of a freshly uploaded file
+    $remove_photo = !empty($_POST['remove_photo']);
+    if (empty($errors)) {
+        $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'drivers');
+        if (!$up['ok']) {
+            $errors['photo'] = $up['error'];
+        } elseif ($up['path'] !== null) {
+            $new_upload = $up['path'];
+            $photo_path = $new_upload;
+        } elseif ($remove_photo) {
+            $photo_path = null;
+        }
+    }
+
     // ── Update if no errors ──────────────────────────────────
     if (empty($errors)) {
         $exp   = (float)$form['experience_years'];
@@ -165,12 +183,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 employee_id = ?, name = ?, phone = ?, email = ?, address = ?,
                 experience_years = ?, performance_score = ?,
                 certification_score = ?, license_number = ?, license_class = ?,
-                license_expiry = ?, status = ?, driver_type = ?, updated_at = NOW()
+                license_expiry = ?, status = ?, driver_type = ?, photo = ?, updated_at = NOW()
              WHERE driver_id = ?"
         );
 
         $stmt->bind_param(
-            'sssssdddsssssi',
+            'sssssdddssssssi',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
@@ -182,17 +200,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expiry,
             $form['status'],
             $form['driver_type'],
+            $photo_path,
             $driver_id
         );
 
         if ($stmt->execute()) {
             $stmt->close();
+            // Remove the replaced / removed photo only after the UPDATE succeeded
+            if ($old_photo !== null && $old_photo !== $photo_path) {
+                deleteUploadedImage($old_photo);
+            }
             setFlash('success', 'Driver <strong>' . htmlspecialchars($form['name']) . '</strong> has been updated successfully.');
             header('Location: ' . SITE_URL . '/admin/drivers.php');
             exit();
         } else {
             $stmt->close();
             $errors['db'] = 'A database error occurred. Please try again.';
+            // Update failed – do not leave an orphaned upload behind
+            deleteUploadedImage($new_upload);
         }
     }
 
@@ -344,6 +369,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: .3rem .8rem;
             font-size: .8rem;
         }
+
+        .photo-preview-circle {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e5e7eb;
+            background: #f8f9fb;
+        }
     </style>
 </head>
 <body>
@@ -409,6 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <form method="POST"
           action="edit_driver.php?id=<?php echo (int)$driver_id; ?>"
           id="editDriverForm"
+          enctype="multipart/form-data"
           novalidate>
 
         <div class="row g-4">
@@ -423,6 +458,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-user me-1"></i> Personal Information
                         </div>
                         <div class="row g-3">
+
+                            <div class="col-12">
+                                <label for="photo" class="form-label">Photo</label>
+                                <div class="d-flex align-items-center gap-3 flex-wrap">
+                                    <img id="photoPreview"
+                                         class="photo-preview-circle"
+                                         src="<?php echo htmlspecialchars(driverPhotoUrl($driver['photo'] ?? null)); ?>"
+                                     data-has-photo="<?php echo !empty($driver['photo']) ? '1' : '0'; ?>"
+                                         alt="Driver photo preview">
+                                    <div class="flex-grow-1" style="min-width:220px;">
+                                        <input type="file"
+                                               id="photo"
+                                               name="photo"
+                                               class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
+                                               accept="image/jpeg,image/png,image/webp">
+                                        <?php if (isset($errors['photo'])): ?>
+                                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                                        <?php endif; ?>
+                                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                                <?php if (!empty($driver['photo'])): ?>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
+                                    <label class="form-check-label" for="remove_photo" style="font-size:.85rem;">Remove photo</label>
+                                </div>
+                                <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div class="col-md-6">
                                 <label for="employee_id" class="form-label">
@@ -817,6 +880,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (expInput) {
         expInput.addEventListener('input', updatePreview);
         expInput.addEventListener('change', updatePreview);
+    }
+
+    // ── Photo live preview ───────────────────────────────────
+    var photoInput   = document.getElementById('photo');
+    var photoPreview = document.getElementById('photoPreview');
+    var removeBox    = document.getElementById('remove_photo');
+    if (photoInput && photoPreview) {
+        var originalSrc = photoPreview.getAttribute('src');
+        var hasPhoto    = photoPreview.getAttribute('data-has-photo') === '1';
+        var placeholder = <?php echo json_encode(driverPhotoUrl(null)); ?>;
+
+        var refreshPreview = function () {
+            var f = photoInput.files && photoInput.files[0];
+            if (f && f.type.indexOf('image/') === 0) {
+                var reader = new FileReader();
+                reader.onload = function (ev) { photoPreview.src = ev.target.result; };
+                reader.readAsDataURL(f);
+            } else if (hasPhoto && !(removeBox && removeBox.checked)) {
+                photoPreview.src = originalSrc;
+            } else {
+                photoPreview.src = placeholder;
+            }
+        };
+
+        photoInput.addEventListener('change', refreshPreview);
+        if (removeBox) { removeBox.addEventListener('change', refreshPreview); }
     }
 
     // ── Client-side validation ───────────────────────────────

@@ -165,6 +165,113 @@ unset($d);
             border-radius: 4px;
             transition: width .6s ease;
         }
+
+        /* ── Driver cards ── */
+        .vtoolbar { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+        .vtoolbar-left { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+        .vsearch { position:relative; }
+        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:.8rem; }
+        .vsearch input { padding-left:2.1rem; min-width:230px; border-radius:10px; }
+        .vchip {
+            border:1px solid #d9e2dd; background:#fff; color:#374151; border-radius:999px;
+            padding:.32rem .85rem; font-size:.8rem; font-weight:600; cursor:pointer; transition:all .15s;
+        }
+        .vchip:hover { border-color:#0b5d3b; color:#0b5d3b; }
+        .vchip.active { background:#0b5d3b; border-color:#0b5d3b; color:#fff; }
+        .vchip .n { opacity:.7; font-weight:500; margin-left:.25rem; }
+        .view-toggle .btn { font-size:.82rem; padding:.35rem .8rem; }
+        .view-toggle .btn.active { background:#0b5d3b; border-color:#0b5d3b; color:#fff; }
+
+        .dcard {
+            --dc: #15803d;
+            position:relative; height:100%;
+            background:#fff; border:1px solid #e3e9e5; border-radius:14px; overflow:hidden;
+            display:flex; flex-direction:column;
+            box-shadow:0 1px 3px rgba(18,32,24,.05);
+            transition:box-shadow .2s, transform .2s, border-color .2s;
+        }
+        .dcard::before { content:''; position:absolute; inset:0 0 auto 0; height:4px; background:var(--dc); z-index:3; }
+        .dcard:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(18,32,24,.10); border-color:#cfdad3; }
+        .dcard.st-active   { --dc:#15803d; }
+        .dcard.st-on_leave { --dc:#b45309; }
+        .dcard.st-inactive { --dc:#6b7280; }
+        .dcard.st-inactive .dcard-body,
+        .dcard.st-inactive .dbanner .davatar { opacity:.72; filter:grayscale(.6); }
+
+        /* Banner with overlapping avatar */
+        .dbanner {
+            position:relative; height:96px;
+            background:linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
+        }
+        .dbanner::after {
+            content:''; position:absolute; inset:0;
+            background:radial-gradient(circle at 85% 20%, rgba(198,146,20,.35), transparent 55%);
+            pointer-events:none;
+        }
+        .dcard.st-inactive .dbanner { filter:grayscale(.6); }
+        .dbanner .dstatus {
+            position:absolute; top:.85rem; right:.75rem; z-index:2;
+            background:rgba(255,255,255,.94); box-shadow:0 1px 4px rgba(0,0,0,.18);
+        }
+        .dstatus {
+            display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; font-weight:700;
+            letter-spacing:.03em; text-transform:uppercase; color:var(--dc);
+            background:color-mix(in srgb, var(--dc) 10%, #fff); border-radius:999px; padding:.28rem .65rem;
+        }
+        .dstatus::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--dc); }
+        .davatar {
+            position:absolute; left:50%; bottom:-44px; transform:translateX(-50%); z-index:2;
+            width:88px; height:88px; border-radius:50%; overflow:hidden;
+            border:3px solid #fff; background:#eef5f1;
+            box-shadow:0 3px 10px rgba(18,32,24,.22);
+        }
+        .davatar img { display:block; width:100%; height:100%; object-fit:cover; }
+
+        .dcard-body { padding:3.2rem 1.15rem .9rem; flex:1; text-align:center; }
+        .dname { font-weight:700; color:#1a2035; font-size:1.02rem; line-height:1.25;
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .did   { font-family:'Courier New', ui-monospace, monospace; font-size:.78rem; color:#6b7280; letter-spacing:.04em; }
+        .dtype {
+            display:inline-flex; align-items:center; gap:.35rem; font-size:.7rem; font-weight:700;
+            letter-spacing:.03em; text-transform:uppercase; border-radius:999px; padding:.22rem .65rem; margin-top:.5rem;
+        }
+        .dtype-vip     { background:#fbf1d3; color:#9a7209; border:1px solid #ecd48a; }
+        .dtype-regular { background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; }
+        .dphone { display:inline-flex; align-items:center; gap:.4rem; margin-top:.55rem; font-size:.84rem;
+                  color:#374151; text-decoration:none; }
+        .dphone i { color:#0b5d3b; font-size:.78rem; }
+        .dphone:hover { color:#0b5d3b; text-decoration:underline; }
+        .dlic { display:flex; flex-wrap:wrap; justify-content:center; gap:.3rem; margin-top:.6rem; min-height:1.4rem; }
+        .dlic .lic { font-size:.68rem; font-weight:700; color:#0b5d3b; background:#e8f3ed; border:1px solid #cfe5d8;
+                     border-radius:6px; padding:.12rem .45rem; }
+        .dlic .lic-none { font-size:.72rem; color:#9ca3af; }
+
+        .dspecs { display:grid; grid-template-columns:repeat(3,1fr); margin:.95rem 0 .85rem;
+                  border-top:1px solid #edf1ee; border-bottom:1px solid #edf1ee; }
+        .dspec  { padding:.65rem .25rem; text-align:center; }
+        .dspec + .dspec { border-left:1px solid #edf1ee; }
+        .dspec .v { font-weight:700; color:#1a2035; font-size:.92rem; }
+        .dspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-top:.1rem; }
+
+        .dscore { text-align:left; cursor:help; }
+        .dscore .top { display:flex; align-items:baseline; justify-content:space-between; font-size:.72rem;
+                       text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-bottom:.3rem; }
+        .dscore .top b { font-size:.92rem; letter-spacing:0; color:var(--sc); font-weight:700; }
+        .dscore .bar { height:6px; border-radius:3px; background:#e9ecef; overflow:hidden; }
+        .dscore .bar > span { display:block; height:100%; border-radius:3px; background:var(--sc); }
+
+        .dcard-foot {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:.65rem 1.15rem; background:#f8faf9; border-top:1px solid #edf1ee;
+        }
+        .dfoot-note { font-size:.75rem; color:#6b7280; }
+        .dactions .btn { padding:.25rem .55rem; font-size:.78rem; border-radius:8px; }
+        .dempty { text-align:center; padding:3rem 1rem; color:#9ca3af; display:none; }
+        .dempty i { font-size:2rem; margin-bottom:.6rem; display:block; }
+
+        /* ── Table avatar thumbnail ── */
+        .dthumb { width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0;
+                  background:#eef5f1; border:1px solid #e3e9e5; }
     </style>
 </head>
 <body>
@@ -253,7 +360,142 @@ unset($d);
 
     </div><!-- /.row summary cards -->
 
-    <!-- ── DataTable Card ─────────────────────────────────────── -->
+    <!-- ── Driver Cards View ──────────────────────────────────── -->
+    <?php
+        $top_count     = 0;
+        $regular_count = 0;
+        foreach ($drivers as $d) {
+            if (($d['driver_type'] ?? 'regular') === 'top_management') $top_count++; else $regular_count++;
+        }
+    ?>
+    <div class="vtoolbar">
+        <div class="vtoolbar-left" id="cardFilters">
+            <div class="vsearch">
+                <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                <input type="search" id="dSearch" class="form-control form-control-sm"
+                       placeholder="Search name, ID or phone" aria-label="Search drivers">
+            </div>
+            <button type="button" class="vchip active" data-status="all">All<span class="n"><?php echo $total; ?></span></button>
+            <button type="button" class="vchip" data-status="active">Active<span class="n"><?php echo $active; ?></span></button>
+            <button type="button" class="vchip" data-status="on_leave">On Leave<span class="n"><?php echo $on_leave; ?></span></button>
+            <button type="button" class="vchip" data-status="inactive">Inactive<span class="n"><?php echo $inactive; ?></span></button>
+            <select id="dType" class="form-select form-select-sm" style="width:auto;border-radius:10px;" aria-label="Filter by driver type">
+                <option value="all">All types</option>
+                <option value="top_management">Top Management (<?php echo $top_count; ?>)</option>
+                <option value="regular">Regular (<?php echo $regular_count; ?>)</option>
+            </select>
+        </div>
+        <div class="btn-group view-toggle" role="group" aria-label="Switch view">
+            <button type="button" class="btn btn-outline-secondary active" data-view="cards"><i class="fas fa-table-cells-large me-1"></i>Cards</button>
+            <button type="button" class="btn btn-outline-secondary" data-view="table"><i class="fas fa-list me-1"></i>Table</button>
+        </div>
+    </div>
+
+    <div id="cardsView">
+        <div class="row g-3" id="driverCards">
+        <?php foreach ($drivers as $d): ?>
+            <?php
+                $dStatusLabel = match($d['status']) {
+                    'active' => 'Active', 'on_leave' => 'On Leave', 'inactive' => 'Inactive',
+                    default  => ucfirst($d['status']),
+                };
+                $dType     = ($d['driver_type'] ?? 'regular') === 'top_management' ? 'top_management' : 'regular';
+                $dScore    = max(0, min(10, (float)$d['priority_score']));
+                $dScoreCol = $dScore >= 7 ? '#15803d' : ($dScore >= 5 ? '#b45309' : '#b91c1c');
+                $dPhotoUrl = driverPhotoUrl($d['photo'] ?? null);
+                $dFallback = driverPhotoUrl(null);
+                $dLicenses = array_values(array_filter(array_map('trim', explode(',', (string)($d['license_class'] ?? '')))));
+                $dSearch   = strtolower($d['name'] . ' ' . $d['employee_id'] . ' ' . $d['phone']);
+                $dExp      = (float)$d['experience_years'];
+                $dNameJs   = htmlspecialchars(addslashes($d['name']));
+            ?>
+            <div class="col-12 col-md-6 col-xl-4 col-xxl-3 dcol"
+                 data-status="<?php echo htmlspecialchars($d['status']); ?>"
+                 data-type="<?php echo $dType; ?>"
+                 data-search="<?php echo htmlspecialchars($dSearch); ?>">
+                <article class="dcard st-<?php echo htmlspecialchars($d['status']); ?>">
+                    <div class="dbanner">
+                        <span class="dstatus"><?php echo $dStatusLabel; ?></span>
+                        <div class="davatar">
+                            <img src="<?php echo htmlspecialchars($dPhotoUrl); ?>"
+                                 data-fallback="<?php echo htmlspecialchars($dFallback); ?>"
+                                 alt="<?php echo htmlspecialchars($d['name']); ?>"
+                                 loading="lazy" decoding="async"
+                                 onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;}">
+                        </div>
+                    </div>
+
+                    <div class="dcard-body">
+                        <div class="dname" title="<?php echo htmlspecialchars($d['name']); ?>"><?php echo htmlspecialchars($d['name']); ?></div>
+                        <div class="did"><?php echo htmlspecialchars($d['employee_id']); ?></div>
+                        <?php if ($dType === 'top_management'): ?>
+                        <span class="dtype dtype-vip"><i class="fas fa-crown" aria-hidden="true"></i>Top Management</span>
+                        <?php else: ?>
+                        <span class="dtype dtype-regular">Regular</span>
+                        <?php endif; ?>
+                        <div>
+                            <?php if (!empty($d['phone'])): ?>
+                            <a class="dphone" href="tel:<?php echo htmlspecialchars(preg_replace('/[^\d+]/', '', $d['phone'])); ?>">
+                                <i class="fas fa-phone" aria-hidden="true"></i><?php echo htmlspecialchars($d['phone']); ?>
+                            </a>
+                            <?php endif; ?>
+                        </div>
+                        <div class="dlic" aria-label="Licence classes">
+                            <?php if ($dLicenses): foreach ($dLicenses as $lc): ?>
+                            <span class="lic"><?php echo htmlspecialchars($lc); ?></span>
+                            <?php endforeach; else: ?>
+                            <span class="lic-none">No licence class</span>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="dspecs">
+                            <div class="dspec">
+                                <div class="v"><?php echo rtrim(rtrim(number_format($dExp, 1), '0'), '.'); ?> yr<?php echo $dExp != 1 ? 's' : ''; ?></div>
+                                <div class="l">Experience</div>
+                            </div>
+                            <div class="dspec">
+                                <div class="v"><?php echo (int)$d['month_tasks']; ?></div>
+                                <div class="l">Tasks / mo</div>
+                            </div>
+                            <div class="dspec">
+                                <div class="v"><?php echo (int)$d['month_weekend']; ?></div>
+                                <div class="l">Weekend</div>
+                            </div>
+                        </div>
+
+                        <div class="dscore" style="--sc:<?php echo $dScoreCol; ?>"
+                             title="Higher score = recommended first (fewer tasks and weekend tasks, more experience)">
+                            <div class="top"><span>Allocation score</span><b><?php echo number_format($dScore, 2); ?></b></div>
+                            <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="10"
+                                 aria-valuenow="<?php echo number_format($dScore, 2, '.', ''); ?>"
+                                 aria-label="Allocation score"><span style="width:<?php echo round($dScore * 10, 1); ?>%"></span></div>
+                        </div>
+                    </div>
+
+                    <div class="dcard-foot">
+                        <span class="dfoot-note">Perf. <b><?php echo number_format((float)$d['performance_score'], 1); ?></b>/10</span>
+                        <span class="dactions d-flex gap-1">
+                            <button type="button" class="btn btn-outline-info" title="View Driver"
+                                    onclick="viewDriver(<?php echo (int)$d['driver_id']; ?>)"
+                                    aria-label="View <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                            <a href="<?php echo SITE_URL; ?>/admin/edit_driver.php?id=<?php echo (int)$d['driver_id']; ?>"
+                               class="btn btn-outline-primary" title="Edit Driver"
+                               aria-label="Edit <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-pen-to-square" aria-hidden="true"></i></a>
+                            <button type="button" class="btn btn-outline-danger" title="Delete Driver"
+                                    onclick="confirmDelete(<?php echo (int)$d['driver_id']; ?>, '<?php echo $dNameJs; ?>')"
+                                    aria-label="Delete <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-trash" aria-hidden="true"></i></button>
+                        </span>
+                    </div>
+                </article>
+            </div>
+        <?php endforeach; ?>
+        </div>
+
+        <div class="dempty" id="dEmpty"><i class="fas fa-user-slash" aria-hidden="true"></i>No drivers match your filters.</div>
+    </div><!-- /#cardsView -->
+
+    <!-- ── DataTable Card (table view) ────────────────────────── -->
+    <div id="tableView" style="display:none;">
     <div class="card table-card">
         <div class="card-body p-0">
             <div class="p-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -305,11 +547,20 @@ unset($d);
                                         <?php echo htmlspecialchars($d['employee_id']); ?>
                                     </span>
                                 </td>
-                                <td>
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($d['name']); ?></div>
-                                    <div class="small text-muted"><?php echo htmlspecialchars($d['email'] ?? ''); ?></div>
+                                <td style="min-width:150px;">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img class="dthumb"
+                                             src="<?php echo htmlspecialchars(driverPhotoUrl($d['photo'] ?? null)); ?>"
+                                             data-fallback="<?php echo htmlspecialchars(driverPhotoUrl(null)); ?>"
+                                             alt="" loading="lazy" decoding="async"
+                                             onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;}">
+                                        <div>
+                                            <div class="fw-semibold"><?php echo htmlspecialchars($d['name']); ?></div>
+                                            <div class="small text-muted"><?php echo htmlspecialchars($d['email'] ?? ''); ?></div>
+                                        </div>
+                                    </div>
                                 </td>
-                                <td class="small"><?php echo htmlspecialchars($d['phone']); ?></td>
+                                <td class="small text-nowrap"><?php echo htmlspecialchars($d['phone']); ?></td>
                                 <td class="small">
                                     <?php echo number_format((float)$d['experience_years'], 1); ?> yr<?php echo (float)$d['experience_years'] != 1 ? 's' : ''; ?>
                                 </td>
@@ -368,6 +619,7 @@ unset($d);
             </div>
         </div>
     </div><!-- /.card table-card -->
+    </div><!-- /#tableView -->
 
 </main><!-- /.main-content -->
 
@@ -467,6 +719,58 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             zeroRecords:    'No drivers match the search'
         }
     });
+
+    // ── Cards: filter + view toggle ──────────────────────────
+    (function () {
+        var cols     = document.querySelectorAll('#driverCards .dcol');
+        var empty    = document.getElementById('dEmpty');
+        var searchEl = document.getElementById('dSearch');
+        var typeEl   = document.getElementById('dType');
+        var chips    = document.querySelectorAll('.vchip');
+        var state    = { status: 'all', type: 'all', q: '' };
+
+        function apply() {
+            var shown = 0;
+            cols.forEach(function (c) {
+                var ok = (state.status === 'all' || c.dataset.status === state.status)
+                      && (state.type   === 'all' || c.dataset.type   === state.type)
+                      && (!state.q || c.dataset.search.indexOf(state.q) !== -1);
+                c.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
+            empty.style.display = shown ? 'none' : 'block';
+        }
+
+        chips.forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                chips.forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                state.status = chip.dataset.status;
+                apply();
+            });
+        });
+        searchEl.addEventListener('input', function () { state.q = searchEl.value.trim().toLowerCase(); apply(); });
+        typeEl.addEventListener('change', function () { state.type = typeEl.value; apply(); });
+
+        var cardsView = document.getElementById('cardsView');
+        var filters   = document.getElementById('cardFilters');
+        var tableView = document.getElementById('tableView');
+        var toggles   = document.querySelectorAll('.view-toggle [data-view]');
+
+        function setView(v) {
+            cardsView.style.display = v === 'cards' ? '' : 'none';
+            filters.style.display   = v === 'cards' ? '' : 'none';
+            tableView.style.display = v === 'table' ? '' : 'none';
+            toggles.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+            try { localStorage.setItem('driversView', v); } catch (e) {}
+            if (v === 'table') { $('#driversTable').DataTable().columns.adjust(); }
+        }
+        toggles.forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+
+        var saved = 'cards';
+        try { saved = localStorage.getItem('driversView') || 'cards'; } catch (e) {}
+        setView(saved === 'table' ? 'table' : 'cards');
+    })();
 
     // ── View Driver Modal ────────────────────────────────────
     window.viewDriver = function (driverId) {

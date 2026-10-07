@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs><clipPath id="b"><path d="M258 160V82q0-12 12-12h50q8 0 13 7l26 36 8 3q9 3 9 12v32z"/></clipPath></defs>
+  <rect width="400" height="240" rx="16" fill="#eef5f1"/>
+  <ellipse cx="200" cy="205" rx="172" ry="9" fill="#0b5d3b" opacity="0.12"/>
+  <!-- chassis -->
+  <rect x="24" y="156" width="352" height="12" rx="3" fill="#374151"/>
+  <!-- flatbed deck -->
+  <rect x="24" y="146" width="228" height="12" rx="2" fill="#0b5d3b"/>
+  <!-- cargo box: open top, side rails -->
+  <rect x="30" y="92" width="218" height="54" fill="#ffffff" stroke="#374151" stroke-width="2"/>
+  <rect x="30" y="92" width="218" height="8" fill="#0b5d3b"/>
+  <rect x="30" y="118" width="218" height="8" fill="#15804f"/>
+  <rect x="30" y="127" width="218" height="3" fill="#c69214"/>
+  <g fill="#0b5d3b">
+    <rect x="30" y="92" width="8" height="54"/>
+    <rect x="84" y="92" width="6" height="54"/>
+    <rect x="138" y="92" width="6" height="54"/>
+    <rect x="192" y="92" width="6" height="54"/>
+    <rect x="240" y="92" width="8" height="54"/>
+  </g>
+  <!-- cab -->
+  <rect x="244" y="96" width="14" height="52" fill="#0b5d3b"/>
+  <g clip-path="url(#b)"><rect x="250" y="64" width="130" height="100" fill="#0b5d3b"/></g>
+  <path d="M264 76h54q4 0 6 3l22 33q2 4 2 8v36h-84z" fill="#ffffff" stroke="#374151" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M272 84h44q3 0 5 3l15 25h-64z" fill="#cfe6da"/>
+  <path d="M280 88h12l-8 20h-4z" fill="#ffffff" opacity="0.55"/>
+  <g clip-path="url(#b)">
+    <rect x="250" y="130" width="130" height="8" fill="#15804f"/>
+    <rect x="250" y="139" width="130" height="3" fill="#c69214"/>
+  </g>
+  <rect x="272" y="146" width="14" height="4" rx="2" fill="#374151"/>
+  <rect x="362" y="130" width="10" height="14" rx="3" fill="#f5d776"/>
+  <rect x="364" y="150" width="14" height="14" rx="3" fill="#374151"/>
+  <!-- wheels -->
+  <g>
+    <circle cx="90" cy="178" r="26" fill="#1f2937"/><circle cx="90" cy="178" r="12" fill="#9ca3af"/><circle cx="90" cy="178" r="4" fill="#374151"/>
+    <circle cx="150" cy="178" r="26" fill="#1f2937"/><circle cx="150" cy="178" r="12" fill="#9ca3af"/><circle cx="150" cy="178" r="4" fill="#374151"/>
+    <circle cx="322" cy="178" r="26" fill="#1f2937"/><circle cx="322" cy="178" r="12" fill="#9ca3af"/><circle cx="322" cy="178" r="4" fill="#374151"/>
+  </g>
+</svg>

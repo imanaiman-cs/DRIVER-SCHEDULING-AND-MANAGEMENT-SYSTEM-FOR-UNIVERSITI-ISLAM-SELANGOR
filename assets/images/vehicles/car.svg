@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs><clipPath id="b"><path d="M34 156q0-24 20-28l52-10 30-40q8-10 20-10h92q14 0 24 10l32 40 38 8q22 4 22 30v18q0 8-8 8H42q-8 0-8-8z"/></clipPath></defs>
+  <rect width="400" height="240" rx="16" fill="#eef5f1"/>
+  <ellipse cx="200" cy="205" rx="165" ry="9" fill="#0b5d3b" opacity="0.12"/>
+  <!-- body -->
+  <path d="M34 156q0-24 20-28l52-10 30-40q8-10 20-10h92q14 0 24 10l32 40 38 8q22 4 22 30v18q0 8-8 8H42q-8 0-8-8z" fill="#0b5d3b"/>
+  <!-- accent stripe -->
+  <g clip-path="url(#b)"><rect x="30" y="144" width="340" height="7" fill="#15804f"/></g>
+  <!-- windows -->
+  <path d="M120 120l26-34q4-4 10-4h40v38z" fill="#cfe6da"/>
+  <path d="M206 82h46q6 0 10 4l30 34h-86z" fill="#cfe6da"/>
+  <path d="M134 118l20-28h10l-22 28z" fill="#ffffff" opacity="0.55"/>
+  <path d="M214 86h14l-12 30h-6z" fill="#ffffff" opacity="0.55"/>
+  <!-- door lines / handles -->
+  <path d="M200 84v62M200 146v22" stroke="#15804f" stroke-width="2" fill="none"/>
+    <rect x="172" y="130" width="16" height="4" rx="2" fill="#ffffff"/>
+  <rect x="226" y="130" width="16" height="4" rx="2" fill="#ffffff"/>
+  <!-- mirror, lights, bumper -->
+  <rect x="296" y="116" width="12" height="7" rx="3" fill="#374151"/>
+  <path d="M346 136l14 2q4 1 4 6v6h-18z" fill="#f5d776"/>
+  <rect x="352" y="168" width="24" height="10" rx="4" fill="#374151"/>
+  <rect x="22" y="168" width="24" height="10" rx="4" fill="#374151"/>
+  <rect x="34" y="132" width="6" height="12" rx="2" fill="#374151"/>
+  <!-- wheel arches -->
+  <path d="M60 178a31 31 0 0 1 62 0z" fill="#374151"/>
+  <path d="M290 178a31 31 0 0 1 62 0z" fill="#374151"/>
+  <g>
+    <circle cx="91" cy="176" r="26" fill="#1f2937"/><circle cx="91" cy="176" r="12" fill="#9ca3af"/><circle cx="91" cy="176" r="4" fill="#374151"/>
+    <circle cx="321" cy="176" r="26" fill="#1f2937"/><circle cx="321" cy="176" r="12" fill="#9ca3af"/><circle cx="321" cy="176" r="4" fill="#374151"/>
+  </g>
+</svg>

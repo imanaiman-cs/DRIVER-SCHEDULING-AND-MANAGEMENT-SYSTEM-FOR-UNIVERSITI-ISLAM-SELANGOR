@@ -6,6 +6,7 @@
 // ============================================================
 
 require_once '../config/database.php';
+require_once '../includes/upload.php';
 requireAdmin();
 
 $page_title   = 'Add New Vehicle';
@@ -120,16 +121,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['mileage'] = 'Mileage cannot be negative.';
     }
 
+    // Photo (optional) – stored only after all other validation passes
+    $photo_path = null;
+    if (empty($errors)) {
+        $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'vehicles');
+        if (!$up['ok']) {
+            $errors['photo'] = $up['error'];
+        } else {
+            $photo_path = $up['path'];
+        }
+    }
+
     // ── Insert if no errors ───────────────────────────────────
     if (empty($errors)) {
         $stmt = $conn->prepare(
             "INSERT INTO vehicles
                 (plate_number, vehicle_type, brand, model, year, capacity,
-                 fuel_type, status, last_maintenance, next_maintenance, mileage, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                 fuel_type, status, last_maintenance, next_maintenance, mileage, notes, photo)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            'ssssiiisssis',
+            'ssssiiisssiss',
             $form['plate_number'],
             $form['vehicle_type'],
             $form['brand'],
@@ -141,7 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $last_maint_val,
             $next_maint_val,
             $mileage_val,
-            $form['notes']
+            $form['notes'],
+            $photo_path
         );
 
         if ($stmt->execute()) {
@@ -150,6 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         } else {
             $errors['db'] = 'Database error: ' . htmlspecialchars($conn->error);
+            // Insert failed – do not leave an orphaned upload behind
+            deleteUploadedImage($photo_path);
         }
         $stmt->close();
     }
@@ -225,6 +240,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         .type-radio { display: none; }
         .type-icon { font-size: 1.4rem; margin-bottom: .3rem; }
+
+        .photo-preview {
+            width: 100%;
+            max-width: 220px;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 1.5px solid #e5e7eb;
+            background: #f8f9fb;
+        }
     </style>
 </head>
 <body>
@@ -268,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="" novalidate id="addVehicleForm">
+    <form method="POST" action="" enctype="multipart/form-data" novalidate id="addVehicleForm">
 
         <!-- ── Section 1: Vehicle Information ─────────────────── -->
         <div class="card form-card">
@@ -379,6 +404,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                 </div><!-- /.row -->
+            </div>
+        </div>
+
+        <!-- ── Photo ───────────────────────────────────────────── -->
+        <div class="card form-card">
+            <div class="card-header">
+                <span class="section-icon"><i class="fas fa-image" aria-hidden="true"></i></span>
+                Photo
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-4 col-lg-3">
+                        <img id="photoPreview"
+                             class="photo-preview"
+                             src="<?php echo htmlspecialchars(vehiclePhotoUrl(null, $form['vehicle_type'] !== '' ? $form['vehicle_type'] : 'Car')); ?>"
+                             data-base="<?php echo htmlspecialchars(SITE_URL . '/assets/images/vehicles/'); ?>"
+                             alt="Vehicle photo preview">
+                    </div>
+                    <div class="col-md-8 col-lg-9">
+                        <label for="photo" class="form-label fw-semibold">Photo</label>
+                        <input type="file"
+                               class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
+                               id="photo"
+                               name="photo"
+                               accept="image/jpeg,image/png,image/webp">
+                        <?php if (isset($errors['photo'])): ?>
+                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                        <?php endif; ?>
+                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -599,6 +655,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     nextMaint.value = '';
                 }
             }
+        });
+    }
+
+    // ── Photo live preview ────────────────────────────────────
+    var photoInput   = document.getElementById('photo');
+    var photoPreview = document.getElementById('photoPreview');
+
+    function typeIllustration() {
+        var checked = document.querySelector('input[name="vehicle_type"]:checked');
+        var slug = checked ? checked.value.toLowerCase() : 'car';
+        return photoPreview.getAttribute('data-base') + slug + '.svg';
+    }
+
+    if (photoInput && photoPreview) {
+        photoInput.addEventListener('change', function () {
+            var f = this.files && this.files[0];
+            if (f && f.type.indexOf('image/') === 0) {
+                var reader = new FileReader();
+                reader.onload = function (ev) { photoPreview.src = ev.target.result; };
+                reader.readAsDataURL(f);
+            } else {
+                photoPreview.src = typeIllustration();
+            }
+        });
+
+        // With no photo chosen, the preview follows the selected vehicle type
+        document.querySelectorAll('input[name="vehicle_type"]').forEach(function (r) {
+            r.addEventListener('change', function () {
+                if (!photoInput.files || !photoInput.files.length) {
+                    photoPreview.src = typeIllustration();
+                }
+            });
         });
     }
 

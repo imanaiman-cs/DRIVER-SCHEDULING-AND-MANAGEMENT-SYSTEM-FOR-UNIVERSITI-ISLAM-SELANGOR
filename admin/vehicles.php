@@ -162,15 +162,35 @@ foreach ($vehicles as $v) {
         .vcard.st-in_use      { --vc:#0e7490; }
         .vcard.st-maintenance { --vc:#b45309; }
         .vcard.st-retired     { --vc:#6b7280; }
-        .vcard.st-retired .vcard-body { opacity:.72; filter:grayscale(.6); }
+        .vcard.st-retired .vcard-body,
+        .vcard.st-retired .vphoto img { opacity:.72; filter:grayscale(.6); }
+
+        /* Photo area (top of card) */
+        .vphoto {
+            position:relative; display:block; width:100%; aspect-ratio:16/10; overflow:hidden;
+            background:#e9eeeb; color:inherit; text-decoration:none;
+        }
+        .vphoto img {
+            display:block; width:100%; height:100%; object-fit:cover;
+            transition:transform .35s ease;
+        }
+        .vphoto--placeholder { background:#eef5f1; }
+        .vphoto--placeholder img { object-fit:contain; }
+        .vphoto:hover img, .vphoto:focus-visible img { transform:scale(1.03); }
+        .vphoto:focus-visible { outline:3px solid #0b5d3b; outline-offset:-3px; }
+        .vphoto .vstatus {
+            position:absolute; top:.75rem; right:.75rem; z-index:2;
+            background:rgba(255,255,255,.92); box-shadow:0 1px 4px rgba(0,0,0,.18);
+        }
+        .vphoto-type {
+            position:absolute; left:.75rem; bottom:.75rem; z-index:2; max-width:calc(100% - 1.5rem);
+            display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; font-weight:600;
+            color:#fff; background:rgba(17,24,39,.68); border-radius:999px; padding:.28rem .7rem;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+            -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+        }
 
         .vcard-body { padding:1.15rem 1.15rem .9rem; flex:1; }
-        .vcard-top  { display:flex; align-items:flex-start; justify-content:space-between; gap:.5rem; margin-bottom:.9rem; }
-        .vtype {
-            width:46px; height:46px; border-radius:12px; flex-shrink:0;
-            background:#eef5f1; color:#0b5d3b; font-size:1.2rem;
-            display:flex; align-items:center; justify-content:center;
-        }
         .vstatus {
             display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; font-weight:700;
             letter-spacing:.03em; text-transform:uppercase; color:var(--vc);
@@ -215,6 +235,13 @@ foreach ($vehicles as $v) {
         .vactions .btn { padding:.25rem .55rem; font-size:.78rem; border-radius:8px; }
         .vempty { text-align:center; padding:3rem 1rem; color:#9ca3af; display:none; }
         .vempty i { font-size:2rem; margin-bottom:.6rem; display:block; }
+
+        /* ── Table thumbnail ── */
+        .vthumb {
+            width:40px; height:40px; border-radius:8px; object-fit:cover; flex-shrink:0;
+            background:#eef5f1; border:1px solid #e3e9e5;
+        }
+        .vthumb--placeholder { object-fit:contain; }
 
         /* ── Vehicle type icon ── */
         .vehicle-type-icon {
@@ -321,8 +348,7 @@ foreach ($vehicles as $v) {
         ksort($type_counts);
         $soon_limit = date('Y-m-d', strtotime('+30 days'));
     ?>
-    <div id="cardsView">
-        <div class="vtoolbar">
+    <div class="vtoolbar">
             <div class="vtoolbar-left">
                 <div class="vsearch">
                     <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
@@ -347,6 +373,7 @@ foreach ($vehicles as $v) {
             </div>
         </div>
 
+    <div id="cardsView">
         <div class="row g-3" id="vehicleCards">
         <?php foreach ($vehicles as $v): ?>
             <?php
@@ -373,6 +400,10 @@ foreach ($vehicles as $v) {
                 } else {
                     $svcClass = 'vsvc-none'; $svcText = 'Not set';
                 }
+                $vHasPhoto  = !empty($v['photo'] ?? null);
+                $vPhotoUrl  = vehiclePhotoUrl($v['photo'] ?? null, $v['vehicle_type']);
+                $vFallback  = vehiclePhotoUrl(null, $v['vehicle_type']);
+                $vAlt       = trim($v['plate_number'] . ' ' . $v['brand'] . ' ' . $v['model']);
                 $vSearch = strtolower($v['plate_number'] . ' ' . $v['brand'] . ' ' . $v['model']);
                 $plateJs = htmlspecialchars(addslashes($v['plate_number']));
             ?>
@@ -381,13 +412,21 @@ foreach ($vehicles as $v) {
                  data-type="<?php echo htmlspecialchars($v['vehicle_type']); ?>"
                  data-search="<?php echo htmlspecialchars($vSearch); ?>">
                 <article class="vcard st-<?php echo htmlspecialchars($v['status']); ?>">
+                    <a class="vphoto<?php echo $vHasPhoto ? '' : ' vphoto--placeholder'; ?>"
+                       href="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo (int)$v['vehicle_id']; ?>"
+                       aria-label="Edit <?php echo htmlspecialchars($v['plate_number']); ?>">
+                        <img src="<?php echo htmlspecialchars($vPhotoUrl); ?>"
+                             data-fallback="<?php echo htmlspecialchars($vFallback); ?>"
+                             alt="<?php echo htmlspecialchars($vAlt); ?>"
+                             loading="lazy" decoding="async"
+                             onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;this.parentNode.classList.add('vphoto--placeholder');}">
+                        <span class="vstatus"><?php echo $vStatusLabel; ?></span>
+                        <span class="vphoto-type">
+                            <i class="fas <?php echo $vIcon; ?>" aria-hidden="true"></i><?php echo htmlspecialchars($v['vehicle_type']); ?>
+                        </span>
+                    </a>
+
                     <div class="vcard-body">
-                        <div class="vcard-top">
-                            <span class="vtype" title="<?php echo htmlspecialchars($v['vehicle_type']); ?>">
-                                <i class="fas <?php echo $vIcon; ?>" aria-hidden="true"></i>
-                            </span>
-                            <span class="vstatus"><?php echo $vStatusLabel; ?></span>
-                        </div>
 
                         <div class="vplate"><?php echo htmlspecialchars($v['plate_number']); ?></div>
                         <div class="vname"><?php echo htmlspecialchars(trim($v['brand'] . ' ' . $v['model'])); ?></div>
@@ -514,9 +553,16 @@ foreach ($vehicles as $v) {
                                 <td class="text-muted small"><?php echo $i + 1; ?></td>
 
                                 <td>
-                                    <span class="fw-semibold font-monospace text-dark">
-                                        <?php echo htmlspecialchars($v['plate_number']); ?>
-                                    </span>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img class="vthumb<?php echo !empty($v['photo'] ?? null) ? '' : ' vthumb--placeholder'; ?>"
+                                             src="<?php echo htmlspecialchars(vehiclePhotoUrl($v['photo'] ?? null, $v['vehicle_type'])); ?>"
+                                             data-fallback="<?php echo htmlspecialchars(vehiclePhotoUrl(null, $v['vehicle_type'])); ?>"
+                                             alt="" loading="lazy" decoding="async"
+                                             onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;this.classList.add('vthumb--placeholder');}">
+                                        <span class="fw-semibold font-monospace text-dark text-nowrap">
+                                            <?php echo htmlspecialchars($v['plate_number']); ?>
+                                        </span>
+                                    </div>
                                 </td>
 
                                 <td>
@@ -726,6 +772,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         function setView(v) {
             cardsView.style.display = v === 'cards' ? '' : 'none';
             tableView.style.display = v === 'table' ? '' : 'none';
+            document.querySelector('.vtoolbar-left').style.display = v === 'cards' ? '' : 'none';
             toggles.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
             try { localStorage.setItem('vehiclesView', v); } catch (e) {}
             if (v === 'table') { $('#vehiclesTable').DataTable().columns.adjust(); }
