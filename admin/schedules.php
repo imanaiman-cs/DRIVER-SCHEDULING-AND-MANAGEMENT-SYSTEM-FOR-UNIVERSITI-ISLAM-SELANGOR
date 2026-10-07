@@ -477,15 +477,6 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                            aria-label="Edit schedule #<?php echo $s['schedule_id']; ?>">
                                             <i class="fas fa-pen-to-square" aria-hidden="true"></i>
                                         </a>
-                                        <?php if ($s['driver_name'] === null && $s['status'] === 'pending'): ?>
-                                        <!-- Assign Driver -->
-                                        <a href="<?php echo SITE_URL; ?>/admin/auto_assign.php?schedule_id=<?php echo (int)$s['schedule_id']; ?>"
-                                           class="btn btn-outline-warning btn-action"
-                                           title="Assign Driver"
-                                           aria-label="Assign driver to schedule #<?php echo $s['schedule_id']; ?>">
-                                            <i class="fas fa-user-plus" aria-hidden="true"></i>
-                                        </a>
-                                        <?php endif; ?>
                                         <!-- Delete -->
                                         <button type="button"
                                                 class="btn btn-outline-danger btn-action"
