@@ -219,25 +219,12 @@
         type:        'warning',
       }, opts);
 
-      return new Promise(function (resolve) {
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            title:              opts.title,
-            text:               opts.text,
-            icon:               opts.type,
-            showCancelButton:   true,
-            confirmButtonText:  opts.confirmText,
-            cancelButtonText:   opts.cancelText,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor:  '#6c757d',
-            reverseButtons:     true,
-            focusCancel:        true,
-          }).then(function (result) {
-            resolve(result.isConfirmed);
-          });
-        } else {
-          resolve(window.confirm(opts.title + '\n' + opts.text));
-        }
+      return window.UIS.confirm({
+        title:       opts.title,
+        text:        opts.text,
+        confirmText: opts.confirmText,
+        cancelText:  opts.cancelText,
+        tone:        'danger'
       });
     };
 
@@ -261,37 +248,7 @@
       });
     });
 
-    // Also support plain data-confirm attribute (generic confirm, not delete)
-    $(document).on('click', '[data-confirm]:not([data-delete-url]):not([data-confirm-delete])', function (e) {
-      var msg = $(this).data('confirm') || 'Are you sure?';
-      if (typeof Swal !== 'undefined') {
-        e.preventDefault();
-        var $el = $(this);
-        Swal.fire({
-          title:              'Confirm Action',
-          text:               msg,
-          icon:               'question',
-          showCancelButton:   true,
-          confirmButtonText:  'Yes, proceed',
-          cancelButtonText:   'Cancel',
-          confirmButtonColor: '#003580',
-        }).then(function (result) {
-          if (result.isConfirmed) {
-            // Re-trigger default action
-            if ($el[0].tagName === 'A') {
-              window.location.href = $el.attr('href');
-            } else if ($el.closest('form').length) {
-              $el.closest('form').submit();
-            }
-          }
-        });
-      } else {
-        if (!window.confirm(msg)) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-        }
-      }
-    });
+    // Plain [data-confirm] links/buttons are handled by ui.js (styled dialog).
   }
 
   /* ----------------------------------------------------------

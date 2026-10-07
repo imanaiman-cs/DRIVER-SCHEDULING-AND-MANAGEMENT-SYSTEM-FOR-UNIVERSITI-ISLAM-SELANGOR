@@ -1479,6 +1479,7 @@ textarea.form-control { resize: vertical; min-height: 96px; }
 }
 .swal2-icon.uis-swal-icon .swal2-icon-content { font-size: inherit; line-height: 1; }
 .swal2-icon.uis-swal-icon.uis-swal-icon--primary { background: #eef5f1; color: #0b5d3b; border-color: transparent; }
+.swal2-icon.uis-swal-icon.uis-swal-icon--success { background: #e3f4ea; color: #15803d; border-color: transparent; }
 .swal2-icon.uis-swal-icon.uis-swal-icon--danger  { background: #fee2e2; color: #b91c1c; border-color: transparent; }
 .swal2-icon.uis-swal-icon.uis-swal-icon--warning { background: #fef3c7; color: #b45309; border-color: transparent; }
 
@@ -1497,6 +1498,8 @@ textarea.form-control { resize: vertical; min-height: 96px; }
 .uis-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(21,128,79,.30); }
 .uis-btn--primary { background: #0b5d3b; color: #fff; }
 .uis-btn--primary:hover { background: #15804f; }
+.uis-btn--success { background: #15803d; color: #fff; }
+.uis-btn--success:hover { background: #166534; }
 .uis-btn--danger  { background: #b91c1c; color: #fff; }
 .uis-btn--danger:hover  { background: #991b1b; }
 .uis-btn--danger:focus-visible { box-shadow: 0 0 0 3px rgba(185,28,28,.30); }

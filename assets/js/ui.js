@@ -112,6 +112,52 @@
     window.UIS.confirm = confirmDialog;
     window.UIS.alert   = alertDialog;
 
+    // ── One look for every pop-up ───────────────────────────────
+    // Pages call Swal.fire() directly (delete confirmations, success and
+    // error notices…). Give those the same UIS styling so no pop-up keeps
+    // the library's default colours, icons or button shapes.
+    if (swalReady() && !window.Swal.__uisWrapped) {
+        var originalFire = window.Swal.fire.bind(window.Swal);
+        var ICON_BY_TYPE = {
+            success:  { icon: 'fa-circle-check',            tone: 'success' },
+            error:    { icon: 'fa-circle-xmark',            tone: 'danger'  },
+            warning:  { icon: 'fa-triangle-exclamation',    tone: 'warning' },
+            question: { icon: 'fa-circle-question',         tone: 'primary' },
+            info:     { icon: 'fa-circle-info',             tone: 'primary' }
+        };
+        window.Swal.fire = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var o = args[0];
+            if (args.length > 1 || typeof o !== 'object' || o === null) {
+                // Swal.fire('Title', 'text', 'success') shorthand
+                o = { title: args[0], text: args[1], icon: args[2] };
+            }
+            var cc = o.customClass || {};
+            if (o.toast || (typeof cc.popup === 'string' && cc.popup.indexOf('uis-swal') !== -1)) {
+                return originalFire.apply(null, args);
+            }
+            o = Object.assign({}, o);
+            var type = ICON_BY_TYPE[o.icon] ? o.icon : null;
+            var meta = type ? ICON_BY_TYPE[type] : { icon: null, tone: 'primary' };
+            // A red confirm button means a destructive action
+            if (String(o.confirmButtonColor || '').toLowerCase() === '#dc3545') { meta = { icon: meta.icon || 'fa-triangle-exclamation', tone: 'danger' }; }
+            delete o.confirmButtonColor;
+            delete o.cancelButtonColor;
+            o.buttonsStyling = false;
+            if (o.showCancelButton && o.reverseButtons === undefined) { o.reverseButtons = true; }
+            if (o.showCancelButton && meta.tone === 'danger' && o.focusCancel === undefined) { o.focusCancel = true; }
+            var custom = classes(meta.tone);
+            if (!type) { custom.icon = ''; }
+            o.customClass = Object.assign(custom, cc);
+            if (type) {
+                o.iconHtml = '<i class="fas ' + meta.icon + '" aria-hidden="true"></i>';
+                o.icon = 'info';
+            }
+            return originalFire(o);
+        };
+        window.Swal.__uisWrapped = true;
+    }
+
     // ── Declarative confirmation: [data-confirm] ────────────────
     document.addEventListener('click', function (event) {
         var el = event.target.closest ? event.target.closest('[data-confirm]') : null;
