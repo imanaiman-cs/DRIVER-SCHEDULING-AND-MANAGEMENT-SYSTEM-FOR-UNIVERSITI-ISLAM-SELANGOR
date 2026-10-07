@@ -107,7 +107,7 @@ require_once '../includes/sidebar.php';
                 <div class="px-3 py-3" style="border-bottom:1px solid #e8edf5;background:#f8fafc;">
                     <div style="font-size:0.78rem;font-weight:700;color:var(--uis-primary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">
                         <i class="fas fa-users me-1"></i> Drivers
-                        <span class="float-end" style="font-weight:400;color:#9ca3af;"><?php echo count($driver_list); ?> total</span>
+                        <span class="float-end" style="font-weight:400;color:#6b7280;"><?php echo count($driver_list); ?> total</span>
                     </div>
                     <input type="text" id="driverSearch" placeholder="Search driver..."
                            class="form-control form-control-sm"
@@ -117,7 +117,7 @@ require_once '../includes/sidebar.php';
                 <!-- Driver list -->
                 <div id="driverListWrap" style="overflow-y:auto;max-height:540px;">
                     <?php if (empty($driver_list)): ?>
-                    <div class="text-center py-5" style="color:#9ca3af;">
+                    <div class="text-center py-5" style="color:#6b7280;">
                         <i class="fas fa-user-slash fa-lg mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No driver accounts found</div>
                     </div>
@@ -153,7 +153,7 @@ require_once '../includes/sidebar.php';
                                     <?php echo htmlspecialchars($drv['full_name']); ?>
                                 </span>
                                 <?php if ($time_str): ?>
-                                <span style="font-size:0.7rem;color:#9ca3af;flex-shrink:0;margin-left:4px;"><?php echo $time_str; ?></span>
+                                <span style="font-size:0.7rem;color:#6b7280;flex-shrink:0;margin-left:4px;"><?php echo $time_str; ?></span>
                                 <?php endif; ?>
                             </div>
                             <div style="font-size:0.75rem;color:<?php echo $drv['unread_count'] > 0 ? '#374151' : '#9ca3af'; ?>;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -201,7 +201,7 @@ require_once '../includes/sidebar.php';
                 <div id="chatBox" class="flex-grow-1 px-4 py-3"
                      style="overflow-y:auto;max-height:400px;background:#f8fafc;display:flex;flex-direction:column;gap:12px;">
                     <?php if (empty($conversation)): ?>
-                    <div class="text-center my-auto py-4" style="color:#9ca3af;">
+                    <div class="text-center my-auto py-4" style="color:#6b7280;">
                         <i class="fas fa-comment-slash fa-2x mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No messages yet. Start the conversation!</div>
                     </div>
@@ -225,7 +225,7 @@ require_once '../includes/sidebar.php';
                                         border:<?php echo $is_mine ? 'none' : '1px solid #e8edf5'; ?>;">
                                 <?php echo nl2br(htmlspecialchars($msg['body'])); ?>
                             </div>
-                            <div style="font-size:0.7rem;color:#9ca3af;margin-top:3px;text-align:<?php echo $is_mine ? 'right' : 'left'; ?>;">
+                            <div style="font-size:0.7rem;color:#6b7280;margin-top:3px;text-align:<?php echo $is_mine ? 'right' : 'left'; ?>;">
                                 <?php echo date('d M Y, h:i A', strtotime($msg['created_at'])); ?>
                                 <?php if ($is_mine): ?>
                                 <i class="fas fa-check<?php echo $msg['is_read'] ? '-double' : ''; ?> ms-1" style="color:<?php echo $msg['is_read'] ? '#059669' : '#9ca3af'; ?>;"></i>
@@ -247,12 +247,12 @@ require_once '../includes/sidebar.php';
                                       class="form-control"
                                       style="border-radius:var(--radius-md);border:1.5px solid #e5e9f0;font-size:0.84rem;resize:none;"
                                       onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit();}"></textarea>
-                            <button type="submit" class="btn flex-shrink-0"
+                            <button type="submit" aria-label="Send message" title="Send message" class="btn flex-shrink-0"
                                     style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);color:#fff;border:none;padding:10px 18px;border-radius:var(--radius-md);">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
-                        <div style="font-size:0.72rem;color:#9ca3af;margin-top:4px;">
+                        <div style="font-size:0.72rem;color:#6b7280;margin-top:4px;">
                             Press <kbd style="font-size:0.68rem;">Enter</kbd> to send · <kbd style="font-size:0.68rem;">Shift+Enter</kbd> for new line
                         </div>
                     </form>
@@ -262,7 +262,7 @@ require_once '../includes/sidebar.php';
                 <!-- Empty State -->
                 <div class="flex-grow-1 d-flex align-items-center justify-content-center"
                      style="background:#f8fafc;">
-                    <div class="text-center py-5" style="color:#9ca3af;">
+                    <div class="text-center py-5" style="color:#6b7280;">
                         <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                              style="width:72px;height:72px;background:linear-gradient(135deg,#e2f0e9,#cde7da);">
                             <i class="fas fa-comments fa-2x" style="color:var(--uis-primary);"></i>

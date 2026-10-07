@@ -71,7 +71,7 @@ require_once '../includes/sidebar.php';
   <!-- Top Bar -->
   <div class="topbar d-flex align-items-center justify-content-between px-4 py-2 bg-white shadow-sm">
     <div class="d-flex align-items-center gap-3">
-      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" aria-label="Open navigation menu"><i class="fas fa-bars"></i></button>
       <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
         <li class="breadcrumb-item"><a href="dashboard.php">Dashboard</a></li>
         <li class="breadcrumb-item active">My Schedules</li>
@@ -133,15 +133,15 @@ require_once '../includes/sidebar.php';
           <table class="table table-hover data-table mb-0" id="schedulesTable">
             <thead class="table-primary">
               <tr>
-                <th>#</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Destination</th>
-                <th>Purpose</th>
-                <th>Vehicle</th>
-                <th>Pax</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th scope="col">#</th>
+                <th scope="col">Date</th>
+                <th scope="col">Time</th>
+                <th scope="col">Destination</th>
+                <th scope="col">Purpose</th>
+                <th scope="col">Vehicle</th>
+                <th scope="col">Pax</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>

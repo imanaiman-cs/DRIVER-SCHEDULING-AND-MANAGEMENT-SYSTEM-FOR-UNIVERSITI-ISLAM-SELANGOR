@@ -70,10 +70,10 @@ $doughnut_colors = ['#0f7a4d','#d19a16','#0891b2','#d13438','#4668e0','#b4530a',
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #155724 0%, #28a745 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px; color: #fff;
             padding: 1.6rem 2rem; margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(21,87,36,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .85; font-size: .88rem; }
@@ -207,14 +207,14 @@ $doughnut_colors = ['#0f7a4d','#d19a16','#0891b2','#d13438','#4668e0','#b4530a',
                             <table id="vehicleTable" class="table table-hover align-middle mb-0 small">
                                 <thead>
                                     <tr>
-                                        <th>Plate</th>
-                                        <th>Type</th>
-                                        <th>Capacity</th>
-                                        <th>Trips</th>
-                                        <th>Hours</th>
-                                        <th>Utilisation</th>
-                                        <th>Status</th>
-                                        <th>Maintenance</th>
+                                        <th scope="col">Plate</th>
+                                        <th scope="col">Type</th>
+                                        <th scope="col">Capacity</th>
+                                        <th scope="col">Trips</th>
+                                        <th scope="col">Hours</th>
+                                        <th scope="col">Utilisation</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Maintenance</th>
                                     </tr>
                                 </thead>
                                 <tbody>

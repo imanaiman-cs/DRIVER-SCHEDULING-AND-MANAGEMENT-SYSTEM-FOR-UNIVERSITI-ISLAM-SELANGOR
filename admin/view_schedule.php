@@ -265,7 +265,7 @@ require_once '../includes/sidebar.php';
                         </div>
                     </div>
                     <?php else: ?>
-                    <div class="text-center py-3" style="color:#9ca3af;">
+                    <div class="text-center py-3" style="color:#6b7280;">
                         <i class="fas fa-user-slash fa-lg mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No driver assigned</div>
                         <a href="<?php echo SITE_URL; ?>/admin/auto_assign.php?schedule_id=<?php echo $schedule_id; ?>"
@@ -311,7 +311,7 @@ require_once '../includes/sidebar.php';
                         </div>
                     </div>
                     <?php else: ?>
-                    <div class="text-center py-3" style="color:#9ca3af;">
+                    <div class="text-center py-3" style="color:#6b7280;">
                         <i class="fas fa-car-burst fa-lg mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No vehicle assigned</div>
                     </div>

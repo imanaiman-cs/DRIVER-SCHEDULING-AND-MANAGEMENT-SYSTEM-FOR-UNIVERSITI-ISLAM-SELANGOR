@@ -136,7 +136,7 @@ require_once '../includes/sidebar.php';
                 <?php endforeach; ?>
 
                 <?php if (empty($admin_list)): ?>
-                <div class="text-center py-5" style="color:#9ca3af;">
+                <div class="text-center py-5" style="color:#6b7280;">
                     <i class="fas fa-user-slash fa-lg mb-2 d-block"></i>
                     <div style="font-size:0.84rem;">No admin accounts found</div>
                 </div>
@@ -173,7 +173,7 @@ require_once '../includes/sidebar.php';
                 <div id="chatBox" class="flex-grow-1 px-4 py-3"
                      style="overflow-y:auto;max-height:400px;background:#f8fafc;display:flex;flex-direction:column;gap:12px;">
                     <?php if (empty($conversation)): ?>
-                    <div class="text-center my-auto py-4" style="color:#9ca3af;">
+                    <div class="text-center my-auto py-4" style="color:#6b7280;">
                         <i class="fas fa-comment-dots fa-2x mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No messages yet. Say hello!</div>
                     </div>
@@ -197,7 +197,7 @@ require_once '../includes/sidebar.php';
                                         border:<?php echo $is_mine ? 'none' : '1px solid #e8edf5'; ?>;">
                                 <?php echo nl2br(htmlspecialchars($msg['body'])); ?>
                             </div>
-                            <div style="font-size:0.7rem;color:#9ca3af;margin-top:3px;text-align:<?php echo $is_mine ? 'right' : 'left'; ?>;">
+                            <div style="font-size:0.7rem;color:#6b7280;margin-top:3px;text-align:<?php echo $is_mine ? 'right' : 'left'; ?>;">
                                 <?php echo date('d M Y, h:i A', strtotime($msg['created_at'])); ?>
                                 <?php if ($is_mine): ?>
                                 <i class="fas fa-check<?php echo $msg['is_read'] ? '-double' : ''; ?> ms-1"
@@ -220,12 +220,12 @@ require_once '../includes/sidebar.php';
                                       class="form-control"
                                       style="border-radius:var(--radius-md);border:1.5px solid #e5e9f0;font-size:0.84rem;resize:none;"
                                       onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.submit();}"></textarea>
-                            <button type="submit" class="btn flex-shrink-0"
+                            <button type="submit" aria-label="Send message" title="Send message" class="btn flex-shrink-0"
                                     style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;padding:10px 18px;border-radius:var(--radius-md);">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
-                        <div style="font-size:0.72rem;color:#9ca3af;margin-top:4px;">
+                        <div style="font-size:0.72rem;color:#6b7280;margin-top:4px;">
                             Press <kbd style="font-size:0.68rem;">Enter</kbd> to send · <kbd style="font-size:0.68rem;">Shift+Enter</kbd> for new line
                         </div>
                     </form>
@@ -233,7 +233,7 @@ require_once '../includes/sidebar.php';
 
                 <?php else: ?>
                 <div class="flex-grow-1 d-flex align-items-center justify-content-center" style="background:#f8fafc;">
-                    <div class="text-center py-5" style="color:#9ca3af;">
+                    <div class="text-center py-5" style="color:#6b7280;">
                         <i class="fas fa-comments fa-2x mb-2 d-block"></i>
                         <div style="font-size:0.84rem;">No administrators found</div>
                     </div>

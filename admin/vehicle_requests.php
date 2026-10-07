@@ -353,15 +353,15 @@ $display_requests = array_values($display_requests);
                     <table id="requestsTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Staff</th>
-                                <th>Supervisor</th>
-                                <th>Trip Date</th>
-                                <th>Destination</th>
-                                <th>Vehicle</th>
-                                <th>Pax</th>
-                                <th>Status</th>
-                                <th>Submitted</th>
-                                <th class="text-center">Actions</th>
+                                <th scope="col">Staff</th>
+                                <th scope="col">Supervisor</th>
+                                <th scope="col">Trip Date</th>
+                                <th scope="col">Destination</th>
+                                <th scope="col">Vehicle</th>
+                                <th scope="col">Pax</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Submitted</th>
+                                <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

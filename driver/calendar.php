@@ -699,7 +699,7 @@ foreach ($schedules as $r) {
                 }
             },
             /* No events placeholder */
-            noEventsContent: '<div style="text-align:center;padding:2rem;color:#9ca3af;">'
+            noEventsContent: '<div style="text-align:center;padding:2rem;color:#6b7280;">'
                            + '<i class="fas fa-calendar-times" style="font-size:2rem;display:block;margin-bottom:.5rem;"></i>'
                            + 'No trips scheduled</div>'
         });

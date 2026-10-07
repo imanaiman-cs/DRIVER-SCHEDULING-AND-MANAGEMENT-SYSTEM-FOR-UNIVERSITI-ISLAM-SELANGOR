@@ -418,7 +418,7 @@ require_once '../includes/sidebar.php';
                 </div>
                 <div class="content-card-body p-0">
                     <?php if (empty($all_drivers)): ?>
-                    <div class="text-center py-4" style="color:#9ca3af;font-size:0.84rem;">
+                    <div class="text-center py-4" style="color:#6b7280;font-size:0.84rem;">
                         <i class="fas fa-user-slash fa-lg mb-2 d-block"></i>No active drivers
                     </div>
                     <?php else: ?>
@@ -434,7 +434,7 @@ require_once '../includes/sidebar.php';
                     ?>
                     <div class="d-flex align-items-center gap-3 px-3 py-2<?php echo $i < 4 ? ' border-bottom' : ''; ?>"
                          style="border-color:#f0f4f8!important;">
-                        <div class="text-center flex-shrink-0" style="width:24px;font-size:<?php echo $i < 3 ? '1.1rem' : '0.82rem'; ?>;color:#9ca3af;font-weight:700;">
+                        <div class="text-center flex-shrink-0" style="width:24px;font-size:<?php echo $i < 3 ? '1.1rem' : '0.82rem'; ?>;color:#6b7280;font-weight:700;">
                             <?php echo $i < 3 ? $medals[$i] : '#' . ($i + 1); ?>
                         </div>
                         <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
@@ -445,7 +445,7 @@ require_once '../includes/sidebar.php';
                             <div style="font-size:0.82rem;font-weight:600;color:#1a2035;">
                                 <?php echo htmlspecialchars($drv['name']); ?>
                             </div>
-                            <div style="font-size:0.72rem;color:#9ca3af;">
+                            <div style="font-size:0.72rem;color:#6b7280;">
                                 <?php echo (int)$drv['month_tasks']; ?> task(s) this month
                                 · <?php echo (int)$drv['month_weekend']; ?> weekend
                                 · <?php echo $drv['experience_years']; ?> yrs
@@ -500,12 +500,12 @@ require_once '../includes/sidebar.php';
                         <table class="table table-hover mb-0" style="font-size:0.83rem;">
                             <thead>
                                 <tr style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
-                                    <th class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;white-space:nowrap;">#</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date / Time</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Driver</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Score</th>
-                                    <th class="pe-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Status</th>
+                                    <th scope="col" class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;white-space:nowrap;">#</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date / Time</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Driver</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Score</th>
+                                    <th scope="col" class="pe-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -532,7 +532,7 @@ require_once '../includes/sidebar.php';
                                             <span style="font-weight:600;color:#1a2035;">
                                                 <?php echo htmlspecialchars($a['driver']['name']); ?>
                                             </span>
-                                            <div style="font-size:0.7rem;color:#9ca3af;">
+                                            <div style="font-size:0.7rem;color:#6b7280;">
                                                 <?php echo (int)($a['tasks'] ?? 0); ?> task(s) this month
                                                 · <?php echo (int)($a['weekend'] ?? 0); ?> weekend before this
                                             </div>
@@ -551,7 +551,7 @@ require_once '../includes/sidebar.php';
                                             <?php echo number_format($sc, 1); ?>
                                         </span>
                                         <?php else: ?>
-                                            <span style="color:#9ca3af;">—</span>
+                                            <span style="color:#6b7280;">—</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="pe-3" style="padding:0.6rem 0.5rem;">
@@ -590,12 +590,12 @@ require_once '../includes/sidebar.php';
                         <table class="table table-hover mb-0" style="font-size:0.83rem;">
                             <thead>
                                 <tr style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
-                                    <th class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">#</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Time</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Vehicle</th>
-                                    <th class="pe-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Pax</th>
+                                    <th scope="col" class="ps-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">#</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Destination</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Date</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Time</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Vehicle</th>
+                                    <th scope="col" class="pe-3" style="color:#fff;font-weight:600;padding:0.7rem 0.5rem;">Pax</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -620,15 +620,15 @@ require_once '../includes/sidebar.php';
                                         <code style="background:#f0f4f8;padding:2px 6px;border-radius:4px;font-size:0.78rem;">
                                             <?php echo htmlspecialchars($ps['plate_number']); ?>
                                         </code>
-                                        <span style="font-size:0.75rem;color:#9ca3af;margin-left:4px;">
+                                        <span style="font-size:0.75rem;color:#6b7280;margin-left:4px;">
                                             <?php echo ucfirst($ps['vehicle_type'] ?? ''); ?>
                                         </span>
                                         <?php else: ?>
-                                        <span style="color:#9ca3af;font-style:italic;font-size:0.8rem;">Not set</span>
+                                        <span style="color:#6b7280;font-style:italic;font-size:0.8rem;">Not set</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="pe-3" style="padding:0.6rem 0.5rem;">
-                                        <i class="fas fa-users fa-xs me-1" style="color:#9ca3af;"></i>
+                                        <i class="fas fa-users fa-xs me-1" style="color:#6b7280;"></i>
                                         <?php echo (int)$ps['passenger_count']; ?>
                                     </td>
                                 </tr>

@@ -170,13 +170,13 @@ foreach ($requests as $r) {
                 <table class="table table-hover mb-0" id="requestsTable">
                     <thead class="table-light">
                         <tr>
-                            <th>#</th>
-                            <th>Trip Date</th>
-                            <th>Destination</th>
-                            <th>Vehicle</th>
-                            <th>Status</th>
-                            <th>Submitted</th>
-                            <th>Actions</th>
+                            <th scope="col">#</th>
+                            <th scope="col">Trip Date</th>
+                            <th scope="col">Destination</th>
+                            <th scope="col">Vehicle</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Submitted</th>
+                            <th scope="col">Actions</th>
                         </tr>
                     </thead>
                     <tbody>

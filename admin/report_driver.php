@@ -192,18 +192,18 @@ foreach ($rows as $r) {
                     <table id="perfTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Rank</th>
-                                <th>Driver Name</th>
-                                <th>Experience</th>
-                                <th>Tasks (month)</th>
-                                <th>Weekend tasks</th>
-                                <th>Performance</th>
-                                <th>Certification</th>
-                                <th>Allocation Score</th>
-                                <th>Total Trips</th>
-                                <th>Completed</th>
-                                <th>Total Hours</th>
-                                <th>Completion %</th>
+                                <th scope="col">Rank</th>
+                                <th scope="col">Driver Name</th>
+                                <th scope="col">Experience</th>
+                                <th scope="col">Tasks (month)</th>
+                                <th scope="col">Weekend tasks</th>
+                                <th scope="col">Performance</th>
+                                <th scope="col">Certification</th>
+                                <th scope="col">Allocation Score</th>
+                                <th scope="col">Total Trips</th>
+                                <th scope="col">Completed</th>
+                                <th scope="col">Total Hours</th>
+                                <th scope="col">Completion %</th>
                             </tr>
                         </thead>
                         <tbody>

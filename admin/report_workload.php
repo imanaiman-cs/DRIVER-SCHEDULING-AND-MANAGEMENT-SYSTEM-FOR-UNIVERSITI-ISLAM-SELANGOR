@@ -167,13 +167,13 @@ foreach ($rows as $r) {
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #856404 0%, #ffc107 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px; color: #fff;
             padding: 1.6rem 2rem; margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(133,100,4,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
-        .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; color:#1a2035; }
-        .page-header p  { margin: .3rem 0 0; font-size: .88rem; color:#3d3000; }
+        .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; color:#fff; }
+        .page-header p  { margin: .3rem 0 0; font-size: .88rem; color:rgba(255,255,255,.85); }
 
         .filter-card  { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
         .chart-card   { border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10); margin-bottom: 1.5rem; }
@@ -363,15 +363,15 @@ foreach ($rows as $r) {
                     <table id="workloadTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Driver Name</th>
-                                <th>Status</th>
-                                <th>Total Trips</th>
-                                <th>Weekend Trips</th>
-                                <th>Completed</th>
-                                <th>Total Hours</th>
-                                <th>vs Average</th>
-                                <th>Load Status</th>
+                                <th scope="col">#</th>
+                                <th scope="col">Driver Name</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Total Trips</th>
+                                <th scope="col">Weekend Trips</th>
+                                <th scope="col">Completed</th>
+                                <th scope="col">Total Hours</th>
+                                <th scope="col">vs Average</th>
+                                <th scope="col">Load Status</th>
                             </tr>
                         </thead>
                         <tbody>

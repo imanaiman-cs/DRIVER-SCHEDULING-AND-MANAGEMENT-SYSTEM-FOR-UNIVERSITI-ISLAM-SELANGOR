@@ -136,7 +136,7 @@ foreach ($vehicles as $v) {
         .vtoolbar { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
         .vtoolbar-left { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
         .vsearch { position:relative; }
-        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:.8rem; }
+        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#6b7280; font-size:.8rem; }
         .vsearch input { padding-left:2.1rem; min-width:230px; border-radius:10px; }
         .vchip {
             border:1px solid #d9e2dd; background:#fff; color:#374151; border-radius:999px;
@@ -213,12 +213,12 @@ foreach ($vehicles as $v) {
         .vspec + .vspec { border-left:1px solid #edf1ee; }
         .vspec .v { font-weight:700; color:#1a2035; font-size:.92rem; }
         .vspec .v i { color:#0b5d3b; margin-right:.3rem; font-size:.78rem; }
-        .vspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-top:.1rem; }
+        .vspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#6b7280; margin-top:.1rem; }
 
         .vservice { display:flex; align-items:center; justify-content:space-between; gap:.5rem; font-size:.8rem; color:#4b5563; }
         .vservice .lbl { display:flex; align-items:center; gap:.55rem; min-width:0; }
-        .vservice .lbl i { color:#9ca3af; font-size:.95rem; }
-        .vservice .lbl small { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; line-height:1.2; }
+        .vservice .lbl i { color:#6b7280; font-size:.95rem; }
+        .vservice .lbl small { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#6b7280; line-height:1.2; }
         .vservice .lbl strong { display:block; font-size:.82rem; color:#1a2035; font-weight:600; white-space:nowrap; line-height:1.3; }
         .vsvc-chip { font-size:.7rem; font-weight:700; border-radius:999px; padding:.18rem .6rem; white-space:nowrap; }
         .vsvc-ok      { background:#dcfce7; color:#166534; }
@@ -233,7 +233,7 @@ foreach ($vehicles as $v) {
         .vtrips { font-size:.78rem; color:#6b7280; }
         .vtrips b { color:#1a2035; }
         .vactions .btn { padding:.25rem .55rem; font-size:.78rem; border-radius:8px; }
-        .vempty { text-align:center; padding:3rem 1rem; color:#9ca3af; display:none; }
+        .vempty { text-align:center; padding:3rem 1rem; color:#6b7280; display:none; }
         .vempty i { font-size:2rem; margin-bottom:.6rem; display:block; }
 
         /* ── Table thumbnail ── */
@@ -415,7 +415,7 @@ foreach ($vehicles as $v) {
                     <a class="vphoto<?php echo $vHasPhoto ? '' : ' vphoto--placeholder'; ?>"
                        href="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo (int)$v['vehicle_id']; ?>"
                        aria-label="Edit <?php echo htmlspecialchars($v['plate_number']); ?>">
-                        <img src="<?php echo htmlspecialchars($vPhotoUrl); ?>"
+                        <img alt="" src="<?php echo htmlspecialchars($vPhotoUrl); ?>"
                              data-fallback="<?php echo htmlspecialchars($vFallback); ?>"
                              alt="<?php echo htmlspecialchars($vAlt); ?>"
                              loading="lazy" decoding="async"
@@ -504,16 +504,16 @@ foreach ($vehicles as $v) {
                     <table id="vehiclesTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th style="width:40px;">#</th>
-                                <th>Plate Number</th>
-                                <th>Type</th>
-                                <th>Brand / Model / Year</th>
-                                <th>Capacity</th>
-                                <th>Fuel</th>
-                                <th>Status</th>
-                                <th>Last Maint.</th>
-                                <th>Next Maint.</th>
-                                <th class="text-center">Actions</th>
+                                <th scope="col" style="width:40px;">#</th>
+                                <th scope="col">Plate Number</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Brand / Model / Year</th>
+                                <th scope="col">Capacity</th>
+                                <th scope="col">Fuel</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Last Maint.</th>
+                                <th scope="col">Next Maint.</th>
+                                <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -554,7 +554,7 @@ foreach ($vehicles as $v) {
 
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <img class="vthumb<?php echo !empty($v['photo'] ?? null) ? '' : ' vthumb--placeholder'; ?>"
+                                        <img alt="" class="vthumb<?php echo !empty($v['photo'] ?? null) ? '' : ' vthumb--placeholder'; ?>"
                                              src="<?php echo htmlspecialchars(vehiclePhotoUrl($v['photo'] ?? null, $v['vehicle_type'])); ?>"
                                              data-fallback="<?php echo htmlspecialchars(vehiclePhotoUrl(null, $v['vehicle_type'])); ?>"
                                              alt="" loading="lazy" decoding="async"

@@ -390,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             box-shadow: 0 0 0 3px rgba(0,86,179,.1);
         }
 
-        .form-control-custom::placeholder { color: #9ca3af; }
+        .form-control-custom::placeholder { color: #6b7280; }
 
         /* Show/hide password toggle */
         .toggle-password {
@@ -400,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transform: translateY(-50%);
             background: none;
             border: none;
-            color: #9ca3af;
+            color: #6b7280;
             font-size: .9rem;
             cursor: pointer;
             padding: 4px;
@@ -523,7 +523,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .card-footer-info p {
             font-size: .78rem;
-            color: #9ca3af;
+            color: #6b7280;
             margin: 0;
         }
 

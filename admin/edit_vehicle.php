@@ -530,7 +530,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
             <div class="card-body p-4">
                 <div class="row g-3 align-items-center">
                     <div class="col-md-4 col-lg-3">
-                        <img id="photoPreview"
+                        <img alt="Preview of the selected photo" id="photoPreview"
                              class="photo-preview"
                              src="<?php echo htmlspecialchars(vehiclePhotoUrl($vehicle['photo'] ?? null, $form['vehicle_type'])); ?>"
                              data-base="<?php echo htmlspecialchars(SITE_URL . '/assets/images/vehicles/'); ?>"

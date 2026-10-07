@@ -169,7 +169,7 @@ function renderTaskSheet(array $s): void
     </style>
     <div class="task-sheet">
         <div class="ts-header">
-            <img src="<?php echo $logo; ?>" alt="Logo UIS">
+            <img alt="" src="<?php echo $logo; ?>" alt="Logo UIS">
             <p class="ts-uni">UNIVERSITI ISLAM SELANGOR</p>
             <h1 class="ts-title">TUGASAN PEMANDU</h1>
         </div>

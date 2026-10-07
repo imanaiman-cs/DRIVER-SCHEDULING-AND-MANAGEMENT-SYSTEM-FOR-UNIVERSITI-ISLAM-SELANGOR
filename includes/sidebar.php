@@ -83,6 +83,8 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 }
 ?>
 
+<a class="skip-link" href="#mainContent">Skip to main content</a>
+
 <!-- ================================================================
      OFF-CANVAS SIDEBAR OVERLAY (mobile)
      ================================================================ -->
@@ -97,7 +99,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <div class="sidebar-brand">
         <div class="sidebar-brand-inner">
             <div class="sidebar-logo-ring">
-                <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest">
+                <img alt="" src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest">
             </div>
             <div class="sidebar-brand-text">
                 <span class="sidebar-brand-title">UIS</span>
@@ -434,7 +436,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         <i class="fas fa-bars" aria-hidden="true"></i>
     </button>
     <span class="topbar-title">
-        <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest"
+        <img alt="" src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS crest"
              style="height:26px;width:auto;">
         UIS Driver Management
     </span>
@@ -518,7 +520,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <?php endif; ?>
                 <?php if ($_dh_total === 0): ?>
                 <li>
-                    <span class="dropdown-item-text text-center py-3" style="font-size:.82rem;color:#9ca3af;">
+                    <span class="dropdown-item-text text-center py-3" style="font-size:.82rem;color:#6b7280;">
                         <i class="fas fa-check-circle text-success me-1"></i>All clear
                     </span>
                 </li>
@@ -547,7 +549,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <span class="d-none d-sm-inline" style="font-size:.82rem;font-weight:600;color:#1a2035;">
                     <?php echo htmlspecialchars($full_name); ?>
                 </span>
-                <i class="fas fa-chevron-down" style="font-size:.6rem;color:#9ca3af;"></i>
+                <i class="fas fa-chevron-down" style="font-size:.6rem;color:#6b7280;"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow-sm"
                 style="border:1px solid #e8edf5;border-radius:var(--radius-md);">

@@ -388,16 +388,16 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     <table id="schedulesTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Schedule ID</th>
-                                <th>Destination</th>
-                                <th>Driver</th>
-                                <th>Vehicle</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th class="text-center">Actions</th>
+                                <th scope="col">#</th>
+                                <th scope="col">Schedule ID</th>
+                                <th scope="col">Destination</th>
+                                <th scope="col">Driver</th>
+                                <th scope="col">Vehicle</th>
+                                <th scope="col">Date</th>
+                                <th scope="col">Time</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

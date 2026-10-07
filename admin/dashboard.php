@@ -294,19 +294,19 @@ require_once '../includes/sidebar.php';
                         <table class="table table-hover mb-0" style="font-size:0.84rem;">
                             <thead style="background:var(--uis-primary);">
                                 <tr>
-                                    <th class="ps-3" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;white-space:nowrap;">#</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Destination</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Driver</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Vehicle</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Date</th>
-                                    <th style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Status</th>
-                                    <th class="pe-3 text-end" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Action</th>
+                                    <th scope="col" class="ps-3" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;white-space:nowrap;">#</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Destination</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Driver</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Vehicle</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Date</th>
+                                    <th scope="col" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Status</th>
+                                    <th scope="col" class="pe-3 text-end" style="color:#fff;font-weight:600;padding:0.75rem 0.5rem;">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php if (empty($recent_schedules)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-4" style="color:#9ca3af;">
+                                    <td colspan="7" class="text-center py-4" style="color:#6b7280;">
                                         <i class="fas fa-calendar-xmark fa-lg mb-2 d-block"></i>
                                         No schedules found
                                     </td>
@@ -383,7 +383,7 @@ require_once '../includes/sidebar.php';
                 </div>
                 <div class="content-card-body">
                     <?php if (empty($top_drivers)): ?>
-                    <div class="text-center py-4" style="color:#9ca3af;">
+                    <div class="text-center py-4" style="color:#6b7280;">
                         <i class="fas fa-user-slash fa-lg mb-2 d-block"></i>
                         No active drivers found
                     </div>
@@ -404,7 +404,7 @@ require_once '../includes/sidebar.php';
                             <?php if (isset($medals[(string)$rank_num])): ?>
                                 <span style="font-size:1.3rem;line-height:1;"><?php echo $medals[(string)$rank_num]; ?></span>
                             <?php else: ?>
-                                <span style="font-size:0.9rem;font-weight:700;color:#9ca3af;">#<?php echo $rank_num; ?></span>
+                                <span style="font-size:0.9rem;font-weight:700;color:#6b7280;">#<?php echo $rank_num; ?></span>
                             <?php endif; ?>
                         </div>
 
@@ -440,7 +440,7 @@ require_once '../includes/sidebar.php';
                                      aria-valuemax="100">
                                 </div>
                             </div>
-                            <div style="font-size:0.72rem;color:#9ca3af;">
+                            <div style="font-size:0.72rem;color:#6b7280;">
                                 <i class="fas fa-list-check me-1"></i>
                                 <?php echo (int)$driver['tasks_this_month']; ?> tasks this month
                                 &middot; <?php echo number_format((float)$driver['experience_years'], 1); ?> yrs exp
@@ -628,7 +628,7 @@ require_once '../includes/sidebar.php';
                             <div class="progress-bar" style="width:<?php echo $use_pct; ?>%;background:#0b5d3b;" title="In Use"></div>
                             <div class="progress-bar" style="width:<?php echo $maint_pct; ?>%;background:#d97706;" title="Maintenance"></div>
                         </div>
-                        <div class="d-flex gap-3 mt-1" style="font-size:0.7rem;color:#9ca3af;">
+                        <div class="d-flex gap-3 mt-1" style="font-size:0.7rem;color:#6b7280;">
                             <span><span style="color:#059669;">&#9632;</span> Available</span>
                             <span><span style="color:#0b5d3b;">&#9632;</span> In Use</span>
                             <span><span style="color:#d97706;">&#9632;</span> Maintenance</span>
@@ -664,7 +664,7 @@ require_once '../includes/sidebar.php';
                                 <div style="font-weight:600;font-size:0.88rem;">Create New Schedule</div>
                                 <div style="font-size:0.74rem;color:#6b7280;">Plan a new trip or assignment</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#6b7280;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_driver.php"
@@ -680,7 +680,7 @@ require_once '../includes/sidebar.php';
                                 <div style="font-weight:600;font-size:0.88rem;">Add New Driver</div>
                                 <div style="font-size:0.74rem;color:#6b7280;">Register a new driver profile</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#6b7280;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_vehicle.php"
@@ -696,7 +696,7 @@ require_once '../includes/sidebar.php';
                                 <div style="font-weight:600;font-size:0.88rem;">Add Vehicle</div>
                                 <div style="font-size:0.74rem;color:#6b7280;">Add a vehicle to the fleet</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#6b7280;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/report_monthly.php"
@@ -712,7 +712,7 @@ require_once '../includes/sidebar.php';
                                 <div style="font-weight:600;font-size:0.88rem;">Generate Report</div>
                                 <div style="font-size:0.74rem;color:#6b7280;">View monthly analytics report</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#6b7280;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/auto_assign.php"
@@ -728,7 +728,7 @@ require_once '../includes/sidebar.php';
                                 <div style="font-weight:600;font-size:0.88rem;">Auto-Assign Drivers</div>
                                 <div style="font-size:0.74rem;color:#6b7280;">Smart assignment by allocation score</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#6b7280;"></i>
                         </a>
 
                     </div><!-- /.d-grid -->

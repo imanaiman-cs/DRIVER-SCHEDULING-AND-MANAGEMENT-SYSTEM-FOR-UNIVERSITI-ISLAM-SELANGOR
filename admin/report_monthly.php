@@ -101,10 +101,10 @@ $grand_rate      = $grand_total > 0 ? round($grand_completed / $grand_total * 10
 
     <style>
         .page-header {
-            background: linear-gradient(135deg, #0c7a8b 0%, #17a2b8 100%);
+            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
             border-radius: 14px; color: #fff;
             padding: 1.6rem 2rem; margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(12,122,139,.20);
+            box-shadow: 0 4px 16px rgba(11,93,59,.20);
         }
         .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
         .page-header p  { margin: .3rem 0 0; opacity: .85; font-size: .88rem; }
@@ -236,14 +236,14 @@ $grand_rate      = $grand_total > 0 ? round($grand_completed / $grand_total * 10
                     <table class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Month</th>
-                                <th>Total Scheduled</th>
-                                <th>Completed</th>
-                                <th>Cancelled</th>
-                                <th>Pending / Active</th>
-                                <th>Completion Rate</th>
-                                <th><?php echo $prev_year; ?> (non-cancelled)</th>
-                                <th>YoY Change</th>
+                                <th scope="col">Month</th>
+                                <th scope="col">Total Scheduled</th>
+                                <th scope="col">Completed</th>
+                                <th scope="col">Cancelled</th>
+                                <th scope="col">Pending / Active</th>
+                                <th scope="col">Completion Rate</th>
+                                <th scope="col"><?php echo $prev_year; ?> (non-cancelled)</th>
+                                <th scope="col">YoY Change</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -170,7 +170,7 @@ unset($d);
         .vtoolbar { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
         .vtoolbar-left { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
         .vsearch { position:relative; }
-        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:.8rem; }
+        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#6b7280; font-size:.8rem; }
         .vsearch input { padding-left:2.1rem; min-width:230px; border-radius:10px; }
         .vchip {
             border:1px solid #d9e2dd; background:#fff; color:#374151; border-radius:999px;
@@ -244,18 +244,18 @@ unset($d);
         .dlic { display:flex; flex-wrap:wrap; justify-content:center; gap:.3rem; margin-top:.6rem; min-height:1.4rem; }
         .dlic .lic { font-size:.68rem; font-weight:700; color:#0b5d3b; background:#e8f3ed; border:1px solid #cfe5d8;
                      border-radius:6px; padding:.12rem .45rem; }
-        .dlic .lic-none { font-size:.72rem; color:#9ca3af; }
+        .dlic .lic-none { font-size:.72rem; color:#6b7280; }
 
         .dspecs { display:grid; grid-template-columns:repeat(3,1fr); margin:.95rem 0 .85rem;
                   border-top:1px solid #edf1ee; border-bottom:1px solid #edf1ee; }
         .dspec  { padding:.65rem .25rem; text-align:center; }
         .dspec + .dspec { border-left:1px solid #edf1ee; }
         .dspec .v { font-weight:700; color:#1a2035; font-size:.92rem; }
-        .dspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-top:.1rem; }
+        .dspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#6b7280; margin-top:.1rem; }
 
         .dscore { text-align:left; cursor:help; }
         .dscore .top { display:flex; align-items:baseline; justify-content:space-between; font-size:.72rem;
-                       text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-bottom:.3rem; }
+                       text-transform:uppercase; letter-spacing:.07em; color:#6b7280; margin-bottom:.3rem; }
         .dscore .top b { font-size:.92rem; letter-spacing:0; color:var(--sc); font-weight:700; }
         .dscore .bar { height:6px; border-radius:3px; background:#e9ecef; overflow:hidden; }
         .dscore .bar > span { display:block; height:100%; border-radius:3px; background:var(--sc); }
@@ -266,7 +266,7 @@ unset($d);
         }
         .dfoot-note { font-size:.75rem; color:#6b7280; }
         .dactions .btn { padding:.25rem .55rem; font-size:.78rem; border-radius:8px; }
-        .dempty { text-align:center; padding:3rem 1rem; color:#9ca3af; display:none; }
+        .dempty { text-align:center; padding:3rem 1rem; color:#6b7280; display:none; }
         .dempty i { font-size:2rem; margin-bottom:.6rem; display:block; }
 
         /* ── Table avatar thumbnail ── */
@@ -417,7 +417,7 @@ unset($d);
                     <div class="dbanner">
                         <span class="dstatus"><?php echo $dStatusLabel; ?></span>
                         <div class="davatar">
-                            <img src="<?php echo htmlspecialchars($dPhotoUrl); ?>"
+                            <img alt="" src="<?php echo htmlspecialchars($dPhotoUrl); ?>"
                                  data-fallback="<?php echo htmlspecialchars($dFallback); ?>"
                                  alt="<?php echo htmlspecialchars($d['name']); ?>"
                                  loading="lazy" decoding="async"
@@ -512,16 +512,16 @@ unset($d);
                     <table id="driversTable" class="table table-hover align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>Employee ID</th>
-                                <th>Name</th>
-                                <th>Phone</th>
-                                <th>Experience</th>
-                                <th>Allocation Score</th>
-                                <th>Performance</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th class="text-center">Actions</th>
+                                <th scope="col">#</th>
+                                <th scope="col">Employee ID</th>
+                                <th scope="col">Name</th>
+                                <th scope="col">Phone</th>
+                                <th scope="col">Experience</th>
+                                <th scope="col">Allocation Score</th>
+                                <th scope="col">Performance</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -549,7 +549,7 @@ unset($d);
                                 </td>
                                 <td style="min-width:150px;">
                                     <div class="d-flex align-items-center gap-2">
-                                        <img class="dthumb"
+                                        <img alt="" class="dthumb"
                                              src="<?php echo htmlspecialchars(driverPhotoUrl($d['photo'] ?? null)); ?>"
                                              data-fallback="<?php echo htmlspecialchars(driverPhotoUrl(null)); ?>"
                                              alt="" loading="lazy" decoding="async"

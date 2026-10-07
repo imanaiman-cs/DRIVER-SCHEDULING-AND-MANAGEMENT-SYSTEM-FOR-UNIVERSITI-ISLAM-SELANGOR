@@ -500,7 +500,7 @@ body.sidebar-hidden .desktop-header { left: 0; }
 
 .desktop-header .breadcrumb { margin: 0; font-size: .80rem; background: transparent; padding: 0; }
 .desktop-header .breadcrumb-item a { color: var(--uis-secondary); }
-.desktop-header .breadcrumb-item.active { color: #94a3b8; }
+.desktop-header .breadcrumb-item.active { color: #64748b; }
 .desktop-header .header-title { font-size: 1rem; font-weight: 700; color: var(--uis-primary); margin: 0; }
 
 .btn-sidebar-toggle {
@@ -874,7 +874,7 @@ table.dataTable tbody tr:hover { background-color: #f0f7ff; }
   border-color: transparent !important;
   color: var(--uis-primary) !important;
 }
-.dataTables_wrapper .dataTables_info { font-size: .80rem; color: #94a3b8; }
+.dataTables_wrapper .dataTables_info { font-size: .80rem; color: #64748b; }
 
 /* ============================================================
    BUTTONS
@@ -1303,7 +1303,7 @@ textarea.form-control { resize: vertical; min-height: 96px; }
   border-top: 1px solid #f1f5f9;
   padding: .9rem 1.75rem;
   font-size: .78rem;
-  color: #94a3b8;
+  color: #64748b;
   text-align: center;
 }
 .main-footer a { color: var(--uis-secondary); }
@@ -1504,3 +1504,46 @@ textarea.form-control { resize: vertical; min-height: 96px; }
 .uis-btn--warning:hover { background: #92400e; }
 .uis-btn--ghost { background: #fff; color: #374151; border-color: #d1d5db; }
 .uis-btn--ghost:hover { background: #f3f4f6; }
+
+
+/* ============================================================
+   USABILITY & ACCESSIBILITY (HCI)
+   ============================================================ */
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 4000;
+  background: #0b5d3b; color: #fff; font-weight: 700; font-size: .9rem;
+  padding: .65rem 1.1rem; border-radius: 0 0 10px 0; text-decoration: none;
+}
+.skip-link:focus { left: 0; color: #fff; }
+
+/* Visible keyboard focus everywhere */
+a:focus-visible, button:focus-visible, [role="button"]:focus-visible, summary:focus-visible,
+.btn:focus-visible, .form-control:focus-visible, .form-select:focus-visible,
+.sidebar-link:focus-visible, .sidebar-sublink:focus-visible, .vchip:focus-visible, .nav-link:focus-visible {
+  outline: 3px solid rgba(21,128,79,.55);
+  outline-offset: 2px;
+}
+main:focus { outline: none; }
+
+/* Required-field legend and markers */
+.required-legend { font-size: .8rem; color: #6b7280; margin-bottom: 1rem; }
+.required-legend .req, .req { color: #b91c1c; font-weight: 700; }
+
+/* Disabled-while-saving buttons keep their shape */
+.btn[aria-busy="true"] { opacity: .85; cursor: progress; }
+
+/* Larger tap targets on touch screens */
+@media (pointer: coarse) {
+  .btn, .form-control, .form-select, .sidebar-link, .sidebar-sublink { min-height: 44px; }
+  .btn-action, .vactions .btn { min-width: 44px; min-height: 44px; }
+}
+
+/* Respect the "reduce motion" setting */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

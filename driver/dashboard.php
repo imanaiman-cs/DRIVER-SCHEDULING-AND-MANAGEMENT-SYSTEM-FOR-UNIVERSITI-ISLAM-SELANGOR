@@ -103,7 +103,7 @@ require_once '../includes/sidebar.php';
   <!-- Top Bar -->
   <div class="topbar d-flex align-items-center justify-content-between px-4 py-2 bg-white shadow-sm">
     <div class="d-flex align-items-center gap-3">
-      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()">
+      <button class="btn btn-sm btn-outline-secondary d-lg-none" onclick="toggleSidebar()" aria-label="Open navigation menu">
         <i class="fas fa-bars"></i>
       </button>
       <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
@@ -347,7 +347,7 @@ require_once '../includes/sidebar.php';
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead class="table-light">
-            <tr><th>Date</th><th>Destination</th><th>Time</th><th>Vehicle</th><th>Status</th></tr>
+            <tr><th scope="col">Date</th><th scope="col">Destination</th><th scope="col">Time</th><th scope="col">Vehicle</th><th scope="col">Status</th></tr>
           </thead>
           <tbody>
             <?php foreach ($recent_completed as $rc): ?>

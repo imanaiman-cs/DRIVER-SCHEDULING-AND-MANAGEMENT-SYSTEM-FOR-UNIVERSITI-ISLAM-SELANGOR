@@ -356,7 +356,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="col-12">
                                 <label for="photo" class="form-label">Photo</label>
                                 <div class="d-flex align-items-center gap-3 flex-wrap">
-                                    <img id="photoPreview"
+                                    <img alt="Preview of the selected photo" id="photoPreview"
                                          class="photo-preview-circle"
                                          src="<?php echo htmlspecialchars(driverPhotoUrl(null)); ?>"
                                          alt="Driver photo preview">

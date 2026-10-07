@@ -153,3 +153,142 @@
         });
     }, true);
 })();
+
+
+/* ============================================================
+   Global usability behaviours (HCI)
+   - Visibility of status : submit buttons show "Please wait…" and
+                            block double submission
+   - Error recovery       : first invalid field / error is focused
+   - Efficiency           : press "/" to jump to the page's search box
+   - Error prevention     : warn before leaving a half-filled form
+   - Accessibility        : skip link target, aria-current on the
+                            active menu item
+   ============================================================ */
+(function () {
+    'use strict';
+
+    function ready(fn) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', fn);
+        } else {
+            fn();
+        }
+    }
+
+    // ── Accessibility landmarks ─────────────────────────────────
+    ready(function () {
+        var main = document.querySelector('main') || document.querySelector('.main-content');
+        if (main) {
+            if (!main.id) { main.id = 'mainContent'; }
+            main.setAttribute('tabindex', '-1');
+            var skip = document.querySelector('.skip-link');
+            if (skip && main.id !== 'mainContent') { skip.setAttribute('href', '#' + main.id); }
+        }
+        document.querySelectorAll('.sidebar-item.active > .sidebar-link, .sidebar-sublink.active')
+            .forEach(function (el) { el.setAttribute('aria-current', 'page'); });
+    });
+
+    // ── Error recovery: focus the first problem on page load ────
+    ready(function () {
+        var invalid = document.querySelector('.is-invalid');
+        if (invalid) {
+            invalid.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            if (typeof invalid.focus === 'function') { invalid.focus({ preventScroll: true }); }
+            return;
+        }
+        var alertBox = document.querySelector('.alert-danger');
+        if (alertBox) {
+            alertBox.setAttribute('tabindex', '-1');
+            alertBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            alertBox.focus({ preventScroll: true });
+        }
+    });
+
+    // ── Feedback without clutter: success notices fade away ─────
+    ready(function () {
+        document.querySelectorAll('.alert-success.alert-dismissible').forEach(function (box) {
+            setTimeout(function () {
+                if (!document.body.contains(box)) { return; }
+                if (window.bootstrap && window.bootstrap.Alert) {
+                    window.bootstrap.Alert.getOrCreateInstance(box).close();
+                } else {
+                    box.style.display = 'none';
+                }
+            }, 7000);
+        });
+    });
+
+    // ── Visibility of status: block double submit, show progress ─
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form || form.tagName !== 'FORM' || form.hasAttribute('data-no-loading')) { return; }
+        if ((form.getAttribute('method') || 'get').toLowerCase() !== 'post') { return; }
+
+        if (form.getAttribute('data-submitting') === '1') {
+            event.preventDefault();               // second click while the first is still processing
+            return;
+        }
+        if (event.defaultPrevented) { return; }   // handled by AJAX / failed validation
+
+        form.setAttribute('data-submitting', '1');
+        form.dirty = false;
+
+        var btn = event.submitter || form.querySelector('[type="submit"]');
+        if (!btn || btn.tagName !== 'BUTTON') { return; }
+
+        // Disabling after the event keeps the button's own name/value in the request.
+        setTimeout(function () {
+            btn.setAttribute('data-original-html', btn.innerHTML);
+            btn.style.minWidth = btn.offsetWidth + 'px';
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+                            (btn.getAttribute('data-loading-text') || 'Please wait…');
+        }, 0);
+    });
+
+    // Back/forward cache: restore buttons when the page is shown again
+    window.addEventListener('pageshow', function () {
+        document.querySelectorAll('form[data-submitting="1"]').forEach(function (f) {
+            f.removeAttribute('data-submitting');
+        });
+        document.querySelectorAll('button[data-original-html]').forEach(function (b) {
+            b.innerHTML = b.getAttribute('data-original-html');
+            b.removeAttribute('data-original-html');
+            b.removeAttribute('aria-busy');
+            b.disabled = false;
+        });
+    });
+
+    // ── Efficiency: "/" focuses the search box ──────────────────
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) { return; }
+        var t = event.target, tag = t && t.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) { return; }
+        var box = null;
+        document.querySelectorAll('input[type="search"], .dataTables_filter input, input[placeholder*="earch"]')
+            .forEach(function (el) { if (!box && el.offsetParent !== null) { box = el; } });
+        if (box) { event.preventDefault(); box.focus(); box.select(); }
+    });
+
+    // ── Error prevention: warn before losing typed data ─────────
+    ready(function () {
+        document.querySelectorAll('form').forEach(function (form) {
+            if ((form.getAttribute('method') || 'get').toLowerCase() !== 'post') { return; }
+            if (form.hasAttribute('data-no-unsaved')) { return; }
+            var fields = form.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+            if (fields.length < 4) { return; }            // short forms (chat, status) are not worth a prompt
+            form.addEventListener('input',  function () { form.dirty = true; });
+            form.addEventListener('change', function () { form.dirty = true; });
+        });
+    });
+    window.addEventListener('beforeunload', function (event) {
+        var dirty = false;
+        document.querySelectorAll('form').forEach(function (f) { if (f.dirty) { dirty = true; } });
+        if (dirty) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+})();
