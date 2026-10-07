@@ -459,7 +459,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-text mb-3 mt-0">
                         <i class="fas fa-circle-info me-1" style="color: var(--uis-primary);"></i>
                         Attach any letters needed for approval &mdash; e.g. Release Letter (Surat Pelepasan) or Seminar Letter.
-                        PDF, JPG, PNG or WebP &middot; max 5 MB each &middot; up to 5 files.
+                        PDF, JPG, PNG or WebP &middot; max 5 MB per file &middot; up to 5 files per request. A PDF can have any number of pages.
                     </div>
 
                     <div id="docRows">
