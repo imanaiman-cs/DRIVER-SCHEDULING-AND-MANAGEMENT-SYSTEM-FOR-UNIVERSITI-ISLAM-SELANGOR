@@ -499,7 +499,7 @@ $display_requests = array_values($display_requests);
      PROCESS REQUEST MODAL
      ================================================================ -->
 <div class="modal fade" id="processModal" tabindex="-1" aria-labelledby="processModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content rounded-3">
             <div class="modal-header text-white"
                  style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
@@ -514,10 +514,36 @@ $display_requests = array_values($display_requests);
                 <div id="processSummary" class="p-3 rounded-3 mb-3" style="background:#f8f9fb;font-size:.9rem;">
                     <!-- Populated by JS -->
                 </div>
-                <div class="alert alert-info py-2 small mb-0">
-                    <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>
-                    The driver will remain <strong>unassigned</strong> &mdash; use
-                    <strong>Auto Assign</strong> afterwards to assign the best available driver.
+                <h6 class="fw-bold mb-3 mt-4" style="color:#0b5d3b;">
+                    <i class="fas fa-user-check me-2" aria-hidden="true"></i>Assign now <span class="fw-normal text-muted small">(optional)</span>
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label for="processTripType" class="form-label fw-semibold">Trip type</label>
+                        <select id="processTripType" class="form-select">
+                            <option value="regular">Regular</option>
+                            <option value="top_management">Top Management (VIP)</option>
+                        </select>
+                        <div class="form-text">Top Management trips are only offered to Top Management drivers.</div>
+                    </div>
+                    <div class="col-md-7">
+                        <label for="processVehicle" class="form-label fw-semibold">Vehicle</label>
+                        <select id="processVehicle" class="form-select" disabled>
+                            <option value="0">Loading vehicles&hellip;</option>
+                        </select>
+                        <div id="processVehicleHint" class="form-text" aria-live="polite"></div>
+                    </div>
+                    <div class="col-12">
+                        <label for="processDriver" class="form-label fw-semibold">Driver</label>
+                        <select id="processDriver" class="form-select" disabled>
+                            <option value="0">Loading drivers&hellip;</option>
+                        </select>
+                        <div id="processDriverHint" class="form-text" aria-live="polite"></div>
+                    </div>
+                </div>
+                <div id="processNote" class="alert alert-info py-2 small mt-3 mb-0">
+                    <i class="fas fa-circle-info me-1" aria-hidden="true"></i>
+                    <span id="processNoteText"></span>
                 </div>
             </div>
             <div class="modal-footer gap-2">
@@ -854,7 +880,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + telLink(r.officer_phone) + '</div></div>'
             + '<div class="col-6"><div class="detail-label">Waiting Place</div>'
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '&mdash;') + '</div></div>'
-            + '<div class="col-12"><div class="detail-label">Vehicle</div>'
+            + '<div class="col-12"><div class="detail-label">Requested vehicle</div>'
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div></div>'
             + '<div class="col-12"><div class="detail-label">Supporting Documents</div>'
             +   '<div class="detail-value">'
@@ -871,9 +897,118 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         btn.disabled  = false;
         btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
 
+        document.getElementById('processTripType').value = 'regular';
+        loadProcessVehicles(r);
+
         var modal = new bootstrap.Modal(document.getElementById('processModal'));
         modal.show();
     };
+
+    // ── Vehicle and driver pickers ────────────────────────────
+    function setHint(id, text, tone) {
+        var el = document.getElementById(id);
+        el.textContent = text || '';
+        el.className = 'form-text' + (tone ? ' text-' + tone + ' fw-semibold' : '');
+    }
+
+    function updateProcessNote() {
+        var driverId = parseInt(document.getElementById('processDriver').value, 10) || 0;
+        document.getElementById('processNoteText').textContent = driverId > 0
+            ? 'The schedule will be created as Approved with this driver, and the driver is e-mailed the details.'
+            : 'No driver chosen: the schedule stays Pending and unassigned. Use Auto Assign later to pick the best available driver.';
+    }
+
+    function loadProcessVehicles(r) {
+        var vSel = document.getElementById('processVehicle');
+        vSel.disabled = true;
+        vSel.innerHTML = '<option value="0">Loading vehicles&hellip;</option>';
+        setHint('processVehicleHint', '');
+
+        var q = new URLSearchParams({
+            trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time,
+            passengers: r.passenger_count
+        });
+        fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var list = (data && data.success && data.vehicles) ? data.vehicles : [];
+                var html = '<option value="0">&mdash; Decide later (no vehicle yet) &mdash;</option>';
+                var requested = r.vehicle_id ? parseInt(r.vehicle_id, 10) : 0;
+                var foundRequested = false;
+                list.forEach(function (v) {
+                    var isReq = v.vehicle_id === requested;
+                    if (isReq) foundRequested = true;
+                    var name = [v.brand, v.model].filter(Boolean).join(' ') || v.vehicle_type;
+                    html += '<option value="' + v.vehicle_id + '"' + (isReq ? ' selected' : '') + '>'
+                         + escHtml(v.plate_number + ' \u2014 ' + name + ' (' + v.vehicle_type + ', ' + v.capacity + ' seats)'
+                         + (isReq ? ' \u00b7 requested' : '')) + '</option>';
+                });
+                vSel.innerHTML = html;
+                vSel.disabled = false;
+
+                if (requested && !foundRequested) {
+                    setHint('processVehicleHint', 'The vehicle the staff asked for is no longer free for this time. Pick another one or decide later.', 'danger');
+                } else if (!requested) {
+                    setHint('processVehicleHint', list.length + ' vehicle(s) free with enough seats. The staff chose \u201cany available vehicle\u201d.');
+                } else {
+                    setHint('processVehicleHint', 'Showing vehicles that are free at this time and seat ' + r.passenger_count + ' or more.');
+                }
+                loadProcessDrivers();
+            })
+            .catch(function () {
+                vSel.innerHTML = '<option value="0">&mdash; Decide later (no vehicle yet) &mdash;</option>';
+                vSel.disabled = false;
+                setHint('processVehicleHint', 'Could not load vehicles. You can still create the schedule and choose later.', 'danger');
+                loadProcessDrivers();
+            });
+    }
+
+    function loadProcessDrivers() {
+        var r    = findRequest(_processRequestId);
+        var dSel = document.getElementById('processDriver');
+        if (!r) return;
+        dSel.disabled = true;
+        dSel.innerHTML = '<option value="0">Loading drivers&hellip;</option>';
+        setHint('processDriverHint', '');
+
+        var fd = new FormData();
+        fd.append('trip_date',  r.trip_date);
+        fd.append('start_time', r.start_time);
+        fd.append('end_time',   r.end_time);
+        fd.append('vehicle_id', document.getElementById('processVehicle').value || '0');
+        fd.append('trip_type',  document.getElementById('processTripType').value);
+
+        fetch(SITE_URL + '/ajax/get_available_drivers.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var list = (data && data.success && data.drivers) ? data.drivers : [];
+                var html = '<option value="0">&mdash; Leave unassigned (use Auto Assign later) &mdash;</option>';
+                list.forEach(function (d, i) {
+                    html += '<option value="' + d.driver_id + '"' + (i === 0 ? ' selected' : '') + '>'
+                         + escHtml((i === 0 ? '\u2605 Recommended: ' : '') + d.name + ' \u2014 score ' + Number(d.priority).toFixed(2)
+                         + ' (' + d.month_tasks + ' task' + (d.month_tasks === 1 ? '' : 's') + ' this month, ' + d.month_weekend + ' weekend)')
+                         + '</option>';
+                });
+                dSel.innerHTML = html;
+                dSel.disabled = false;
+                if (list.length) {
+                    setHint('processDriverHint', list.length + ' driver(s) are free and hold the right licence. The top score is recommended; change it if you prefer someone else.');
+                } else {
+                    setHint('processDriverHint', 'No driver is free with the right licence for this time and trip type. Leave unassigned or change the vehicle or trip type.', 'danger');
+                }
+                updateProcessNote();
+            })
+            .catch(function () {
+                dSel.innerHTML = '<option value="0">&mdash; Leave unassigned (use Auto Assign later) &mdash;</option>';
+                dSel.disabled = false;
+                setHint('processDriverHint', 'Could not load drivers. You can leave it unassigned.', 'danger');
+                updateProcessNote();
+            });
+    }
+
+    document.getElementById('processVehicle').addEventListener('change', loadProcessDrivers);
+    document.getElementById('processTripType').addEventListener('change', loadProcessDrivers);
+    document.getElementById('processDriver').addEventListener('change', updateProcessNote);
 
     window.submitProcess = function () {
         if (!_processRequestId) return;
@@ -884,6 +1019,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
         var formData = new FormData();
         formData.append('request_id', _processRequestId);
+        formData.append('vehicle_id', document.getElementById('processVehicle').value || '0');
+        formData.append('driver_id',  document.getElementById('processDriver').value  || '0');
+        formData.append('trip_type',  document.getElementById('processTripType').value);
 
         fetch(SITE_URL + '/ajax/process_request.php', {
             method:      'POST',
@@ -898,17 +1036,24 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
             if (res.success) {
                 var num = String(res.schedule_id).padStart(4, '0');
+                var assigned = res.driver_assigned === true;
                 Swal.fire({
                     icon:               'success',
-                    title:              'Schedule #' + num + ' created',
-                    text:               'The request has been processed. Assign a driver next.',
+                    title:              'Schedule #' + num + (assigned ? ' created and assigned' : ' created'),
+                    text:               assigned
+                                          ? (res.driver_name + ' has been assigned.' + (res.email ? ' ' + res.email : ''))
+                                          : 'The request has been processed. Assign a driver next.',
                     showCancelButton:   true,
-                    confirmButtonText:  '<i class="fas fa-wand-magic-sparkles me-1"></i> Go to Auto Assign',
+                    confirmButtonText:  assigned
+                                          ? '<i class="fas fa-eye me-1"></i> View schedule'
+                                          : '<i class="fas fa-wand-magic-sparkles me-1"></i> Go to Auto Assign',
                     cancelButtonText:   'Stay here',
                     confirmButtonColor: '#0b5d3b',
                 }).then(function (result) {
                     if (result.isConfirmed) {
-                        window.location.href = SITE_URL + '/admin/auto_assign.php';
+                        window.location.href = SITE_URL + (assigned
+                            ? '/admin/view_schedule.php?id=' + res.schedule_id
+                            : '/admin/auto_assign.php');
                     } else {
                         location.reload();
                     }
