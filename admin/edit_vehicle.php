@@ -9,6 +9,8 @@ require_once '../config/database.php';
 require_once '../includes/upload.php';
 requireAdmin();
 
+$max_year = (int)date('Y') + 1;   // next model year is allowed
+
 $page_title   = 'Edit Vehicle';
 $current_page = 'edit_vehicle.php';
 
@@ -88,9 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Plate number
     if ($form['plate_number'] === '') {
-        $errors['plate_number'] = 'Plate number is required.';
+        $errors['plate_number'] = 'Enter the plate number, for example WA1234B.';
     } elseif (!preg_match('/^[A-Z0-9\s\-]+$/', $form['plate_number'])) {
-        $errors['plate_number'] = 'Plate number may only contain letters, digits, spaces and hyphens.';
+        $errors['plate_number'] = 'Plate number can only contain letters, digits, spaces and hyphens (for example WA1234B). Remove any other characters.';
     } else {
         // Uniqueness: exclude the current vehicle
         $chk = $conn->prepare("SELECT vehicle_id FROM vehicles WHERE plate_number = ? AND vehicle_id != ?");
@@ -98,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chk->execute();
         $chk->store_result();
         if ($chk->num_rows > 0) {
-            $errors['plate_number'] = 'Another vehicle with this plate number already exists.';
+            $errors['plate_number'] = 'This plate number is already used by another vehicle. Check the number, or edit that vehicle instead.';
         }
         $chk->close();
     }
@@ -106,41 +108,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Vehicle type
     $allowed_types = ['Bus', 'Van', 'Car', 'Minibus', 'Lorry', 'Motorcycle'];
     if (!in_array($form['vehicle_type'], $allowed_types, true)) {
-        $errors['vehicle_type'] = 'Please select a valid vehicle type.';
+        $errors['vehicle_type'] = 'Select a vehicle type: Bus, Van, Car, Minibus, Lorry or Motorcycle.';
     }
 
     // Brand
     if ($form['brand'] === '') {
-        $errors['brand'] = 'Brand is required.';
+        $errors['brand'] = 'Enter the vehicle brand, for example Toyota.';
     }
 
     // Model
     if ($form['model'] === '') {
-        $errors['model'] = 'Model is required.';
+        $errors['model'] = 'Enter the vehicle model, for example Hiace.';
     }
 
     // Year
     $year_int = (int)$form['year'];
-    if ($form['year'] === '' || $year_int < 1990 || $year_int > 2025) {
-        $errors['year'] = 'Year must be between 1990 and 2025.';
+    if ($form['year'] === '' || $year_int < 1990 || $year_int > $max_year) {
+        $errors['year'] = 'Year must be a whole number between 1990 and ' . $max_year . ', for example 2020.';
     }
 
     // Capacity
     $cap_int = (int)$form['capacity'];
-    if ($form['capacity'] === '' || $cap_int < 1) {
-        $errors['capacity'] = 'Seating capacity must be at least 1.';
+    if ($form['capacity'] === '' || $cap_int < 1 || $cap_int > 100) {
+        $errors['capacity'] = 'Seating capacity must be a whole number between 1 and 100, for example 14.';
     }
 
     // Fuel type
     $allowed_fuels = ['Petrol', 'Diesel', 'Electric', 'Hybrid'];
     if (!in_array($form['fuel_type'], $allowed_fuels, true)) {
-        $errors['fuel_type'] = 'Please select a valid fuel type.';
+        $errors['fuel_type'] = 'Select a fuel type: Petrol, Diesel, Electric or Hybrid.';
     }
 
     // Status
     $allowed_statuses = ['available', 'in_use', 'maintenance', 'retired'];
     if (!in_array($form['status'], $allowed_statuses, true)) {
-        $errors['status'] = 'Please select a valid status.';
+        $errors['status'] = 'Select a status from the list: Available, In Use, Maintenance or Retired.';
     }
 
     // Maintenance dates
@@ -149,14 +151,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($last_maint_val !== null && $next_maint_val !== null) {
         if ($next_maint_val <= $last_maint_val) {
-            $errors['next_maintenance'] = 'Next maintenance date must be after last maintenance date.';
+            $errors['next_maintenance'] = 'Next maintenance date must be later than the last maintenance date. Choose a later date, or correct the last maintenance date.';
         }
     }
 
     // Mileage
     $mileage_val = ($form['mileage'] !== '') ? (int)$form['mileage'] : 0;
     if ($form['mileage'] !== '' && $mileage_val < 0) {
-        $errors['mileage'] = 'Mileage cannot be negative.';
+        $errors['mileage'] = 'Mileage must be 0 or more. Enter the odometer reading in whole kilometres.';
     }
 
     // Photo (optional) – stored only after all other validation passes
@@ -222,7 +224,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . SITE_URL . '/admin/vehicles.php');
             exit();
         } else {
-            $errors['db'] = 'Database error: ' . htmlspecialchars($conn->error);
+            error_log('edit_vehicle: ' . $conn->error);
+            $errors['db'] = 'The vehicle could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
             // Update failed – do not leave an orphaned upload behind
             deleteUploadedImage($new_upload);
         }
@@ -352,15 +355,31 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
         </div>
     <?php endif; ?>
 
-    <?php if (!empty($errors)): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <?php
+    // Field => [plain-language name, id of the control the summary link jumps to]
+    $error_fields = [
+        'plate_number'     => ['Plate number',          'plate_number'],
+        'brand'            => ['Brand',                 'brand'],
+        'model'            => ['Model',                 'model'],
+        'vehicle_type'     => ['Vehicle type',          'vehicle_type_group'],
+        'photo'            => ['Photo',                 'photo'],
+        'year'             => ['Year',                  'year'],
+        'capacity'         => ['Seating capacity',      'capacity'],
+        'fuel_type'        => ['Fuel type',             'fuel_type'],
+        'status'           => ['Status',                'status'],
+        'last_maintenance' => ['Last maintenance date', 'last_maintenance'],
+        'next_maintenance' => ['Next maintenance date', 'next_maintenance'],
+        'mileage'          => ['Current mileage',       'mileage'],
+    ];
+    $summary_errors = array_intersect_key($error_fields, $errors);
+    ?>
+    <?php if (!empty($summary_errors)): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorSummary">
             <i class="fas fa-triangle-exclamation me-2" aria-hidden="true"></i>
-            <strong>Please fix the following errors before submitting:</strong>
+            <strong>Nothing was saved. Please fix <?php echo count($summary_errors) === 1 ? 'this problem' : 'these ' . count($summary_errors) . ' problems'; ?> and submit again:</strong>
             <ul class="mb-0 mt-1">
-                <?php foreach ($errors as $key => $msg): ?>
-                    <?php if ($key !== 'db'): ?>
-                        <li><?php echo htmlspecialchars($msg); ?></li>
-                    <?php endif; ?>
+                <?php foreach ($summary_errors as $key => [$field_name, $field_id]): ?>
+                    <li><a href="#<?php echo $field_id; ?>" class="alert-link"><?php echo htmlspecialchars($field_name); ?></a>: <?php echo htmlspecialchars($errors[$key]); ?></li>
                 <?php endforeach; ?>
             </ul>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -420,12 +439,13 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                 Vehicle Information
             </div>
             <div class="card-body p-4">
+                <p class="required-legend"><span class="req">*</span> Required field</p>
                 <div class="row g-3">
 
                     <!-- Plate Number -->
                     <div class="col-md-4">
                         <label for="plate_number" class="form-label fw-semibold">
-                            Plate Number <span class="text-danger">*</span>
+                            Plate Number <span class="req" aria-hidden="true">*</span>
                         </label>
                         <input type="text"
                                class="form-control font-monospace text-uppercase <?php echo isset($errors['plate_number']) ? 'is-invalid' : ''; ?>"
@@ -434,16 +454,21 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                value="<?php echo htmlspecialchars($form['plate_number']); ?>"
                                maxlength="20"
                                required
-                               autocomplete="off">
+                               autocomplete="off"
+                               aria-required="true"
+                               <?php echo isset($errors['plate_number']) ? 'aria-invalid="true" aria-describedby="plate_number_error plate_number_help"' : 'aria-describedby="plate_number_help"'; ?>
+                               autocapitalize="characters"
+                               spellcheck="false">
                         <?php if (isset($errors['plate_number'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['plate_number']); ?></div>
+                            <div class="invalid-feedback" id="plate_number_error"><?php echo htmlspecialchars($errors['plate_number']); ?></div>
                         <?php endif; ?>
+                        <div class="form-text" id="plate_number_help">Example: WA1234B. Letters are converted to uppercase automatically.</div>
                     </div>
 
                     <!-- Brand -->
                     <div class="col-md-4">
                         <label for="brand" class="form-label fw-semibold">
-                            Brand <span class="text-danger">*</span>
+                            Brand <span class="req" aria-hidden="true">*</span>
                         </label>
                         <input type="text"
                                class="form-control <?php echo isset($errors['brand']) ? 'is-invalid' : ''; ?>"
@@ -451,16 +476,18 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                name="brand"
                                value="<?php echo htmlspecialchars($form['brand']); ?>"
                                maxlength="100"
-                               required>
+                               required
+                               aria-required="true"
+                               <?php echo isset($errors['brand']) ? 'aria-invalid="true" aria-describedby="brand_error"' : ''; ?>>
                         <?php if (isset($errors['brand'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['brand']); ?></div>
+                            <div class="invalid-feedback" id="brand_error"><?php echo htmlspecialchars($errors['brand']); ?></div>
                         <?php endif; ?>
                     </div>
 
                     <!-- Model -->
                     <div class="col-md-4">
                         <label for="model" class="form-label fw-semibold">
-                            Model <span class="text-danger">*</span>
+                            Model <span class="req" aria-hidden="true">*</span>
                         </label>
                         <input type="text"
                                class="form-control <?php echo isset($errors['model']) ? 'is-invalid' : ''; ?>"
@@ -468,18 +495,22 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                name="model"
                                value="<?php echo htmlspecialchars($form['model']); ?>"
                                maxlength="100"
-                               required>
+                               required
+                               aria-required="true"
+                               <?php echo isset($errors['model']) ? 'aria-invalid="true" aria-describedby="model_error"' : ''; ?>>
                         <?php if (isset($errors['model'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['model']); ?></div>
+                            <div class="invalid-feedback" id="model_error"><?php echo htmlspecialchars($errors['model']); ?></div>
                         <?php endif; ?>
                     </div>
 
                     <!-- Vehicle Type -->
                     <div class="col-12">
-                        <label class="form-label fw-semibold d-block">
-                            Vehicle Type <span class="text-danger">*</span>
-                        </label>
-                        <div class="row g-2">
+                        <div id="vehicle_type_label" class="form-label fw-semibold d-block">
+                            Vehicle Type <span class="req" aria-hidden="true">*</span>
+                        </div>
+                        <div class="row g-2" id="vehicle_type_group" role="radiogroup" tabindex="-1"
+                             aria-labelledby="vehicle_type_label" aria-required="true"
+                             <?php echo isset($errors['vehicle_type']) ? 'aria-invalid="true" aria-describedby="vehicle_type_error"' : ''; ?>>
                             <?php
                             $type_options = [
                                 'Bus'     => ['fa-bus',         'Bus',     '#0d6efd'],
@@ -498,6 +529,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                        id="type_<?php echo $val; ?>"
                                        name="vehicle_type"
                                        value="<?php echo $val; ?>"
+                                       required
                                        <?php echo $checked; ?>>
                                 <label for="type_<?php echo $val; ?>" class="type-card d-block w-100">
                                     <div class="type-icon" style="color:<?php echo $color; ?>;">
@@ -509,7 +541,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                             <?php endforeach; ?>
                         </div>
                         <?php if (isset($errors['vehicle_type'])): ?>
-                            <div class="text-danger small mt-1">
+                            <div class="text-danger small mt-1" id="vehicle_type_error">
                                 <i class="fas fa-circle-exclamation me-1" aria-hidden="true"></i>
                                 <?php echo htmlspecialchars($errors['vehicle_type']); ?>
                             </div>
@@ -534,8 +566,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                              class="photo-preview"
                              src="<?php echo htmlspecialchars(vehiclePhotoUrl($vehicle['photo'] ?? null, $form['vehicle_type'])); ?>"
                              data-base="<?php echo htmlspecialchars(SITE_URL . '/assets/images/vehicles/'); ?>"
-                             data-has-photo="<?php echo $has_photo ? '1' : '0'; ?>"
-                             alt="Vehicle photo preview">
+                             data-has-photo="<?php echo $has_photo ? '1' : '0'; ?>">
                     </div>
                     <div class="col-md-8 col-lg-9">
                         <label for="photo" class="form-label fw-semibold">Photo</label>
@@ -543,11 +574,12 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
                                id="photo"
                                name="photo"
-                               accept="image/jpeg,image/png,image/webp">
+                               accept="image/jpeg,image/png,image/webp"
+                               <?php echo isset($errors['photo']) ? 'aria-invalid="true" aria-describedby="photo_error photo_help"' : 'aria-describedby="photo_help"'; ?>>
                         <?php if (isset($errors['photo'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                            <div class="invalid-feedback" id="photo_error"><?php echo htmlspecialchars($errors['photo']); ?></div>
                         <?php endif; ?>
-                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                        <div class="form-text" id="photo_help">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
                         <?php if ($has_photo): ?>
                         <div class="form-check mt-2">
                             <input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
@@ -571,24 +603,29 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                     <!-- Year -->
                     <div class="col-md-3">
                         <label for="year" class="form-label fw-semibold">
-                            Year <span class="text-danger">*</span>
+                            Year <span class="req" aria-hidden="true">*</span>
                         </label>
                         <input type="number"
                                class="form-control <?php echo isset($errors['year']) ? 'is-invalid' : ''; ?>"
                                id="year"
                                name="year"
                                value="<?php echo htmlspecialchars((string)$form['year']); ?>"
-                               min="1990" max="2025"
-                               required>
+                               min="1990" max="<?php echo $max_year; ?>"
+                               required
+                               aria-required="true"
+                               inputmode="numeric"
+                               step="1"
+                               <?php echo isset($errors['year']) ? 'aria-invalid="true" aria-describedby="year_error year_help"' : 'aria-describedby="year_help"'; ?>>
                         <?php if (isset($errors['year'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['year']); ?></div>
+                            <div class="invalid-feedback" id="year_error"><?php echo htmlspecialchars($errors['year']); ?></div>
                         <?php endif; ?>
+                        <div class="form-text" id="year_help">Whole year, 1990&ndash;<?php echo $max_year; ?>.</div>
                     </div>
 
                     <!-- Seating Capacity -->
                     <div class="col-md-3">
                         <label for="capacity" class="form-label fw-semibold">
-                            Seating Capacity <span class="text-danger">*</span>
+                            Seating Capacity <span class="req" aria-hidden="true">*</span>
                         </label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-person" aria-hidden="true"></i></span>
@@ -598,20 +635,27 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                    name="capacity"
                                    value="<?php echo htmlspecialchars((string)$form['capacity']); ?>"
                                    min="1" max="100"
-                                   required>
+                                   required
+                                   aria-required="true"
+                                   inputmode="numeric"
+                                   step="1"
+                                   <?php echo isset($errors['capacity']) ? 'aria-invalid="true" aria-describedby="capacity_error capacity_help"' : 'aria-describedby="capacity_help"'; ?>>
                             <?php if (isset($errors['capacity'])): ?>
-                                <div class="invalid-feedback"><?php echo htmlspecialchars($errors['capacity']); ?></div>
+                                <div class="invalid-feedback" id="capacity_error"><?php echo htmlspecialchars($errors['capacity']); ?></div>
                             <?php endif; ?>
                         </div>
+                        <div class="form-text" id="capacity_help">Number of seats, 1&ndash;100.</div>
                     </div>
 
                     <!-- Fuel Type -->
                     <div class="col-md-3">
                         <label for="fuel_type" class="form-label fw-semibold">
-                            Fuel Type <span class="text-danger">*</span>
+                            Fuel Type <span class="req" aria-hidden="true">*</span>
                         </label>
                         <select class="form-select <?php echo isset($errors['fuel_type']) ? 'is-invalid' : ''; ?>"
-                                id="fuel_type" name="fuel_type" required>
+                                id="fuel_type" name="fuel_type" required
+                                aria-required="true"
+                                <?php echo isset($errors['fuel_type']) ? 'aria-invalid="true" aria-describedby="fuel_type_error"' : ''; ?>>
                             <?php foreach (['Petrol', 'Diesel', 'Electric', 'Hybrid'] as $fuel): ?>
                                 <option value="<?php echo $fuel; ?>" <?php echo $form['fuel_type'] === $fuel ? 'selected' : ''; ?>>
                                     <?php echo $fuel; ?>
@@ -619,17 +663,19 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                             <?php endforeach; ?>
                         </select>
                         <?php if (isset($errors['fuel_type'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['fuel_type']); ?></div>
+                            <div class="invalid-feedback" id="fuel_type_error"><?php echo htmlspecialchars($errors['fuel_type']); ?></div>
                         <?php endif; ?>
                     </div>
 
                     <!-- Status -->
                     <div class="col-md-3">
                         <label for="status" class="form-label fw-semibold">
-                            Status <span class="text-danger">*</span>
+                            Status <span class="req" aria-hidden="true">*</span>
                         </label>
                         <select class="form-select <?php echo isset($errors['status']) ? 'is-invalid' : ''; ?>"
-                                id="status" name="status" required>
+                                id="status" name="status" required
+                                aria-required="true"
+                                <?php echo isset($errors['status']) ? 'aria-invalid="true" aria-describedby="status_error"' : ''; ?>>
                             <?php
                             $status_options = [
                                 'available'   => 'Available',
@@ -645,7 +691,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                             <?php endforeach; ?>
                         </select>
                         <?php if (isset($errors['status'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['status']); ?></div>
+                            <div class="invalid-feedback" id="status_error"><?php echo htmlspecialchars($errors['status']); ?></div>
                         <?php endif; ?>
                     </div>
 
@@ -670,9 +716,10 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                id="last_maintenance"
                                name="last_maintenance"
                                value="<?php echo htmlspecialchars($form['last_maintenance']); ?>"
-                               max="<?php echo date('Y-m-d'); ?>">
+                               max="<?php echo date('Y-m-d'); ?>"
+                               <?php echo isset($errors['last_maintenance']) ? 'aria-invalid="true" aria-describedby="last_maintenance_error"' : ''; ?>>
                         <?php if (isset($errors['last_maintenance'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['last_maintenance']); ?></div>
+                            <div class="invalid-feedback" id="last_maintenance_error"><?php echo htmlspecialchars($errors['last_maintenance']); ?></div>
                         <?php endif; ?>
                     </div>
 
@@ -683,12 +730,12 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                class="form-control <?php echo isset($errors['next_maintenance']) ? 'is-invalid' : ''; ?>"
                                id="next_maintenance"
                                name="next_maintenance"
-                               value="<?php echo htmlspecialchars($form['next_maintenance']); ?>">
+                               value="<?php echo htmlspecialchars($form['next_maintenance']); ?>"
+                               <?php echo isset($errors['next_maintenance']) ? 'aria-invalid="true" aria-describedby="next_maintenance_error next_maintenance_help"' : 'aria-describedby="next_maintenance_help"'; ?>>
                         <?php if (isset($errors['next_maintenance'])): ?>
-                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['next_maintenance']); ?></div>
-                        <?php else: ?>
-                            <div class="form-text">Must be after the last maintenance date.</div>
+                            <div class="invalid-feedback" id="next_maintenance_error"><?php echo htmlspecialchars($errors['next_maintenance']); ?></div>
                         <?php endif; ?>
+                        <div class="form-text" id="next_maintenance_help">Must be after the last maintenance date.</div>
                     </div>
 
                     <!-- Current Mileage -->
@@ -701,12 +748,16 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                    id="mileage"
                                    name="mileage"
                                    value="<?php echo htmlspecialchars((string)$form['mileage']); ?>"
-                                   min="0">
+                                   min="0"
+                                   inputmode="numeric"
+                                   step="1"
+                                   <?php echo isset($errors['mileage']) ? 'aria-invalid="true" aria-describedby="mileage_error mileage_help"' : 'aria-describedby="mileage_help"'; ?>>
                             <span class="input-group-text">km</span>
                             <?php if (isset($errors['mileage'])): ?>
-                                <div class="invalid-feedback"><?php echo htmlspecialchars($errors['mileage']); ?></div>
+                                <div class="invalid-feedback" id="mileage_error"><?php echo htmlspecialchars($errors['mileage']); ?></div>
                             <?php endif; ?>
                         </div>
+                        <div class="form-text" id="mileage_help">Odometer reading in whole kilometres.</div>
                     </div>
 
                     <!-- Notes -->
@@ -716,8 +767,9 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                                   id="notes"
                                   name="notes"
                                   rows="3"
-                                  maxlength="1000"><?php echo htmlspecialchars($form['notes']); ?></textarea>
-                        <div class="form-text">Optional. Maximum 1000 characters.</div>
+                                  maxlength="1000"
+                                  aria-describedby="notes_help"><?php echo htmlspecialchars($form['notes']); ?></textarea>
+                        <div class="form-text" id="notes_help">Optional. Maximum 1000 characters.</div>
                     </div>
 
                 </div><!-- /.row -->
@@ -726,12 +778,12 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
 
         <!-- ── Form Actions ────────────────────────────────────── -->
         <div class="d-flex gap-2 justify-content-end mb-4">
+            <button type="submit" class="btn btn-primary fw-semibold px-4">
+                <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Changes
+            </button>
             <a href="<?php echo SITE_URL; ?>/admin/vehicles.php" class="btn btn-secondary">
                 <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
             </a>
-            <button type="submit" class="btn btn-primary fw-semibold px-4">
-                <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Update Vehicle
-            </button>
         </div>
 
     </form>
@@ -823,8 +875,19 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
         form.addEventListener('submit', function (e) {
             var valid = true;
 
+            // Plate number required
             if (plateInput && plateInput.value.trim() === '') {
                 plateInput.classList.add('is-invalid');
+                plateInput.setAttribute('aria-invalid', 'true');
+                var plateErr = document.getElementById('plate_number_error');
+                if (!plateErr) {
+                    plateErr = document.createElement('div');
+                    plateErr.className = 'invalid-feedback';
+                    plateErr.id = 'plate_number_error';
+                    plateErr.textContent = 'Enter the plate number, for example WA1234B.';
+                    plateInput.insertAdjacentElement('afterend', plateErr);
+                }
+                plateInput.setAttribute('aria-describedby', 'plate_number_error plate_number_help');
                 valid = false;
             }
 
@@ -834,8 +897,14 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
                 if (!typeErrExisting) {
                     var errDiv = document.createElement('div');
                     errDiv.className = 'text-danger small mt-1 type-radio-error';
-                    errDiv.innerHTML = '<i class="fas fa-circle-exclamation me-1"></i>Please select a vehicle type.';
+                    errDiv.id = 'vehicle_type_error';
+                    errDiv.innerHTML = '<i class="fas fa-circle-exclamation me-1" aria-hidden="true"></i>Select a vehicle type: Bus, Van, Car, Minibus, Lorry or Motorcycle.';
                     document.querySelector('input[name="vehicle_type"]').closest('.col-12').appendChild(errDiv);
+                }
+                var typeGroup = document.getElementById('vehicle_type_group');
+                if (typeGroup) {
+                    typeGroup.setAttribute('aria-invalid', 'true');
+                    typeGroup.setAttribute('aria-describedby', 'vehicle_type_error');
                 }
                 valid = false;
             } else if (typeErrExisting) {

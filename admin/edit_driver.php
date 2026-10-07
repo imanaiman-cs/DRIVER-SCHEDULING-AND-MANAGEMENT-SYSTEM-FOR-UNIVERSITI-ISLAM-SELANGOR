@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Validation ───────────────────────────────────────────
     if ($form['employee_id'] === '') {
-        $errors['employee_id'] = 'Employee ID is required.';
+        $errors['employee_id'] = 'Enter the employee ID, for example EMP-0001.';
     } else {
         // Unique check – exclude current record
         $chk = $conn->prepare("SELECT driver_id FROM drivers WHERE employee_id = ? AND driver_id != ?");
@@ -97,39 +97,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chk->execute();
         $chk->store_result();
         if ($chk->num_rows > 0) {
-            $errors['employee_id'] = 'This Employee ID is already registered to another driver.';
+            $errors['employee_id'] = 'This Employee ID already belongs to another driver. Check the ID, or edit that driver instead.';
         }
         $chk->close();
     }
 
     if ($form['name'] === '') {
-        $errors['name'] = 'Full name is required.';
+        $errors['name'] = 'Enter the full name of the driver, for example Ahmad bin Ali.';
     }
 
     if ($form['phone'] === '') {
-        $errors['phone'] = 'Phone number is required.';
+        $errors['phone'] = 'Enter a phone number the driver can be reached on, for example 0123456789.';
     }
 
     if ($form['email'] !== '' && !filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
-        $errors['email'] = 'Please enter a valid email address.';
+        $errors['email'] = 'Enter a valid email address in the form name@example.com, or leave this field empty.';
     }
 
     if ($form['experience_years'] === '') {
-        $errors['experience_years'] = 'Experience years is required.';
+        $errors['experience_years'] = 'Enter the years of driving experience, for example 5 (enter 0 if none).';
     } elseif (!is_numeric($form['experience_years']) || (float)$form['experience_years'] < 0 || (float)$form['experience_years'] > 50) {
-        $errors['experience_years'] = 'Experience must be between 0 and 50 years.';
+        $errors['experience_years'] = 'Experience must be a number between 0 and 50 years, for example 5 or 2.5.';
     }
 
     if ($form['performance_score'] === '') {
-        $errors['performance_score'] = 'Performance score is required.';
+        $errors['performance_score'] = 'Enter a performance score from 0 to 10, for example 7.5.';
     } elseif (!is_numeric($form['performance_score']) || (float)$form['performance_score'] < 0 || (float)$form['performance_score'] > 10) {
-        $errors['performance_score'] = 'Performance score must be between 0 and 10.';
+        $errors['performance_score'] = 'Performance score must be a number between 0 and 10, for example 7.5.';
     }
 
     if ($form['certification_score'] === '') {
-        $errors['certification_score'] = 'Certification score is required.';
+        $errors['certification_score'] = 'Enter a certification score from 0 to 10, for example 8.';
     } elseif (!is_numeric($form['certification_score']) || (float)$form['certification_score'] < 0 || (float)$form['certification_score'] > 10) {
-        $errors['certification_score'] = 'Certification score must be between 0 and 10.';
+        $errors['certification_score'] = 'Certification score must be a number between 0 and 10, for example 8.';
     }
 
     $allowed_statuses = ['active', 'inactive', 'on_leave'];
@@ -144,9 +144,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // License class: one or more of B2, D, E (stored as comma list in stable order)
     $allowed_classes = ['B2', 'D', 'E'];
     if (empty($form['license_class'])) {
-        $errors['license_class'] = 'Please select at least one license class.';
+        $errors['license_class'] = 'Select at least one license class: B2, D or E.';
     } elseif (array_diff($form['license_class'], $allowed_classes)) {
-        $errors['license_class'] = 'Invalid license class selected.';
+        $errors['license_class'] = 'One of the selected license classes is not recognised. Select only B2, D or E.';
         $form['license_class']   = array_values(array_intersect($allowed_classes, $form['license_class']));
     } else {
         $form['license_class'] = array_values(array_intersect($allowed_classes, $form['license_class']));
@@ -214,8 +214,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . SITE_URL . '/admin/drivers.php');
             exit();
         } else {
+            error_log('edit_driver: ' . $stmt->error);
             $stmt->close();
-            $errors['db'] = 'A database error occurred. Please try again.';
+            $errors['db'] = 'The driver could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
             // Update failed – do not leave an orphaned upload behind
             deleteUploadedImage($new_upload);
         }
@@ -427,13 +428,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <!-- Flash / validation errors -->
-    <?php if (!empty($errors)): ?>
+    <?php if (isset($errors['db'])): ?>
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
-        <strong>Please fix the following errors:</strong>
+        <?php echo htmlspecialchars($errors['db']); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php endif; ?>
+    <?php
+    // Field => [plain-language name, id of the control the summary link jumps to]
+    $error_fields = [
+        'photo'               => ['Photo',               'photo'],
+        'employee_id'         => ['Employee ID',         'employee_id'],
+        'name'                => ['Full name',           'name'],
+        'phone'               => ['Phone number',        'phone'],
+        'email'               => ['Email address',       'email'],
+        'experience_years'    => ['Experience years',    'experience_years'],
+        'performance_score'   => ['Performance score',   'performance_score'],
+        'certification_score' => ['Certification score', 'certification_score'],
+        'license_class'       => ['License class',       'license_class_group'],
+    ];
+    $summary_errors = array_intersect_key($error_fields, $errors);
+    ?>
+    <?php if (!empty($summary_errors)): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorSummary">
+        <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
+        <strong>Nothing was saved. Please fix <?php echo count($summary_errors) === 1 ? 'this problem' : 'these ' . count($summary_errors) . ' problems'; ?> and submit again:</strong>
         <ul class="mb-0 mt-1">
-            <?php foreach ($errors as $err): ?>
-                <li><?php echo htmlspecialchars($err); ?></li>
+            <?php foreach ($summary_errors as $key => [$field_name, $field_id]): ?>
+                <li><a href="#<?php echo $field_id; ?>" class="alert-link"><?php echo htmlspecialchars($field_name); ?></a>: <?php echo htmlspecialchars($errors[$key]); ?></li>
             <?php endforeach; ?>
         </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -457,6 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="section-title">
                             <i class="fas fa-user me-1"></i> Personal Information
                         </div>
+                        <p class="required-legend"><span class="req">*</span> Required field</p>
                         <div class="row g-3">
 
                             <div class="col-12">
@@ -465,18 +489,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <img alt="Preview of the selected photo" id="photoPreview"
                                          class="photo-preview-circle"
                                          src="<?php echo htmlspecialchars(driverPhotoUrl($driver['photo'] ?? null)); ?>"
-                                     data-has-photo="<?php echo !empty($driver['photo']) ? '1' : '0'; ?>"
-                                         alt="Driver photo preview">
+                                     data-has-photo="<?php echo !empty($driver['photo']) ? '1' : '0'; ?>">
                                     <div class="flex-grow-1" style="min-width:220px;">
                                         <input type="file"
                                                id="photo"
                                                name="photo"
                                                class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
-                                               accept="image/jpeg,image/png,image/webp">
+                                               accept="image/jpeg,image/png,image/webp"
+                                               <?php echo isset($errors['photo']) ? 'aria-invalid="true" aria-describedby="photo_error photo_help"' : 'aria-describedby="photo_help"'; ?>>
                                         <?php if (isset($errors['photo'])): ?>
-                                            <div class="invalid-feedback"><?php echo htmlspecialchars($errors['photo']); ?></div>
+                                            <div class="invalid-feedback" id="photo_error"><?php echo htmlspecialchars($errors['photo']); ?></div>
                                         <?php endif; ?>
-                                        <div class="form-text">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
+                                        <div class="form-text" id="photo_help">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
                                 <?php if (!empty($driver['photo'])): ?>
                                 <div class="form-check mt-2">
                                     <input class="form-check-input" type="checkbox" id="remove_photo" name="remove_photo" value="1">
@@ -489,7 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-6">
                                 <label for="employee_id" class="form-label">
-                                    Employee ID <span class="required-star">*</span>
+                                    Employee ID <span class="req" aria-hidden="true">*</span>
                                 </label>
                                 <input type="text"
                                        id="employee_id"
@@ -498,15 +522,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                        value="<?php echo htmlspecialchars($form['employee_id']); ?>"
                                        placeholder="e.g. EMP-0001"
                                        maxlength="50"
-                                       required>
+                                       required
+                                       aria-required="true"
+                                       autocomplete="off"
+                                       spellcheck="false"
+                                       <?php echo isset($errors['employee_id']) ? 'aria-invalid="true" aria-describedby="employee_id_error employee_id_help"' : 'aria-describedby="employee_id_help"'; ?>>
                                 <?php if (isset($errors['employee_id'])): ?>
-                                    <div class="invalid-feedback"><?php echo htmlspecialchars($errors['employee_id']); ?></div>
+                                    <div class="invalid-feedback" id="employee_id_error"><?php echo htmlspecialchars($errors['employee_id']); ?></div>
                                 <?php endif; ?>
+                                <div class="form-text" id="employee_id_help">Must be unique, for example EMP-0001.</div>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="name" class="form-label">
-                                    Full Name <span class="required-star">*</span>
+                                    Full Name <span class="req" aria-hidden="true">*</span>
                                 </label>
                                 <input type="text"
                                        id="name"
@@ -515,30 +544,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                        value="<?php echo htmlspecialchars($form['name']); ?>"
                                        placeholder="e.g. Ahmad bin Ali"
                                        maxlength="150"
-                                       required>
+                                       required
+                                       aria-required="true"
+                                       autocomplete="off"
+                                       <?php echo isset($errors['name']) ? 'aria-invalid="true" aria-describedby="name_error"' : ''; ?>>
                                 <?php if (isset($errors['name'])): ?>
-                                    <div class="invalid-feedback"><?php echo htmlspecialchars($errors['name']); ?></div>
+                                    <div class="invalid-feedback" id="name_error"><?php echo htmlspecialchars($errors['name']); ?></div>
                                 <?php endif; ?>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="phone" class="form-label">
-                                    Phone Number <span class="required-star">*</span>
+                                    Phone Number <span class="req" aria-hidden="true">*</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                                    <input type="text"
+                                    <input type="tel"
                                            id="phone"
                                            name="phone"
                                            class="form-control <?php echo isset($errors['phone']) ? 'is-invalid' : ''; ?>"
                                            value="<?php echo htmlspecialchars($form['phone']); ?>"
                                            placeholder="e.g. 0123456789"
                                            maxlength="20"
-                                           required>
+                                           required
+                                           aria-required="true"
+                                           inputmode="tel"
+                                           autocomplete="off"
+                                           <?php echo isset($errors['phone']) ? 'aria-invalid="true" aria-describedby="phone_error phone_help"' : 'aria-describedby="phone_help"'; ?>>
                                     <?php if (isset($errors['phone'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['phone']); ?></div>
+                                        <div class="invalid-feedback" id="phone_error"><?php echo htmlspecialchars($errors['phone']); ?></div>
                                     <?php endif; ?>
                                 </div>
+                                <div class="form-text" id="phone_help">Example: 0123456789 or 011-2835 4792.</div>
                             </div>
 
                             <div class="col-md-6">
@@ -551,9 +588,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            class="form-control <?php echo isset($errors['email']) ? 'is-invalid' : ''; ?>"
                                            value="<?php echo htmlspecialchars($form['email']); ?>"
                                            placeholder="e.g. ahmad@example.com"
-                                           maxlength="150">
+                                           maxlength="150"
+                                           autocomplete="off"
+                                           <?php echo isset($errors['email']) ? 'aria-invalid="true" aria-describedby="email_error"' : ''; ?>>
                                     <?php if (isset($errors['email'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['email']); ?></div>
+                                        <div class="invalid-feedback" id="email_error"><?php echo htmlspecialchars($errors['email']); ?></div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -579,11 +618,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-6">
                                 <label for="driver_type" class="form-label">Driver Type</label>
-                                <select id="driver_type" name="driver_type" class="form-select">
+                                <select id="driver_type" name="driver_type" class="form-select" aria-describedby="driver_type_help">
                                     <option value="regular"        <?php echo $form['driver_type'] === 'regular'        ? 'selected' : ''; ?>>Regular</option>
                                     <option value="top_management" <?php echo $form['driver_type'] === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
-                                <div class="form-text">Top Management drivers handle VIP and executive trips only.</div>
+                                <div class="form-text" id="driver_type_help">Top Management drivers handle VIP and executive trips only.</div>
                             </div>
 
                         </div>
@@ -600,7 +639,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-6">
                                 <label for="experience_years" class="form-label">
-                                    Experience Years <span class="required-star">*</span>
+                                    Experience Years <span class="req" aria-hidden="true">*</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="fas fa-calendar-days"></i></span>
@@ -610,18 +649,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            class="form-control <?php echo isset($errors['experience_years']) ? 'is-invalid' : ''; ?>"
                                            value="<?php echo htmlspecialchars($form['experience_years']); ?>"
                                            min="0" max="50" step="0.5"
-                                           required>
+                                           required
+                                           aria-required="true"
+                                           inputmode="decimal"
+                                           <?php echo isset($errors['experience_years']) ? 'aria-invalid="true" aria-describedby="experience_years_error experience_years_help"' : 'aria-describedby="experience_years_help"'; ?>>
                                     <span class="input-group-text">yrs</span>
                                     <?php if (isset($errors['experience_years'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['experience_years']); ?></div>
+                                        <div class="invalid-feedback" id="experience_years_error"><?php echo htmlspecialchars($errors['experience_years']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Capped at 20 yrs for workload-balancing score.</div>
+                                <div class="form-text" id="experience_years_help">Years of driving experience (0&ndash;50, half years allowed). Capped at 20 yrs for workload-balancing score.</div>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="performance_score" class="form-label">
-                                    Performance Score <span class="required-star">*</span>
+                                    Performance Score <span class="req" aria-hidden="true">*</span>
                                     <span class="fw-normal text-muted">(0–10 scale)</span>
                                 </label>
                                 <div class="input-group">
@@ -632,18 +674,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            class="form-control <?php echo isset($errors['performance_score']) ? 'is-invalid' : ''; ?>"
                                            value="<?php echo htmlspecialchars($form['performance_score']); ?>"
                                            min="0" max="10" step="0.1"
-                                           required>
+                                           required
+                                           aria-required="true"
+                                           inputmode="decimal"
+                                           <?php echo isset($errors['performance_score']) ? 'aria-invalid="true" aria-describedby="performance_score_error performance_score_help"' : 'aria-describedby="performance_score_help"'; ?>>
                                     <span class="input-group-text">/ 10</span>
                                     <?php if (isset($errors['performance_score'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['performance_score']); ?></div>
+                                        <div class="invalid-feedback" id="performance_score_error"><?php echo htmlspecialchars($errors['performance_score']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Overall driving performance rating (informational only).</div>
+                                <div class="form-text" id="performance_score_help">Overall driving performance rating, 0&ndash;10 (informational only).</div>
                             </div>
 
                             <div class="col-md-6">
                                 <label for="certification_score" class="form-label">
-                                    Certification Score <span class="required-star">*</span>
+                                    Certification Score <span class="req" aria-hidden="true">*</span>
                                     <span class="fw-normal text-muted">(0–10 scale)</span>
                                 </label>
                                 <div class="input-group">
@@ -654,13 +699,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            class="form-control <?php echo isset($errors['certification_score']) ? 'is-invalid' : ''; ?>"
                                            value="<?php echo htmlspecialchars($form['certification_score']); ?>"
                                            min="0" max="10" step="0.1"
-                                           required>
+                                           required
+                                           aria-required="true"
+                                           inputmode="decimal"
+                                           <?php echo isset($errors['certification_score']) ? 'aria-invalid="true" aria-describedby="certification_score_error certification_score_help"' : 'aria-describedby="certification_score_help"'; ?>>
                                     <span class="input-group-text">/ 10</span>
                                     <?php if (isset($errors['certification_score'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['certification_score']); ?></div>
+                                        <div class="invalid-feedback" id="certification_score_error"><?php echo htmlspecialchars($errors['certification_score']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Certification/training score (informational only).</div>
+                                <div class="form-text" id="certification_score_help">Certification/training score, 0&ndash;10 (informational only).</div>
                             </div>
 
                         </div>
@@ -683,12 +731,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                        class="form-control"
                                        value="<?php echo htmlspecialchars($form['license_number']); ?>"
                                        placeholder="e.g. D1234567"
-                                       maxlength="30">
+                                       maxlength="30"
+                                       autocomplete="off"
+                                       spellcheck="false">
                             </div>
 
                             <div class="col-md-3">
-                                <label class="form-label">License Class <span class="required-star">*</span></label>
-                                <div id="license_class_group" class="<?php echo isset($errors['license_class']) ? 'is-invalid' : ''; ?>">
+                                <div id="license_class_label" class="form-label">License Class <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required, select at least one)</span></div>
+                                <div id="license_class_group" class="<?php echo isset($errors['license_class']) ? 'is-invalid' : ''; ?>"
+                                     role="group" tabindex="-1" aria-labelledby="license_class_label"
+                                     <?php echo isset($errors['license_class']) ? 'aria-invalid="true" aria-describedby="license_class_error license_class_help"' : 'aria-describedby="license_class_help"'; ?>>
                                     <?php foreach (['B2' => 'B2 (Motorcycle)', 'D' => 'D (Car/Van/Minibus)', 'E' => 'E (Bus/Lorry)'] as $lc => $lcLabel): ?>
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox"
@@ -703,8 +755,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <?php endforeach; ?>
                                 </div>
                                 <?php if (isset($errors['license_class'])): ?>
-                                    <div class="invalid-feedback d-block"><?php echo htmlspecialchars($errors['license_class']); ?></div>
+                                    <div class="invalid-feedback d-block" id="license_class_error"><?php echo htmlspecialchars($errors['license_class']); ?></div>
                                 <?php endif; ?>
+                                <div class="form-text" id="license_class_help">B2 = motorcycle, D = car/van/minibus, E = bus/lorry. Select all that apply.</div>
                             </div>
 
                             <div class="col-md-4">
@@ -743,12 +796,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <!-- Action buttons -->
                 <div class="d-flex gap-2 justify-content-end">
+                    <button type="submit" class="btn btn-primary px-5 fw-semibold">
+                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Changes
+                    </button>
                     <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="btn btn-outline-secondary px-4">
                         <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
                     </a>
-                    <button type="submit" class="btn btn-primary px-5 fw-semibold">
-                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Update Driver
-                    </button>
                 </div>
 
             </div><!-- /left col -->
@@ -908,19 +961,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (removeBox) { removeBox.addEventListener('change', refreshPreview); }
     }
 
+    // ── Accessible inline errors (used by client-side validation) ──
+    function helpIdFor(el) {
+        return document.getElementById(el.id + '_help') ? el.id + '_help' : '';
+    }
+    function setFieldError(el, msg) {
+        var errId = el.id + '_error';
+        var msgEl = document.getElementById(errId);
+        if (!msgEl) {
+            msgEl = document.createElement('div');
+            msgEl.className = 'invalid-feedback';
+            msgEl.id = errId;
+            msgEl.setAttribute('data-client', '1');
+            // Same place the server-side message uses: end of the input group,
+            // or straight after the input when it is not in a group
+            var grp = el.closest('.input-group');
+            if (grp) { grp.appendChild(msgEl); } else { el.insertAdjacentElement('afterend', msgEl); }
+        }
+        msgEl.textContent = msg;
+        el.classList.add('is-invalid');
+        el.setAttribute('aria-invalid', 'true');
+        el.setAttribute('aria-describedby', (errId + ' ' + helpIdFor(el)).trim());
+    }
+    function clearFieldError(el) {
+        el.classList.remove('is-invalid');
+        el.removeAttribute('aria-invalid');
+        var msgEl = document.getElementById(el.id + '_error');
+        if (msgEl && msgEl.getAttribute('data-client') === '1') { msgEl.remove(); }
+        var help = helpIdFor(el);
+        if (help) { el.setAttribute('aria-describedby', help); } else { el.removeAttribute('aria-describedby'); }
+    }
+    function setGroupError(group, msg) {
+        var msgEl = document.getElementById('license_class_error');
+        if (!msgEl) {
+            msgEl = document.createElement('div');
+            msgEl.className = 'invalid-feedback d-block';
+            msgEl.id = 'license_class_error';
+            msgEl.setAttribute('data-client', '1');
+            group.insertAdjacentElement('afterend', msgEl);
+        }
+        msgEl.textContent = msg;
+        group.classList.add('is-invalid');
+        group.setAttribute('aria-invalid', 'true');
+        group.setAttribute('aria-describedby', 'license_class_error license_class_help');
+    }
+    function clearGroupError(group) {
+        group.classList.remove('is-invalid');
+        group.removeAttribute('aria-invalid');
+        group.setAttribute('aria-describedby', 'license_class_help');
+        var msgEl = document.getElementById('license_class_error');
+        if (msgEl && msgEl.getAttribute('data-client') === '1') { msgEl.remove(); }
+    }
+
     // ── Client-side validation ───────────────────────────────
     var form = document.getElementById('editDriverForm');
     if (form) {
         form.addEventListener('submit', function (e) {
             var valid = true;
 
-            ['employee_id', 'name', 'phone', 'experience_years', 'performance_score', 'certification_score'].forEach(function (fieldId) {
+            // Required fields – each failure shows an actionable message and is
+            // linked to the field for screen readers (aria-invalid / aria-describedby).
+            var requiredMessages = {
+                employee_id:         'Enter the employee ID, for example EMP-0001.',
+                name:                'Enter the full name of the driver, for example Ahmad bin Ali.',
+                phone:               'Enter a phone number the driver can be reached on, for example 0123456789.',
+                experience_years:    'Enter the years of driving experience, for example 5 (enter 0 if none).',
+                performance_score:   'Enter a performance score from 0 to 10, for example 7.5.',
+                certification_score: 'Enter a certification score from 0 to 10, for example 8.'
+            };
+
+            Object.keys(requiredMessages).forEach(function (fieldId) {
                 var el = document.getElementById(fieldId);
-                if (el && el.value.trim() === '') {
-                    el.classList.add('is-invalid');
+                if (!el) { return; }
+                if (el.value.trim() === '') {
+                    setFieldError(el, requiredMessages[fieldId]);
                     valid = false;
-                } else if (el) {
-                    el.classList.remove('is-invalid');
+                } else {
+                    clearFieldError(el);
                 }
             });
 
@@ -928,10 +1045,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var lcGroup = document.getElementById('license_class_group');
             if (lcGroup) {
                 if (!form.querySelector('input[name="license_class[]"]:checked')) {
-                    lcGroup.classList.add('is-invalid');
+                    setGroupError(lcGroup, 'Select at least one license class: B2, D or E.');
                     valid = false;
                 } else {
-                    lcGroup.classList.remove('is-invalid');
+                    clearGroupError(lcGroup);
                 }
             }
 

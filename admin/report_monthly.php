@@ -156,10 +156,10 @@ $grand_rate      = $grand_total > 0 ? round($grand_completed / $grand_total * 10
     <!-- Year filter -->
     <div class="card filter-card no-print">
         <div class="card-body py-3 px-4">
-            <form method="GET" class="row g-3 align-items-end">
+            <form method="GET" class="row g-3 align-items-end" role="search" aria-label="Select report year">
                 <div class="col-auto">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">Select Year</label>
-                    <select name="year" class="form-select" style="width:140px;">
+                    <label for="year" class="form-label fw-semibold mb-1 small text-uppercase text-muted">Select Year</label>
+                    <select id="year" name="year" class="form-select" style="width:140px;">
                         <?php foreach ($available_years as $yr): ?>
                             <option value="<?php echo $yr; ?>" <?php echo $yr === $selected_year ? 'selected' : ''; ?>>
                                 <?php echo $yr; ?>

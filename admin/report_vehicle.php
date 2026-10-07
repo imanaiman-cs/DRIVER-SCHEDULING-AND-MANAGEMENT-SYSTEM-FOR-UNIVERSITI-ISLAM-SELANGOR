@@ -127,15 +127,15 @@ $doughnut_colors = ['#0f7a4d','#d19a16','#0891b2','#d13438','#4668e0','#b4530a',
     <!-- Filter -->
     <div class="card filter-card no-print">
         <div class="card-body py-3 px-4">
-            <form method="GET" class="row g-3 align-items-end">
+            <form method="GET" class="row g-3 align-items-end" role="search" aria-label="Filter vehicle report by date range">
                 <div class="col-auto">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">From Date</label>
-                    <input type="date" name="from_date" class="form-control"
+                    <label for="from_date" class="form-label fw-semibold mb-1 small text-uppercase text-muted">From Date</label>
+                    <input type="date" id="from_date" name="from_date" class="form-control"
                            value="<?php echo htmlspecialchars($from_date); ?>">
                 </div>
                 <div class="col-auto">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">To Date</label>
-                    <input type="date" name="to_date" class="form-control"
+                    <label for="to_date" class="form-label fw-semibold mb-1 small text-uppercase text-muted">To Date</label>
+                    <input type="date" id="to_date" name="to_date" class="form-control"
                            value="<?php echo htmlspecialchars($to_date); ?>">
                 </div>
                 <div class="col-auto">

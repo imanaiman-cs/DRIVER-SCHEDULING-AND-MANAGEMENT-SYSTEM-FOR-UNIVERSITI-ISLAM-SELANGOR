@@ -73,20 +73,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $officer_phone   = trim($_POST['officer_phone']    ?? '');
     $waiting_place   = trim($_POST['waiting_place']    ?? '');
 
-    if (empty($trip_date))   $errors[] = 'Trip date is required.';
-    if (empty($start_time))  $errors[] = 'Start time is required.';
-    if (empty($end_time))    $errors[] = 'End time is required.';
-    if (empty($destination)) $errors[] = 'Destination is required.';
+    if (empty($trip_date))   $errors['trip_date']   = 'Choose the trip date.';
+    if (empty($start_time))  $errors['start_time']  = 'Enter the start time, for example 08:30.';
+    if (empty($end_time))    $errors['end_time']    = 'Enter the end time, for example 17:00.';
+    if (empty($destination)) $errors['destination'] = 'Enter the destination, for example Kuala Lumpur International Airport.';
     if ($passenger_count < 1) $passenger_count = 1;
     if ($officer_phone !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $officer_phone)) {
-        $errors[] = 'Officer phone number may only contain digits, spaces, +, -, ( ) and must be 7-20 characters.';
+        $errors['officer_phone'] = 'Officer phone number can only contain digits, spaces, + - and ( ), and must be 7 to 20 characters long, for example 011-2835 4792.';
     }
 
     if (!empty($start_time) && !empty($end_time) && $end_time <= $start_time) {
-        $errors[] = 'End time must be after start time.';
+        $errors['end_time'] = 'End time must be later than the start time. Choose a later end time, or move the start time earlier.';
     }
     if (!empty($trip_date) && $trip_date < date('Y-m-d')) {
-        $errors[] = 'Trip date cannot be in the past.';
+        $errors['trip_date'] = 'Trip date cannot be in the past. Choose today or a later date.';
     }
     if (!in_array($status, ['pending','approved','in_progress','completed','cancelled'])) {
         $status = 'pending';
@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->execute();
         $cs->store_result();
         if ($cs->num_rows > 0) {
-            $errors[] = 'The selected vehicle already has a schedule that overlaps with this time slot.';
+            $errors['vehicle_id'] = 'The selected vehicle already has a schedule that overlaps this time slot. Choose another vehicle, or change the date or times.';
         }
         $cs->close();
     }
@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->execute();
         $cs->store_result();
         if ($cs->num_rows > 0) {
-            $errors[] = 'The selected driver already has a schedule that overlaps with this time slot.';
+            $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or leave the driver blank to auto-assign.';
         }
         $cs->close();
     }
@@ -190,7 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . SITE_URL . '/admin/schedules.php');
             exit();
         } else {
-            $errors[] = 'Database error: ' . $conn->error;
+            error_log('add_schedule: ' . $conn->error);
+            $errors['db'] = 'The schedule could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
         }
         $ins->close();
     }
@@ -268,13 +269,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </a>
     </div>
 
-    <?php if (!empty($errors)): ?>
+    <?php if (isset($errors['db'])): ?>
     <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
-        <strong>Please fix the following errors:</strong>
+        <?php echo htmlspecialchars($errors['db']); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php endif; ?>
+    <?php
+    // Field => [plain-language name, id of the control the summary link jumps to]
+    $error_fields = [
+        'trip_date'      => ['Trip date',            'trip_date'],
+        'start_time'     => ['Start time',           'start_time'],
+        'end_time'       => ['End time',             'end_time'],
+        'destination'    => ['Destination',          'destination'],
+        'officer_phone'  => ['Officer phone number', 'officer_phone'],
+        'vehicle_id'     => ['Vehicle',              'vehicle_id'],
+        'driver_id'      => ['Driver',               'driver_id'],
+    ];
+    $summary_errors = array_intersect_key($error_fields, $errors);
+    ?>
+    <?php if (!empty($summary_errors)): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorSummary">
+        <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
+        <strong>Nothing was saved. Please fix <?php echo count($summary_errors) === 1 ? 'this problem' : 'these ' . count($summary_errors) . ' problems'; ?> and submit again:</strong>
         <ul class="mb-0 mt-1">
-            <?php foreach ($errors as $e): ?>
-            <li><?php echo htmlspecialchars($e); ?></li>
+            <?php foreach ($summary_errors as $key => [$field_name, $field_id]): ?>
+            <li><a href="#<?php echo $field_id; ?>" class="alert-link"><?php echo htmlspecialchars($field_name); ?></a>: <?php echo htmlspecialchars($errors[$key]); ?></li>
             <?php endforeach; ?>
         </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -292,43 +313,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card form-card mb-4">
                     <div class="card-body p-4">
                         <div class="section-title"><i class="fas fa-map-marker-alt me-2" aria-hidden="true"></i>Trip Details</div>
+                        <p class="required-legend"><span class="req">*</span> Required field</p>
 
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="trip_date">Trip Date <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="trip_date" name="trip_date"
+                                <label class="form-label fw-semibold" for="trip_date">Trip Date <span class="req" aria-hidden="true">*</span></label>
+                                <input type="date" class="form-control <?php echo isset($errors['trip_date']) ? 'is-invalid' : ''; ?>" id="trip_date" name="trip_date"
                                        min="<?php echo date('Y-m-d'); ?>"
                                        value="<?php echo htmlspecialchars($old['trip_date'] ?? ''); ?>"
-                                       required>
+                                       required
+                                       aria-required="true"
+                                       <?php echo isset($errors['trip_date']) ? 'aria-invalid="true" aria-describedby="trip_date_error"' : ''; ?>>
+                                <div class="invalid-feedback" id="trip_date_error"><?php echo htmlspecialchars($errors['trip_date'] ?? 'Choose a trip date (today or later).'); ?></div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="start_time">Start Time <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="start_time" name="start_time"
+                                <label class="form-label fw-semibold" for="start_time">Start Time <span class="req" aria-hidden="true">*</span></label>
+                                <input type="time" class="form-control <?php echo isset($errors['start_time']) ? 'is-invalid' : ''; ?>" id="start_time" name="start_time"
                                        value="<?php echo htmlspecialchars($old['start_time'] ?? ''); ?>"
-                                       required>
+                                       required
+                                       aria-required="true"
+                                       <?php echo isset($errors['start_time']) ? 'aria-invalid="true" aria-describedby="start_time_error"' : ''; ?>>
+                                <div class="invalid-feedback" id="start_time_error"><?php echo htmlspecialchars($errors['start_time'] ?? 'Enter the start time, for example 08:30.'); ?></div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="end_time">End Time <span class="text-danger">*</span></label>
-                                <input type="time" class="form-control" id="end_time" name="end_time"
+                                <label class="form-label fw-semibold" for="end_time">End Time <span class="req" aria-hidden="true">*</span></label>
+                                <input type="time" class="form-control <?php echo isset($errors['end_time']) ? 'is-invalid' : ''; ?>" id="end_time" name="end_time"
                                        value="<?php echo htmlspecialchars($old['end_time'] ?? ''); ?>"
-                                       required>
-                                <div id="timeError" class="text-danger small mt-1" style="display:none;">
+                                       required
+                                       aria-required="true"
+                                       <?php echo isset($errors['end_time']) ? 'aria-invalid="true" aria-describedby="end_time_error timeError"' : 'aria-describedby="timeError"'; ?>>
+                                <?php if (isset($errors['end_time'])): ?><div class="invalid-feedback" id="end_time_error"><?php echo htmlspecialchars($errors['end_time']); ?></div><?php endif; ?>
+                                <div id="timeError" class="text-danger small mt-1" style="display:none;" role="alert">
                                     End time must be after start time.
                                 </div>
                             </div>
 
                             <div class="col-md-8">
-                                <label class="form-label fw-semibold" for="destination">Destination <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="destination" name="destination"
+                                <label class="form-label fw-semibold" for="destination">Destination <span class="req" aria-hidden="true">*</span></label>
+                                <input type="text" class="form-control <?php echo isset($errors['destination']) ? 'is-invalid' : ''; ?>" id="destination" name="destination"
                                        placeholder="e.g., Kuala Lumpur International Airport"
                                        value="<?php echo htmlspecialchars($old['destination'] ?? ''); ?>"
-                                       required>
+                                       required
+                                       aria-required="true"
+                                       <?php echo isset($errors['destination']) ? 'aria-invalid="true" aria-describedby="destination_error"' : ''; ?>>
+                                <div class="invalid-feedback" id="destination_error"><?php echo htmlspecialchars($errors['destination'] ?? 'Enter the destination, for example Kuala Lumpur International Airport.'); ?></div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="passenger_count">Passengers</label>
                                 <input type="number" class="form-control" id="passenger_count" name="passenger_count"
                                        min="1" max="100"
-                                       value="<?php echo (int)($old['passenger_count'] ?? 1); ?>">
+                                       value="<?php echo (int)($old['passenger_count'] ?? 1); ?>"
+                                       inputmode="numeric"
+                                       step="1"
+                                       aria-describedby="passenger_count_help">
+                                <div class="invalid-feedback" id="passenger_count_error">Enter a whole number of passengers from 1 to 100.</div>
+                                <div class="form-text" id="passenger_count_help">Whole number, 1&ndash;100.</div>
                             </div>
 
                             <div class="col-12">
@@ -342,21 +381,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label class="form-label fw-semibold" for="officer_name">Officer Name(s)</label>
                                 <input type="text" class="form-control" id="officer_name" name="officer_name"
                                        maxlength="255" placeholder="e.g. En. Faruq, En. Amir"
-                                       value="<?php echo htmlspecialchars($old['officer_name'] ?? ''); ?>">
-                                <div class="form-text">Person(s) the driver will serve</div>
+                                       value="<?php echo htmlspecialchars($old['officer_name'] ?? ''); ?>"
+                                       autocomplete="off"
+                                       aria-describedby="officer_name_help">
+                                <div class="form-text" id="officer_name_help">Person(s) the driver will serve</div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="officer_phone">Officer Phone No.</label>
-                                <input type="tel" class="form-control" id="officer_phone" name="officer_phone"
+                                <input type="tel" class="form-control <?php echo isset($errors['officer_phone']) ? 'is-invalid' : ''; ?>" id="officer_phone" name="officer_phone"
                                        maxlength="50" placeholder="e.g. 011-2835 4792"
                                        pattern="[0-9+\-\s\(\)]{7,20}"
-                                       value="<?php echo htmlspecialchars($old['officer_phone'] ?? ''); ?>">
+                                       value="<?php echo htmlspecialchars($old['officer_phone'] ?? ''); ?>"
+                                       inputmode="tel"
+                                       autocomplete="off"
+                                       <?php echo isset($errors['officer_phone']) ? 'aria-invalid="true" aria-describedby="officer_phone_error officer_phone_help"' : 'aria-describedby="officer_phone_help"'; ?>>
+                                <div class="invalid-feedback" id="officer_phone_error"><?php echo htmlspecialchars($errors['officer_phone'] ?? 'Use digits, spaces, + - and ( ) only, 7 to 20 characters, for example 011-2835 4792.'); ?></div>
+                                <div class="form-text" id="officer_phone_help">Digits, spaces, + - and ( ) only; 7&ndash;20 characters.</div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="waiting_place">Waiting Place</label>
                                 <input type="text" class="form-control" id="waiting_place" name="waiting_place"
                                        maxlength="150" placeholder="e.g. Stor UIS"
-                                       value="<?php echo htmlspecialchars($old['waiting_place'] ?? ''); ?>">
+                                       value="<?php echo htmlspecialchars($old['waiting_place'] ?? ''); ?>"
+                                       autocomplete="off">
                             </div>
 
                             <div class="col-md-4">
@@ -372,10 +419,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="trip_type">Trip Type</label>
-                                <select class="form-select" id="trip_type" name="trip_type">
+                                <select class="form-select" id="trip_type" name="trip_type"
+                                        aria-describedby="trip_type_help">
                                     <option value="regular"        <?php echo (($old['trip_type'] ?? 'regular') === 'regular')        ? 'selected' : ''; ?>>Regular</option>
                                     <option value="top_management" <?php echo (($old['trip_type'] ?? 'regular') === 'top_management') ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
+                                <div class="form-text" id="trip_type_help">Top Management is for VIP and executive trips.</div>
                             </div>
 
                             <div class="col-12">
@@ -398,7 +447,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <strong>Vehicle Conflict:</strong> <span id="vehicleConflictMsg"></span>
                         </div>
 
-                        <select class="form-select" id="vehicle_id" name="vehicle_id">
+                        <label for="vehicle_id" class="visually-hidden">Vehicle (optional)</label>
+                        <select class="form-select <?php echo isset($errors['vehicle_id']) ? 'is-invalid' : ''; ?>" id="vehicle_id" name="vehicle_id"
+                                <?php echo isset($errors['vehicle_id']) ? 'aria-invalid="true" aria-describedby="vehicle_id_error vehicle_help"' : 'aria-describedby="vehicle_help"'; ?>>
                             <option value="">-- No vehicle selected --</option>
                             <?php foreach ($vehicles as $v): ?>
                             <option value="<?php echo (int)$v['vehicle_id']; ?>"
@@ -410,7 +461,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text">Only available vehicles are shown.</div>
+                        <?php if (isset($errors['vehicle_id'])): ?><div class="invalid-feedback" id="vehicle_id_error"><?php echo htmlspecialchars($errors['vehicle_id']); ?></div><?php endif; ?>
+                        <div class="form-text" id="vehicle_help">Only available vehicles are shown.</div>
                     </div>
                 </div>
 
@@ -439,7 +491,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div id="availableDriversList" class="small text-muted"></div>
                         </div>
 
-                        <select class="form-select" id="driver_id" name="driver_id">
+                        <label for="driver_id" class="visually-hidden">Driver (optional)</label>
+                        <select class="form-select <?php echo isset($errors['driver_id']) ? 'is-invalid' : ''; ?>" id="driver_id" name="driver_id"
+                                <?php echo isset($errors['driver_id']) ? 'aria-invalid="true" aria-describedby="driver_id_error"' : ''; ?>>
                             <option value="">-- Auto-assign (leave blank) --</option>
                             <?php foreach ($drivers as $i => $d): ?>
                             <option value="<?php echo (int)$d['driver_id']; ?>"
@@ -451,6 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </option>
                             <?php endforeach; ?>
                         </select>
+                        <?php if (isset($errors['driver_id'])): ?><div class="invalid-feedback" id="driver_id_error"><?php echo htmlspecialchars($errors['driver_id']); ?></div><?php endif; ?>
 
                         <div id="autoAssignNotice" class="alert alert-info py-2 mt-2 small">
                             <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>
@@ -482,7 +537,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card form-card">
                     <div class="card-body p-4">
                         <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">
-                            <i class="fas fa-calendar-plus me-2" aria-hidden="true"></i> Create Schedule
+                            <i class="fas fa-floppy-disk me-2" aria-hidden="true"></i> Save Schedule
                         </button>
                         <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="btn btn-outline-secondary w-100 mt-2">
                             <i class="fas fa-times me-1" aria-hidden="true"></i> Cancel
@@ -615,6 +670,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $('#trip_date, #start_time, #end_time, #vehicle_id, #driver_id, #trip_type').on('change', checkConflict);
 
+    // ── Link each invalid field to its error message (screen readers) ──
+    function syncFieldAria(form) {
+        form.querySelectorAll('input, select, textarea').forEach(function (el) {
+            if (!el.id || !document.getElementById(el.id + '_error')) { return; }
+            if (!el.checkValidity()) {
+                var ids = [el.id + '_error'];
+                if (document.getElementById(el.id + '_help')) { ids.push(el.id + '_help'); }
+                if (el.id === 'end_time') { ids.push('timeError'); }
+                el.setAttribute('aria-invalid', 'true');
+                el.setAttribute('aria-describedby', ids.join(' '));
+            } else if (!el.classList.contains('is-invalid')) {
+                el.removeAttribute('aria-invalid');
+            }
+        });
+    }
+
     // ── Client-side form validation ──────────────────────────
     $('#scheduleForm').on('submit', function (e) {
         validateTimes();
@@ -623,6 +694,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             e.stopPropagation();
         }
         this.classList.add('was-validated');
+        syncFieldAria(this);
     });
 
     function escHtml(str) {

@@ -228,10 +228,10 @@ foreach ($rows as $r) {
     <!-- Filter -->
     <div class="card filter-card no-print">
         <div class="card-body py-3 px-4">
-            <form method="GET" class="row g-3 align-items-end" id="periodForm">
+            <form method="GET" class="row g-3 align-items-end" id="periodForm" role="search" aria-label="Filter workload report by period">
                 <div class="col-auto">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">View</label>
-                    <div class="btn-group d-block" role="group" aria-label="Report period type">
+                    <div id="viewLabel" class="form-label fw-semibold mb-1 small text-uppercase text-muted">View</div>
+                    <div class="btn-group d-block" role="group" aria-labelledby="viewLabel">
                         <input type="radio" class="btn-check" name="view" id="viewMonth" value="month"
                                <?php echo $view === 'month' ? 'checked' : ''; ?>>
                         <label class="btn btn-outline-secondary" for="viewMonth">Monthly</label>
@@ -242,25 +242,25 @@ foreach ($rows as $r) {
                 </div>
 
                 <div class="col-auto js-month-fields">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">Month</label>
+                    <label for="month" class="form-label fw-semibold mb-1 small text-uppercase text-muted">Month</label>
                     <div class="d-flex gap-1">
-                        <a class="btn btn-outline-secondary" title="Previous month"
-                           href="?view=month&amp;month=<?php echo $prev_month; ?>"><i class="fas fa-chevron-left"></i></a>
-                        <input type="month" name="month" class="form-control"
+                        <a class="btn btn-outline-secondary" title="Previous month" aria-label="Previous month"
+                           href="?view=month&amp;month=<?php echo $prev_month; ?>"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+                        <input type="month" id="month" name="month" class="form-control"
                                value="<?php echo htmlspecialchars($month); ?>">
-                        <a class="btn btn-outline-secondary" title="Next month"
-                           href="?view=month&amp;month=<?php echo $next_month; ?>"><i class="fas fa-chevron-right"></i></a>
+                        <a class="btn btn-outline-secondary" title="Next month" aria-label="Next month"
+                           href="?view=month&amp;month=<?php echo $next_month; ?>"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
                     </div>
                 </div>
 
                 <div class="col-auto js-range-fields">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">From Date</label>
-                    <input type="date" name="from_date" class="form-control"
+                    <label for="from_date" class="form-label fw-semibold mb-1 small text-uppercase text-muted">From Date</label>
+                    <input type="date" id="from_date" name="from_date" class="form-control"
                            value="<?php echo htmlspecialchars($from_date); ?>">
                 </div>
                 <div class="col-auto js-range-fields">
-                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">To Date</label>
-                    <input type="date" name="to_date" class="form-control"
+                    <label for="to_date" class="form-label fw-semibold mb-1 small text-uppercase text-muted">To Date</label>
+                    <input type="date" id="to_date" name="to_date" class="form-control"
                            value="<?php echo htmlspecialchars($to_date); ?>">
                 </div>
 

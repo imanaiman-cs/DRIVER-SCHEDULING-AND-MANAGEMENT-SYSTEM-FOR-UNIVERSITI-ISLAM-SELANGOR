@@ -322,10 +322,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     <!-- ── Filter Bar ─────────────────────────────────────────── -->
     <div class="card filter-card">
         <div class="card-body py-3">
-            <form method="GET" class="row g-2 align-items-end">
+            <form method="GET" class="row g-2 align-items-end" role="search" aria-label="Filter schedules by status, date range and driver">
                 <div class="col-12 col-sm-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Status</label>
-                    <select name="status" class="form-select form-select-sm">
+                    <label for="filter_status" class="form-label small fw-semibold mb-1">Status</label>
+                    <select id="filter_status" name="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
                         <?php foreach (['pending','approved','in_progress','completed','cancelled'] as $st): ?>
                         <option value="<?php echo $st; ?>" <?php echo $filter_status === $st ? 'selected' : ''; ?>>
@@ -335,18 +335,18 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Date From</label>
-                    <input type="date" name="date_from" class="form-control form-control-sm"
+                    <label for="filter_date_from" class="form-label small fw-semibold mb-1">Date From</label>
+                    <input type="date" id="filter_date_from" name="date_from" class="form-control form-control-sm"
                            value="<?php echo htmlspecialchars($filter_date_from); ?>">
                 </div>
                 <div class="col-12 col-sm-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Date To</label>
-                    <input type="date" name="date_to" class="form-control form-control-sm"
+                    <label for="filter_date_to" class="form-label small fw-semibold mb-1">Date To</label>
+                    <input type="date" id="filter_date_to" name="date_to" class="form-control form-control-sm"
                            value="<?php echo htmlspecialchars($filter_date_to); ?>">
                 </div>
                 <div class="col-12 col-sm-6 col-md-3">
-                    <label class="form-label small fw-semibold mb-1">Driver</label>
-                    <select name="driver_id" class="form-select form-select-sm">
+                    <label for="filter_driver" class="form-label small fw-semibold mb-1">Driver</label>
+                    <select id="filter_driver" name="driver_id" class="form-select form-select-sm">
                         <option value="">All Drivers</option>
                         <?php foreach ($all_drivers as $dr): ?>
                         <option value="<?php echo (int)$dr['driver_id']; ?>"
