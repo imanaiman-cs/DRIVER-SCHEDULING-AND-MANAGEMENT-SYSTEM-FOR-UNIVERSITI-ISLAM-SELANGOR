@@ -11,20 +11,35 @@ requireAdmin();
 $page_title   = 'Workload Distribution Report';
 $current_page = 'report_workload.php';
 
-// ── Date range ───────────────────────────────────────────────
-$from_date = isset($_GET['from_date']) && $_GET['from_date'] !== ''
-    ? $_GET['from_date']
-    : date('Y-01-01');
-$to_date = isset($_GET['to_date']) && $_GET['to_date'] !== ''
-    ? $_GET['to_date']
-    : date('Y-m-d');
+// ── Period: monthly (default) or custom date range ──────────
+$view  = (isset($_GET['view']) && $_GET['view'] === 'range') ? 'range' : 'month';
+$month = (isset($_GET['month']) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $_GET['month']))
+    ? $_GET['month']
+    : date('Y-m');
+
+if ($view === 'month') {
+    $from_date    = $month . '-01';
+    $to_date      = date('Y-m-t', strtotime($from_date));
+    $period_label = date('F Y', strtotime($from_date));
+} else {
+    $from_date = isset($_GET['from_date']) && $_GET['from_date'] !== ''
+        ? $_GET['from_date']
+        : date('Y-01-01');
+    $to_date = isset($_GET['to_date']) && $_GET['to_date'] !== ''
+        ? $_GET['to_date']
+        : date('Y-m-d');
+    $period_label = $from_date . ' to ' . $to_date;
+}
+$prev_month = date('Y-m', strtotime($month . '-01 -1 month'));
+$next_month = date('Y-m', strtotime($month . '-01 +1 month'));
 
 // ── Workload query ───────────────────────────────────────────
 $stmt = $conn->prepare(
     "SELECT d.driver_id, d.name, d.status AS driver_status,
             COUNT(s.schedule_id) AS total_trips,
             COALESCE(SUM(TIMESTAMPDIFF(HOUR, s.start_time, s.end_time)), 0) AS total_hours,
-            SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_trips
+            SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_trips,
+            COALESCE(SUM(CASE WHEN DAYOFWEEK(s.trip_date) IN (1, 7) THEN 1 ELSE 0 END), 0) AS weekend_trips
      FROM drivers d
      LEFT JOIN schedules s
            ON d.driver_id = s.driver_id
@@ -41,6 +56,7 @@ $stmt->close();
 // ── Compute average and deviation ───────────────────────────
 $total_drivers = count($rows);
 $total_trips_all = array_sum(array_column($rows, 'total_trips'));
+$weekend_all     = array_sum(array_column($rows, 'weekend_trips'));
 $avg_trips = $total_drivers > 0 ? $total_trips_all / $total_drivers : 0;
 
 // Fair distribution score: 100 - (std_dev / avg * 100), clamped 0-100
@@ -73,6 +89,51 @@ foreach ($rows as &$r) {
     }
 }
 unset($r);
+
+// ── Monthly trend for the year being viewed ─────────────────
+function fairDistributionScore(array $counts): ?float
+{
+    $n = count($counts);
+    $sum = array_sum($counts);
+    if ($n === 0 || $sum === 0) {
+        return null;
+    }
+    $avg = $sum / $n;
+    $var = 0;
+    foreach ($counts as $c) {
+        $var += pow($c - $avg, 2);
+    }
+    $std = sqrt($var / $n);
+    return max(0, min(100, round(100 - ($std / $avg * 100), 1)));
+}
+
+$trend_year = (int)substr($from_date, 0, 4);
+$stmt = $conn->prepare(
+    "SELECT driver_id, MONTH(trip_date) AS m, COUNT(*) AS c
+     FROM schedules
+     WHERE driver_id IS NOT NULL AND status != 'cancelled' AND YEAR(trip_date) = ?
+     GROUP BY driver_id, MONTH(trip_date)"
+);
+$stmt->bind_param('i', $trend_year);
+$stmt->execute();
+$trend_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$per_month = [];   // month => [driver_id => trips]
+foreach ($trend_rows as $tr) {
+    $per_month[(int)$tr['m']][(int)$tr['driver_id']] = (int)$tr['c'];
+}
+$trend_trips = [];
+$trend_fair  = [];
+for ($m = 1; $m <= 12; $m++) {
+    $counts = [];
+    foreach ($rows as $r) {
+        $counts[] = $per_month[$m][(int)$r['driver_id']] ?? 0;
+    }
+    $trend_trips[] = array_sum($counts);
+    $trend_fair[]  = fairDistributionScore($counts);
+}
+$trend_labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Chart data ───────────────────────────────────────────────
 $chart_labels = [];
@@ -152,7 +213,7 @@ foreach ($rows as $r) {
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h1><i class="fas fa-chart-pie me-2"></i>Workload Distribution Report</h1>
-            <p>Trip load per driver — identifies overloaded and underutilised drivers.</p>
+            <p>Trip load per driver for a month or custom period — identifies overloaded and underutilised drivers.</p>
         </div>
         <div class="d-flex gap-2 no-print">
             <a href="reports.php" class="btn btn-outline-dark btn-sm">
@@ -167,22 +228,47 @@ foreach ($rows as $r) {
     <!-- Filter -->
     <div class="card filter-card no-print">
         <div class="card-body py-3 px-4">
-            <form method="GET" class="row g-3 align-items-end">
+            <form method="GET" class="row g-3 align-items-end" id="periodForm">
                 <div class="col-auto">
+                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">View</label>
+                    <div class="btn-group d-block" role="group" aria-label="Report period type">
+                        <input type="radio" class="btn-check" name="view" id="viewMonth" value="month"
+                               <?php echo $view === 'month' ? 'checked' : ''; ?>>
+                        <label class="btn btn-outline-secondary" for="viewMonth">Monthly</label>
+                        <input type="radio" class="btn-check" name="view" id="viewRange" value="range"
+                               <?php echo $view === 'range' ? 'checked' : ''; ?>>
+                        <label class="btn btn-outline-secondary" for="viewRange">Custom range</label>
+                    </div>
+                </div>
+
+                <div class="col-auto js-month-fields">
+                    <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">Month</label>
+                    <div class="d-flex gap-1">
+                        <a class="btn btn-outline-secondary" title="Previous month"
+                           href="?view=month&amp;month=<?php echo $prev_month; ?>"><i class="fas fa-chevron-left"></i></a>
+                        <input type="month" name="month" class="form-control"
+                               value="<?php echo htmlspecialchars($month); ?>">
+                        <a class="btn btn-outline-secondary" title="Next month"
+                           href="?view=month&amp;month=<?php echo $next_month; ?>"><i class="fas fa-chevron-right"></i></a>
+                    </div>
+                </div>
+
+                <div class="col-auto js-range-fields">
                     <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">From Date</label>
                     <input type="date" name="from_date" class="form-control"
                            value="<?php echo htmlspecialchars($from_date); ?>">
                 </div>
-                <div class="col-auto">
+                <div class="col-auto js-range-fields">
                     <label class="form-label fw-semibold mb-1 small text-uppercase text-muted">To Date</label>
                     <input type="date" name="to_date" class="form-control"
                            value="<?php echo htmlspecialchars($to_date); ?>">
                 </div>
+
                 <div class="col-auto">
                     <button type="submit" class="btn btn-warning fw-semibold">
-                        <i class="fas fa-filter me-1"></i> Apply Filter
+                        <i class="fas fa-filter me-1"></i> Apply
                     </button>
-                    <a href="report_workload.php" class="btn btn-outline-secondary ms-1">Reset</a>
+                    <a href="report_workload.php" class="btn btn-outline-secondary ms-1">This month</a>
                 </div>
             </form>
         </div>
@@ -190,19 +276,25 @@ foreach ($rows as $r) {
 
     <!-- Summary stat cards -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card stat-card p-3 h-100">
                 <div class="small text-muted text-uppercase fw-semibold mb-1">Total Trips</div>
                 <div class="fs-3 fw-bold text-warning"><?php echo $total_trips_all; ?></div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
+            <div class="card stat-card p-3 h-100">
+                <div class="small text-muted text-uppercase fw-semibold mb-1">Weekend Trips</div>
+                <div class="fs-3 fw-bold text-secondary"><?php echo (int)$weekend_all; ?></div>
+            </div>
+        </div>
+        <div class="col-6 col-md">
             <div class="card stat-card p-3 h-100">
                 <div class="small text-muted text-uppercase fw-semibold mb-1">Avg Trips / Driver</div>
                 <div class="fs-3 fw-bold text-primary"><?php echo number_format($avg_trips, 1); ?></div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card stat-card p-3 h-100">
                 <div class="small text-muted text-uppercase fw-semibold mb-1">Fair Distribution Score</div>
                 <div class="fs-3 fw-bold <?php echo $fair_score >= 70 ? 'text-success' : ($fair_score >= 40 ? 'text-warning' : 'text-danger'); ?>">
@@ -210,7 +302,7 @@ foreach ($rows as $r) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
             <div class="card stat-card p-3 h-100">
                 <div class="small text-muted text-uppercase fw-semibold mb-1">Total Drivers</div>
                 <div class="fs-3 fw-bold text-info"><?php echo $total_drivers; ?></div>
@@ -235,6 +327,26 @@ foreach ($rows as $r) {
         </div>
     </div>
 
+    <!-- Monthly trend -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-6">
+            <div class="card chart-card h-100 mb-0">
+                <div class="card-header border-bottom fw-semibold py-3 px-4">
+                    <i class="fas fa-calendar-days me-2 text-success"></i> Trips Per Month — <?php echo $trend_year; ?>
+                </div>
+                <div class="card-body" style="height:260px;"><canvas id="chartTrendTrips"></canvas></div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card chart-card h-100 mb-0">
+                <div class="card-header border-bottom fw-semibold py-3 px-4">
+                    <i class="fas fa-scale-balanced me-2 text-success"></i> Fair Distribution Score Per Month — <?php echo $trend_year; ?>
+                </div>
+                <div class="card-body" style="height:260px;"><canvas id="chartTrendFair"></canvas></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Table -->
     <div class="card table-card">
         <div class="card-body p-0">
@@ -243,7 +355,7 @@ foreach ($rows as $r) {
                     <i class="fas fa-table me-1"></i> Driver Workload Details
                 </h6>
                 <span class="text-muted small">
-                    <?php echo htmlspecialchars($from_date); ?> to <?php echo htmlspecialchars($to_date); ?>
+                    <?php echo htmlspecialchars($period_label); ?>
                 </span>
             </div>
             <div class="p-3">
@@ -255,6 +367,7 @@ foreach ($rows as $r) {
                                 <th>Driver Name</th>
                                 <th>Status</th>
                                 <th>Total Trips</th>
+                                <th>Weekend Trips</th>
                                 <th>Completed</th>
                                 <th>Total Hours</th>
                                 <th>vs Average</th>
@@ -290,6 +403,7 @@ foreach ($rows as $r) {
                                     </span>
                                 </td>
                                 <td class="fw-bold"><?php echo (int)$r['total_trips']; ?></td>
+                                <td><?php echo (int)$r['weekend_trips']; ?></td>
                                 <td><?php echo (int)$r['completed_trips']; ?></td>
                                 <td><?php echo (int)$r['total_hours']; ?> h</td>
                                 <td class="fw-semibold <?php echo $diff_class; ?>"><?php echo $diff_str; ?></td>
@@ -319,6 +433,15 @@ foreach ($rows as $r) {
 <script>
 (function () {
     'use strict';
+
+    // Show month picker or date-range fields depending on the selected view
+    function syncPeriodFields() {
+        var isMonth = document.getElementById('viewMonth').checked;
+        document.querySelectorAll('.js-month-fields').forEach(function (el) { el.style.display = isMonth ? '' : 'none'; });
+        document.querySelectorAll('.js-range-fields').forEach(function (el) { el.style.display = isMonth ? 'none' : ''; });
+    }
+    document.querySelectorAll('input[name="view"]').forEach(function (el) { el.addEventListener('change', syncPeriodFields); });
+    syncPeriodFields();
 
     $('#workloadTable').DataTable({
         order: [[3, 'desc']],
@@ -364,6 +487,36 @@ foreach ($rows as $r) {
             plugins: {
                 legend: { position: 'top' }
             }
+        }
+    });
+
+    // ── Monthly trend charts ─────────────────────────────────
+    const trendLabels = <?php echo json_encode($trend_labels); ?>;
+    const trendTrips  = <?php echo json_encode($trend_trips); ?>;
+    const trendFair   = <?php echo json_encode($trend_fair); ?>;
+
+    new Chart(document.getElementById('chartTrendTrips'), {
+        type: 'bar',
+        data: { labels: trendLabels, datasets: [{ label: 'Trips', data: trendTrips,
+                backgroundColor: '#0b5d3b', borderRadius: 4, maxBarThickness: 28 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#f0f0f0' } },
+                      x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    new Chart(document.getElementById('chartTrendFair'), {
+        type: 'line',
+        data: { labels: trendLabels, datasets: [{ label: 'Fair Distribution Score (%)', data: trendFair,
+                borderColor: '#0b5d3b', backgroundColor: '#0b5d3b', borderWidth: 2,
+                pointRadius: 4, tension: 0.25, spanGaps: false }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { min: 0, max: 100, grid: { color: '#f0f0f0' } },
+                      x: { grid: { display: false } } },
+            plugins: { legend: { display: false } }
         }
     });
 })();
