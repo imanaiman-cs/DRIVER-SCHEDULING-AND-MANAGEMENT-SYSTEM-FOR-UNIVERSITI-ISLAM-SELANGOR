@@ -653,82 +653,82 @@ require_once '../includes/sidebar.php';
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#0b5d3b,#15804f);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(11,93,59,0.35)';"
-                           onmouseout="this.style.transform='';this.style.boxShadow='';">
+                           style="background:#fff;color:#1a2035;border-radius:var(--radius-md);border:1px solid #e3e9e5;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(11,93,59,0.14)';this.style.borderColor='#0b5d3b';"
+                           onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='#e3e9e5';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
+                                 style="width:38px;height:38px;background:#eef5f1;color:#0b5d3b;">
                                 <i class="fas fa-calendar-plus"></i>
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Create New Schedule</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">Plan a new trip or assignment</div>
+                                <div style="font-size:0.74rem;color:#6b7280;">Plan a new trip or assignment</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_driver.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#059669,#047857);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(5,150,105,0.35)';"
-                           onmouseout="this.style.transform='';this.style.boxShadow='';">
+                           style="background:#fff;color:#1a2035;border-radius:var(--radius-md);border:1px solid #e3e9e5;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(11,93,59,0.14)';this.style.borderColor='#0b5d3b';"
+                           onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='#e3e9e5';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
+                                 style="width:38px;height:38px;background:#eef5f1;color:#0b5d3b;">
                                 <i class="fas fa-user-plus"></i>
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Add New Driver</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">Register a new driver profile</div>
+                                <div style="font-size:0.74rem;color:#6b7280;">Register a new driver profile</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/add_vehicle.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#d97706,#b45309);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(217,119,6,0.35)';"
-                           onmouseout="this.style.transform='';this.style.boxShadow='';">
+                           style="background:#fff;color:#1a2035;border-radius:var(--radius-md);border:1px solid #e3e9e5;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(11,93,59,0.14)';this.style.borderColor='#0b5d3b';"
+                           onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='#e3e9e5';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
-                                <i class="fas fa-truck-medical"></i>
+                                 style="width:38px;height:38px;background:#eef5f1;color:#0b5d3b;">
+                                <i class="fas fa-car"></i>
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Add Vehicle</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">Add a vehicle to the fleet</div>
+                                <div style="font-size:0.74rem;color:#6b7280;">Add a vehicle to the fleet</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/report_monthly.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#9a7209,#5b21b6);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(154,114,9,0.35)';"
-                           onmouseout="this.style.transform='';this.style.boxShadow='';">
+                           style="background:#fff;color:#1a2035;border-radius:var(--radius-md);border:1px solid #e3e9e5;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(11,93,59,0.14)';this.style.borderColor='#0b5d3b';"
+                           onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='#e3e9e5';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
-                                <i class="fas fa-file-chart-column"></i>
+                                 style="width:38px;height:38px;background:#eef5f1;color:#0b5d3b;">
+                                <i class="fas fa-chart-column"></i>
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Generate Report</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">View monthly analytics report</div>
+                                <div style="font-size:0.74rem;color:#6b7280;">View monthly analytics report</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
                         </a>
 
                         <a href="<?php echo SITE_URL; ?>/admin/auto_assign.php"
                            class="btn d-flex align-items-center gap-3 text-start p-3"
-                           style="background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;border-radius:var(--radius-md);border:none;transition:all 0.2s;"
-                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(8,145,178,0.35)';"
-                           onmouseout="this.style.transform='';this.style.boxShadow='';">
+                           style="background:#fff;color:#1a2035;border-radius:var(--radius-md);border:1px solid #e3e9e5;transition:all 0.2s;"
+                           onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(11,93,59,0.14)';this.style.borderColor='#0b5d3b';"
+                           onmouseout="this.style.transform='';this.style.boxShadow='';this.style.borderColor='#e3e9e5';">
                             <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:38px;height:38px;background:rgba(255,255,255,0.15);">
+                                 style="width:38px;height:38px;background:#eef5f1;color:#0b5d3b;">
                                 <i class="fas fa-wand-magic-sparkles"></i>
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Auto-Assign Drivers</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">Smart assignment by allocation score</div>
+                                <div style="font-size:0.74rem;color:#6b7280;">Smart assignment by allocation score</div>
                             </div>
-                            <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
+                            <i class="fas fa-chevron-right ms-auto" style="color:#9ca3af;"></i>
                         </a>
 
                     </div><!-- /.d-grid -->

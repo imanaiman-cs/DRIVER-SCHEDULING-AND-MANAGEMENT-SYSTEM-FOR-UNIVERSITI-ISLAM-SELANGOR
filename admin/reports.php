@@ -329,7 +329,7 @@ foreach ($monthly_raw as $row) {
             <div class="card stat-card h-100 p-3">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon bg-info bg-opacity-10 text-info">
-                        <i class="fas fa-calendar-star"></i>
+                        <i class="fas fa-calendar-check"></i>
                     </div>
                     <div>
                         <div class="stat-value text-info" style="font-size:1.1rem;line-height:1.4;">
