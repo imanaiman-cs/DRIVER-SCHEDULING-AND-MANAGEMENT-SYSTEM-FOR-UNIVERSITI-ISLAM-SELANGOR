@@ -131,6 +131,91 @@ foreach ($vehicles as $v) {
         .maint-overdue  { color: #dc3545; font-weight: 600; }
         .maint-soon     { color: #fd7e14; font-weight: 600; }
 
+
+        /* ── Vehicle cards ── */
+        .vtoolbar { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+        .vtoolbar-left { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; }
+        .vsearch { position:relative; }
+        .vsearch i { position:absolute; left:.75rem; top:50%; transform:translateY(-50%); color:#9ca3af; font-size:.8rem; }
+        .vsearch input { padding-left:2.1rem; min-width:230px; border-radius:10px; }
+        .vchip {
+            border:1px solid #d9e2dd; background:#fff; color:#374151; border-radius:999px;
+            padding:.32rem .85rem; font-size:.8rem; font-weight:600; cursor:pointer; transition:all .15s;
+        }
+        .vchip:hover { border-color:#0b5d3b; color:#0b5d3b; }
+        .vchip.active { background:#0b5d3b; border-color:#0b5d3b; color:#fff; }
+        .vchip .n { opacity:.7; font-weight:500; margin-left:.25rem; }
+        .view-toggle .btn { font-size:.82rem; padding:.35rem .8rem; }
+        .view-toggle .btn.active { background:#0b5d3b; border-color:#0b5d3b; color:#fff; }
+
+        .vcard {
+            --vc: #15803d;
+            position:relative; height:100%;
+            background:#fff; border:1px solid #e3e9e5; border-radius:14px; overflow:hidden;
+            display:flex; flex-direction:column;
+            box-shadow:0 1px 3px rgba(18,32,24,.05);
+            transition:box-shadow .2s, transform .2s, border-color .2s;
+        }
+        .vcard::before { content:''; position:absolute; inset:0 0 auto 0; height:4px; background:var(--vc); }
+        .vcard:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(18,32,24,.10); border-color:#cfdad3; }
+        .vcard.st-available   { --vc:#15803d; }
+        .vcard.st-in_use      { --vc:#0e7490; }
+        .vcard.st-maintenance { --vc:#b45309; }
+        .vcard.st-retired     { --vc:#6b7280; }
+        .vcard.st-retired .vcard-body { opacity:.72; filter:grayscale(.6); }
+
+        .vcard-body { padding:1.15rem 1.15rem .9rem; flex:1; }
+        .vcard-top  { display:flex; align-items:flex-start; justify-content:space-between; gap:.5rem; margin-bottom:.9rem; }
+        .vtype {
+            width:46px; height:46px; border-radius:12px; flex-shrink:0;
+            background:#eef5f1; color:#0b5d3b; font-size:1.2rem;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .vstatus {
+            display:inline-flex; align-items:center; gap:.4rem; font-size:.72rem; font-weight:700;
+            letter-spacing:.03em; text-transform:uppercase; color:var(--vc);
+            background:color-mix(in srgb, var(--vc) 10%, #fff); border-radius:999px; padding:.28rem .65rem;
+        }
+        .vstatus::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--vc); }
+
+        .vplate {
+            display:inline-block; font-family:'Courier New', ui-monospace, monospace;
+            font-weight:800; font-size:1.12rem; letter-spacing:.14em; color:#111827;
+            background:#fff; border:2px solid #1f2937; border-radius:6px; padding:.1rem .65rem;
+            box-shadow:inset 0 0 0 1px #e5e7eb; margin-bottom:.45rem;
+        }
+        .vname  { font-weight:700; color:#1a2035; font-size:1rem; line-height:1.25; }
+        .vmeta  { font-size:.78rem; color:#6b7280; }
+
+        .vspecs { display:grid; grid-template-columns:repeat(3,1fr); margin:1rem 0 .85rem;
+                  border-top:1px solid #edf1ee; border-bottom:1px solid #edf1ee; }
+        .vspec  { padding:.65rem .25rem; text-align:center; }
+        .vspec + .vspec { border-left:1px solid #edf1ee; }
+        .vspec .v { font-weight:700; color:#1a2035; font-size:.92rem; }
+        .vspec .v i { color:#0b5d3b; margin-right:.3rem; font-size:.78rem; }
+        .vspec .l { font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; margin-top:.1rem; }
+
+        .vservice { display:flex; align-items:center; justify-content:space-between; gap:.5rem; font-size:.8rem; color:#4b5563; }
+        .vservice .lbl { display:flex; align-items:center; gap:.55rem; min-width:0; }
+        .vservice .lbl i { color:#9ca3af; font-size:.95rem; }
+        .vservice .lbl small { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.07em; color:#9ca3af; line-height:1.2; }
+        .vservice .lbl strong { display:block; font-size:.82rem; color:#1a2035; font-weight:600; white-space:nowrap; line-height:1.3; }
+        .vsvc-chip { font-size:.7rem; font-weight:700; border-radius:999px; padding:.18rem .6rem; white-space:nowrap; }
+        .vsvc-ok      { background:#dcfce7; color:#166534; }
+        .vsvc-soon    { background:#fef3c7; color:#92400e; }
+        .vsvc-overdue { background:#fee2e2; color:#991b1b; }
+        .vsvc-none    { background:#f3f4f6; color:#6b7280; }
+
+        .vcard-foot {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:.65rem 1.15rem; background:#f8faf9; border-top:1px solid #edf1ee;
+        }
+        .vtrips { font-size:.78rem; color:#6b7280; }
+        .vtrips b { color:#1a2035; }
+        .vactions .btn { padding:.25rem .55rem; font-size:.78rem; border-radius:8px; }
+        .vempty { text-align:center; padding:3rem 1rem; color:#9ca3af; display:none; }
+        .vempty i { font-size:2rem; margin-bottom:.6rem; display:block; }
+
         /* ── Vehicle type icon ── */
         .vehicle-type-icon {
             width: 32px; height: 32px;
@@ -228,7 +313,142 @@ foreach ($vehicles as $v) {
 
     </div><!-- /.row summary cards -->
 
-    <!-- ── DataTable Card ─────────────────────────────────────── -->
+
+    <!-- ── Vehicle Cards View ─────────────────────────────────── -->
+    <?php
+        $type_counts = [];
+        foreach ($vehicles as $v) { $type_counts[$v['vehicle_type']] = ($type_counts[$v['vehicle_type']] ?? 0) + 1; }
+        ksort($type_counts);
+        $soon_limit = date('Y-m-d', strtotime('+30 days'));
+    ?>
+    <div id="cardsView">
+        <div class="vtoolbar">
+            <div class="vtoolbar-left">
+                <div class="vsearch">
+                    <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                    <input type="search" id="vSearch" class="form-control form-control-sm"
+                           placeholder="Search vehicles" aria-label="Search vehicles">
+                </div>
+                <button type="button" class="vchip active" data-status="all">All<span class="n"><?php echo $total; ?></span></button>
+                <button type="button" class="vchip" data-status="available">Available<span class="n"><?php echo $available; ?></span></button>
+                <button type="button" class="vchip" data-status="in_use">In Use<span class="n"><?php echo $in_use; ?></span></button>
+                <button type="button" class="vchip" data-status="maintenance">Maintenance<span class="n"><?php echo $maintenance; ?></span></button>
+                <button type="button" class="vchip" data-status="retired">Retired<span class="n"><?php echo $retired; ?></span></button>
+                <select id="vType" class="form-select form-select-sm" style="width:auto;border-radius:10px;" aria-label="Filter by type">
+                    <option value="all">All types</option>
+                    <?php foreach ($type_counts as $t => $c): ?>
+                    <option value="<?php echo htmlspecialchars($t); ?>"><?php echo htmlspecialchars($t); ?> (<?php echo $c; ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="btn-group view-toggle" role="group" aria-label="Switch view">
+                <button type="button" class="btn btn-outline-secondary active" data-view="cards"><i class="fas fa-table-cells-large me-1"></i>Cards</button>
+                <button type="button" class="btn btn-outline-secondary" data-view="table"><i class="fas fa-list me-1"></i>Table</button>
+            </div>
+        </div>
+
+        <div class="row g-3" id="vehicleCards">
+        <?php foreach ($vehicles as $v): ?>
+            <?php
+                $vStatusLabel = match($v['status']) {
+                    'available' => 'Available', 'in_use' => 'In Use',
+                    'maintenance' => 'Maintenance', 'retired' => 'Retired',
+                    default => ucfirst($v['status']),
+                };
+                $vIcon = match($v['vehicle_type']) {
+                    'Bus' => 'fa-bus', 'Minibus' => 'fa-bus-simple', 'Van' => 'fa-van-shuttle',
+                    'Lorry' => 'fa-truck', 'Motorcycle' => 'fa-motorcycle', default => 'fa-car',
+                };
+                $vFuelIcon = match($v['fuel_type']) {
+                    'Electric' => 'fa-bolt', 'Hybrid' => 'fa-leaf', default => 'fa-gas-pump',
+                };
+
+                $hasNext = !empty($v['next_maintenance']) && $v['next_maintenance'] !== '0000-00-00';
+                if ($hasNext) {
+                    $days = (int)floor((strtotime($v['next_maintenance']) - strtotime($today)) / 86400);
+                    if ($days < 0)        { $svcClass = 'vsvc-overdue'; $svcText = 'Overdue ' . abs($days) . ' day' . (abs($days) === 1 ? '' : 's'); }
+                    elseif ($days === 0)  { $svcClass = 'vsvc-soon';    $svcText = 'Due today'; }
+                    elseif ($v['next_maintenance'] <= $soon_limit) { $svcClass = 'vsvc-soon'; $svcText = 'In ' . $days . ' day' . ($days === 1 ? '' : 's'); }
+                    else                  { $svcClass = 'vsvc-ok';      $svcText = 'On schedule'; }
+                } else {
+                    $svcClass = 'vsvc-none'; $svcText = 'Not set';
+                }
+                $vSearch = strtolower($v['plate_number'] . ' ' . $v['brand'] . ' ' . $v['model']);
+                $plateJs = htmlspecialchars(addslashes($v['plate_number']));
+            ?>
+            <div class="col-12 col-md-6 col-xl-4 col-xxl-3 vcol"
+                 data-status="<?php echo htmlspecialchars($v['status']); ?>"
+                 data-type="<?php echo htmlspecialchars($v['vehicle_type']); ?>"
+                 data-search="<?php echo htmlspecialchars($vSearch); ?>">
+                <article class="vcard st-<?php echo htmlspecialchars($v['status']); ?>">
+                    <div class="vcard-body">
+                        <div class="vcard-top">
+                            <span class="vtype" title="<?php echo htmlspecialchars($v['vehicle_type']); ?>">
+                                <i class="fas <?php echo $vIcon; ?>" aria-hidden="true"></i>
+                            </span>
+                            <span class="vstatus"><?php echo $vStatusLabel; ?></span>
+                        </div>
+
+                        <div class="vplate"><?php echo htmlspecialchars($v['plate_number']); ?></div>
+                        <div class="vname"><?php echo htmlspecialchars(trim($v['brand'] . ' ' . $v['model'])); ?></div>
+                        <div class="vmeta">
+                            <?php echo htmlspecialchars($v['vehicle_type']); ?>
+                            <?php if (!empty($v['year'])): ?> &middot; <?php echo (int)$v['year']; ?><?php endif; ?>
+                        </div>
+
+                        <div class="vspecs">
+                            <div class="vspec">
+                                <div class="v"><i class="fas fa-user-group" aria-hidden="true"></i><?php echo (int)$v['capacity']; ?></div>
+                                <div class="l">Seats</div>
+                            </div>
+                            <div class="vspec">
+                                <div class="v"><i class="fas <?php echo $vFuelIcon; ?>" aria-hidden="true"></i><?php echo htmlspecialchars($v['fuel_type']); ?></div>
+                                <div class="l">Fuel</div>
+                            </div>
+                            <div class="vspec">
+                                <div class="v"><?php echo number_format((int)$v['mileage']); ?></div>
+                                <div class="l">Km</div>
+                            </div>
+                        </div>
+
+                        <div class="vservice">
+                            <span class="lbl">
+                                <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i>
+                                <span>
+                                    <small>Next service</small>
+                                    <strong><?php echo $hasNext
+                                        ? htmlspecialchars(date('d M Y', strtotime($v['next_maintenance'])))
+                                        : '&mdash;'; ?></strong>
+                                </span>
+                            </span>
+                            <span class="vsvc-chip <?php echo $svcClass; ?>"><?php echo $svcText; ?></span>
+                        </div>
+                    </div>
+
+                    <div class="vcard-foot">
+                        <span class="vtrips"><b><?php echo (int)$v['usage_count']; ?></b> trip<?php echo (int)$v['usage_count'] === 1 ? '' : 's'; ?></span>
+                        <span class="vactions d-flex gap-1">
+                            <a href="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo (int)$v['vehicle_id']; ?>"
+                               class="btn btn-outline-primary" title="Edit vehicle"
+                               aria-label="Edit <?php echo htmlspecialchars($v['plate_number']); ?>"><i class="fas fa-pen-to-square" aria-hidden="true"></i></a>
+                            <button type="button" class="btn btn-outline-secondary" title="Change status"
+                                    onclick="openStatusModal(<?php echo (int)$v['vehicle_id']; ?>, '<?php echo $plateJs; ?>', '<?php echo htmlspecialchars($v['status']); ?>')"
+                                    aria-label="Change status of <?php echo htmlspecialchars($v['plate_number']); ?>"><i class="fas fa-arrow-right-arrow-left" aria-hidden="true"></i></button>
+                            <button type="button" class="btn btn-outline-danger" title="Delete vehicle"
+                                    onclick="confirmDelete(<?php echo (int)$v['vehicle_id']; ?>, '<?php echo $plateJs; ?>')"
+                                    aria-label="Delete <?php echo htmlspecialchars($v['plate_number']); ?>"><i class="fas fa-trash" aria-hidden="true"></i></button>
+                        </span>
+                    </div>
+                </article>
+            </div>
+        <?php endforeach; ?>
+        </div>
+
+        <div class="vempty" id="vEmpty"><i class="fas fa-car-burst" aria-hidden="true"></i>No vehicles match your filters.</div>
+    </div><!-- /#cardsView -->
+
+    <!-- ── DataTable Card (table view) ────────────────────────── -->
+    <div id="tableView" style="display:none;">
     <div class="card table-card">
         <div class="card-body p-0">
             <div class="p-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -389,6 +609,7 @@ foreach ($vehicles as $v) {
             </div>
         </div>
     </div><!-- /.card table-card -->
+    </div><!-- /#tableView -->
 
 </main><!-- /.main-content -->
 
@@ -465,6 +686,56 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             zeroRecords: 'No vehicles match the search'
         }
     });
+
+    // ── Cards: filter + view toggle ───────────────────────────
+    (function () {
+        var cols      = document.querySelectorAll('#vehicleCards .vcol');
+        var empty     = document.getElementById('vEmpty');
+        var searchEl  = document.getElementById('vSearch');
+        var typeEl    = document.getElementById('vType');
+        var chips     = document.querySelectorAll('.vchip');
+        var state     = { status: 'all', type: 'all', q: '' };
+
+        function apply() {
+            var shown = 0;
+            cols.forEach(function (c) {
+                var ok = (state.status === 'all' || c.dataset.status === state.status)
+                      && (state.type   === 'all' || c.dataset.type   === state.type)
+                      && (!state.q || c.dataset.search.indexOf(state.q) !== -1);
+                c.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
+            empty.style.display = shown ? 'none' : 'block';
+        }
+
+        chips.forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                chips.forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                state.status = chip.dataset.status;
+                apply();
+            });
+        });
+        searchEl.addEventListener('input', function () { state.q = searchEl.value.trim().toLowerCase(); apply(); });
+        typeEl.addEventListener('change', function () { state.type = typeEl.value; apply(); });
+
+        var cardsView = document.getElementById('cardsView');
+        var tableView = document.getElementById('tableView');
+        var toggles   = document.querySelectorAll('.view-toggle [data-view]');
+
+        function setView(v) {
+            cardsView.style.display = v === 'cards' ? '' : 'none';
+            tableView.style.display = v === 'table' ? '' : 'none';
+            toggles.forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+            try { localStorage.setItem('vehiclesView', v); } catch (e) {}
+            if (v === 'table') { $('#vehiclesTable').DataTable().columns.adjust(); }
+        }
+        toggles.forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+
+        var saved = 'cards';
+        try { saved = localStorage.getItem('vehiclesView') || 'cards'; } catch (e) {}
+        setView(saved === 'table' ? 'table' : 'cards');
+    })();
 
     // ── Status Modal ──────────────────────────────────────────
     var _statusVehicleId = null;
