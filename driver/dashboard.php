@@ -18,11 +18,15 @@ if (!$driver) {
     exit();
 }
 
-$priority_score = calculatePriorityScore(
-    $driver['experience_years'],
-    $driver['attendance_rate'],
-    $driver['performance_score'],
-    $driver['certification_score']
+$monthly_counts = getMonthlyTaskCounts($conn);
+$my_counts      = $monthly_counts[$driver_id] ?? ['tasks' => 0, 'weekend' => 0];
+$month_tasks    = (int)$my_counts['tasks'];
+$month_weekend  = (int)$my_counts['weekend'];
+
+$priority_score = calculateAllocationScore(
+    $month_tasks,
+    $month_weekend,
+    (float)$driver['experience_years']
 );
 
 $today = date('Y-m-d');
@@ -130,7 +134,7 @@ require_once '../includes/sidebar.php';
           <div class="col-md-4 text-md-end mt-3 mt-md-0">
             <?php $sc = $priority_score; $bc = $sc>=7?'success':($sc>=5?'warning':'danger'); ?>
             <div class="d-inline-block bg-white bg-opacity-20 rounded-3 px-4 py-2">
-              <div class="small opacity-75">Priority Score</div>
+              <div class="small opacity-75">Allocation Score</div>
               <div class="h2 fw-bold mb-0">
                 <span class="badge bg-<?= $bc ?> fs-5"><?= $priority_score ?></span>
                 <small class="fs-6 opacity-75">/10</small>
@@ -250,11 +254,13 @@ require_once '../includes/sidebar.php';
           </div>
           <div class="card-body">
             <?php
+            $task_factor    = 1 - min($month_tasks / 10, 1);
+            $weekend_factor = 1 - min($month_weekend / 4, 1);
+            $exp_factor     = min(((float)$driver['experience_years']) / 20, 1);
             $metrics = [
-                ['label'=>'Experience','value'=>min(($driver['experience_years']/20)*10,10),'raw'=>$driver['experience_years'].' yrs','weight'=>30,'color'=>'primary'],
-                ['label'=>'Attendance','value'=>($driver['attendance_rate']/100)*10,'raw'=>$driver['attendance_rate'].'%','weight'=>20,'color'=>'info'],
-                ['label'=>'Performance','value'=>$driver['performance_score'],'raw'=>$driver['performance_score'].'/10','weight'=>30,'color'=>'success'],
-                ['label'=>'Certification','value'=>$driver['certification_score'],'raw'=>$driver['certification_score'].'/10','weight'=>20,'color'=>'warning'],
+                ['label'=>'Tasks this month','value'=>$task_factor*10,'raw'=>$month_tasks.' task'.($month_tasks!==1?'s':''),'weight'=>50,'color'=>'primary'],
+                ['label'=>'Weekend tasks','value'=>$weekend_factor*10,'raw'=>$month_weekend.' weekend task'.($month_weekend!==1?'s':''),'weight'=>30,'color'=>'info'],
+                ['label'=>'Experience','value'=>$exp_factor*10,'raw'=>$driver['experience_years'].' yrs','weight'=>20,'color'=>'success'],
             ];
             foreach ($metrics as $m):
             $pct = ($m['value']/10)*100;
@@ -269,9 +275,13 @@ require_once '../includes/sidebar.php';
               </div>
             </div>
             <?php endforeach; ?>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <span class="badge bg-light text-dark border">Performance <?= htmlspecialchars((string)$driver['performance_score']) ?>/10 <span class="text-muted">(info only)</span></span>
+              <span class="badge bg-light text-dark border">Certification <?= htmlspecialchars((string)$driver['certification_score']) ?>/10 <span class="text-muted">(info only)</span></span>
+            </div>
             <hr>
             <div class="d-flex justify-content-between align-items-center">
-              <strong>Priority Score</strong>
+              <strong>Allocation Score</strong>
               <?php $bc = $priority_score>=7?'success':($priority_score>=5?'warning':'danger'); ?>
               <span class="badge bg-<?= $bc ?> fs-6"><?= $priority_score ?> / 10</span>
             </div>

@@ -21,7 +21,7 @@ $to_date = isset($_GET['to_date']) && $_GET['to_date'] !== ''
 
 // ── Main query ───────────────────────────────────────────────
 $stmt = $conn->prepare(
-    "SELECT d.driver_id, d.name, d.experience_years, d.attendance_rate,
+    "SELECT d.driver_id, d.name, d.experience_years,
             d.performance_score, d.certification_score,
             COUNT(s.schedule_id) AS total_trips,
             SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_trips,
@@ -38,13 +38,19 @@ $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// Attach priority score and completion rate, then re-sort
+// Month used for task-load scoring = month of the selected "from" date
+$score_month  = preg_match('/^\d{4}-\d{2}/', $from_date) ? substr($from_date, 0, 7) : date('Y-m');
+$month_counts = getMonthlyTaskCounts($conn, $score_month);
+
+// Attach allocation score and completion rate, then re-sort
 foreach ($rows as &$r) {
-    $r['priority_score'] = calculatePriorityScore(
-        (float)$r['experience_years'],
-        (float)$r['attendance_rate'],
-        (float)$r['performance_score'],
-        (float)$r['certification_score']
+    $counts = $month_counts[(int)$r['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+    $r['tasks_month']   = $counts['tasks'];
+    $r['weekend_tasks'] = $counts['weekend'];
+    $r['allocation_score'] = calculateAllocationScore(
+        $counts['tasks'],
+        $counts['weekend'],
+        (float)$r['experience_years']
     );
     $r['completion_rate'] = $r['total_trips'] > 0
         ? round(($r['completed_trips'] / $r['total_trips']) * 100, 1)
@@ -52,7 +58,7 @@ foreach ($rows as &$r) {
 }
 unset($r);
 
-usort($rows, fn($a, $b) => $b['priority_score'] <=> $a['priority_score']);
+usort($rows, fn($a, $b) => $b['allocation_score'] <=> $a['allocation_score']);
 
 // ── Chart data ───────────────────────────────────────────────
 $chart_labels = [];
@@ -60,7 +66,7 @@ $chart_scores = [];
 foreach ($rows as $r) {
     $parts           = explode(' ', $r['name']);
     $chart_labels[]  = $parts[0] . (isset($parts[1]) ? ' ' . $parts[1] : '');
-    $chart_scores[]  = $r['priority_score'];
+    $chart_scores[]  = $r['allocation_score'];
 }
 ?>
 <!DOCTYPE html>
@@ -123,7 +129,7 @@ foreach ($rows as $r) {
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h1><i class="fas fa-trophy me-2"></i>Driver Performance Report</h1>
-            <p>Ranked driver list based on priority score: experience, attendance, performance and certification.</p>
+            <p>Ranked by workload-balancing allocation score: fewer tasks this month (50%), fewer weekend tasks (30%), more experience (20%).</p>
         </div>
         <div class="d-flex gap-2 no-print">
             <a href="reports.php" class="btn btn-outline-light btn-sm">
@@ -159,10 +165,10 @@ foreach ($rows as $r) {
         </div>
     </div>
 
-    <!-- Priority Score Chart -->
+    <!-- Allocation Score Chart -->
     <div class="card chart-card">
         <div class="card-header border-bottom fw-semibold py-3 px-4">
-            <i class="fas fa-chart-bar me-2 text-primary"></i> Priority Score Comparison
+            <i class="fas fa-chart-bar me-2 text-primary"></i> Allocation Score Comparison
         </div>
         <div class="card-body" style="height:280px;">
             <canvas id="chartPriority"></canvas>
@@ -189,10 +195,11 @@ foreach ($rows as $r) {
                                 <th>Rank</th>
                                 <th>Driver Name</th>
                                 <th>Experience</th>
-                                <th>Attendance %</th>
+                                <th>Tasks (month)</th>
+                                <th>Weekend tasks</th>
                                 <th>Performance</th>
                                 <th>Certification</th>
-                                <th>Priority Score</th>
+                                <th>Allocation Score</th>
                                 <th>Total Trips</th>
                                 <th>Completed</th>
                                 <th>Total Hours</th>
@@ -209,7 +216,7 @@ foreach ($rows as $r) {
                                     3 => '<span class="badge-rank rank-bronze">3</span>',
                                     default => '<span class="badge-rank rank-other">' . $rank . '</span>',
                                 };
-                                $ps        = $r['priority_score'];
+                                $ps        = $r['allocation_score'];
                                 $psClass   = $ps >= 7 ? 'text-success' : ($ps >= 4 ? 'text-warning' : 'text-danger');
                                 $crClass   = $r['completion_rate'] >= 80 ? 'text-success' : ($r['completion_rate'] >= 50 ? 'text-warning' : 'text-danger');
                             ?>
@@ -217,15 +224,8 @@ foreach ($rows as $r) {
                                 <td><?php echo $badge; ?></td>
                                 <td class="fw-semibold"><?php echo htmlspecialchars($r['name']); ?></td>
                                 <td><?php echo number_format((float)$r['experience_years'], 1); ?> yrs</td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="score-bar" style="width:60px;">
-                                            <div class="score-bar-fill bg-info"
-                                                 style="width:<?php echo min(100,(float)$r['attendance_rate']); ?>%"></div>
-                                        </div>
-                                        <?php echo number_format((float)$r['attendance_rate'],1); ?>%
-                                    </div>
-                                </td>
+                                <td><?php echo (int)$r['tasks_month']; ?></td>
+                                <td><?php echo (int)$r['weekend_tasks']; ?></td>
                                 <td><?php echo number_format((float)$r['performance_score'],2); ?>/10</td>
                                 <td><?php echo number_format((float)$r['certification_score'],2); ?>/10</td>
                                 <td class="fw-bold <?php echo $psClass; ?>">
@@ -260,7 +260,7 @@ foreach ($rows as $r) {
     'use strict';
 
     $('#perfTable').DataTable({
-        order: [[6, 'desc']],
+        order: [[7, 'desc']],
         pageLength: 25,
         language: { search: 'Search drivers:' }
     });
@@ -278,7 +278,7 @@ foreach ($rows as $r) {
         data: {
             labels: labels,
             datasets: [{
-                label: 'Priority Score',
+                label: 'Allocation Score',
                 data: scores,
                 backgroundColor: colors,
                 borderRadius: 5,

@@ -50,21 +50,49 @@ $vehicles_result = $conn->query(
 );
 $vehicles = $vehicles_result ? $vehicles_result->fetch_all(MYSQLI_ASSOC) : [];
 
-// ── Fetch active drivers ─────────────────────────────────────
-$drivers_result = $conn->query(
-    "SELECT driver_id, name, employee_id, experience_years, attendance_rate, performance_score, certification_score, status
-     FROM drivers WHERE status IN ('active', 'on_leave') ORDER BY name ASC"
-);
-$drivers = $drivers_result ? $drivers_result->fetch_all(MYSQLI_ASSOC) : [];
-foreach ($drivers as &$d) {
-    $d['priority_score'] = calculatePriorityScore(
-        (float)$d['experience_years'],
-        (float)$d['attendance_rate'],
-        (float)$d['performance_score'],
-        (float)$d['certification_score']
+// ── Fetch active drivers with allocation scores ──────────────
+// Scores are based on the trip month. This schedule's own task is excluded
+// from the counts so the score reflects the driver as if it were unassigned.
+function loadScoredDrivers(mysqli $conn, string $month, array $schedule): array
+{
+    $result  = $conn->query(
+        "SELECT driver_id, name, employee_id, experience_years, license_class, driver_type, status
+         FROM drivers WHERE status IN ('active', 'on_leave') ORDER BY name ASC"
     );
+    $drivers = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    $counts  = getMonthlyTaskCounts($conn, $month);
+
+    $own_driver = (int)($schedule['driver_id'] ?? 0);
+    if ($own_driver > 0
+        && ($schedule['status'] ?? '') !== 'cancelled'
+        && substr((string)($schedule['trip_date'] ?? ''), 0, 7) === $month
+        && isset($counts[$own_driver])) {
+        $counts[$own_driver]['tasks'] = max(0, $counts[$own_driver]['tasks'] - 1);
+        if (in_array((int)date('w', strtotime($schedule['trip_date'])), [0, 6], true)) {
+            $counts[$own_driver]['weekend'] = max(0, $counts[$own_driver]['weekend'] - 1);
+        }
+    }
+
+    foreach ($drivers as &$d) {
+        $c = $counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+        $d['month_tasks']   = $c['tasks'];
+        $d['month_weekend'] = $c['weekend'];
+        $d['priority_score'] = calculateAllocationScore(
+            $c['tasks'],
+            $c['weekend'],
+            (float)$d['experience_years']
+        );
+    }
+    unset($d);
+    // Highest allocation score first (recommended driver on top)
+    usort($drivers, function ($a, $b) {
+        return ($b['priority_score'] <=> $a['priority_score']) ?: strcmp($a['name'], $b['name']);
+    });
+    return $drivers;
 }
-unset($d);
+
+$trip_month = substr((string)($schedule['trip_date'] ?? ''), 0, 7) ?: date('Y-m');
+$drivers    = loadScoredDrivers($conn, $trip_month, $schedule);
 
 // ── POST handler ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -151,7 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->close();
     }
 
-    // ── Calculate priority score ─────────────────────────────
+    // ── Allocation score (for the trip month) ────────────────
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) && substr($trip_date, 0, 7) !== $trip_month) {
+        $drivers = loadScoredDrivers($conn, substr($trip_date, 0, 7), $schedule);
+    }
     $priority_score = (float)($schedule['priority_score'] ?? 0);
     if ($driver_id > 0) {
         foreach ($drivers as $d) {
@@ -434,13 +465,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <option value="">-- Unassigned (auto-assign) --</option>
                             <?php
                             $currentDriverId = (int)($old['driver_id'] ?? $schedule['driver_id'] ?? 0);
-                            foreach ($drivers as $d):
+                            foreach ($drivers as $i => $d):
                                 $selected = ($currentDriverId === (int)$d['driver_id']) ? 'selected' : '';
                             ?>
                             <option value="<?php echo (int)$d['driver_id']; ?>"
                                 data-score="<?php echo $d['priority_score']; ?>"
+                                data-tasks="<?php echo (int)$d['month_tasks']; ?>"
+                                data-weekend="<?php echo (int)$d['month_weekend']; ?>"
                                 <?php echo $selected; ?>>
-                                <?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?>
+                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
                                 <?php echo $d['status'] !== 'active' ? ' [' . $d['status'] . ']' : ''; ?>
                             </option>
                             <?php endforeach; ?>
@@ -451,6 +484,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             No driver selected. Will be auto-assigned.
                         </div>
                         <div id="driverScorePanel" class="mt-2 small" style="<?php echo $currentDriverId ? '' : 'display:none;'; ?>"></div>
+                        <div class="form-text">Allocation score (0–10): fewer tasks this month 50%, fewer weekend tasks 30%, experience 20%.</div>
                     </div>
                 </div>
 
@@ -463,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="small text-muted">
                             <div class="mb-1"><strong>ID:</strong> #<?php echo str_pad($schedule_id, 4, '0', STR_PAD_LEFT); ?></div>
                             <div class="mb-1"><strong>Created:</strong> <?php echo formatDate($schedule['created_at']); ?></div>
-                            <div class="mb-1"><strong>Priority Score:</strong> <?php echo number_format((float)$schedule['priority_score'], 2); ?></div>
+                            <div class="mb-1"><strong>Allocation Score:</strong> <?php echo number_format((float)$schedule['priority_score'], 2); ?></div>
                         </div>
                     </div>
                 </div>
@@ -505,10 +539,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const driverId = $('#driver_id').val();
         if (driverId) {
             $('#autoAssignNotice').hide();
-            const score = parseFloat($('#driver_id option:selected').data('score') || 0);
-            const cls   = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+            const opt     = $('#driver_id option:selected');
+            const score   = parseFloat(opt.data('score') || 0);
+            const tasks   = parseInt(opt.data('tasks') || 0, 10);
+            const weekend = parseInt(opt.data('weekend') || 0, 10);
+            const cls     = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
             $('#driverScorePanel').html(
-                'Priority Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
+                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
+                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' weekend)</div>'
             ).show();
         } else {
             $('#autoAssignNotice').show();

@@ -22,21 +22,35 @@ $vehicles_result = $conn->query(
 );
 $vehicles = $vehicles_result ? $vehicles_result->fetch_all(MYSQLI_ASSOC) : [];
 
-// ── Fetch active drivers with priority scores ────────────────
-$drivers_result = $conn->query(
-    "SELECT driver_id, name, employee_id, experience_years, attendance_rate, performance_score, certification_score
-     FROM drivers WHERE status = 'active' ORDER BY name ASC"
-);
-$drivers = $drivers_result ? $drivers_result->fetch_all(MYSQLI_ASSOC) : [];
-foreach ($drivers as &$d) {
-    $d['priority_score'] = calculatePriorityScore(
-        (float)$d['experience_years'],
-        (float)$d['attendance_rate'],
-        (float)$d['performance_score'],
-        (float)$d['certification_score']
+// ── Fetch active drivers with allocation scores ──────────────
+// Scores are based on the trip month (current month until a trip date is known).
+function loadScoredDrivers(mysqli $conn, string $month): array
+{
+    $result  = $conn->query(
+        "SELECT driver_id, name, employee_id, experience_years, license_class, driver_type
+         FROM drivers WHERE status = 'active' ORDER BY name ASC"
     );
+    $drivers = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+    $counts  = getMonthlyTaskCounts($conn, $month);
+    foreach ($drivers as &$d) {
+        $c = $counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+        $d['month_tasks']   = $c['tasks'];
+        $d['month_weekend'] = $c['weekend'];
+        $d['priority_score'] = calculateAllocationScore(
+            $c['tasks'],
+            $c['weekend'],
+            (float)$d['experience_years']
+        );
+    }
+    unset($d);
+    // Highest allocation score first (recommended driver on top)
+    usort($drivers, function ($a, $b) {
+        return ($b['priority_score'] <=> $a['priority_score']) ?: strcmp($a['name'], $b['name']);
+    });
+    return $drivers;
 }
-unset($d);
+
+$drivers = loadScoredDrivers($conn, date('Y-m'));
 
 // ── POST handler ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -125,7 +139,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->close();
     }
 
-    // ── Calculate priority score ─────────────────────────────
+    // ── Allocation score (for the trip month) ────────────────
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) && substr($trip_date, 0, 7) !== date('Y-m')) {
+        $drivers = loadScoredDrivers($conn, substr($trip_date, 0, 7));
+    }
     $priority_score = 0.00;
     if ($driver_id > 0) {
         foreach ($drivers as $d) {
@@ -392,13 +409,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <select class="form-select" id="driver_id" name="driver_id">
                             <option value="">-- Auto-assign (leave blank) --</option>
-                            <?php foreach ($drivers as $d):
-                                $sc = $d['priority_score'] >= 7 ? 'priority-high' : ($d['priority_score'] >= 4 ? 'priority-medium' : 'priority-low');
-                            ?>
+                            <?php foreach ($drivers as $i => $d): ?>
                             <option value="<?php echo (int)$d['driver_id']; ?>"
                                 data-score="<?php echo $d['priority_score']; ?>"
+                                data-tasks="<?php echo (int)$d['month_tasks']; ?>"
+                                data-weekend="<?php echo (int)$d['month_weekend']; ?>"
                                 <?php echo ((int)($old['driver_id'] ?? 0) === (int)$d['driver_id']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?>
+                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
                             </option>
                             <?php endforeach; ?>
                         </select>
@@ -411,20 +428,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <!-- Priority formula info -->
+                <!-- Allocation score info -->
                 <div class="card form-card mb-4" style="border-left: 4px solid #0b5d3b !important;">
                     <div class="card-body p-3">
                         <div class="fw-semibold text-primary mb-2 small">
-                            <i class="fas fa-star me-1" aria-hidden="true"></i> Priority Score Formula
+                            <i class="fas fa-star me-1" aria-hidden="true"></i> Allocation Score
                         </div>
                         <p class="small text-muted mb-2">
-                            Drivers are ranked by priority score when auto-assigning:
+                            Drivers are ranked by allocation score when auto-assigning, based on the trip month:
                         </p>
                         <code class="small d-block bg-light rounded p-2">
-                            Score = (Exp×0.30) + (Att×0.20)<br>
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ (Perf×0.30) + (Cert×0.20)
+                            Score = (Fewer tasks×0.50)<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ (Fewer weekend tasks×0.30)<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ (Experience×0.20)
                         </code>
-                        <div class="small text-muted mt-2">All components normalised to 0–10 scale. Max score = 10.</div>
+                        <div class="small text-muted mt-2">Fewer tasks this month 50%, fewer weekend tasks 30%, experience 20%. Scaled 0–10. Max score = 10.</div>
                     </div>
                 </div>
 
@@ -464,10 +482,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const driverId = $('#driver_id').val();
         if (driverId) {
             $('#autoAssignNotice').hide();
-            const score = parseFloat($('#driver_id option:selected').data('score') || 0);
-            const cls   = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+            const opt     = $('#driver_id option:selected');
+            const score   = parseFloat(opt.data('score') || 0);
+            const tasks   = parseInt(opt.data('tasks') || 0, 10);
+            const weekend = parseInt(opt.data('weekend') || 0, 10);
+            const cls     = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
             $('#driverScorePanel').html(
-                'Priority Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
+                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
+                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' weekend)</div>'
             ).show();
         } else {
             $('#autoAssignNotice').show();
@@ -529,16 +551,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $.ajax({
                     url:      SITE_URL + '/ajax/get_available_drivers.php',
                     method:   'POST',
-                    data:     { trip_date: date, start_time: startTime, end_time: endTime },
+                    data:     {
+                        trip_date: date, start_time: startTime, end_time: endTime,
+                        vehicle_id: vehicleId, trip_type: $('#trip_type').val()
+                    },
                     dataType: 'json'
                 }).done(function (res) {
                     if (res.success && res.drivers && res.drivers.length > 0) {
                         let html = '<ul class="list-unstyled mb-0">';
-                        res.drivers.slice(0, 5).forEach(function (d) {
-                            const cls = d.priority_score >= 7 ? 'priority-high' : (d.priority_score >= 4 ? 'priority-medium' : 'priority-low');
-                            html += '<li class="mb-1">' + escHtml(d.name)
-                                + ' <span class="priority-chip ' + cls + '">' + parseFloat(d.priority_score).toFixed(2) + '</span>'
-                                + ' <span class="text-muted">(' + d.daily_hours + 'h today)</span>'
+                        res.drivers.slice(0, 5).forEach(function (d, idx) {
+                            const score = parseFloat(d.priority !== undefined ? d.priority : d.priority_score);
+                            const cls = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+                            html += '<li class="mb-1">' + (idx === 0 ? '<span class="fw-semibold">&#9733; Recommended:</span> ' : '') + escHtml(d.name)
+                                + ' <span class="priority-chip ' + cls + '">' + score.toFixed(2) + '</span>'
+                                + ' <span class="text-muted">(' + d.month_tasks + ' tasks this month, ' + d.month_weekend + ' weekend; ' + d.daily_hours + 'h today)</span>'
                                 + '</li>';
                         });
                         html += '</ul>';
@@ -556,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }, 400);
     }
 
-    $('#trip_date, #start_time, #end_time, #vehicle_id, #driver_id').on('change', checkConflict);
+    $('#trip_date, #start_time, #end_time, #vehicle_id, #driver_id, #trip_type').on('change', checkConflict);
 
     // ── Client-side form validation ──────────────────────────
     $('#scheduleForm').on('submit', function (e) {

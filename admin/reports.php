@@ -28,18 +28,25 @@ $stmt->execute();
 $total_completed = (int)$stmt->get_result()->fetch_row()[0];
 $stmt->close();
 
-// Top performing driver (highest avg performance_score)
-$stmt = $conn->prepare(
-    "SELECT d.name, d.performance_score FROM drivers d
-     LEFT JOIN schedules s ON d.driver_id = s.driver_id
-       AND s.trip_date BETWEEN ? AND ?
-     GROUP BY d.driver_id
-     ORDER BY d.performance_score DESC LIMIT 1"
-);
-$stmt->bind_param('ss', $from_date, $to_date);
-$stmt->execute();
-$top_driver = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+// Driver allocation scores (monthly task load, weekend tasks, experience)
+// Month used = month of the selected end date (current month by default)
+$score_month  = preg_match('/^\d{4}-\d{2}/', $to_date) ? substr($to_date, 0, 7) : date('Y-m');
+$month_counts = getMonthlyTaskCounts($conn, $score_month);
+$scored_drivers = [];
+$drv_res = $conn->query("SELECT driver_id, name, experience_years FROM drivers");
+if ($drv_res) {
+    while ($row = $drv_res->fetch_assoc()) {
+        $c = $month_counts[(int)$row['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+        $row['allocation_score'] = calculateAllocationScore(
+            $c['tasks'], $c['weekend'], (float)$row['experience_years']
+        );
+        $scored_drivers[] = $row;
+    }
+    usort($scored_drivers, fn($a, $b) => $b['allocation_score'] <=> $a['allocation_score']);
+}
+
+// Top driver (highest allocation score)
+$top_driver = $scored_drivers[0] ?? null;
 
 // Most used vehicle (most schedules in range)
 $stmt = $conn->prepare(
@@ -70,28 +77,13 @@ $busiest_month = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 // ── Chart data: Driver performance bar chart ─────────────────
-$stmt = $conn->prepare(
-    "SELECT d.name, d.performance_score,
-            COUNT(s.schedule_id) as total_trips
-     FROM drivers d
-     LEFT JOIN schedules s ON d.driver_id = s.driver_id
-       AND s.trip_date BETWEEN ? AND ?
-     GROUP BY d.driver_id
-     ORDER BY d.performance_score DESC
-     LIMIT 8"
-);
-$stmt->bind_param('ss', $from_date, $to_date);
-$stmt->execute();
-$driver_perf_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
 $driver_names  = [];
 $driver_scores = [];
-foreach ($driver_perf_rows as $row) {
+foreach (array_slice($scored_drivers, 0, 8) as $row) {
     // Shorten long names for chart labels
     $parts = explode(' ', $row['name']);
     $driver_names[]  = $parts[0] . (isset($parts[1]) ? ' ' . $parts[1] : '');
-    $driver_scores[] = (float)$row['performance_score'];
+    $driver_scores[] = (float)$row['allocation_score'];
 }
 
 // ── Chart data: Workload horizontal bar ──────────────────────
@@ -369,7 +361,7 @@ foreach ($monthly_raw as $row) {
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Driver performance scores based on experience, attendance, performance and certification metrics.
+                        Driver allocation scores based on monthly task load, weekend tasks and experience.
                     </p>
                     <div class="chart-container">
                         <canvas id="chartDriverPerf"></canvas>
@@ -482,7 +474,7 @@ foreach ($monthly_raw as $row) {
         data: {
             labels: driverNames,
             datasets: [{
-                label: 'Performance Score',
+                label: 'Allocation Score',
                 data: driverScores,
                 backgroundColor: 'rgba(11,93,59,0.75)',
                 borderRadius: 5,

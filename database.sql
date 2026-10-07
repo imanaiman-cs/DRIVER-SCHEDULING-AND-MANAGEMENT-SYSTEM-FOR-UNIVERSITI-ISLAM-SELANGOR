@@ -36,11 +36,10 @@ CREATE TABLE drivers (
     email               VARCHAR(100)    NULL DEFAULT NULL,
     address             TEXT            NULL DEFAULT NULL,
     experience_years    DECIMAL(4,1)    NOT NULL DEFAULT 0,
-    attendance_rate     DECIMAL(5,2)    NOT NULL DEFAULT 100.00 COMMENT '0-100 percentage',
     performance_score   DECIMAL(5,2)    NOT NULL DEFAULT 5.00  COMMENT '0-10 scale',
     certification_score DECIMAL(5,2)    NOT NULL DEFAULT 5.00  COMMENT '0-10 scale',
     license_number      VARCHAR(50)     NULL DEFAULT NULL,
-    license_class       VARCHAR(10)     NULL DEFAULT NULL,
+    license_class       VARCHAR(10)     NULL DEFAULT NULL COMMENT 'comma list: B2,D,E',
     license_expiry      DATE            NULL DEFAULT NULL,
     status              ENUM('active','inactive','on_leave') NOT NULL DEFAULT 'active',
     driver_type         ENUM('top_management','regular') NOT NULL DEFAULT 'regular',
@@ -190,80 +189,80 @@ INSERT INTO users (username, password, email, full_name, role, driver_id) VALUES
 -- ============================================================
 INSERT INTO drivers
     (employee_id, name, phone, email, address,
-     experience_years, attendance_rate, performance_score, certification_score,
+     experience_years, performance_score, certification_score,
      license_number, license_class, license_expiry, status)
 VALUES
 (
     'UIS-DRV-001', 'Ahmad Faizal bin Mohd Rashid',
     '012-3456789', 'faizal.rashid@uis.edu.my',
     'No. 12, Jalan Cempaka 3, Taman Cempaka, 40150 Shah Alam, Selangor',
-    15.0, 97.50, 9.20, 8.80, 'D1234567', 'D', '2027-08-31', 'active'
+    15.0, 9.20, 8.80, 'D1234567', 'D,E', '2027-08-31', 'active'
 ),
 (
     'UIS-DRV-002', 'Mohd Hafizuddin bin Zulkifli',
     '013-2345678', 'hafizuddin.zulkifli@uis.edu.my',
     'No. 5, Jalan Mawar 7, Taman Sri Muda, 40400 Shah Alam, Selangor',
-    10.5, 94.00, 8.50, 8.00, 'D2345678', 'D', '2027-12-31', 'active'
+    10.5, 8.50, 8.00, 'D2345678', 'D,E', '2027-12-31', 'active'
 ),
 (
     'UIS-DRV-003', 'Norhaslinda binti Abdul Karim',
     '011-34567890', 'haslinda.karim@uis.edu.my',
     'No. 88, Jalan Kenanga 2, Taman Kenanga, 45000 Kuala Selangor, Selangor',
-    7.0, 91.50, 7.80, 7.50, 'D3456789', 'B2', '2027-03-15', 'active'
+    7.0, 7.80, 7.50, 'D3456789', 'B2,D', '2027-03-15', 'active'
 ),
 (
     'UIS-DRV-004', 'Khairul Anuar bin Ismail',
     '019-4567890', 'khairul.ismail@uis.edu.my',
     'No. 33, Jalan Damai 11, Taman Damai Jaya, 41000 Klang, Selangor',
-    12.0, 98.00, 9.50, 9.00, 'D4567890', 'D', '2028-01-20', 'active'
+    12.0, 9.50, 9.00, 'D4567890', 'D,E', '2028-01-20', 'active'
 ),
 (
     'UIS-DRV-005', 'Siti Norzaharah binti Othman',
     '017-5678901', 'zaharah.othman@uis.edu.my',
     'No. 21, Jalan Melati 4, Taman Melati Indah, 68000 Ampang, Selangor',
-    3.5, 85.00, 6.50, 6.00, 'D5678901', 'B2', '2027-06-30', 'active'
+    3.5, 6.50, 6.00, 'D5678901', 'B2,D', '2027-06-30', 'active'
 ),
 (
     'UIS-DRV-006', 'Zulkarnain bin Hamzah',
     '014-6789012', 'zulkarnain.hamzah@uis.edu.my',
     'No. 7, Jalan Anggerik 9, Taman Anggerik, 41150 Klang, Selangor',
-    8.0, 89.50, 8.00, 7.80, 'D6789012', 'D', '2027-11-10', 'on_leave'
+    8.0, 8.00, 7.80, 'D6789012', 'D,E', '2027-11-10', 'on_leave'
 ),
 (
     'UIS-DRV-007', 'Roslan bin Abdul Wahab',
     '016-7890123', 'roslan.wahab@uis.edu.my',
     'No. 45, Jalan Delima 6, Taman Delima, 40460 Shah Alam, Selangor',
-    2.0, 80.50, 5.50, 5.80, 'D7890123', 'B2', '2027-09-14', 'active'
+    2.0, 5.50, 5.80, 'D7890123', 'B2,D', '2027-09-14', 'active'
 ),
 (
     'UIS-DRV-008', 'Muhammad Asyraf bin Che Hassan',
     '018-8901234', 'asyraf.hassan@uis.edu.my',
     'No. 60, Jalan Bayu 3, Taman Bayu Perdana, 41200 Klang, Selangor',
-    5.0, 92.00, 7.20, 7.00, 'D8901234', 'D', '2027-07-22', 'active'
+    5.0, 7.20, 7.00, 'D8901234', 'D', '2027-07-22', 'active'
 ),
 (
     'UIS-DRV-009', 'Fadzillah bin Mohd Noor',
     '012-9012345', 'fadzillah.noor@uis.edu.my',
     'No. 3, Jalan Pelangi 1, Taman Pelangi Maju, 40150 Shah Alam, Selangor',
-    18.0, 99.00, 9.80, 9.50, 'D9012345', 'D', '2028-05-15', 'active'
+    18.0, 9.80, 9.50, 'D9012345', 'D,E', '2028-05-15', 'active'
 ),
 (
     'UIS-DRV-010', 'Nurul Ain binti Saharuddin',
     '011-0123456', 'nurulain.saharuddin@uis.edu.my',
     'No. 18, Jalan Seroja 5, Taman Seroja, 41000 Klang, Selangor',
-    4.0, 88.00, 7.00, 6.80, 'D0123456', 'B2', '2027-10-30', 'active'
+    4.0, 7.00, 6.80, 'D0123456', 'B2,D', '2027-10-30', 'active'
 ),
 (
     'UIS-DRV-011', 'Hairul Nizam bin Kamaruddin',
     '013-1234567', 'hairul.kamaruddin@uis.edu.my',
     'No. 27, Jalan Teratai 8, Taman Sri Andalas, 41200 Klang, Selangor',
-    6.0, 72.00, 5.00, 5.00, 'D1345678', 'B2', '2026-12-01', 'inactive'
+    6.0, 5.00, 5.00, 'D1345678', 'D', '2026-12-01', 'inactive'
 ),
 (
     'UIS-DRV-012', 'Azhari bin Mahmud',
     '017-2345670', 'azhari.mahmud@uis.edu.my',
     'No. 9, Jalan Dahlia 3, Taman Meru Jaya, 41050 Klang, Selangor',
-    9.0, 93.50, 8.20, 8.00, 'D2456789', 'D', '2028-03-20', 'active'
+    9.0, 8.20, 8.00, 'D2456789', 'D,E', '2028-03-20', 'active'
 );
 
 -- ============================================================
@@ -790,7 +789,7 @@ INSERT INTO messages (sender_id, receiver_id, body, is_read, created_at) VALUES
 
 -- Thread 6: Admin ↔ Muhammad Asyraf (drv008) – performance recognition
 (1, 9,
- 'Dear Asyraf, management is very pleased with your work performance this quarter. Your attendance rate and passenger feedback scores are both excellent. Keep up the great work!',
+ 'Dear Asyraf, management is very pleased with your work performance this quarter. Your punctuality and passenger feedback scores are both excellent. Keep up the great work!',
  1, '2025-10-05 11:00:00'),
 (9, 1,
  'Thank you, Mr. Rozaimi. I will continue to provide the best service to all passengers and staff. Please do not hesitate to share any feedback or areas where I can improve.',

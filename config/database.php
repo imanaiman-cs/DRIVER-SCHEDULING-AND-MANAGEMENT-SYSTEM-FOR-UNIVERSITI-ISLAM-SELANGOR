@@ -177,50 +177,121 @@ function requestStatusBadgeClass(string $status): string
 }
 
 // ============================================================
-// Priority score calculation
+// Task allocation scoring (workload-balancing)
 // Formula:
-//   priority = (exp_score  × 30%)
-//            + (att_score  × 20%)
-//            + (perf_score × 30%)
-//            + (cert_score × 20%)
+//   score = (task_load   × 50%)   fewer tasks this month  → higher
+//         + (weekend_load × 30%)  fewer weekend tasks     → higher
+//         + (experience  × 20%)   more experience         → higher
 //
-// All component scores are normalised to a 0–10 scale before
-// the weighted sum is computed.
+// All components are normalised to 0–1 before the weighted sum,
+// then scaled to a 0–10 score. Drivers with lighter workloads are
+// recommended first so tasks are spread evenly across the team.
 // ============================================================
 
 /**
- * Calculates a driver's priority score used for schedule assignment ranking.
+ * Calculates a driver's task-allocation score used to recommend
+ * drivers for new assignments.
  *
- * @param float $experience    Years of driving experience (0–∞; capped at 20 for scoring)
- * @param float $attendance    Attendance rate as a percentage (0–100)
- * @param float $performance   Performance score on a 0–10 scale
- * @param float $certification Certification score on a 0–10 scale
+ * @param int   $tasks_this_month   Non-cancelled trips assigned this month
+ * @param int   $weekend_tasks      Of those, trips falling on Sat/Sun
+ * @param float $experience         Years of driving experience
  *
- * @return float Priority score rounded to 2 decimal places (range approx. 0–10)
+ * @return float Score rounded to 2 decimals (0–10; higher = recommend first)
  */
-function calculatePriorityScore(
-    float $experience,
-    float $attendance,
-    float $performance,
-    float $certification
+function calculateAllocationScore(
+    int $tasks_this_month,
+    int $weekend_tasks,
+    float $experience
 ): float {
-    // Normalise experience: cap at 20 years → 10 points maximum
-    $exp_score = min(($experience / 20.0) * 10.0, 10.0);
+    // Fewer tasks this month → higher factor (cap at 10 tasks)
+    $task_factor    = 1.0 - min($tasks_this_month / 10.0, 1.0);
 
-    // Normalise attendance: 0–100 % → 0–10
-    $att_score = ($attendance / 100.0) * 10.0;
+    // Fewer weekend tasks → higher factor (cap at 4 weekend tasks)
+    $weekend_factor = 1.0 - min($weekend_tasks / 4.0, 1.0);
 
-    // Performance and certification are already on the 0–10 scale
-    $perf_score = $performance;
-    $cert_score = $certification;
+    // More experience → higher factor (cap at 20 years)
+    $exp_factor     = min($experience / 20.0, 1.0);
 
-    // Weighted priority score
-    $priority = ($exp_score  * 0.30)
-              + ($att_score  * 0.20)
-              + ($perf_score * 0.30)
-              + ($cert_score * 0.20);
+    $score = ($task_factor    * 0.50)
+           + ($weekend_factor * 0.30)
+           + ($exp_factor     * 0.20);
 
-    return round($priority, 2);
+    return round($score * 10, 2);
+}
+
+/**
+ * Returns this month's task counts for every driver in one query.
+ *
+ * @param mysqli      $conn  Active database connection
+ * @param string|null $month Month in 'Y-m' format; defaults to current month
+ *
+ * @return array<int, array{tasks: int, weekend: int}> Keyed by driver_id
+ */
+function getMonthlyTaskCounts(mysqli $conn, ?string $month = null): array
+{
+    $month = $month ?? date('Y-m');
+
+    $stmt = $conn->prepare(
+        "SELECT driver_id,
+                COUNT(*) AS tasks,
+                COALESCE(SUM(DAYOFWEEK(trip_date) IN (1, 7)), 0) AS weekend
+         FROM schedules
+         WHERE driver_id IS NOT NULL
+           AND status <> 'cancelled'
+           AND DATE_FORMAT(trip_date, '%Y-%m') = ?
+         GROUP BY driver_id"
+    );
+    $stmt->bind_param('s', $month);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $counts = [];
+    while ($row = $result->fetch_assoc()) {
+        $counts[(int)$row['driver_id']] = [
+            'tasks'   => (int)$row['tasks'],
+            'weekend' => (int)$row['weekend'],
+        ];
+    }
+    $stmt->close();
+
+    return $counts;
+}
+
+/**
+ * Returns the licence classes that may operate a given vehicle type.
+ *
+ * B2 = motorcycle · D = car/van/minibus · E = bus/lorry (E holders
+ * may also drive D-class vehicles).
+ *
+ * @param string $vehicle_type One of: Bus, Van, Car, Minibus, Lorry, Motorcycle
+ *
+ * @return string[] Acceptable licence classes
+ */
+function requiredLicenseClasses(string $vehicle_type): array
+{
+    return match ($vehicle_type) {
+        'Motorcycle'   => ['B2'],
+        'Bus', 'Lorry' => ['E'],
+        default        => ['D', 'E'],
+    };
+}
+
+/**
+ * Checks whether a driver's licence (comma list, e.g. 'B2,D') covers
+ * any of the acceptable classes for a vehicle.
+ *
+ * @param string|null $license_class Driver's licence classes
+ * @param string[]    $required      Acceptable classes from requiredLicenseClasses()
+ *
+ * @return bool
+ */
+function driverHasLicense(?string $license_class, array $required): bool
+{
+    if ($license_class === null || $license_class === '') {
+        return false;
+    }
+    $held = array_map('trim', explode(',', strtoupper($license_class)));
+    return count(array_intersect($held, array_map('strtoupper', $required))) > 0;
 }
 
 // ============================================================

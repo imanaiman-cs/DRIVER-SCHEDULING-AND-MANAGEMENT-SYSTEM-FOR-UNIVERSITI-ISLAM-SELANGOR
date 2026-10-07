@@ -40,15 +40,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $daily_hours         = [];
             $daily_trips         = [];
             $daily_assigned_slots = [];
+            $month_counts        = [];   // per-month task/weekend counts, updated as we assign
 
             foreach ($schedules_to_assign as $schedule) {
                 $trip_date  = $schedule['trip_date'];
                 $start_time = $schedule['start_time'];
                 $end_time   = $schedule['end_time'];
                 $trip_hours = (strtotime($end_time) - strtotime($start_time)) / 3600;
+                $trip_month = substr($trip_date, 0, 7);
+                $is_weekend = in_array((int)date('N', strtotime($trip_date)), [6, 7], true);
+
+                if (!isset($month_counts[$trip_month])) {
+                    $month_counts[$trip_month] = getMonthlyTaskCounts($conn, $trip_month);
+                }
 
                 $required_driver_type = ($schedule['trip_type'] ?? 'regular') === 'top_management'
                     ? 'top_management' : 'regular';
+
+                // Licence classes allowed for this schedule's vehicle (skip
+                // the filter when no vehicle has been attached yet)
+                $required_license = !empty($schedule['vehicle_type'])
+                    ? requiredLicenseClasses($schedule['vehicle_type'])
+                    : null;
 
                 $avail_sql = "
                     SELECT d.*
@@ -82,6 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 foreach ($avail_drivers as $drv) {
                     $did = $drv['driver_id'];
 
+                    // Licence check: driver must hold a class that covers the vehicle
+                    if ($required_license !== null
+                        && !driverHasLicense($drv['license_class'] ?? null, $required_license)) {
+                        continue;
+                    }
+
                     $conflict = false;
                     if (isset($daily_assigned_slots[$did][$trip_date])) {
                         foreach ($daily_assigned_slots[$did][$trip_date] as $slot) {
@@ -102,18 +121,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     }
                     if ($existing_hours + $trip_hours > 8) continue;
 
-                    $priority = calculatePriorityScore(
-                        $drv['experience_years'],
-                        $drv['attendance_rate'],
-                        $drv['performance_score'],
-                        $drv['certification_score']
+                    // Workload-balancing score: fewer tasks this month and
+                    // fewer weekend tasks -> higher score; experience breaks ties
+                    $mc            = $month_counts[$trip_month][$did] ?? ['tasks' => 0, 'weekend' => 0];
+                    $month_tasks   = $mc['tasks'];
+                    $month_weekend = $mc['weekend'];
+
+                    $priority = calculateAllocationScore(
+                        $month_tasks,
+                        $month_weekend,
+                        (float)$drv['experience_years']
                     );
 
                     $eligible[] = [
-                        'driver'      => $drv,
-                        'priority'    => $priority,
-                        'daily_trips' => $daily_trips[$did][$trip_date] ?? 0,
-                        'daily_hours' => $existing_hours,
+                        'driver'        => $drv,
+                        'priority'      => $priority,
+                        'month_tasks'   => $month_tasks,
+                        'month_weekend' => $month_weekend,
+                        'daily_trips'   => $daily_trips[$did][$trip_date] ?? 0,
+                        'daily_hours'   => $existing_hours,
                     ];
                 }
 
@@ -124,16 +150,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'driver'   => null,
                         'priority' => null,
                         'status'   => 'failed',
-                        'reason'   => 'No eligible driver (all busy or at daily limit)',
+                        'reason'   => 'No eligible driver (busy, at daily limit, or lacking the required licence class)',
                     ];
                     continue;
                 }
 
                 usort($eligible, function ($a, $b) {
-                    if ($a['daily_trips'] !== $b['daily_trips']) {
-                        return $a['daily_trips'] - $b['daily_trips'];
+                    if ($b['priority'] !== $a['priority']) {
+                        return $b['priority'] <=> $a['priority'];
                     }
-                    return $b['priority'] <=> $a['priority'];
+                    return $a['daily_trips'] - $b['daily_trips'];
                 });
 
                 $chosen        = $eligible[0];
@@ -143,6 +169,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $daily_hours[$did][$trip_date]          = ($daily_hours[$did][$trip_date] ?? 0) + $trip_hours;
                 $daily_trips[$did][$trip_date]          = ($daily_trips[$did][$trip_date] ?? 0) + 1;
                 $daily_assigned_slots[$did][$trip_date][] = ['start' => $start_time, 'end' => $end_time];
+
+                // Update the running month counts so the next schedule in this
+                // batch sees this driver's heavier load (spreads work evenly)
+                $prev = $month_counts[$trip_month][$did] ?? ['tasks' => 0, 'weekend' => 0];
+                $month_counts[$trip_month][$did] = [
+                    'tasks'   => $prev['tasks'] + 1,
+                    'weekend' => $prev['weekend'] + ($is_weekend ? 1 : 0),
+                ];
 
                 if ($confirm) {
                     $upd = $conn->prepare("UPDATE schedules SET driver_id = ?, priority_score = ?, status = 'approved', updated_at = NOW() WHERE schedule_id = ?");
@@ -155,6 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     'schedule' => $schedule,
                     'driver'   => $chosen_driver,
                     'priority' => $chosen['priority'],
+                    'tasks'    => $chosen['month_tasks'],
+                    'weekend'  => $chosen['month_weekend'],
                     'status'   => 'assigned',
                     'reason'   => '',
                 ];
@@ -180,7 +216,7 @@ $active_drivers_count = (int)$conn->query(
 $assignments_made  = count(array_filter($assignments, fn($a) => $a['status'] === 'assigned'));
 $failed_count      = count($errors);
 
-// ── Top drivers ──────────────────────────────────────────────
+// ── Top drivers (workload-balancing score for the current month) ──
 $drivers_result = $conn->query(
     "SELECT *, (SELECT COUNT(*) FROM schedules
                 WHERE driver_id = d.driver_id
@@ -188,11 +224,14 @@ $drivers_result = $conn->query(
                   AND trip_date = CURDATE()) AS today_trips
      FROM drivers d WHERE status = 'active' ORDER BY name"
 );
+$current_counts = getMonthlyTaskCounts($conn);
 $all_drivers = [];
 while ($row = $drivers_result->fetch_assoc()) {
-    $row['priority_score'] = calculatePriorityScore(
-        $row['experience_years'], $row['attendance_rate'],
-        $row['performance_score'], $row['certification_score']
+    $mc = $current_counts[(int)$row['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+    $row['month_tasks']    = $mc['tasks'];
+    $row['month_weekend']  = $mc['weekend'];
+    $row['priority_score'] = calculateAllocationScore(
+        $mc['tasks'], $mc['weekend'], (float)$row['experience_years']
     );
     $all_drivers[] = $row;
 }
@@ -277,25 +316,24 @@ require_once '../includes/sidebar.php';
         <!-- ── LEFT COLUMN ─────────────────────────────────────── -->
         <div class="col-12 col-lg-4">
 
-            <!-- Priority Score Formula -->
+            <!-- Allocation Score Formula -->
             <div class="content-card mb-3">
                 <div class="content-card-header" style="background:linear-gradient(135deg,var(--uis-primary),#0b5d3b);">
                     <h5 class="content-card-title" style="color:#fff;">
-                        <i class="fas fa-info-circle"></i> Priority Score Formula
+                        <i class="fas fa-info-circle"></i> Allocation Score Formula
                     </h5>
                 </div>
                 <div class="content-card-body">
-                    <div class="rounded-3 p-3 mb-3" style="background:#f0f4ff;border:1px solid #c7d7fe;font-family:monospace;font-size:0.82rem;color:#0b5d3b;line-height:1.8;">
-                        Priority Score =<br>
-                        &nbsp;&nbsp;(Experience &times; 30%) +<br>
-                        &nbsp;&nbsp;(Attendance &times; 20%) +<br>
-                        &nbsp;&nbsp;(Performance &times; 30%) +<br>
-                        &nbsp;&nbsp;(Certification &times; 20%)
+                    <div class="rounded-3 p-3 mb-3" style="background:#eef5f1;border:1px solid #cde7da;font-family:monospace;font-size:0.82rem;color:#0b5d3b;line-height:1.8;">
+                        Score =<br>
+                        &nbsp;&nbsp;(Task Load &times; 50%) +<br>
+                        &nbsp;&nbsp;(Weekend Load &times; 30%) +<br>
+                        &nbsp;&nbsp;(Experience &times; 20%)
                     </div>
                     <ul class="list-unstyled mb-0" style="font-size:0.82rem;color:#374151;">
-                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Experience normalised to 0–10 (max 20 yrs)</li>
-                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Attendance rate (%) normalised to 0–10</li>
-                        <li><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Performance &amp; Certification on 0–10 scale</li>
+                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Task load: fewer tasks this month = higher (cap 10)</li>
+                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Weekend load: fewer Sat/Sun tasks = higher (cap 4)</li>
+                        <li><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Experience normalised to 0–10 (max 20 yrs)</li>
                     </ul>
                 </div>
             </div>
@@ -311,11 +349,13 @@ require_once '../includes/sidebar.php';
                     <ul class="list-unstyled mb-0" style="font-size:0.83rem;color:#374151;">
                         <?php
                         $rules = [
+                            'Driver must be free at the required time (no clashes)',
+                            'Driver must hold the licence class for the vehicle (B2/D/E)',
+                            'Fewer tasks this month = higher score (weight 50%)',
+                            'Fewer weekend tasks = higher score (weight 30%)',
+                            'More experience = higher score (weight 20%)',
                             'Max 8 working hours per driver per day',
-                            'No overlapping schedule conflicts',
-                            'Lower-workload drivers prioritised first',
-                            'Highest priority score as tiebreaker',
-                            'Only active drivers are considered',
+                            'Only active drivers are considered — admin can override',
                         ];
                         foreach ($rules as $i => $rule):
                         ?>
@@ -366,13 +406,13 @@ require_once '../includes/sidebar.php';
             </div>
             <?php endif; ?>
 
-            <!-- Top Drivers by Priority -->
+            <!-- Top Drivers by Allocation Score -->
             <div class="content-card">
                 <div class="content-card-header">
                     <h5 class="content-card-title">
                         <i class="fas fa-ranking-star"></i> Top Drivers
                     </h5>
-                    <span class="badge" style="background:var(--uis-light);color:var(--uis-primary);font-size:0.7rem;">By Priority</span>
+                    <span class="badge" style="background:var(--uis-light);color:var(--uis-primary);font-size:0.7rem;">By Score</span>
                 </div>
                 <div class="content-card-body p-0">
                     <?php if (empty($all_drivers)): ?>
@@ -404,8 +444,9 @@ require_once '../includes/sidebar.php';
                                 <?php echo htmlspecialchars($drv['name']); ?>
                             </div>
                             <div style="font-size:0.72rem;color:#9ca3af;">
-                                <?php echo $drv['experience_years']; ?> yrs exp
-                                · Today: <?php echo (int)$drv['today_trips']; ?> trip(s)
+                                <?php echo (int)$drv['month_tasks']; ?> task(s) this month
+                                · <?php echo (int)$drv['month_weekend']; ?> weekend
+                                · <?php echo $drv['experience_years']; ?> yrs
                             </div>
                             <div class="progress mt-1" style="height:4px;border-radius:99px;background:#e8edf5;">
                                 <div class="progress-bar" style="width:<?php echo number_format($bar_pct, 1); ?>%;background:<?php echo $bar_color; ?>;border-radius:99px;"></div>
@@ -489,6 +530,10 @@ require_once '../includes/sidebar.php';
                                             <span style="font-weight:600;color:#1a2035;">
                                                 <?php echo htmlspecialchars($a['driver']['name']); ?>
                                             </span>
+                                            <div style="font-size:0.7rem;color:#9ca3af;">
+                                                <?php echo (int)($a['tasks'] ?? 0); ?> task(s) this month
+                                                · <?php echo (int)($a['weekend'] ?? 0); ?> weekend before this
+                                            </div>
                                         <?php else: ?>
                                             <span style="color:#dc2626;font-size:0.8rem;">
                                                 <i class="fas fa-xmark me-1"></i>Unassignable

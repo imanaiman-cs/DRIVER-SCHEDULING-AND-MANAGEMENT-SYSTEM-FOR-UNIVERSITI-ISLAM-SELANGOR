@@ -102,33 +102,29 @@ if ($recent_result) {
 }
 
 // ============================================================
-// TOP 5 DRIVERS BY PRIORITY SCORE
+// TOP 5 DRIVERS BY ALLOCATION SCORE
 // ============================================================
-$top_drivers_sql = "
-    SELECT
-        driver_id,
-        name,
-        experience_years,
-        attendance_rate,
-        performance_score,
-        certification_score,
-        ROUND(
-            (LEAST(experience_years / 20.0, 1.0) * 10.0 * 0.30)
-          + ((attendance_rate / 100.0) * 10.0 * 0.20)
-          + (performance_score * 0.30)
-          + (certification_score * 0.20),
-        2) AS priority_score
+$top_drivers_result = $conn->query("
+    SELECT driver_id, name, experience_years, driver_type
     FROM drivers
     WHERE status = 'active'
-    ORDER BY priority_score DESC
-    LIMIT 5
-";
-$top_drivers_result = $conn->query($top_drivers_sql);
+");
 $top_drivers = [];
 if ($top_drivers_result) {
+    $month_counts = getMonthlyTaskCounts($conn);
     while ($row = $top_drivers_result->fetch_assoc()) {
+        $counts = $month_counts[(int)$row['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+        $row['tasks_this_month'] = $counts['tasks'];
+        $row['weekend_tasks']    = $counts['weekend'];
+        $row['allocation_score'] = calculateAllocationScore(
+            $counts['tasks'],
+            $counts['weekend'],
+            (float)$row['experience_years']
+        );
         $top_drivers[] = $row;
     }
+    usort($top_drivers, fn($a, $b) => $b['allocation_score'] <=> $a['allocation_score']);
+    $top_drivers = array_slice($top_drivers, 0, 5);
 }
 
 // ============================================================
@@ -371,14 +367,14 @@ require_once '../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Top Drivers by Priority Score -->
+        <!-- Top Drivers by Allocation Score -->
         <div class="col-12 col-xl-5">
             <div class="content-card h-100">
                 <div class="content-card-header">
                     <h5 class="content-card-title">
                         <i class="fas fa-ranking-star"></i>
                         Top Drivers
-                        <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;">Priority Score</span>
+                        <span class="badge bg-warning text-dark ms-1" style="font-size:0.68rem;">Allocation Score</span>
                     </h5>
                     <a href="<?php echo SITE_URL; ?>/admin/drivers.php"
                        class="btn btn-sm btn-uis-primary">
@@ -396,7 +392,7 @@ require_once '../includes/sidebar.php';
                     $medals = ['1' => '🥇', '2' => '🥈', '3' => '🥉'];
                     foreach ($top_drivers as $rank => $driver):
                         $rank_num   = $rank + 1;
-                        $score      = (float) $driver['priority_score'];
+                        $score      = (float) $driver['allocation_score'];
                         $score_pct  = min(($score / 10) * 100, 100);
                         $bar_color  = $score >= 7 ? '#059669' : ($score >= 4 ? '#d97706' : '#dc2626');
                     ?>
@@ -445,8 +441,9 @@ require_once '../includes/sidebar.php';
                                 </div>
                             </div>
                             <div style="font-size:0.72rem;color:#9ca3af;">
-                                <i class="fas fa-briefcase me-1"></i>
-                                <?php echo number_format((float)$driver['experience_years'], 1); ?> yrs experience
+                                <i class="fas fa-list-check me-1"></i>
+                                <?php echo (int)$driver['tasks_this_month']; ?> tasks this month
+                                &middot; <?php echo number_format((float)$driver['experience_years'], 1); ?> yrs exp
                             </div>
                         </div>
 
@@ -729,7 +726,7 @@ require_once '../includes/sidebar.php';
                             </div>
                             <div>
                                 <div style="font-weight:600;font-size:0.88rem;">Auto-Assign Drivers</div>
-                                <div style="font-size:0.74rem;opacity:0.8;">Smart assignment by priority score</div>
+                                <div style="font-size:0.74rem;opacity:0.8;">Smart assignment by allocation score</div>
                             </div>
                             <i class="fas fa-chevron-right ms-auto" style="opacity:0.6;"></i>
                         </a>

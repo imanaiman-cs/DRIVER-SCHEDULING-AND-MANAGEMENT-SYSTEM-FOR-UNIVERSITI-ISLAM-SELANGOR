@@ -19,11 +19,10 @@ $form = [
     'email'               => '',
     'address'             => '',
     'experience_years'    => '',
-    'attendance_rate'     => '',
     'performance_score'   => '',
     'certification_score' => '',
     'license_number'      => '',
-    'license_class'       => '',
+    'license_class'       => [],
     'license_expiry'      => '',
     'status'              => 'active',
     'driver_type'         => 'regular',
@@ -41,11 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['email']               = trim($_POST['email']               ?? '');
     $form['address']             = trim($_POST['address']             ?? '');
     $form['experience_years']    = trim($_POST['experience_years']    ?? '');
-    $form['attendance_rate']     = trim($_POST['attendance_rate']     ?? '');
     $form['performance_score']   = trim($_POST['performance_score']   ?? '');
     $form['certification_score'] = trim($_POST['certification_score'] ?? '');
     $form['license_number']      = trim($_POST['license_number']      ?? '');
-    $form['license_class']       = trim($_POST['license_class']       ?? '');
+    $posted_classes              = $_POST['license_class'] ?? [];
+    $form['license_class']       = is_array($posted_classes)
+        ? array_values(array_filter(array_map('trim', array_map('strval', $posted_classes)), 'strlen'))
+        : [];
     $form['license_expiry']      = trim($_POST['license_expiry']      ?? '');
     $form['status']              = trim($_POST['status']              ?? 'active');
     $form['driver_type']         = trim($_POST['driver_type']         ?? 'regular');
@@ -83,12 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['experience_years'] = 'Experience must be between 0 and 50 years.';
     }
 
-    if ($form['attendance_rate'] === '') {
-        $errors['attendance_rate'] = 'Attendance rate is required.';
-    } elseif (!is_numeric($form['attendance_rate']) || (float)$form['attendance_rate'] < 0 || (float)$form['attendance_rate'] > 100) {
-        $errors['attendance_rate'] = 'Attendance rate must be between 0 and 100.';
-    }
-
     if ($form['performance_score'] === '') {
         $errors['performance_score'] = 'Performance score is required.';
     } elseif (!is_numeric($form['performance_score']) || (float)$form['performance_score'] < 0 || (float)$form['performance_score'] > 10) {
@@ -110,38 +105,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['driver_type'] = 'regular';
     }
 
-    $allowed_classes = ['D', 'DA', 'GDL', 'PSV', 'E', ''];
-    if (!in_array($form['license_class'], $allowed_classes, true)) {
-        $form['license_class'] = '';
+    // License class: one or more of B2, D, E (stored as comma list in stable order)
+    $allowed_classes = ['B2', 'D', 'E'];
+    if (empty($form['license_class'])) {
+        $errors['license_class'] = 'Please select at least one license class.';
+    } elseif (array_diff($form['license_class'], $allowed_classes)) {
+        $errors['license_class'] = 'Invalid license class selected.';
+        $form['license_class']   = array_values(array_intersect($allowed_classes, $form['license_class']));
+    } else {
+        $form['license_class'] = array_values(array_intersect($allowed_classes, $form['license_class']));
     }
 
     // ── Insert if no errors ──────────────────────────────────
     if (empty($errors)) {
         $exp   = (float)$form['experience_years'];
-        $att   = (float)$form['attendance_rate'];
         $perf  = (float)$form['performance_score'];
         $cert  = (float)$form['certification_score'];
+        $license_class_csv = implode(',', $form['license_class']);
 
         $stmt = $conn->prepare(
             "INSERT INTO drivers
                 (employee_id, name, phone, email, address,
-                 experience_years, attendance_rate, performance_score, certification_score,
+                 experience_years, performance_score, certification_score,
                  license_number, license_class, license_expiry, status, driver_type, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
         );
 
         $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
 
         $stmt->bind_param(
-            'sssssddddsssss',
+            'sssssdddsssss',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
             $form['email'],
             $form['address'],
-            $exp, $att, $perf, $cert,
+            $exp, $perf, $cert,
             $form['license_number'],
-            $form['license_class'],
+            $license_class_csv,
             $expiry,
             $form['status'],
             $form['driver_type']
@@ -458,28 +459,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div class="invalid-feedback"><?php echo htmlspecialchars($errors['experience_years']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Years of driving experience (0–50). Capped at 20 yrs for scoring.</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="attendance_rate" class="form-label">
-                                    Attendance Rate <span class="required-star">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <input type="number"
-                                           id="attendance_rate"
-                                           name="attendance_rate"
-                                           class="form-control <?php echo isset($errors['attendance_rate']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['attendance_rate']); ?>"
-                                           placeholder="0.0"
-                                           min="0" max="100" step="0.5"
-                                           required>
-                                    <span class="input-group-text">%</span>
-                                    <?php if (isset($errors['attendance_rate'])): ?>
-                                        <div class="invalid-feedback"><?php echo htmlspecialchars($errors['attendance_rate']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-text">Percentage attendance (0–100%). Weighted at 20%.</div>
+                                <div class="form-text">Years of driving experience (0–50). Capped at 20 yrs for workload-balancing score.</div>
                             </div>
 
                             <div class="col-md-6">
@@ -502,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div class="invalid-feedback"><?php echo htmlspecialchars($errors['performance_score']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Overall driving performance rating. Weighted at 30%.</div>
+                                <div class="form-text">Overall driving performance rating (informational only).</div>
                             </div>
 
                             <div class="col-md-6">
@@ -525,7 +505,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div class="invalid-feedback"><?php echo htmlspecialchars($errors['certification_score']); ?></div>
                                     <?php endif; ?>
                                 </div>
-                                <div class="form-text">Certification/training score. Weighted at 20%.</div>
+                                <div class="form-text">Certification/training score (informational only).</div>
                             </div>
 
                         </div>
@@ -552,15 +532,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
 
                             <div class="col-md-3">
-                                <label for="license_class" class="form-label">License Class</label>
-                                <select id="license_class" name="license_class" class="form-select">
-                                    <option value=""  <?php echo $form['license_class'] === ''    ? 'selected' : ''; ?>>-- Select --</option>
-                                    <option value="D"   <?php echo $form['license_class'] === 'D'   ? 'selected' : ''; ?>>D (Car)</option>
-                                    <option value="DA"  <?php echo $form['license_class'] === 'DA'  ? 'selected' : ''; ?>>DA (Auto Car)</option>
-                                    <option value="GDL" <?php echo $form['license_class'] === 'GDL' ? 'selected' : ''; ?>>GDL (Goods Vehicle)</option>
-                                    <option value="PSV" <?php echo $form['license_class'] === 'PSV' ? 'selected' : ''; ?>>PSV (Public Service)</option>
-                                    <option value="E"   <?php echo $form['license_class'] === 'E'   ? 'selected' : ''; ?>>E (Motorcycle)</option>
-                                </select>
+                                <label class="form-label">License Class <span class="required-star">*</span></label>
+                                <div id="license_class_group" class="<?php echo isset($errors['license_class']) ? 'is-invalid' : ''; ?>">
+                                    <?php foreach (['B2' => 'B2 (Motorcycle)', 'D' => 'D (Car/Van/Minibus)', 'E' => 'E (Bus/Lorry)'] as $lc => $lcLabel): ?>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="license_class[]"
+                                               id="license_class_<?php echo $lc; ?>"
+                                               value="<?php echo $lc; ?>"
+                                               <?php echo in_array($lc, $form['license_class'], true) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="license_class_<?php echo $lc; ?>" style="font-size:.85rem;">
+                                            <?php echo htmlspecialchars($lcLabel); ?>
+                                        </label>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php if (isset($errors['license_class'])): ?>
+                                    <div class="invalid-feedback d-block"><?php echo htmlspecialchars($errors['license_class']); ?></div>
+                                <?php endif; ?>
                             </div>
 
                             <div class="col-md-4">
@@ -591,66 +580,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             </div><!-- /left col -->
 
-            <!-- ── Right: Priority Score Preview ─────────────── -->
+            <!-- ── Right: Allocation info ────────────────────── -->
             <div class="col-lg-4">
                 <div class="priority-preview">
                     <div class="mb-3 d-flex align-items-center gap-2">
                         <div style="width:36px;height:36px;border-radius:10px;background:#0b5d3b;
                                     display:flex;align-items:center;justify-content:center;color:#fff;">
-                            <i class="fas fa-bolt" aria-hidden="true"></i>
+                            <i class="fas fa-scale-balanced" aria-hidden="true"></i>
                         </div>
-                        <div>
-                            <div class="fw-bold text-primary" style="font-size:.95rem;">Priority Score Preview</div>
-                            <div class="text-muted" style="font-size:.75rem;">Updates as you type</div>
-                        </div>
+                        <div class="fw-bold text-primary" style="font-size:.95rem;">How Drivers Are Recommended</div>
                     </div>
 
-                    <div class="text-center mb-3">
-                        <div class="score-display" id="previewScore" style="color:#6b7280;">
-                            &mdash;
-                        </div>
-                        <div class="text-muted" style="font-size:.78rem;">out of 10.00</div>
-                    </div>
-
-                    <div class="score-bar mb-3">
-                        <div class="score-bar-fill" id="previewBar" style="width:0%;background:#9ca3af;"></div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="component-row">
-                            <span class="component-label"><i class="fas fa-calendar-days fa-xs me-1"></i> Experience (30%)</span>
-                            <span class="component-value" id="prevExp">—</span>
-                        </div>
-                        <div class="component-row">
-                            <span class="component-label"><i class="fas fa-clock fa-xs me-1"></i> Attendance (20%)</span>
-                            <span class="component-value" id="prevAtt">—</span>
-                        </div>
-                        <div class="component-row">
-                            <span class="component-label"><i class="fas fa-star fa-xs me-1"></i> Performance (30%)</span>
-                            <span class="component-value" id="prevPerf">—</span>
-                        </div>
-                        <div class="component-row">
-                            <span class="component-label"><i class="fas fa-certificate fa-xs me-1"></i> Certification (20%)</span>
-                            <span class="component-value" id="prevCert">—</span>
-                        </div>
-                    </div>
-
-                    <div class="p-2 rounded-2" style="background:rgba(11,93,59,.06);font-size:.72rem;color:#6b7280;line-height:1.6;">
-                        <strong>Formula:</strong><br>
-                        (Exp/20 &times; 10 &times; 0.30)<br>
-                        + (Att/100 &times; 10 &times; 0.20)<br>
-                        + (Perf &times; 0.30)<br>
-                        + (Cert &times; 0.20)
-                    </div>
-
-                    <!-- Score category guide -->
-                    <div class="mt-3 pt-2 border-top">
-                        <div class="d-flex gap-2 flex-wrap" style="font-size:.72rem;">
-                            <span class="badge" style="background:#d1fae5;color:#065f46;">7.0–10.0 High</span>
-                            <span class="badge" style="background:#fef3c7;color:#92400e;">4.0–6.9 Medium</span>
-                            <span class="badge" style="background:#fee2e2;color:#991b1b;">0.0–3.9 Low</span>
-                        </div>
-                    </div>
+                    <p class="mb-0" style="font-size:.84rem;color:#4b5563;line-height:1.6;">
+                        Drivers are recommended automatically using workload balancing:
+                        fewer tasks this month (50%), fewer weekend tasks (30%), more experience (20%).
+                    </p>
                 </div><!-- /priority-preview -->
             </div><!-- /right col -->
 
@@ -671,83 +615,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 (function () {
     'use strict';
 
-    var expInput  = document.getElementById('experience_years');
-    var attInput  = document.getElementById('attendance_rate');
-    var perfInput = document.getElementById('performance_score');
-    var certInput = document.getElementById('certification_score');
-
-    var previewScore = document.getElementById('previewScore');
-    var previewBar   = document.getElementById('previewBar');
-    var prevExp  = document.getElementById('prevExp');
-    var prevAtt  = document.getElementById('prevAtt');
-    var prevPerf = document.getElementById('prevPerf');
-    var prevCert = document.getElementById('prevCert');
-
-    function updatePreview() {
-        var exp  = parseFloat(expInput.value)  || 0;
-        var att  = parseFloat(attInput.value)  || 0;
-        var perf = parseFloat(perfInput.value) || 0;
-        var cert = parseFloat(certInput.value) || 0;
-
-        var hasAny = expInput.value !== '' || attInput.value !== '' || perfInput.value !== '' || certInput.value !== '';
-        if (!hasAny) {
-            previewScore.innerHTML = '&mdash;';
-            previewScore.className = 'score-display';
-            previewBar.style.width = '0%';
-            previewBar.style.background = '#9ca3af';
-            prevExp.textContent = '—';
-            prevAtt.textContent = '—';
-            prevPerf.textContent = '—';
-            prevCert.textContent = '—';
-            return;
-        }
-
-        // Normalise
-        var expScore  = Math.min((exp / 20.0) * 10.0, 10.0);
-        var attScore  = (att / 100.0) * 10.0;
-        var perfScore = perf;
-        var certScore = cert;
-
-        // Weighted total
-        var total = (expScore * 0.30) + (attScore * 0.20) + (perfScore * 0.30) + (certScore * 0.20);
-        total = Math.round(total * 100) / 100;
-
-        // Display
-        previewScore.textContent = total.toFixed(2);
-
-        var colorClass, barColor;
-        if (total >= 7) {
-            colorClass = 'score-high';
-            barColor   = '#10b981';
-        } else if (total >= 4) {
-            colorClass = 'score-medium';
-            barColor   = '#f59e0b';
-        } else {
-            colorClass = 'score-low';
-            barColor   = '#ef4444';
-        }
-
-        previewScore.className    = 'score-display ' + colorClass;
-        previewBar.style.width    = Math.min(total * 10, 100) + '%';
-        previewBar.style.background = barColor;
-
-        // Component values (showing normalised × weight contribution)
-        prevExp.textContent  = expScore.toFixed(2)  + ' × 0.30 = ' + (expScore  * 0.30).toFixed(2);
-        prevAtt.textContent  = attScore.toFixed(2)  + ' × 0.20 = ' + (attScore  * 0.20).toFixed(2);
-        prevPerf.textContent = perfScore.toFixed(2) + ' × 0.30 = ' + (perfScore * 0.30).toFixed(2);
-        prevCert.textContent = certScore.toFixed(2) + ' × 0.20 = ' + (certScore * 0.20).toFixed(2);
-    }
-
-    [expInput, attInput, perfInput, certInput].forEach(function (el) {
-        if (el) {
-            el.addEventListener('input', updatePreview);
-            el.addEventListener('change', updatePreview);
-        }
-    });
-
-    // Initial run if form is repopulated after error
-    updatePreview();
-
     // ── Client-side validation ───────────────────────────────
     var form = document.getElementById('addDriverForm');
     if (form) {
@@ -755,7 +622,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             var valid = true;
 
             // Required fields
-            ['employee_id', 'name', 'phone', 'experience_years', 'attendance_rate', 'performance_score', 'certification_score'].forEach(function (fieldId) {
+            ['employee_id', 'name', 'phone', 'experience_years', 'performance_score', 'certification_score'].forEach(function (fieldId) {
                 var el = document.getElementById(fieldId);
                 if (el && el.value.trim() === '') {
                     el.classList.add('is-invalid');
@@ -764,6 +631,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     el.classList.remove('is-invalid');
                 }
             });
+
+            // At least one license class
+            var lcGroup = document.getElementById('license_class_group');
+            if (lcGroup) {
+                if (!form.querySelector('input[name="license_class[]"]:checked')) {
+                    lcGroup.classList.add('is-invalid');
+                    valid = false;
+                } else {
+                    lcGroup.classList.remove('is-invalid');
+                }
+            }
 
             if (!valid) {
                 e.preventDefault();

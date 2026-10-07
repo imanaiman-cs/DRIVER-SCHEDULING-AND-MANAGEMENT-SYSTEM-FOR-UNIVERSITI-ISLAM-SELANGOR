@@ -21,13 +21,17 @@ $active   = 0;
 $on_leave = 0;
 $inactive = 0;
 
+$monthly_counts = getMonthlyTaskCounts($conn);
+
 foreach ($drivers as &$d) {
-    // Attach calculated priority score to each row
-    $d['priority_score'] = calculatePriorityScore(
-        (float)$d['experience_years'],
-        (float)$d['attendance_rate'],
-        (float)$d['performance_score'],
-        (float)$d['certification_score']
+    // Attach this month's task counts and the calculated allocation score to each row
+    $mc = $monthly_counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'weekend' => 0];
+    $d['month_tasks']   = (int)$mc['tasks'];
+    $d['month_weekend'] = (int)$mc['weekend'];
+    $d['priority_score'] = calculateAllocationScore(
+        $d['month_tasks'],
+        $d['month_weekend'],
+        (float)$d['experience_years']
     );
 
     switch ($d['status']) {
@@ -271,8 +275,7 @@ unset($d);
                                 <th>Name</th>
                                 <th>Phone</th>
                                 <th>Experience</th>
-                                <th>Priority Score</th>
-                                <th>Attendance %</th>
+                                <th>Allocation Score</th>
                                 <th>Performance</th>
                                 <th>Type</th>
                                 <th>Status</th>
@@ -314,15 +317,6 @@ unset($d);
                                     <span class="badge-priority <?php echo $scoreClass; ?>">
                                         <?php echo number_format($score, 2); ?>
                                     </span>
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div class="score-bar flex-grow-1" style="max-width:70px;">
-                                            <div class="score-bar-fill bg-info"
-                                                 style="width:<?php echo min(100, (float)$d['attendance_rate']); ?>%"></div>
-                                        </div>
-                                        <span class="small"><?php echo number_format((float)$d['attendance_rate'], 1); ?>%</span>
-                                    </div>
                                 </td>
                                 <td class="small"><?php echo number_format((float)$d['performance_score'], 1); ?>/10</td>
                                 <td>
@@ -421,7 +415,8 @@ const DRIVERS_DATA = <?php
             'email'               => $d['email'] ?? '',
             'address'             => $d['address'] ?? '',
             'experience_years'    => (float)$d['experience_years'],
-            'attendance_rate'     => (float)$d['attendance_rate'],
+            'month_tasks'         => (int)$d['month_tasks'],
+            'month_weekend'       => (int)$d['month_weekend'],
             'performance_score'   => (float)$d['performance_score'],
             'certification_score' => (float)$d['certification_score'],
             'license_number'      => $d['license_number'] ?? '',
@@ -456,12 +451,12 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
     // ── DataTable initialisation ─────────────────────────────
     $('#driversTable').DataTable({
-        order:       [[5, 'desc']],   // sort by Priority Score desc by default
+        order:       [[5, 'desc']],   // sort by Allocation Score desc by default
         pageLength:  25,
         responsive:  true,
         columnDefs: [
-            { orderable: false, targets: 10 },
-            { searchable: false, targets: 10 }
+            { orderable: false, targets: 9 },
+            { searchable: false, targets: 9 }
         ],
         language: {
             search:         'Search drivers:',
@@ -483,16 +478,23 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         // Edit button link
         document.getElementById('modalEditBtn').href = SITE_URL + '/admin/edit_driver.php?id=' + d.driver_id;
 
-        // Priority score badge colour
+        // Allocation score badge colour
         const score     = parseFloat(d.priority_score);
         let scoreClass  = 'priority-low';
         let scoreBgBar  = '#ef4444';
         if (score >= 7)     { scoreClass = 'priority-high';   scoreBgBar = '#10b981'; }
         else if (score >= 4){ scoreClass = 'priority-medium'; scoreBgBar = '#f59e0b'; }
 
-        // Exp score for breakdown (cap at 20 yrs → 10)
-        const expScore  = Math.min((d.experience_years / 20) * 10, 10).toFixed(2);
-        const attScore  = ((d.attendance_rate / 100) * 10).toFixed(2);
+        // Factors for breakdown (same normalisation as calculateAllocationScore, 0-10 scale)
+        const taskFactor    = (1 - Math.min(d.month_tasks / 10, 1)) * 10;
+        const weekendFactor = (1 - Math.min(d.month_weekend / 4, 1)) * 10;
+        const expScore      = Math.min((d.experience_years / 20) * 10, 10);
+
+        // License class may be a comma list (e.g. "D,E") – render as badges
+        const licenseClassHtml = d.license_class
+            ? String(d.license_class).split(',').map(function (c) { return c.trim(); }).filter(Boolean)
+                .map(function (c) { return '<span class="badge bg-secondary me-1">' + escHtml(c) + '</span>'; }).join('')
+            : '&mdash;';
 
         // Status label/colour
         const statusMap = { active: ['Active','bg-success'], inactive: ['Inactive','bg-danger'], on_leave: ['On Leave','bg-warning text-dark'] };
@@ -578,7 +580,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                     </div>
                     <div class="col-6">
                         <div class="detail-label">License Class</div>
-                        <div class="detail-value">${d.license_class ? escHtml(d.license_class) : '&mdash;'}</div>
+                        <div class="detail-value">${licenseClassHtml}</div>
                     </div>
                     <div class="col-12 mt-1">
                         <div class="detail-label">License Expiry</div>
@@ -591,37 +593,35 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                 </div>
             </div>
 
-            <!-- Priority Score Breakdown -->
+            <!-- Allocation Score Breakdown -->
             <div class="col-12">
                 <hr class="my-1">
                 <h6 class="text-primary fw-semibold mb-3">
-                    <i class="fas fa-chart-bar me-1"></i> Priority Score Breakdown
+                    <i class="fas fa-chart-bar me-1"></i> Allocation Score Breakdown
                 </h6>
                 <div class="row g-3">
-                    <div class="col-6 col-md-3">
-                        <div class="detail-label">Experience (30%)</div>
-                        <div class="detail-value mb-1">${expScore} / 10</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${expScore*10}%;background:#3b82f6;"></div></div>
+                    <div class="col-12 col-md-4">
+                        <div class="detail-label">Tasks this month (50%)</div>
+                        <div class="detail-value mb-1">${d.month_tasks} task${d.month_tasks !== 1 ? 's' : ''}</div>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${taskFactor*10}%;background:#3b82f6;"></div></div>
                     </div>
-                    <div class="col-6 col-md-3">
-                        <div class="detail-label">Attendance (20%)</div>
-                        <div class="detail-value mb-1">${attScore} / 10</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${attScore*10}%;background:#06b6d4;"></div></div>
+                    <div class="col-12 col-md-4">
+                        <div class="detail-label">Weekend tasks (30%)</div>
+                        <div class="detail-value mb-1">${d.month_weekend} weekend task${d.month_weekend !== 1 ? 's' : ''}</div>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${weekendFactor*10}%;background:#06b6d4;"></div></div>
                     </div>
-                    <div class="col-6 col-md-3">
-                        <div class="detail-label">Performance (30%)</div>
-                        <div class="detail-value mb-1">${parseFloat(d.performance_score).toFixed(1)} / 10</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${d.performance_score*10}%;background:#8b5cf6;"></div></div>
+                    <div class="col-12 col-md-4">
+                        <div class="detail-label">Experience (20%)</div>
+                        <div class="detail-value mb-1">${d.experience_years} year${d.experience_years !== 1 ? 's' : ''}</div>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${expScore*10}%;background:#8b5cf6;"></div></div>
                     </div>
-                    <div class="col-6 col-md-3">
-                        <div class="detail-label">Certification (20%)</div>
-                        <div class="detail-value mb-1">${parseFloat(d.certification_score).toFixed(1)} / 10</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${d.certification_score*10}%;background:#f59e0b;"></div></div>
-                    </div>
+                </div>
+                <div class="mt-2 small text-muted">
+                    Performance ${parseFloat(d.performance_score).toFixed(1)}/10 &middot; Certification ${parseFloat(d.certification_score).toFixed(1)}/10 (info only, not part of the score)
                 </div>
                 <div class="mt-3 p-3 rounded-3" style="background:#f8f9fb;">
                     <div class="d-flex align-items-center justify-content-between">
-                        <span class="fw-semibold text-secondary">Overall Priority Score</span>
+                        <span class="fw-semibold text-secondary">Overall Allocation Score</span>
                         <span class="badge-priority ${scoreClass}" style="font-size:.95rem;padding:.4em 1em;">
                             ${score.toFixed(2)} / 10
                         </span>
@@ -630,7 +630,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                         <div class="score-bar-fill" style="width:${score*10}%;background:${scoreBgBar};"></div>
                     </div>
                     <div class="mt-1 small text-muted">
-                        Formula: (Exp&times;0.30) + (Att&times;0.20) + (Perf&times;0.30) + (Cert&times;0.20)
+                        Formula: (Tasks&times;0.50) + (Weekend&times;0.30) + (Exp&times;0.20) &mdash; fewer tasks/weekend tasks = higher score
                     </div>
                 </div>
             </div>
