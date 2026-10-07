@@ -181,6 +181,31 @@ CREATE TABLE request_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- TABLE: email_log
+-- Every e-mail the system tries to send (sent, failed, or skipped
+-- when sending is switched off), so admins can see what drivers
+-- were told and when.
+-- ============================================================
+CREATE TABLE email_log (
+    log_id        INT           NOT NULL AUTO_INCREMENT,
+    driver_id     INT           NULL DEFAULT NULL,
+    to_email      VARCHAR(190)  NULL DEFAULT NULL,
+    delivered_to  VARCHAR(255)  NULL DEFAULT NULL COMMENT 'set when a test redirect replaced the recipient',
+    subject       VARCHAR(255)  NOT NULL,
+    kind          VARCHAR(30)   NOT NULL COMMENT 'assigned, updated, cancelled, removed, reminder, test',
+    ref_date      DATE          NULL DEFAULT NULL COMMENT 'trip date the e-mail is about (used to avoid duplicate reminders)',
+    schedule_ids  VARCHAR(255)  NULL DEFAULT NULL,
+    status        ENUM('sent','failed','skipped') NOT NULL,
+    error_message VARCHAR(500)  NULL DEFAULT NULL,
+    body_html     MEDIUMTEXT    NULL DEFAULT NULL,
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (log_id),
+    KEY idx_email_created (created_at),
+    KEY idx_email_driver_kind (driver_id, kind, ref_date),
+    CONSTRAINT fk_email_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- SEED: users – admin account
 -- Login: username=admin / password=admin123
 -- ============================================================

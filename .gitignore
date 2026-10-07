@@ -8,3 +8,6 @@ uploads/drivers/*
 uploads/documents/*
 !uploads/documents/.htaccess
 !uploads/documents/.gitkeep
+
+# Local e-mail settings (contain the SMTP password)
+config/mail.php
