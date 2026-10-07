@@ -22,6 +22,9 @@ $form   = [
     'purpose'         => '',
     'passenger_count' => '',
     'vehicle_id'      => '',
+    'officer_name'    => $full_name,
+    'officer_phone'   => '',
+    'waiting_place'   => '',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -33,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $passenger_count = (int)($_POST['passenger_count'] ?? 0);
     $vehicle_id_raw  = trim($_POST['vehicle_id']      ?? '');
     $vehicle_id      = $vehicle_id_raw !== '' ? (int)$vehicle_id_raw : null;
+    $officer_name    = trim($_POST['officer_name']    ?? '');
+    $officer_phone   = trim($_POST['officer_phone']   ?? '');
+    $waiting_place   = trim($_POST['waiting_place']   ?? '');
 
     $form = [
         'trip_date'       => $trip_date,
@@ -42,6 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'purpose'         => $purpose,
         'passenger_count' => $passenger_count > 0 ? (string)$passenger_count : '',
         'vehicle_id'      => $vehicle_id_raw,
+        'officer_name'    => $officer_name,
+        'officer_phone'   => $officer_phone,
+        'waiting_place'   => $waiting_place,
     ];
 
     // Trip date: required, valid, at least 3 days ahead
@@ -71,6 +80,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($passenger_count < 1) {
         $errors[] = 'Passenger count must be at least 1.';
     }
+    if ($officer_name === '') {
+        $errors[] = 'Officer name(s) is required.';
+    } elseif (mb_strlen($officer_name) > 255) {
+        $errors[] = 'Officer name(s) must not exceed 255 characters.';
+    }
+    if ($officer_phone === '') {
+        $errors[] = 'Officer phone number is required.';
+    } elseif (!preg_match('/^[0-9+\-\s()]{7,20}$/', $officer_phone)) {
+        $errors[] = 'Officer phone number is invalid (use digits, spaces, +, - and brackets only, e.g. 011-2835 4792).';
+    }
+    if (mb_strlen($waiting_place) > 150) {
+        $errors[] = 'Waiting place must not exceed 150 characters.';
+    }
+    $waiting_place_db = $waiting_place !== '' ? $waiting_place : null;
 
     // If a specific vehicle was chosen, re-verify it is actually free for
     // that slot AND has enough seats for the passenger count
@@ -103,13 +126,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $conn->prepare(
             "INSERT INTO vehicle_requests
                  (staff_id, vehicle_id, trip_date, start_time, end_time,
-                  destination, purpose, passenger_count, supervisor_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                  destination, purpose, passenger_count, supervisor_id,
+                  officer_name, officer_phone, waiting_place)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $stmt->bind_param(
-            'iisssssii',
+            'iisssssiisss',
             $staff_id, $vehicle_id, $trip_date, $start_time, $end_time,
-            $destination, $purpose, $passenger_count, $supervisor_id
+            $destination, $purpose, $passenger_count, $supervisor_id,
+            $officer_name, $officer_phone, $waiting_place_db
         );
 
         if ($stmt->execute()) {
@@ -265,6 +290,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="">Select date &amp; time first</option>
                                 </select>
                                 <div class="form-text mt-1" id="vehicleHint"></div>
+                            </div>
+                        </div>
+
+                        <!-- Officer Name(s) -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="officer_name">
+                                Officer Name(s) <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control" id="officer_name" name="officer_name"
+                                   value="<?= htmlspecialchars($form['officer_name']) ?>"
+                                   maxlength="255" placeholder="e.g. En. Faruq, En. Amir" required>
+                            <div class="form-text mt-1">Person(s) the driver will serve; separate names with commas</div>
+                        </div>
+
+                        <!-- Officer Phone + Waiting Place -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="officer_phone">
+                                    Officer Phone No. <span class="text-danger">*</span>
+                                </label>
+                                <input type="tel" class="form-control" id="officer_phone" name="officer_phone"
+                                       value="<?= htmlspecialchars($form['officer_phone']) ?>"
+                                       maxlength="50" placeholder="e.g. 011-2835 4792" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="waiting_place">
+                                    Waiting Place <span class="text-muted fw-normal">(optional)</span>
+                                </label>
+                                <input type="text" class="form-control" id="waiting_place" name="waiting_place"
+                                       value="<?= htmlspecialchars($form['waiting_place']) ?>"
+                                       maxlength="150" placeholder="e.g. Stor UIS">
                             </div>
                         </div>
 

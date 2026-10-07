@@ -73,7 +73,10 @@ $status          = 'pending';
 $priority_score  = 0.00;
 $created_by      = (int)$_SESSION['user_id'];
 $trip_type       = 'regular';
-$notes           = 'e-Kenderaan request #' . (int)$request['request_id']
+$officer_name    = $request['officer_name']  ?? null;
+$officer_phone   = $request['officer_phone'] ?? null;
+$waiting_place   = $request['waiting_place'] ?? null;
+$notes          = 'e-Kenderaan request #' . (int)$request['request_id']
                  . ' by ' . $request['staff_name']
                  . ' (' . ($request['department'] ?? '') . '). Supervisor-approved.';
 
@@ -81,8 +84,9 @@ $notes           = 'e-Kenderaan request #' . (int)$request['request_id']
 $ins = $conn->prepare(
     "INSERT INTO schedules
          (driver_id, vehicle_id, trip_date, start_time, end_time,
-          destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type,
+          officer_name, officer_phone, waiting_place)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 );
 
 if (!$ins) {
@@ -91,10 +95,11 @@ if (!$ins) {
 }
 
 $ins->bind_param(
-    'iisssssisdiss',
+    'iisssssisdisssss',
     $driver_id, $vehicle_id, $trip_date, $start_time, $end_time,
     $destination, $purpose, $passenger_count,
-    $status, $priority_score, $created_by, $notes, $trip_type
+    $status, $priority_score, $created_by, $notes, $trip_type,
+    $officer_name, $officer_phone, $waiting_place
 );
 
 if (!$ins->execute()) {

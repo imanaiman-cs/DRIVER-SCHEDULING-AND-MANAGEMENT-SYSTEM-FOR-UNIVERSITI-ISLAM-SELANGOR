@@ -220,6 +220,13 @@ require_once '../includes/sidebar.php';
                     <?php endif; ?>
                     <span class="badge bg-light text-dark"><i class="fas fa-users me-1"></i><?= $ts['passenger_count'] ?> pax</span>
                   </div>
+                  <?php if (!empty($ts['officer_name']) || !empty($ts['officer_phone']) || !empty($ts['waiting_place'])): ?>
+                  <div class="small mt-2">
+                    <?php if (!empty($ts['officer_name'])): ?><span class="me-2"><i class="fas fa-user-tie text-muted me-1"></i><?= htmlspecialchars($ts['officer_name']) ?></span><?php endif; ?>
+                    <?php if (!empty($ts['officer_phone'])): ?><a href="tel:<?= htmlspecialchars(str_replace(' ', '', $ts['officer_phone'])) ?>" class="me-2"><i class="fas fa-phone me-1"></i><?= htmlspecialchars($ts['officer_phone']) ?></a><?php endif; ?>
+                    <?php if (!empty($ts['waiting_place'])): ?><span class="text-muted"><i class="fas fa-map-marker-alt me-1"></i><?= htmlspecialchars($ts['waiting_place']) ?></span><?php endif; ?>
+                  </div>
+                  <?php endif; ?>
                 </div>
                 <div>
                   <?php
@@ -308,6 +315,13 @@ require_once '../includes/sidebar.php';
                       <i class="fas fa-calendar me-1"></i><?= date('d M',strtotime($us['trip_date'])) ?>
                       &nbsp;<i class="fas fa-clock me-1"></i><?= substr($us['start_time'],0,5) ?>
                     </small>
+                    <?php if (!empty($us['officer_name']) || !empty($us['officer_phone']) || !empty($us['waiting_place'])): ?>
+                    <div class="small mt-1">
+                      <?php if (!empty($us['officer_name'])): ?><span class="me-2"><i class="fas fa-user-tie text-muted me-1"></i><?= htmlspecialchars($us['officer_name']) ?></span><?php endif; ?>
+                      <?php if (!empty($us['officer_phone'])): ?><a href="tel:<?= htmlspecialchars(str_replace(' ', '', $us['officer_phone'])) ?>" class="me-2"><i class="fas fa-phone me-1"></i><?= htmlspecialchars($us['officer_phone']) ?></a><?php endif; ?>
+                      <?php if (!empty($us['waiting_place'])): ?><span class="text-muted"><i class="fas fa-map-marker-alt me-1"></i><?= htmlspecialchars($us['waiting_place']) ?></span><?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                   </div>
                   <?php
                   $smap2 = ['pending'=>'warning text-dark','approved'=>'primary','in_progress'=>'info','completed'=>'success','cancelled'=>'secondary'];

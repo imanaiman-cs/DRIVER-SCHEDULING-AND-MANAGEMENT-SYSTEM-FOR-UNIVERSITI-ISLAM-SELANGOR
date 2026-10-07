@@ -57,6 +57,9 @@ $sql = "SELECT
             s.trip_type,
             s.priority_score,
             s.notes,
+            s.officer_name,
+            s.officer_phone,
+            s.waiting_place,
             s.created_at,
             d.driver_id,
             d.name        AS driver_name,
@@ -550,6 +553,9 @@ const SCHEDULES_DATA = <?php
             'status'             => $s['status'],
             'priority_score'     => (float)$s['priority_score'],
             'notes'              => $s['notes'] ?? '',
+            'officer_name'       => $s['officer_name'] ?? '',
+            'officer_phone'      => $s['officer_phone'] ?? '',
+            'waiting_place'      => $s['waiting_place'] ?? '',
             'created_at'         => $s['created_at'],
             'driver_name'        => $s['driver_name'],
             'driver_employee_id' => $s['driver_employee_id'],
@@ -691,6 +697,18 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                                 ? '<span class="font-monospace">' + escHtml(s.plate_number) + '</span> &bull; ' + escHtml(s.vehicle_type) + ' (' + s.capacity + ' pax)'
                                 : '<span class="text-muted">Not Assigned</span>'}
                         </div>
+                    </div>
+                    <div class="col-12 mt-1">
+                        <div class="detail-label">Officer(s)</div>
+                        <div class="detail-value">${s.officer_name ? escHtml(s.officer_name) : '<span class="text-muted">&mdash;</span>'}</div>
+                    </div>
+                    <div class="col-6 mt-1">
+                        <div class="detail-label">Officer Phone</div>
+                        <div class="detail-value">${s.officer_phone ? '<a href="tel:' + escHtml(String(s.officer_phone).replace(/\s+/g, '')) + '"><i class="fas fa-phone me-1"></i>' + escHtml(s.officer_phone) + '</a>' : '<span class="text-muted">&mdash;</span>'}</div>
+                    </div>
+                    <div class="col-6 mt-1">
+                        <div class="detail-label">Waiting Place</div>
+                        <div class="detail-value">${s.waiting_place ? escHtml(s.waiting_place) : '<span class="text-muted">&mdash;</span>'}</div>
                     </div>
                     <div class="col-12 mt-1">
                         <div class="detail-label">Created</div>

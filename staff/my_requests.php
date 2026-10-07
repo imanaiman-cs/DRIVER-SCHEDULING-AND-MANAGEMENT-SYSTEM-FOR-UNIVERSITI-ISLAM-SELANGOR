@@ -375,6 +375,18 @@ var REQUESTS_DATA = <?= json_encode(
                     label('Purpose') +
                     '<div class="p-3 bg-light rounded mt-1">' + escHtml(r.purpose) + '</div>' +
                 '</div>' +
+                '<div class="col-12">' +
+                    label('Officer Name(s)') +
+                    '<div class="fw-semibold mt-1">' + (r.officer_name ? escHtml(r.officer_name) : '<span class="text-muted fst-italic">—</span>') + '</div>' +
+                '</div>' +
+                '<div class="col-sm-6">' +
+                    label('Officer Phone No.') +
+                    '<div class="fw-semibold mt-1">' + telHtml(r.officer_phone) + '</div>' +
+                '</div>' +
+                '<div class="col-sm-6">' +
+                    label('Waiting Place') +
+                    '<div class="fw-semibold mt-1">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">—</span>') + '</div>' +
+                '</div>' +
                 '<div class="col-sm-6">' +
                     label('Requested Vehicle') +
                     '<div class="mt-1">' + vehicleHtml + '</div>' +
@@ -404,6 +416,13 @@ var REQUESTS_DATA = <?= json_encode(
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    function telHtml(phone) {
+        if (!phone) return '<span class="text-muted fst-italic">—</span>';
+        var href = String(phone).replace(/[^0-9+]/g, '');
+        return '<a href="tel:' + escHtml(href) + '" class="text-decoration-none">' +
+               '<i class="fas fa-phone me-1 text-muted"></i>' + escHtml(phone) + '</a>';
     }
 
     function fmtDate(str) {

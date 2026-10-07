@@ -186,6 +186,11 @@ require_once '../includes/sidebar.php';
                     <button class="btn btn-sm btn-outline-info" onclick="viewDetails(<?= htmlspecialchars(json_encode($s), ENT_QUOTES) ?>)" title="View Details">
                       <i class="fas fa-eye"></i>
                     </button>
+                    <?php if (!empty($s['driver_id'])): ?>
+                    <a href="<?php echo SITE_URL; ?>/driver/task_sheet.php?id=<?= (int)$s['schedule_id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Task Sheet">
+                      <i class="fas fa-print"></i>
+                    </a>
+                    <?php endif; ?>
                     <?php if ($s['status']==='approved'): ?>
                     <button class="btn btn-sm btn-info" onclick="updateStatus(<?= $s['schedule_id'] ?>,'in_progress',this)" title="Start Trip">
                       <i class="fas fa-play"></i>
@@ -226,6 +231,9 @@ require_once '../includes/sidebar.php';
 
 <?php
 $extra_js = '<script>
+function esc(v){
+  return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
 function viewDetails(s){
   const statMap={pending:"warning",approved:"primary",in_progress:"info",completed:"success",cancelled:"secondary"};
   const sc=statMap[s.status]||"secondary";
@@ -239,6 +247,13 @@ function viewDetails(s){
       <div class="col-md-4"><label class="text-muted small">Vehicle</label><div class="fw-semibold">${s.plate_number||"Not assigned"}</div></div>
       <div class="col-md-4"><label class="text-muted small">Passengers</label><div class="fw-semibold">${s.passenger_count}</div></div>
       <div class="col-md-4"><label class="text-muted small">Status</label><div><span class="badge bg-${sc}">${s.status.replace("_"," ")}</span></div></div>
+      <div class="col-md-6"><label class="text-muted small">Officer(s)</label><div class="fw-semibold">${esc(s.officer_name)||"—"}</div></div>
+      <div class="col-md-6"><label class="text-muted small">Waiting Place</label><div class="fw-semibold">${esc(s.waiting_place)||"—"}</div></div>
+      <div class="col-12"><label class="text-muted small">Officer Phone</label>
+        <div class="fw-semibold">${s.officer_phone?`<a href="tel:${esc(String(s.officer_phone).split(" ").join(""))}"><i class="fas fa-phone me-1"></i>${esc(s.officer_phone)}</a>`:"—"}</div>
+        <div class="text-muted small">If the officer is late past the scheduled time, contact the officer for further action.</div>
+      </div>
+      ${s.driver_id?`<div class="col-12"><a href="'.SITE_URL.'/driver/task_sheet.php?id=${parseInt(s.schedule_id,10)}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>Print Task Sheet</a></div>`:""}
       ${s.notes?`<div class="col-12"><label class="text-muted small">Notes</label><div>${s.notes}</div></div>`:""}
     </div>
   `;

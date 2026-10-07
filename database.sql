@@ -85,6 +85,9 @@ CREATE TABLE schedules (
     destination     VARCHAR(255)  NOT NULL,
     purpose         VARCHAR(255)  NULL DEFAULT NULL,
     passenger_count INT           NOT NULL DEFAULT 1,
+    officer_name    VARCHAR(255)  NULL DEFAULT NULL COMMENT 'Officer(s) the driver serves',
+    officer_phone   VARCHAR(50)   NULL DEFAULT NULL COMMENT 'Officer contact number',
+    waiting_place   VARCHAR(150)  NULL DEFAULT NULL COMMENT 'Where the driver waits (tempat menunggu)',
     status          ENUM('pending','approved','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
     priority_score  DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
     created_by      INT           NULL DEFAULT NULL,
@@ -130,6 +133,9 @@ CREATE TABLE vehicle_requests (
     destination     VARCHAR(255)  NOT NULL,
     purpose         TEXT          NOT NULL,
     passenger_count INT           NOT NULL DEFAULT 1,
+    officer_name    VARCHAR(255)  NULL DEFAULT NULL,
+    officer_phone   VARCHAR(50)   NULL DEFAULT NULL,
+    waiting_place   VARCHAR(150)  NULL DEFAULT NULL,
     status          ENUM('pending','approved','rejected','processed') NOT NULL DEFAULT 'pending',
     supervisor_id   INT           NULL DEFAULT NULL,
     supervisor_notes TEXT         NULL DEFAULT NULL,
@@ -830,6 +836,31 @@ UPDATE schedules SET trip_type = 'top_management'
 WHERE schedule_id IN (2, 5, 11, 18, 20, 23, 25, 26, 30, 33, 36, 37, 38, 40, 42, 46, 47, 48, 49, 50);
 
 -- ============================================================
+-- UPDATE: officer contact + waiting place for seeded schedules
+-- ============================================================
+UPDATE schedules SET
+    officer_name  = ELT(MOD(schedule_id, 6) + 1,
+        'En. Faruq, En. Amir',
+        'Pn. Norliza binti Abdul Rahman',
+        'Dr. Syafiq bin Zainal',
+        'Pn. Siti Aishah binti Mohd Yusof',
+        'En. Hafiz bin Ramli',
+        'Prof. Madya Dr. Rohaizad bin Ismail'),
+    officer_phone = ELT(MOD(schedule_id, 6) + 1,
+        '011-2835 4792',
+        '012-3344 5566',
+        '013-4455 6677',
+        '014-5566 7788',
+        '016-6677 8899',
+        '019-7788 9900'),
+    waiting_place = ELT(MOD(schedule_id, 5) + 1,
+        'Stor UIS',
+        'Lobi Bangunan Pentadbiran',
+        'Pondok Pengawal Utama',
+        'Lobi Fakulti',
+        'Perpustakaan UIS');
+
+-- ============================================================
 -- SEED: supervisor + staff accounts (e-Kenderaan module)
 -- Supervisor login: hos001 / hos001@uis
 -- Staff logins:     stf001 / staff001@uis ... stf003 / staff003@uis
@@ -882,20 +913,23 @@ SET @stf3 := @sup_id + 3;
 INSERT INTO vehicle_requests
     (staff_id, vehicle_id, trip_date, start_time, end_time,
      destination, purpose, passenger_count,
+     officer_name, officer_phone, waiting_place,
      status, supervisor_id, supervisor_notes, reviewed_at, created_at)
 VALUES
 (
     @stf1, 3, '2026-10-20', '08:30:00', '13:00:00',
     'Kementerian Pendidikan Malaysia, Putrajaya',
     'Submission of faculty accreditation documents and meeting with ministry officers.',
-    4, 'pending', @sup_id, NULL, NULL,
+    4, 'Pn. Norliza binti Abdul Rahman', '012-3344 5566', 'Lobi Fakulti Pendidikan',
+    'pending', @sup_id, NULL, NULL,
     '2026-10-05 09:15:00'
 ),
 (
     @stf2, 7, '2026-10-22', '07:30:00', '17:30:00',
     'Universiti Kebangsaan Malaysia, Bangi',
     'Registrar office benchmarking visit for student records management system.',
-    10, 'approved', @sup_id,
+    10, 'En. Muhammad Syafiq bin Zainal', '013-4455 6677', 'Lobi Pejabat Pendaftar',
+    'approved', @sup_id,
     'Approved. Please ensure the group departs on time.',
     '2026-10-04 14:20:00',
     '2026-10-03 11:00:00'
@@ -904,7 +938,8 @@ VALUES
     @stf3, 5, '2026-10-15', '09:00:00', '12:00:00',
     'Majlis Perbandaran Kajang',
     'Collection of student activity permit documents for convocation festival.',
-    2, 'rejected', @sup_id,
+    2, 'Pn. Siti Aishah binti Mohd Yusof', '014-5566 7788', 'Pondok Pengawal Utama',
+    'rejected', @sup_id,
     'Rejected: trip not justified for a vehicle booking. Please use the document courier service.',
     '2026-10-02 16:45:00',
     '2026-10-01 10:30:00'
@@ -913,7 +948,8 @@ VALUES
     @stf1, 1, '2026-10-28', '07:00:00', '18:00:00',
     'Universiti Malaya, Kuala Lumpur',
     'Faculty of Education staff attending the national TVET curriculum seminar.',
-    30, 'approved', @sup_id,
+    30, 'Pn. Norliza binti Abdul Rahman', '012-3344 5566', 'Lobi Fakulti Pendidikan',
+    'approved', @sup_id,
     'Approved. Large group — please coordinate with the transport unit on pickup point.',
     '2026-10-05 10:05:00',
     '2026-10-04 08:50:00'

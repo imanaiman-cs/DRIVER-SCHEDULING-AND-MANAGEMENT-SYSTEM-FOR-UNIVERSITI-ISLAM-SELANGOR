@@ -519,7 +519,10 @@ const REQUEST_DATA = <?php
             'destination'      => $r['destination'],
             'purpose'          => $r['purpose'],
             'passenger_count'  => (int)$r['passenger_count'],
-            'vehicle_id'       => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
+            'officer_name'     => $r['officer_name']  ?? '',
+            'officer_phone'    => $r['officer_phone'] ?? '',
+            'waiting_place'    => $r['waiting_place'] ?? '',
+            'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
             'plate_number'     => $r['plate_number'] ?? '',
             'brand'            => $r['brand'] ?? '',
             'model'            => $r['model'] ?? '',
@@ -561,6 +564,13 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    }
+
+    // ── Phone number as tel: link ───────────────────────────
+    function telLink(phone) {
+        if (!phone) return '<span class="text-muted fst-italic">&mdash;</span>';
+        return '<a href="tel:' + escHtml(String(phone).replace(/[^0-9+]/g, '')) + '" class="text-decoration-none">'
+             + escHtml(phone) + '</a>';
     }
 
     // ── Format date string (YYYY-MM-DD) to readable form ──
@@ -669,6 +679,20 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             + '<div class="col-md-6">'
             +   '<div class="detail-label">Passengers</div>'
             +   '<div class="detail-value">' + r.passenger_count + '</div>'
+            + '</div>'
+
+            // Officer details
+            + '<div class="col-12">'
+            +   '<div class="detail-label">Officer Name(s)</div>'
+            +   '<div class="detail-value">' + (r.officer_name ? escHtml(r.officer_name) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
+            + '</div>'
+            + '<div class="col-md-6">'
+            +   '<div class="detail-label">Officer Phone No.</div>'
+            +   '<div class="detail-value">' + telLink(r.officer_phone) + '</div>'
+            + '</div>'
+            + '<div class="col-md-6">'
+            +   '<div class="detail-label">Waiting Place</div>'
+            +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
             + '</div>'
 
             // Requested vehicle

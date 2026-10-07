@@ -69,12 +69,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status          = trim($_POST['status']           ?? 'pending');
     $notes           = trim($_POST['notes']            ?? '');
     $trip_type       = trim($_POST['trip_type']        ?? 'regular');
+    $officer_name    = trim($_POST['officer_name']     ?? '');
+    $officer_phone   = trim($_POST['officer_phone']    ?? '');
+    $waiting_place   = trim($_POST['waiting_place']    ?? '');
 
     if (empty($trip_date))   $errors[] = 'Trip date is required.';
     if (empty($start_time))  $errors[] = 'Start time is required.';
     if (empty($end_time))    $errors[] = 'End time is required.';
     if (empty($destination)) $errors[] = 'Destination is required.';
     if ($passenger_count < 1) $passenger_count = 1;
+    if ($officer_phone !== '' && !preg_match('/^[0-9+\-\s()]{7,20}$/', $officer_phone)) {
+        $errors[] = 'Officer phone number may only contain digits, spaces, +, -, ( ) and must be 7-20 characters.';
+    }
 
     if (!empty($start_time) && !empty($end_time) && $end_time <= $start_time) {
         $errors[] = 'End time must be after start time.';
@@ -158,18 +164,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $vid = $vehicle_id > 0 ? $vehicle_id : null;
         $did = $driver_id  > 0 ? $driver_id  : null;
         $uid = (int)($_SESSION['user_id'] ?? 0) ?: null;
+        $officer_name_db  = $officer_name  === '' ? null : $officer_name;
+        $officer_phone_db = $officer_phone === '' ? null : $officer_phone;
+        $waiting_place_db = $waiting_place === '' ? null : $waiting_place;
 
         $ins = $conn->prepare(
             "INSERT INTO schedules
                  (driver_id, vehicle_id, trip_date, start_time, end_time,
-                  destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                  destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type,
+                  officer_name, officer_phone, waiting_place)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $ins->bind_param(
-            'iisssssidssss',
+            'iisssssisdisssss',
             $did, $vid, $trip_date, $start_time, $end_time,
             $destination, $purpose, $passenger_count,
-            $status, $priority_score, $uid, $notes, $trip_type
+            $status, $priority_score, $uid, $notes, $trip_type,
+            $officer_name_db, $officer_phone_db, $waiting_place_db
         );
 
         if ($ins->execute()) {
@@ -325,6 +336,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input type="text" class="form-control" id="purpose" name="purpose"
                                        placeholder="e.g., Faculty field trip, Airport transfer"
                                        value="<?php echo htmlspecialchars($old['purpose'] ?? ''); ?>">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="officer_name">Officer Name(s)</label>
+                                <input type="text" class="form-control" id="officer_name" name="officer_name"
+                                       maxlength="255" placeholder="e.g. En. Faruq, En. Amir"
+                                       value="<?php echo htmlspecialchars($old['officer_name'] ?? ''); ?>">
+                                <div class="form-text">Person(s) the driver will serve</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="officer_phone">Officer Phone No.</label>
+                                <input type="tel" class="form-control" id="officer_phone" name="officer_phone"
+                                       maxlength="50" placeholder="e.g. 011-2835 4792"
+                                       pattern="[0-9+\-\s\(\)]{7,20}"
+                                       value="<?php echo htmlspecialchars($old['officer_phone'] ?? ''); ?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold" for="waiting_place">Waiting Place</label>
+                                <input type="text" class="form-control" id="waiting_place" name="waiting_place"
+                                       maxlength="150" placeholder="e.g. Stor UIS"
+                                       value="<?php echo htmlspecialchars($old['waiting_place'] ?? ''); ?>">
                             </div>
 
                             <div class="col-md-4">

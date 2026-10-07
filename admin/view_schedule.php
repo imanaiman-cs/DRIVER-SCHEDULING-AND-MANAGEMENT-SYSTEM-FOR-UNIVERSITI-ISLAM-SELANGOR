@@ -59,6 +59,11 @@ require_once '../includes/sidebar.php';
            class="btn btn-uis-primary btn-sm">
             <i class="fas fa-pen me-1"></i>Edit Schedule
         </a>
+        <a href="<?php echo SITE_URL; ?>/admin/task_sheet.php?id=<?php echo $schedule_id; ?>"
+           target="_blank" rel="noopener"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-print me-1"></i>Print Task Sheet
+        </a>
         <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
            class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i>Back
@@ -166,6 +171,42 @@ require_once '../includes/sidebar.php';
                             <div style="font-size:0.9rem;color:#374151;">
                                 <i class="fas fa-star me-1" style="color:#f59e0b;"></i>
                                 <?php echo number_format((float)$schedule['priority_score'], 2); ?>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-4">
+                            <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+                                Officer(s)
+                            </div>
+                            <div style="font-size:0.9rem;color:#374151;">
+                                <i class="fas fa-user-tie me-1" style="color:var(--uis-primary);"></i>
+                                <?php echo htmlspecialchars($schedule['officer_name'] ?? '') !== '' ? htmlspecialchars($schedule['officer_name']) : '—'; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-4">
+                            <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+                                Officer Phone
+                            </div>
+                            <div style="font-size:0.9rem;color:#374151;">
+                                <?php if (!empty($schedule['officer_phone'])): ?>
+                                <a href="tel:<?php echo htmlspecialchars(preg_replace('/[^0-9+]/', '', $schedule['officer_phone'])); ?>"
+                                   style="color:inherit;text-decoration:none;">
+                                    <i class="fas fa-phone me-1" style="color:var(--uis-primary);"></i><?php echo htmlspecialchars($schedule['officer_phone']); ?>
+                                </a>
+                                <?php else: ?>
+                                —
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-4">
+                            <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">
+                                Waiting Place
+                            </div>
+                            <div style="font-size:0.9rem;color:#374151;">
+                                <i class="fas fa-location-crosshairs me-1" style="color:var(--uis-primary);"></i>
+                                <?php echo htmlspecialchars($schedule['waiting_place'] ?? '') !== '' ? htmlspecialchars($schedule['waiting_place']) : '—'; ?>
                             </div>
                         </div>
 

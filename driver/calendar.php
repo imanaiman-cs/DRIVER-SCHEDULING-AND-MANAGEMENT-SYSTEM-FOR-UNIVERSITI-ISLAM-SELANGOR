@@ -17,7 +17,8 @@ $driver_id = (int)$_SESSION['driver_id'];
 $stmt = $conn->prepare(
     "SELECT s.schedule_id, s.trip_date, s.start_time, s.end_time,
             s.destination, s.purpose, s.status, s.trip_type,
-            s.passenger_count, v.plate_number
+            s.passenger_count, s.officer_name, s.officer_phone, s.waiting_place,
+            v.plate_number
      FROM schedules s
      LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
      WHERE s.driver_id = ?
@@ -62,6 +63,9 @@ foreach ($schedules as $row) {
             'trip_type'       => $trip_type,
             'passenger_count' => (int)$row['passenger_count'],
             'plate_number'    => $row['plate_number']    ?? '',
+            'officer_name'    => $row['officer_name']    ?? '',
+            'officer_phone'   => $row['officer_phone']   ?? '',
+            'waiting_place'   => $row['waiting_place']   ?? '',
             'trip_date'       => $row['trip_date'],
             'start_time'      => substr($row['start_time'], 0, 5),
             'end_time'        => substr($row['end_time'],   0, 5),
@@ -69,7 +73,7 @@ foreach ($schedules as $row) {
     ];
 }
 
-$fc_events_json = json_encode($fc_events, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+$fc_events_json = json_encode($fc_events, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 
 // ── Summary counts ───────────────────────────────────────────
 $total_count   = count($schedules);
@@ -499,6 +503,19 @@ foreach ($schedules as $r) {
                         </div>
                     </div>
                 </div>
+                <div class="trip-detail-row">
+                    <span class="td-label"><i class="fas fa-user-tie text-primary me-2"></i>Officer(s)</span>
+                    <span class="td-value" id="modalOfficerName">—</span>
+                </div>
+                <div class="trip-detail-row">
+                    <span class="td-label"><i class="fas fa-phone text-success me-2"></i>Officer Phone</span>
+                    <span class="td-value" id="modalOfficerPhone">—</span>
+                    <div class="text-muted small mt-1">If the officer is late past the scheduled time, contact the officer for further action.</div>
+                </div>
+                <div class="trip-detail-row">
+                    <span class="td-label"><i class="fas fa-map-pin text-danger me-2"></i>Waiting Place</span>
+                    <span class="td-value" id="modalWaitingPlace">—</span>
+                </div>
 
             </div>
 
@@ -602,6 +619,22 @@ foreach ($schedules as $r) {
         document.getElementById('modalEndTime').textContent     = endT;
         document.getElementById('modalVehicle').textContent     = plate || 'Not assigned';
         document.getElementById('modalPassengers').textContent  = (pax !== undefined && pax !== null) ? pax + ' pax' : '—';
+
+        document.getElementById('modalOfficerName').textContent  = props.officer_name  || '—';
+        document.getElementById('modalWaitingPlace').textContent = props.waiting_place || '—';
+        var phoneEl = document.getElementById('modalOfficerPhone');
+        phoneEl.textContent = '';
+        if (props.officer_phone) {
+            var a = document.createElement('a');
+            a.href = 'tel:' + String(props.officer_phone).replace(/\s+/g, '');
+            var ic = document.createElement('i');
+            ic.className = 'fas fa-phone me-1';
+            a.appendChild(ic);
+            a.appendChild(document.createTextNode(props.officer_phone));
+            phoneEl.appendChild(a);
+        } else {
+            phoneEl.textContent = '—';
+        }
 
         new bootstrap.Modal(document.getElementById('tripDetailModal')).show();
     }

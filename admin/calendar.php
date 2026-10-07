@@ -25,6 +25,9 @@ $schedule_sql = "
         s.status,
         s.trip_type,
         s.passenger_count,
+        s.officer_name,
+        s.officer_phone,
+        s.waiting_place,
         d.name        AS driver_name,
         v.plate_number
     FROM schedules s
@@ -106,6 +109,9 @@ foreach ($schedules_raw as $s) {
             'passenger_count' => (int) ($s['passenger_count'] ?? 0),
             'driver_name'     => $s['driver_name'] ?? null,
             'plate_number'    => $s['plate_number'] ?? null,
+            'officer_name'    => $s['officer_name'] ?? '',
+            'officer_phone'   => $s['officer_phone'] ?? '',
+            'waiting_place'   => $s['waiting_place'] ?? '',
             'trip_date'       => $trip_date,
             'start_time'      => $s['start_time'] ?? null,
             'end_time'        => $s['end_time'] ?? null,
@@ -627,6 +633,30 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
                         <div class="detail-value" id="modalPassengers"></div>
                     </div>
                 </div>
+
+                <div class="detail-row">
+                    <div class="detail-icon"><i class="fas fa-user-shield"></i></div>
+                    <div>
+                        <div class="detail-label">Officer(s)</div>
+                        <div class="detail-value" id="modalOfficerName"></div>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-icon"><i class="fas fa-phone"></i></div>
+                    <div>
+                        <div class="detail-label">Officer Phone</div>
+                        <div class="detail-value" id="modalOfficerPhone"></div>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-icon"><i class="fas fa-map-pin"></i></div>
+                    <div>
+                        <div class="detail-label">Waiting Place</div>
+                        <div class="detail-value" id="modalWaitingPlace"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Modal Footer -->
@@ -773,6 +803,26 @@ $admin_name = htmlspecialchars($_SESSION['full_name'] ?? $_SESSION['username'] ?
             (ep.passenger_count !== undefined && ep.passenger_count !== null)
                 ? ep.passenger_count + ' pax'
                 : '—';
+
+        document.getElementById('modalOfficerName').textContent =
+            ep.officer_name || '—';
+
+        document.getElementById('modalWaitingPlace').textContent =
+            ep.waiting_place || '—';
+
+        var phoneEl = document.getElementById('modalOfficerPhone');
+        phoneEl.textContent = '';
+        if (ep.officer_phone) {
+            var phoneLink = document.createElement('a');
+            phoneLink.href = 'tel:' + String(ep.officer_phone).replace(/\s+/g, '');
+            var phoneIcon = document.createElement('i');
+            phoneIcon.className = 'fas fa-phone me-1';
+            phoneLink.appendChild(phoneIcon);
+            phoneLink.appendChild(document.createTextNode(ep.officer_phone));
+            phoneEl.appendChild(phoneLink);
+        } else {
+            phoneEl.textContent = '—';
+        }
 
         // Action buttons
         document.getElementById('modalViewBtn').href =
