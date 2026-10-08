@@ -310,7 +310,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     id="reportsSubmenu">
                     <li class="sidebar-subitem <?php echo sidebarActive('report_driver.php', $current_page); ?>">
                         <a href="<?php echo SITE_URL; ?>/admin/report_driver.php" class="sidebar-sublink">
-                            <i class="fas fa-trophy fa-xs" aria-hidden="true"></i> Driver Performance
+                            <i class="fas fa-trophy fa-xs" aria-hidden="true"></i> Driver Workload
                         </a>
                     </li>
                     <li class="sidebar-subitem <?php echo sidebarActive('report_workload.php', $current_page); ?>">

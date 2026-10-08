@@ -266,10 +266,6 @@ require_once '../includes/sidebar.php';
               </div>
             </div>
             <?php endforeach; ?>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <span class="badge bg-light text-dark border">Performance <?= htmlspecialchars((string)$driver['performance_score']) ?>/10 <span class="text-muted">(info only)</span></span>
-              <span class="badge bg-light text-dark border">Certification <?= htmlspecialchars((string)$driver['certification_score']) ?>/10 <span class="text-muted">(info only)</span></span>
-            </div>
             <hr>
             <div class="d-flex justify-content-between align-items-center">
               <strong>Allocation Score</strong>

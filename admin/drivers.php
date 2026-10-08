@@ -476,7 +476,7 @@ unset($d);
                     </div>
 
                     <div class="dcard-foot">
-                        <span class="dfoot-note">Perf. <b><?php echo number_format((float)$d['performance_score'], 1); ?></b>/10</span>
+                        <span class="dfoot-note"></span>
                         <span class="dactions d-flex gap-1">
                             <button type="button" class="btn btn-outline-info" title="View Driver"
                                     onclick="viewDriver(<?php echo (int)$d['driver_id']; ?>)"
@@ -521,7 +521,6 @@ unset($d);
                                 <th scope="col">Phone</th>
                                 <th scope="col">Experience</th>
                                 <th scope="col">Allocation Score</th>
-                                <th scope="col">Performance</th>
                                 <th scope="col">Type</th>
                                 <th scope="col">Status</th>
                                 <th scope="col" class="text-center">Actions</th>
@@ -572,7 +571,6 @@ unset($d);
                                         <?php echo number_format($score, 2); ?>
                                     </span>
                                 </td>
-                                <td class="small"><?php echo number_format((float)$d['performance_score'], 1); ?>/10</td>
                                 <td>
                                     <?php if (($d['driver_type'] ?? 'regular') === 'top_management'): ?>
                                     <span class="badge" style="background:#9a7209;font-size:.72rem;">
@@ -675,8 +673,6 @@ const DRIVERS_DATA = <?php
             'experience_years'    => (float)$d['experience_years'],
             'month_tasks'         => (int)$d['month_tasks'],
             'month_weekend'       => (int)$d['month_weekend'],
-            'performance_score'   => (float)$d['performance_score'],
-            'certification_score' => (float)$d['certification_score'],
             'license_number'      => $d['license_number'] ?? '',
             'license_class'       => $d['license_class'] ?? '',
             'license_expiry'      => $d['license_expiry'] ?? '',
@@ -929,9 +925,6 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                         <div class="detail-value mb-1">${d.experience_years} year${d.experience_years !== 1 ? 's' : ''}</div>
                         <div class="score-bar"><div class="score-bar-fill" style="width:${expScore*10}%;background:#8b5cf6;"></div></div>
                     </div>
-                </div>
-                <div class="mt-2 small text-muted">
-                    Performance ${parseFloat(d.performance_score).toFixed(1)}/10 &middot; Certification ${parseFloat(d.certification_score).toFixed(1)}/10 (info only, not part of the score)
                 </div>
                 <div class="mt-3 p-3 rounded-3" style="background:#f8f9fb;">
                     <div class="d-flex align-items-center justify-content-between">

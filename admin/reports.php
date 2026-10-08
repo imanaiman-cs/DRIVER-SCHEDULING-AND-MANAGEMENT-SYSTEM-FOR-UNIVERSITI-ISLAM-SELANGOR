@@ -241,7 +241,7 @@ foreach ($monthly_raw as $row) {
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h1><i class="fas fa-chart-bar me-2" aria-hidden="true"></i>Reports &amp; Analytics</h1>
-            <p>Overview of driver performance, workload distribution, vehicle usage and schedules.</p>
+            <p>Overview of driver workload, workload distribution, vehicle usage and schedules.</p>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-warning fw-semibold" onclick="window.print()">
@@ -345,7 +345,7 @@ foreach ($monthly_raw as $row) {
     <!-- Report type cards (2x2 grid) -->
     <div class="row g-4">
 
-        <!-- 1. Driver Performance -->
+        <!-- 1. Driver Workload -->
         <div class="col-12 col-xl-6">
             <div class="card report-card h-100">
                 <div class="card-header d-flex align-items-center justify-content-between">
@@ -353,7 +353,7 @@ foreach ($monthly_raw as $row) {
                         <span class="report-icon bg-primary bg-opacity-10 text-primary">
                             <i class="fas fa-trophy"></i>
                         </span>
-                        Driver Performance Report
+                        Driver Workload Report
                     </div>
                     <a href="report_driver.php" class="btn btn-sm btn-primary">
                         View Full Report <i class="fas fa-arrow-right ms-1"></i>

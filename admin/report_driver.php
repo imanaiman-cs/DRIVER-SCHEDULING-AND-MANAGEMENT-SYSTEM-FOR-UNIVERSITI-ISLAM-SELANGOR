@@ -1,14 +1,14 @@
 <?php
 // ============================================================
 // UIS Driver Scheduling and Management System
-// admin/report_driver.php  –  Driver Performance Report
+// admin/report_driver.php  –  Driver Workload Report
 // Universiti Islam Selangor (UIS)
 // ============================================================
 
 require_once '../config/database.php';
 requireAdmin();
 
-$page_title   = 'Driver Performance Report';
+$page_title   = 'Driver Workload Report';
 $current_page = 'report_performance.php';
 
 // ── Date range (default: current month) ─────────────────────
@@ -22,7 +22,6 @@ $to_date = isset($_GET['to_date']) && $_GET['to_date'] !== ''
 // ── Main query ───────────────────────────────────────────────
 $stmt = $conn->prepare(
     "SELECT d.driver_id, d.name, d.experience_years,
-            d.performance_score, d.certification_score,
             COUNT(s.schedule_id) AS total_trips,
             SUM(CASE WHEN s.status = 'completed' THEN 1 ELSE 0 END) AS completed_trips,
             COALESCE(SUM(TIMESTAMPDIFF(HOUR, s.start_time, s.end_time)), 0) AS total_hours
@@ -31,7 +30,7 @@ $stmt = $conn->prepare(
            ON d.driver_id = s.driver_id
           AND s.trip_date BETWEEN ? AND ?
      GROUP BY d.driver_id
-     ORDER BY d.performance_score DESC"
+     ORDER BY d.name"
 );
 $stmt->bind_param('ss', $from_date, $to_date);
 $stmt->execute();
@@ -128,7 +127,7 @@ foreach ($rows as $r) {
     <!-- Page header -->
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <h1><i class="fas fa-trophy me-2"></i>Driver Performance Report</h1>
+            <h1><i class="fas fa-trophy me-2"></i>Driver Workload Report</h1>
             <p>Ranked by workload-balancing allocation score: fewer tasks this month (50%), fewer weekend tasks (30%), more experience (20%).</p>
         </div>
         <div class="d-flex gap-2 no-print">
@@ -180,7 +179,7 @@ foreach ($rows as $r) {
         <div class="card-body p-0">
             <div class="p-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <h6 class="mb-0 fw-semibold text-primary">
-                    <i class="fas fa-table me-1"></i> Performance Rankings
+                    <i class="fas fa-table me-1"></i> Workload Rankings
                 </h6>
                 <span class="text-muted small">
                     Period: <?php echo htmlspecialchars($from_date); ?> to <?php echo htmlspecialchars($to_date); ?>
@@ -197,8 +196,6 @@ foreach ($rows as $r) {
                                 <th scope="col">Experience</th>
                                 <th scope="col">Tasks (month)</th>
                                 <th scope="col">Weekend tasks</th>
-                                <th scope="col">Performance</th>
-                                <th scope="col">Certification</th>
                                 <th scope="col">Allocation Score</th>
                                 <th scope="col">Total Trips</th>
                                 <th scope="col">Completed</th>
@@ -226,8 +223,6 @@ foreach ($rows as $r) {
                                 <td><?php echo number_format((float)$r['experience_years'], 1); ?> yrs</td>
                                 <td><?php echo (int)$r['tasks_month']; ?></td>
                                 <td><?php echo (int)$r['weekend_tasks']; ?></td>
-                                <td><?php echo number_format((float)$r['performance_score'],2); ?>/10</td>
-                                <td><?php echo number_format((float)$r['certification_score'],2); ?>/10</td>
                                 <td class="fw-bold <?php echo $psClass; ?>">
                                     <?php echo number_format($ps,2); ?>
                                 </td>
@@ -260,7 +255,7 @@ foreach ($rows as $r) {
     'use strict';
 
     $('#perfTable').DataTable({
-        order: [[7, 'desc']],
+        order: [[5, 'desc']],
         pageLength: 25,
         language: { search: 'Search drivers:' }
     });

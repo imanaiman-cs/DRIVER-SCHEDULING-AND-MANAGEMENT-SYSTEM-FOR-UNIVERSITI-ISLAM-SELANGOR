@@ -20,8 +20,6 @@ $form = [
     'email'               => '',
     'address'             => '',
     'experience_years'    => '',
-    'performance_score'   => '',
-    'certification_score' => '',
     'license_number'      => '',
     'license_class'       => [],
     'license_expiry'      => '',
@@ -42,8 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['email']               = trim($_POST['email']               ?? '');
     $form['address']             = trim($_POST['address']             ?? '');
     $form['experience_years']    = trim($_POST['experience_years']    ?? '');
-    $form['performance_score']   = trim($_POST['performance_score']   ?? '');
-    $form['certification_score'] = trim($_POST['certification_score'] ?? '');
     $form['license_number']      = trim($_POST['license_number']      ?? '');
     $posted_classes              = $_POST['license_class'] ?? [];
     $form['license_class']       = is_array($posted_classes)
@@ -85,18 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['experience_years'] = 'Enter the years of driving experience, for example 5 (enter 0 if none).';
     } elseif (!is_numeric($form['experience_years']) || (float)$form['experience_years'] < 0 || (float)$form['experience_years'] > 50) {
         $errors['experience_years'] = 'Experience must be a number between 0 and 50 years, for example 5 or 2.5.';
-    }
-
-    if ($form['performance_score'] === '') {
-        $errors['performance_score'] = 'Enter a performance score from 0 to 10, for example 7.5.';
-    } elseif (!is_numeric($form['performance_score']) || (float)$form['performance_score'] < 0 || (float)$form['performance_score'] > 10) {
-        $errors['performance_score'] = 'Performance score must be a number between 0 and 10, for example 7.5.';
-    }
-
-    if ($form['certification_score'] === '') {
-        $errors['certification_score'] = 'Enter a certification score from 0 to 10, for example 8.';
-    } elseif (!is_numeric($form['certification_score']) || (float)$form['certification_score'] < 0 || (float)$form['certification_score'] > 10) {
-        $errors['certification_score'] = 'Certification score must be a number between 0 and 10, for example 8.';
     }
 
     $allowed_statuses = ['active', 'inactive', 'on_leave'];
@@ -153,29 +137,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Insert if no errors ──────────────────────────────────
     if (empty($errors)) {
         $exp   = (float)$form['experience_years'];
-        $perf  = (float)$form['performance_score'];
-        $cert  = (float)$form['certification_score'];
         $license_class_csv = implode(',', $form['license_class']);
 
         $stmt = $conn->prepare(
             "INSERT INTO drivers
                 (employee_id, name, phone, email, address,
-                 experience_years, performance_score, certification_score,
+                 experience_years,
                  license_number, license_class, license_expiry, status, driver_type, assigned_to, photo, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
         );
 
         $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
         $assigned_db = $form['assigned_to'] !== '' ? $form['assigned_to'] : null;
 
         $stmt->bind_param(
-            'sssssdddsssssss',
+            'sssssdsssssss',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
             $form['email'],
             $form['address'],
-            $exp, $perf, $cert,
+            $exp,
             $form['license_number'],
             $license_class_csv,
             $expiry,
@@ -366,9 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'phone'               => ['Phone number',        'phone'],
         'email'               => ['Email address',       'email'],
         'experience_years'    => ['Experience years',    'experience_years'],
-        'performance_score'   => ['Performance score',   'performance_score'],
-        'certification_score' => ['Certification score', 'certification_score'],
-        'license_class'       => ['License class',       'license_class_group'],
+                'license_class'       => ['License class',       'license_class_group'],
         'assigned_to'         => ['Serves',              'assigned_to'],
     ];
     $summary_errors = array_intersect_key($error_fields, $errors);
@@ -552,11 +532,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div><!-- /Personal Info -->
 
-                <!-- Scoring Metrics -->
+                <!-- Experience -->
                 <div class="card form-card mb-4">
                     <div class="card-body p-4">
                         <div class="section-title">
-                            <i class="fas fa-chart-bar me-1"></i> Scoring Metrics
+                            <i class="fas fa-chart-bar me-1"></i> Experience
                         </div>
                         <div class="row g-3">
 
@@ -583,58 +563,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <?php endif; ?>
                                 </div>
                                 <div class="form-text" id="experience_years_help">Years of driving experience (0–50, half years allowed). Capped at 20 yrs for workload-balancing score.</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="performance_score" class="form-label">
-                                    Performance Score <span class="req" aria-hidden="true">*</span>
-                                    <span class="fw-normal text-muted">(0–10 scale)</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-star"></i></span>
-                                    <input type="number"
-                                           id="performance_score"
-                                           name="performance_score"
-                                           class="form-control <?php echo isset($errors['performance_score']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['performance_score']); ?>"
-                                           placeholder="0.0"
-                                           min="0" max="10" step="0.1"
-                                           required
-                                           aria-required="true"
-                                           inputmode="decimal"
-                                           <?php echo isset($errors['performance_score']) ? 'aria-invalid="true" aria-describedby="performance_score_error performance_score_help"' : 'aria-describedby="performance_score_help"'; ?>>
-                                    <span class="input-group-text">/ 10</span>
-                                    <?php if (isset($errors['performance_score'])): ?>
-                                        <div class="invalid-feedback" id="performance_score_error"><?php echo htmlspecialchars($errors['performance_score']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-text" id="performance_score_help">Overall driving performance rating, 0&ndash;10 (informational only).</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="certification_score" class="form-label">
-                                    Certification Score <span class="req" aria-hidden="true">*</span>
-                                    <span class="fw-normal text-muted">(0–10 scale)</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-certificate"></i></span>
-                                    <input type="number"
-                                           id="certification_score"
-                                           name="certification_score"
-                                           class="form-control <?php echo isset($errors['certification_score']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['certification_score']); ?>"
-                                           placeholder="0.0"
-                                           min="0" max="10" step="0.1"
-                                           required
-                                           aria-required="true"
-                                           inputmode="decimal"
-                                           <?php echo isset($errors['certification_score']) ? 'aria-invalid="true" aria-describedby="certification_score_error certification_score_help"' : 'aria-describedby="certification_score_help"'; ?>>
-                                    <span class="input-group-text">/ 10</span>
-                                    <?php if (isset($errors['certification_score'])): ?>
-                                        <div class="invalid-feedback" id="certification_score_error"><?php echo htmlspecialchars($errors['certification_score']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-text" id="certification_score_help">Certification/training score, 0&ndash;10 (informational only).</div>
                             </div>
 
                         </div>
@@ -830,9 +758,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 employee_id:         'Enter the employee ID, for example EMP-0001.',
                 name:                'Enter the full name of the driver, for example Ahmad bin Ali.',
                 phone:               'Enter a phone number the driver can be reached on, for example 0123456789.',
-                experience_years:    'Enter the years of driving experience, for example 5 (enter 0 if none).',
-                performance_score:   'Enter a performance score from 0 to 10, for example 7.5.',
-                certification_score: 'Enter a certification score from 0 to 10, for example 8.'
+                experience_years:    'Enter the years of driving experience, for example 5 (enter 0 if none).'
             };
 
             Object.keys(requiredMessages).forEach(function (fieldId) {
