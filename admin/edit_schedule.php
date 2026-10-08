@@ -701,21 +701,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <!-- Submit -->
-                <div class="card form-card">
-                    <div class="card-body p-4">
-                        <button type="submit" class="btn btn-primary w-100 fw-semibold py-2">
-                            <i class="fas fa-floppy-disk me-2" aria-hidden="true"></i> Save Changes
-                        </button>
-                        <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="btn btn-outline-secondary w-100 mt-2">
-                            <i class="fas fa-times me-1" aria-hidden="true"></i> Cancel
-                        </a>
-                    </div>
-                </div>
-
             </div><!-- /col-lg-4 -->
 
         </div><!-- /row -->
+
+        <!-- Actions: always at the bottom of the form -->
+        <div class="d-flex justify-content-end align-items-center gap-2 mt-2 mb-4">
+            <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="btn btn-outline-secondary px-4">
+                <i class="fas fa-times me-1" aria-hidden="true"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-primary fw-semibold px-5">
+                <i class="fas fa-floppy-disk me-2" aria-hidden="true"></i> Save Changes
+            </button>
+        </div>
     </form>
 
 </main>
