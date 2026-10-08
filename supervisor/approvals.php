@@ -20,12 +20,10 @@ $stmt = $conn->prepare("
     SELECT vr.*,
            s.full_name  AS staff_name,
            s.department AS staff_department,
-           pd.name AS preferred_driver_name,
            v.plate_number, v.brand, v.model, v.vehicle_type, v.capacity
     FROM vehicle_requests vr
     JOIN users s        ON vr.staff_id   = s.user_id
     LEFT JOIN vehicles v ON vr.vehicle_id = v.vehicle_id
-    LEFT JOIN drivers pd ON vr.preferred_driver_id = pd.driver_id
     WHERE vr.supervisor_id = ?
     ORDER BY FIELD(vr.status, 'pending') DESC, vr.created_at DESC
 ");
@@ -571,9 +569,6 @@ const REQUEST_DATA = <?php
             'officer_name'     => $r['officer_name']  ?? '',
             'officer_phone'    => $r['officer_phone'] ?? '',
             'waiting_place'    => $r['waiting_place'] ?? '',
-            'drivers_needed'   => (int)($r['drivers_needed'] ?? 1),
-            'preferred_driver_id'   => $r['preferred_driver_id'] !== null ? (int)$r['preferred_driver_id'] : null,
-            'preferred_driver_name' => $r['preferred_driver_name'] ?? '',
             'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
             'plate_number'     => $r['plate_number'] ?? '',
             'brand'            => $r['brand'] ?? '',
@@ -784,14 +779,6 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             + '<div class="col-md-6">'
             +   '<div class="detail-label">Waiting Place</div>'
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Drivers Needed</div>'
-            +   '<div class="detail-value">' + (parseInt(r.drivers_needed, 10) || 1) + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Preferred Driver</div>'
-            +   '<div class="detail-value">' + (r.preferred_driver_name ? escHtml(r.preferred_driver_name) : '<span class="text-muted fst-italic">No preference</span>') + '</div>'
             + '</div>'
 
             // Requested vehicle

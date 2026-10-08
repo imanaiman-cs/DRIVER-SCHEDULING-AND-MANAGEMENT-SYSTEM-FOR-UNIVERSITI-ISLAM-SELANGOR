@@ -29,7 +29,7 @@ $quick_start = [
     'staff' => [
         'Open <strong>Request Vehicle</strong> in the menu.',
         'Pick your trip date and time first. The page then shows only the vehicles that are free.',
-        'Fill in the trip details, the officer name, officer phone and waiting place. Choose how many drivers you need and, if you like, a preferred driver. Attach your letter if you have one.',
+        'Fill in the trip details, the officer name, officer phone and waiting place. Attach your letter if you have one.',
         'Press submit. Your Head of Section will review it.',
         'Open <strong>My Requests</strong> any time to see the status.',
     ],

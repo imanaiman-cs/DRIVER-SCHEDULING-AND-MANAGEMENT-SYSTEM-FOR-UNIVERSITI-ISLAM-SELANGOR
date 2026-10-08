@@ -33,13 +33,7 @@ $form   = [
     'officer_name'    => $full_name,
     'officer_phone'   => '',
     'waiting_place'   => '',
-    'drivers_needed'  => '1',
-    'preferred_driver_id' => '',
 ];
-// Active drivers the staff member may name as a preference (names only)
-$pref_drivers = [];
-$pd_res = $conn->query("SELECT driver_id, name FROM drivers WHERE status = 'active' ORDER BY name");
-if ($pd_res) { $pref_drivers = $pd_res->fetch_all(MYSQLI_ASSOC); }
 $had_files = false; // true when the failed POST contained chosen files
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -54,9 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $officer_name    = trim($_POST['officer_name']    ?? '');
     $officer_phone   = trim($_POST['officer_phone']   ?? '');
     $waiting_place   = trim($_POST['waiting_place']   ?? '');
-    $drivers_needed  = (int)($_POST['drivers_needed'] ?? 1);
-    $pref_raw        = trim($_POST['preferred_driver_id'] ?? '');
-    $preferred_driver = $pref_raw !== '' ? (int)$pref_raw : null;
 
     $form = [
         'trip_date'       => $trip_date,
@@ -69,8 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'officer_name'    => $officer_name,
         'officer_phone'   => $officer_phone,
         'waiting_place'   => $waiting_place,
-        'drivers_needed'  => (string)max(1, min(5, $drivers_needed)),
-        'preferred_driver_id' => $pref_raw,
     ];
 
     // Trip date: required, valid, at least 3 days ahead
@@ -114,20 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Waiting place must not exceed 150 characters.';
     }
     $waiting_place_db = $waiting_place !== '' ? $waiting_place : null;
-
-    if ($drivers_needed < 1 || $drivers_needed > 5) {
-        $errors[] = 'Drivers needed must be a number from 1 to 5.';
-    }
-    if ($preferred_driver !== null) {
-        $pd = $conn->prepare("SELECT 1 FROM drivers WHERE driver_id = ? AND status = 'active'");
-        $pd->bind_param('i', $preferred_driver);
-        $pd->execute();
-        if ($pd->get_result()->num_rows === 0) {
-            $errors[] = 'The preferred driver you chose is not available. Choose another driver or leave it blank.';
-            $form['preferred_driver_id'] = '';
-        }
-        $pd->close();
-    }
 
     // Supporting documents: gather chosen files (keyed by their form row index)
     $files     = collectUploadedFiles('docs');
@@ -214,18 +189,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "INSERT INTO vehicle_requests
                      (staff_id, vehicle_id, trip_date, start_time, end_time,
                       destination, purpose, passenger_count, supervisor_id,
-                      officer_name, officer_phone, waiting_place, drivers_needed, preferred_driver_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                      officer_name, officer_phone, waiting_place)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             if (!$stmt) {
                 throw new RuntimeException('Could not prepare the request insert.');
             }
             $stmt->bind_param(
-                'iisssssiisssii',
+                'iisssssiisss',
                 $staff_id, $vehicle_id, $trip_date, $start_time, $end_time,
                 $destination, $purpose, $passenger_count, $supervisor_id,
-                $officer_name, $officer_phone, $waiting_place_db,
-                $drivers_needed, $preferred_driver
+                $officer_name, $officer_phone, $waiting_place_db
             );
             if (!$stmt->execute()) {
                 $stmt->close();
@@ -476,37 +450,6 @@ if ($stmt) {
                                     <option value="">Select date &amp; time first</option>
                                 </select>
                                 <div class="form-text mt-1" id="vehicleHint"></div>
-                            </div>
-                        </div>
-
-                        <!-- Driver request -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="drivers_needed">Drivers needed</label>
-                                <select class="form-select" id="drivers_needed" name="drivers_needed" aria-describedby="driversNeededHelp">
-                                    <?php for ($n = 1; $n <= 5; $n++): ?>
-                                    <option value="<?= $n ?>" <?= (int)$form['drivers_needed'] === $n ? 'selected' : '' ?>>
-                                        <?= $n === 1 ? '1 driver' : $n . ' drivers' ?>
-                                    </option>
-                                    <?php endfor; ?>
-                                </select>
-                                <div class="form-text mt-1" id="driversNeededHelp">Most trips need one. Choose more for a seminar or event with several vehicles.</div>
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label fw-semibold" for="preferred_driver_id">
-                                    Preferred driver <span class="text-muted fw-normal">(optional)</span>
-                                </label>
-                                <select class="form-select" id="preferred_driver_id" name="preferred_driver_id" aria-describedby="preferredDriverHelp">
-                                    <option value="">No preference &ndash; the transport unit decides</option>
-                                    <?php foreach ($pref_drivers as $pdr): ?>
-                                    <option value="<?= (int)$pdr['driver_id'] ?>" <?= (string)$form['preferred_driver_id'] === (string)$pdr['driver_id'] ? 'selected' : '' ?>>
-                                        <?= htmlspecialchars($pdr['name']) ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="form-text mt-1" id="preferredDriverHelp">
-                                    This is only a request. The transport unit assigns the driver based on availability and a fair share of work.
-                                </div>
                             </div>
                         </div>
 
