@@ -485,7 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="row g-4">
 
             <!-- Left column: trip details + vehicle -->
-            <div class="col-lg-8">
+            <div class="<?php echo $lead ? 'col-12' : 'col-lg-8'; ?>">
 
                 <!-- Trip Details -->
                 <div class="card form-card mb-4">
@@ -660,7 +660,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div><!-- /col-lg-8 -->
 
             <!-- Right column: driver + submit -->
-            <div class="col-lg-4">
+            <div class="<?php echo $lead ? 'col-12' : 'col-lg-4'; ?>">
 
                 <!-- Driver Selection -->
                 <div class="card form-card mb-4">
@@ -699,7 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </select>
                         <?php if (isset($errors['driver_id'])): ?><div class="invalid-feedback" id="driver_id_error"><?php echo htmlspecialchars($errors['driver_id']); ?></div><?php endif; ?>
 
-                        <div id="autoAssignNotice" class="alert alert-info py-2 mt-2 small">
+                        <div id="autoAssignNotice" class="alert alert-info py-2 mt-2 small" <?php echo $lead ? 'style="display:none !important;"' : ''; ?>>
                             <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>
                             No driver selected. The system will auto-assign the best available driver.
                         </div>
@@ -778,6 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <?php endif; ?>
 
+                <?php if (!$lead): ?>
                 <!-- Allocation score info -->
                 <div class="card form-card mb-4" style="border-left: 4px solid #0b5d3b !important;">
                     <div class="card-body p-3">
@@ -795,6 +796,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="small text-muted mt-2">Fewer tasks this month 50%, fewer weekend tasks 30%, experience 20%. Scaled 0–10. Max score = 10.</div>
                     </div>
                 </div>
+                <?php endif; ?>
 
             </div><!-- /col-lg-4 -->
 
@@ -826,6 +828,7 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
     'use strict';
 
     const SITE_URL = '<?php echo SITE_URL; ?>';
+    const IS_ADD_TO = <?php echo $lead ? 'true' : 'false'; ?>;
     let conflictTimer = null;
 
     // ── Toggle auto-assign notice ────────────────────────────
@@ -838,6 +841,7 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
             const tasks   = parseInt(opt.data('tasks') || 0, 10);
             const weekend = parseInt(opt.data('weekend') || 0, 10);
             const cls     = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+            if (IS_ADD_TO) { $('#driverScorePanel').hide(); return; }
             $('#driverScorePanel').html(
                 'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
                 + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' weekend)</div>'
@@ -912,7 +916,7 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
 
     // ── Top Management trip: pick the officer, get their dedicated driver ──
     function syncTopOfficer() {
-        const isTop = $('#trip_type').val() === 'top_management';
+        const isTop = !IS_ADD_TO && $('#trip_type').val() === 'top_management';
         $('#topOfficerGroup').toggle(isTop);
     }
     $('#trip_type').on('change', syncTopOfficer);
