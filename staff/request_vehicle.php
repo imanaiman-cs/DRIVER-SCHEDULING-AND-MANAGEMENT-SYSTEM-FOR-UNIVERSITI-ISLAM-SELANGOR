@@ -355,11 +355,11 @@ if ($stmt) {
     </div>
     <?php endif; ?>
 
-    <div class="row g-4">
+    <div class="row g-4 layout-stack">
 
         <!-- ── Request Form ────────────────────────────────────────── -->
         <div class="col-lg-8">
-            <form method="POST" action="" enctype="multipart/form-data" id="requestForm" novalidate>
+            <form class="form-stack" method="POST" action="" enctype="multipart/form-data" id="requestForm" novalidate>
             <div class="card mb-4" style="border: none; border-radius: 14px; box-shadow: 0 2px 12px rgba(11,93,59,.10);">
                 <div class="card-header bg-white border-bottom px-4 py-3" style="border-radius: 14px 14px 0 0;">
                     <h6 class="mb-0 fw-semibold">

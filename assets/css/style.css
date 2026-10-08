@@ -1582,3 +1582,33 @@ main:focus { outline: none; }
 .progress-bar.bar-green { background: #0b5d3b; }
 .progress-bar.bar-gold  { background: #c69214; }
 .progress-bar.bar-teal  { background: #0f766e; }
+
+
+/* ============================================================
+   STACKED FORMS — one field per row
+   Add class="form-stack" to a <form>. Every field then sits on its
+   own line, and the form keeps a readable width instead of
+   stretching across a wide screen.
+   ============================================================ */
+.form-stack {
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.form-stack .row > [class*="col-"] {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Page layouts that put a form and a help panel side by side: stack them */
+.layout-stack {
+  max-width: 820px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.layout-stack > [class*="col-"] {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}

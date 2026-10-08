@@ -361,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="add_driver.php" id="addDriverForm" enctype="multipart/form-data" novalidate>
+    <form class="form-stack" method="POST" action="add_driver.php" id="addDriverForm" enctype="multipart/form-data" novalidate>
 
         <div class="row g-4">
 

@@ -472,7 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form method="POST" id="scheduleForm" novalidate>
+    <form class="form-stack" method="POST" id="scheduleForm" novalidate>
 
         <div class="row g-4">
 
