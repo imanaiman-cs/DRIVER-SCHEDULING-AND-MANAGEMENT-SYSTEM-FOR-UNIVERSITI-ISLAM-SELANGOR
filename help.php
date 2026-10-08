@@ -28,7 +28,7 @@ $role_label = [
 $quick_start = [
     'staff' => [
         'Open <strong>Request Vehicle</strong> in the menu. You see the vehicles as cards. Vehicles under maintenance are shown for your information and cannot be chosen.',
-        'Press <strong>Select this vehicle</strong> (or <strong>Any available vehicle</strong> to let the transport unit decide). The request form opens.',
+        'Press <strong>Add to request</strong> on each vehicle you need (add more than one if your trip needs several), then <strong>Continue</strong>. Or choose <strong>Any available vehicle</strong> and say how many, to let the transport unit decide. The request form opens.',
         'Pick your trip date and time. The form checks that your vehicle is free then.',
         'Fill in the trip details, the officer name, officer phone and waiting place. Attach your letter if you have one.',
         'Press submit. Your Head of Section will review it.',
@@ -165,6 +165,16 @@ if ($role === 'admin') {
             <li>Give the trip a driver (see the next topic).</li>
         </ol>
         <p>After you process it, the status becomes <strong>Processed</strong> and the staff member can see it.</p>
+    ', 'role'];
+
+    $items[] = ['admin-multi', 'bus-simple', 'Requests that need several vehicles', '
+        <p>When a staff member asks for more than one vehicle, the Process window shows one row for each vehicle.</p>
+        <ol>
+            <li>Check the vehicle in each row (the vehicles they asked for are already chosen).</li>
+            <li>Choose a driver for each vehicle. Each driver can only be used once.</li>
+            <li>Press <strong>Create Schedule</strong>. One job is created with one schedule per vehicle. Drivers you left blank stay Pending.</li>
+        </ol>
+        <p>The seats of all the vehicles together must cover the passengers.</p>
     ', 'role'];
 
     $items[] = ['admin-auto', 'wand-magic-sparkles', 'Auto-assign and driver recommendations', '

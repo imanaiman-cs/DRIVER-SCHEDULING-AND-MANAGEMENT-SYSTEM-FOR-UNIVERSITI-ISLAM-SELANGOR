@@ -489,14 +489,14 @@ $display_requests = array_values($display_requests);
                         </select>
                         <div class="form-text">Top Management trips are only offered to Top Management drivers.</div>
                     </div>
-                    <div class="col-md-7">
+                    <div class="col-md-7" id="processVehicleCol">
                         <label for="processVehicle" class="form-label fw-semibold">Vehicle</label>
                         <select id="processVehicle" class="form-select" disabled>
                             <option value="0">Loading vehicles&hellip;</option>
                         </select>
                         <div id="processVehicleHint" class="form-text" aria-live="polite"></div>
                     </div>
-                    <div class="col-12">
+                    <div class="col-12" id="processDriverCol">
                         <label for="processDriver" class="form-label fw-semibold">Driver</label>
                         <select id="processDriver" class="form-select" disabled>
                             <option value="0">Loading drivers&hellip;</option>
@@ -504,6 +504,7 @@ $display_requests = array_values($display_requests);
                         <div id="processDriverHint" class="form-text" aria-live="polite"></div>
                     </div>
                 </div>
+                <div id="processMulti" class="mt-3" style="display:none;"></div>
                 <div id="processNote" class="alert alert-info py-2 small mt-3 mb-0">
                     <i class="fas fa-circle-info me-1" aria-hidden="true"></i>
                     <span id="processNoteText"></span>
@@ -890,7 +891,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
 
         document.getElementById('processTripType').value = 'regular';
-        loadProcessVehicles(r);
+        if (!setupMulti(r)) { loadProcessVehicles(r); }
 
         var modal = new bootstrap.Modal(document.getElementById('processModal'));
         modal.show();
@@ -904,6 +905,14 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     function updateProcessNote() {
+        if (isMulti()) {
+            var withDriver = _multiRows.filter(function (row) { return row.d.value !== '0'; }).length;
+            document.getElementById('processNoteText').textContent =
+                _multiRows.length + ' schedules will be created as one job, one for each vehicle. ' +
+                withDriver + ' will be Approved with a driver (and e-mailed); the other ' + (_multiRows.length - withDriver) +
+                ' stay Pending until you assign a driver.';
+            return;
+        }
         var driverId = parseInt(document.getElementById('processDriver').value, 10) || 0;
         document.getElementById('processNoteText').textContent = driverId > 0
             ? 'The schedule will be created as Approved with this driver, and the driver is e-mailed the details.'
@@ -998,8 +1007,135 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             });
     }
 
+    // ── A trip that needs several vehicles: one vehicle + driver per row ──
+    var _multiRows = [];          // [{ v: <select>, d: <select> }]
+
+    function isMulti() { return _multiRows.length > 1; }
+
+    function setupMulti(r) {
+        var n = Math.max(parseInt(r.vehicles_needed, 10) || 1, (r.vehicles || []).length);
+        var box = document.getElementById('processMulti');
+        _multiRows = [];
+        box.innerHTML = '';
+        var multi = n > 1;
+        document.getElementById('processVehicleCol').style.display = multi ? 'none' : '';
+        document.getElementById('processDriverCol').style.display  = multi ? 'none' : '';
+        box.style.display = multi ? '' : 'none';
+        if (!multi) { return false; }
+
+        for (var i = 0; i < n; i++) {
+            var row = document.createElement('div');
+            row.className = 'border rounded-3 p-3 mb-3';
+            row.innerHTML =
+                '<div class="fw-semibold mb-2" style="color:#0b5d3b;"><i class="fas fa-bus-simple me-1" aria-hidden="true"></i>Vehicle ' + (i + 1) + ' of ' + n + '</div>' +
+                '<div class="row g-2">' +
+                  '<div class="col-md-6"><label class="form-label small mb-1" for="pmv' + i + '">Vehicle</label>' +
+                  '<select id="pmv' + i + '" class="form-select form-select-sm" disabled><option value="0">Loading&hellip;</option></select></div>' +
+                  '<div class="col-md-6"><label class="form-label small mb-1" for="pmd' + i + '">Driver</label>' +
+                  '<select id="pmd' + i + '" class="form-select form-select-sm" disabled><option value="0">Loading&hellip;</option></select></div>' +
+                '</div>';
+            box.appendChild(row);
+            _multiRows.push({ v: row.querySelector('#pmv' + i), d: row.querySelector('#pmd' + i) });
+        }
+        _multiRows.forEach(function (row, idx) {
+            row.v.addEventListener('change', function () { loadRowDrivers(idx, false).then(syncMultiChoices); });
+            row.d.addEventListener('change', function () { syncMultiChoices(); updateProcessNote(); });
+        });
+        loadMultiVehicles(r);
+        return true;
+    }
+
+    function syncMultiChoices() {
+        ['v', 'd'].forEach(function (k) {
+            var chosen = _multiRows.map(function (row) { return row[k].value; });
+            _multiRows.forEach(function (row, idx) {
+                Array.prototype.forEach.call(row[k].options, function (opt) {
+                    opt.disabled = opt.value !== '0' && chosen.some(function (v, j) { return j !== idx && v === opt.value; });
+                });
+            });
+        });
+    }
+
+    function loadMultiVehicles(r) {
+        var q = new URLSearchParams({ trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time, passengers: 1 });
+        fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var list = (data && data.success && data.vehicles) ? data.vehicles : [];
+                var asked = (r.vehicles || []).map(function (v) { return v.vehicle_id; });
+                var used = {};
+                _multiRows.forEach(function (row, i) {
+                    var html = '<option value="0">&mdash; Decide later &mdash;</option>';
+                    list.forEach(function (v) {
+                        var name = [v.brand, v.model].filter(Boolean).join(' ') || v.vehicle_type;
+                        html += '<option value="' + v.vehicle_id + '">'
+                              + escHtml(v.plate_number + ' — ' + name + ' (' + v.vehicle_type + ', ' + v.capacity + ' seats)') + '</option>';
+                    });
+                    row.v.innerHTML = html;
+                    row.v.disabled = false;
+                    var want = asked[i];
+                    if (want && list.some(function (v) { return v.vehicle_id === want; })) {
+                        row.v.value = String(want); used[want] = true;
+                    }
+                });
+                syncMultiChoices();
+                // load drivers row by row so each one gets a different recommended driver
+                return _multiRows.reduce(function (p, row, i) {
+                    return p.then(function () { return loadRowDrivers(i, true); });
+                }, Promise.resolve());
+            })
+            .then(function () { syncMultiChoices(); updateProcessNote(); })
+            .catch(function () {
+                _multiRows.forEach(function (row) {
+                    row.v.innerHTML = '<option value="0">&mdash; Decide later &mdash;</option>'; row.v.disabled = false;
+                    row.d.innerHTML = '<option value="0">&mdash; Leave unassigned &mdash;</option>'; row.d.disabled = false;
+                });
+            });
+    }
+
+    function loadRowDrivers(i, pickDefault) {
+        var r = findRequest(_processRequestId);
+        var row = _multiRows[i];
+        var fd = new FormData();
+        fd.append('trip_date',  r.trip_date);
+        fd.append('start_time', r.start_time);
+        fd.append('end_time',   r.end_time);
+        fd.append('vehicle_id', row.v.value || '0');
+        fd.append('trip_type',  document.getElementById('processTripType').value);
+        row.d.disabled = true;
+        return fetch(SITE_URL + '/ajax/get_available_drivers.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var list = (data && data.success && data.drivers) ? data.drivers : [];
+                var takenElsewhere = {};
+                _multiRows.forEach(function (o, j) { if (j !== i && o.d.value !== '0') { takenElsewhere[o.d.value] = true; } });
+                var html = '<option value="0">&mdash; Leave unassigned &mdash;</option>';
+                var picked = false;
+                list.forEach(function (d, k) {
+                    var free = !takenElsewhere[String(d.driver_id)];
+                    var sel = pickDefault && free && !picked;
+                    if (sel) { picked = true; }
+                    html += '<option value="' + d.driver_id + '"' + (sel ? ' selected' : '') + '>'
+                          + escHtml((k === 0 ? '★ ' : '') + d.name + ' — score ' + Number(d.priority).toFixed(2) + ' (' + d.month_tasks + ' tasks)') + '</option>';
+                });
+                row.d.innerHTML = html;
+                row.d.disabled = false;
+            })
+            .catch(function () {
+                row.d.innerHTML = '<option value="0">&mdash; Leave unassigned &mdash;</option>';
+                row.d.disabled = false;
+            });
+    }
+
     document.getElementById('processVehicle').addEventListener('change', loadProcessDrivers);
-    document.getElementById('processTripType').addEventListener('change', loadProcessDrivers);
+    document.getElementById('processTripType').addEventListener('change', function () {
+        if (isMulti()) {
+            _multiRows.reduce(function (p, row, i) { return p.then(function () { return loadRowDrivers(i, true); }); }, Promise.resolve())
+                .then(function () { syncMultiChoices(); updateProcessNote(); });
+        } else {
+            loadProcessDrivers();
+        }
+    });
     document.getElementById('processDriver').addEventListener('change', updateProcessNote);
 
     window.submitProcess = function () {
@@ -1011,8 +1147,15 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
         var formData = new FormData();
         formData.append('request_id', _processRequestId);
-        formData.append('vehicle_id', document.getElementById('processVehicle').value || '0');
-        formData.append('driver_id',  document.getElementById('processDriver').value  || '0');
+        if (isMulti()) {
+            _multiRows.forEach(function (row) {
+                formData.append('vehicle_ids[]', row.v.value || '0');
+                formData.append('driver_ids[]',  row.d.value || '0');
+            });
+        } else {
+            formData.append('vehicle_id', document.getElementById('processVehicle').value || '0');
+            formData.append('driver_id',  document.getElementById('processDriver').value  || '0');
+        }
         formData.append('trip_type',  document.getElementById('processTripType').value);
 
         fetch(SITE_URL + '/ajax/process_request.php', {
