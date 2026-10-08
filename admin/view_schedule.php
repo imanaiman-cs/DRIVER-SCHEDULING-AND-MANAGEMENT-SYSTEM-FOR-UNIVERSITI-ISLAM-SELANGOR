@@ -55,21 +55,23 @@ require_once '../includes/sidebar.php';
 <main class="main-content">
 
     <!-- Desktop Top Navbar moved to sidebar.php -->
-    <!-- Action buttons -->
-    <div class="d-flex gap-2 mb-3">
-        <a href="<?php echo SITE_URL; ?>/admin/edit_schedule.php?id=<?php echo $schedule_id; ?>"
-           class="btn btn-uis-primary btn-sm">
-            <i class="fas fa-pen me-1"></i>Edit Schedule
-        </a>
-        <a href="<?php echo SITE_URL; ?>/admin/task_sheet.php?id=<?php echo $schedule_id; ?>"
-           target="_blank" rel="noopener"
-           class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-print me-1"></i>Print Task Sheet
-        </a>
+    <!-- Action buttons: Back on the left, the actions on the right -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <a href="<?php echo SITE_URL; ?>/admin/schedules.php"
            class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left me-1"></i>Back
         </a>
+        <div class="d-flex gap-2">
+            <a href="<?php echo SITE_URL; ?>/admin/task_sheet.php?id=<?php echo $schedule_id; ?>"
+               target="_blank" rel="noopener"
+               class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-print me-1"></i>Print Task Sheet
+            </a>
+            <a href="<?php echo SITE_URL; ?>/admin/edit_schedule.php?id=<?php echo $schedule_id; ?>"
+               class="btn btn-uis-primary btn-sm">
+                <i class="fas fa-pen me-1"></i>Edit Schedule
+            </a>
+        </div>
     </div>
 
     <?php showFlash(); ?>
