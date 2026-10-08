@@ -387,6 +387,45 @@ function getJobTeams(mysqli $conn, array $schedule_ids): array
 }
 
 /**
+ * Drivers (with phone) and vehicles assigned to the schedules created from
+ * e-Kenderaan requests, so staff and Head of Section can contact them.
+ * A multi-driver job lists every driver on it.
+ *
+ * @param int[] $schedule_ids
+ * @return array<int, array<int, array{driver_name:string, driver_phone:?string, plate_number:?string, vehicle:?string}>>
+ *         keyed by the request's schedule_id
+ */
+function getAssignedDrivers(mysqli $conn, array $schedule_ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $schedule_ids))));
+    if (!$ids) {
+        return [];
+    }
+    $in  = implode(',', $ids);
+    $res = $conn->query(
+        "SELECT base.schedule_id AS base_id, d.name AS driver_name, d.phone AS driver_phone,
+                v.plate_number, CONCAT_WS(' ', v.brand, v.model) AS vehicle
+         FROM schedules base
+         JOIN schedules m ON m.schedule_id = base.schedule_id
+                          OR (base.job_group IS NOT NULL AND m.job_group = base.job_group)
+         JOIN drivers d ON d.driver_id = m.driver_id
+         LEFT JOIN vehicles v ON v.vehicle_id = m.vehicle_id
+         WHERE base.schedule_id IN ({$in}) AND m.status <> 'cancelled'
+         ORDER BY (m.schedule_id = base.schedule_id) DESC, d.name"
+    );
+    $map = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $map[(int)$row['base_id']][] = [
+            'driver_name'  => $row['driver_name'],
+            'driver_phone' => $row['driver_phone'],
+            'plate_number' => $row['plate_number'],
+            'vehicle'      => $row['vehicle'],
+        ];
+    }
+    return $map;
+}
+
+/**
  * Returns the licence classes that may operate a given vehicle type.
  *
  * B2 = motorcycle · D = car/van/minibus · E = bus/lorry (E holders

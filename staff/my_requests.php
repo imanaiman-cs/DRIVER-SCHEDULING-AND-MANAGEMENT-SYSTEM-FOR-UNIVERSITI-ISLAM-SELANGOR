@@ -21,6 +21,13 @@ $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+// Driver(s) and vehicle assigned by the transport unit (name + phone, so staff can call)
+$assigned_map = getAssignedDrivers($conn, array_column($requests, 'schedule_id'));
+foreach ($requests as &$req_row) {
+    $req_row['assigned'] = $assigned_map[(int)($req_row['schedule_id'] ?? 0)] ?? [];
+}
+unset($req_row);
+
 // Supporting documents (one query for all requests) – attach to each request
 $docs_by_request = $requests
     ? getRequestDocuments($conn, array_map('intval', array_column($requests, 'request_id')))
@@ -572,6 +579,7 @@ var REQUESTS_DATA = <?= json_encode(
                     supervisorHtml +
                 '</div>' +
                 notesHtml +
+                assignedHtml(r) +
                 '<div class="col-12">' +
                     label('Supporting Documents') +
                     documentsHtml(r.documents) +
@@ -695,6 +703,28 @@ var REQUESTS_DATA = <?= json_encode(
                 '</li>';
         });
         return html + '</ul>';
+    }
+
+    // Assigned driver(s): name, a tap-to-call phone number and the vehicle
+    function assignedHtml(r) {
+        if (r.status !== 'processed') { return ''; }
+        var list = r.assigned || [];
+        if (!list.length) {
+            return '<div class="col-12">' + label('Assigned Driver') +
+                   '<div class="mt-1 text-muted fst-italic">No driver has been assigned yet. The transport unit will assign one.</div></div>';
+        }
+        var rows = list.map(function (d) {
+            return '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 rounded-3" ' +
+                        'style="background:#eef5f1;border:1px solid #cfe3d8;">' +
+                       '<div>' +
+                           '<div class="fw-semibold"><i class="fas fa-id-card-clip me-2 text-success"></i>' + escHtml(d.driver_name) + '</div>' +
+                           (d.plate_number ? '<div class="small text-muted mt-1"><i class="fas fa-car me-1"></i>' + escHtml(d.plate_number) + (d.vehicle ? ' &middot; ' + escHtml(d.vehicle) : '') + '</div>' : '') +
+                       '</div>' +
+                       '<div class="fw-semibold">' + telHtml(d.driver_phone) + '</div>' +
+                   '</div>';
+        }).join('<div class="mb-2"></div>');
+        return '<div class="col-12">' + label(list.length > 1 ? 'Assigned Drivers' : 'Assigned Driver') +
+               '<div class="mt-1">' + rows + '</div></div>';
     }
 
     function telHtml(phone) {

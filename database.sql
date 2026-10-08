@@ -1144,6 +1144,20 @@ VALUES
 SET @team4 := LAST_INSERT_ID();
 UPDATE schedules SET job_group = @team4 WHERE schedule_id IN (@team4, @team4 + 1);
 
+-- A processed e-Kenderaan request: the staff member can see the driver and phone number
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(3,  7, '2026-10-22', '07:30:00', '17:30:00', 'Universiti Kebangsaan Malaysia, Bangi',
+ 'Registrar office benchmarking visit for student records management system.', 10,
+ 'En. Muhammad Syafiq bin Zainal', '013-4455 6677', 'Lobi Pejabat Pendaftar',
+ 'approved', 6.72, 1, 'regular', 'e-Kenderaan request. Supervisor-approved.');
+SET @proc_sched := LAST_INSERT_ID();
+UPDATE vehicle_requests SET status = 'processed', schedule_id = @proc_sched
+WHERE destination = 'Universiti Kebangsaan Malaysia, Bangi' AND status = 'approved';
+
 -- Dates to fill: every day of the current month + 7 days either side of today
 DROP TEMPORARY TABLE IF EXISTS demo_dates;
 CREATE TEMPORARY TABLE demo_dates (
