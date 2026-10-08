@@ -154,6 +154,7 @@ CREATE TABLE vehicle_requests (
     officer_name    VARCHAR(255)  NULL DEFAULT NULL,
     officer_phone   VARCHAR(50)   NULL DEFAULT NULL,
     waiting_place   VARCHAR(150)  NULL DEFAULT NULL,
+    vehicles_needed TINYINT       NOT NULL DEFAULT 1 COMMENT 'How many vehicles the trip needs (1-5)',
     status          ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
     supervisor_id   INT           NULL DEFAULT NULL,
     supervisor_notes TEXT         NULL DEFAULT NULL,
@@ -167,6 +168,26 @@ CREATE TABLE vehicle_requests (
     CONSTRAINT fk_vr_vehicle    FOREIGN KEY (vehicle_id)    REFERENCES vehicles(vehicle_id)  ON DELETE SET NULL,
     CONSTRAINT fk_vr_supervisor FOREIGN KEY (supervisor_id) REFERENCES users(user_id)        ON DELETE SET NULL,
     CONSTRAINT fk_vr_schedule   FOREIGN KEY (schedule_id)   REFERENCES schedules(schedule_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLE: request_vehicles
+-- Every vehicle the staff member asked for on a request (a trip may need
+-- more than one). vehicle_requests.vehicle_id keeps the first of them.
+-- When a request asks for "any available vehicle", no rows are stored and
+-- vehicle_requests.vehicles_needed says how many are wanted.
+-- Upgrading an existing database:
+--   ALTER TABLE vehicle_requests
+--     ADD COLUMN vehicles_needed TINYINT NOT NULL DEFAULT 1 AFTER waiting_place;
+--   (then create request_vehicles below and run the INSERT ... SELECT that
+--    copies vehicle_requests.vehicle_id into it)
+-- ============================================================
+CREATE TABLE request_vehicles (
+    request_id  INT NOT NULL,
+    vehicle_id  INT NOT NULL,
+    PRIMARY KEY (request_id, vehicle_id),
+    CONSTRAINT fk_rv_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE,
+    CONSTRAINT fk_rv_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id)         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -1029,6 +1050,17 @@ VALUES
     '2026-10-05 10:05:00',
     '2026-10-04 08:50:00'
 );
+
+-- The vehicles each seeded request asked for
+INSERT INTO request_vehicles (request_id, vehicle_id)
+SELECT request_id, vehicle_id FROM vehicle_requests WHERE vehicle_id IS NOT NULL;
+
+-- One request needs two buses (70 passengers): add the second bus
+UPDATE vehicle_requests SET passenger_count = 70, vehicles_needed = 2
+WHERE destination = 'Universiti Malaya, Kuala Lumpur' AND status = 'approved';
+INSERT INTO request_vehicles (request_id, vehicle_id)
+SELECT request_id, 2 FROM vehicle_requests
+WHERE destination = 'Universiti Malaya, Kuala Lumpur' AND status = 'approved';
 
 
 -- ============================================================

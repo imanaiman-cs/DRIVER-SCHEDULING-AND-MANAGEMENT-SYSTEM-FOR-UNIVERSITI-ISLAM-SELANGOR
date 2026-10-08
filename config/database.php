@@ -387,6 +387,61 @@ function getJobTeams(mysqli $conn, array $schedule_ids): array
 }
 
 /**
+ * The vehicles each e-Kenderaan request asked for (a trip may need several).
+ * Falls back to vehicle_requests.vehicle_id for requests without rows.
+ *
+ * @param int[] $request_ids
+ * @return array<int, array<int, array{vehicle_id:int, plate_number:string, vehicle_type:string,
+ *                                     brand:?string, model:?string, capacity:int}>>  keyed by request_id
+ */
+function getRequestVehicles(mysqli $conn, array $request_ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $request_ids))));
+    if (!$ids) {
+        return [];
+    }
+    $in  = implode(',', $ids);
+    $map = [];
+
+    $res = $conn->query(
+        "SELECT rv.request_id, v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.capacity
+         FROM request_vehicles rv JOIN vehicles v ON v.vehicle_id = rv.vehicle_id
+         WHERE rv.request_id IN ({$in})
+         ORDER BY v.vehicle_type, v.plate_number"
+    );
+    while ($res && ($r = $res->fetch_assoc())) {
+        $map[(int)$r['request_id']][] = [
+            'vehicle_id'   => (int)$r['vehicle_id'],
+            'plate_number' => $r['plate_number'],
+            'vehicle_type' => $r['vehicle_type'],
+            'brand'        => $r['brand'],
+            'model'        => $r['model'],
+            'capacity'     => (int)$r['capacity'],
+        ];
+    }
+
+    // Older requests that only have vehicle_requests.vehicle_id
+    $res = $conn->query(
+        "SELECT r.request_id, v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.capacity
+         FROM vehicle_requests r JOIN vehicles v ON v.vehicle_id = r.vehicle_id
+         WHERE r.request_id IN ({$in})"
+    );
+    while ($res && ($r = $res->fetch_assoc())) {
+        if (!isset($map[(int)$r['request_id']])) {
+            $map[(int)$r['request_id']][] = [
+                'vehicle_id'   => (int)$r['vehicle_id'],
+                'plate_number' => $r['plate_number'],
+                'vehicle_type' => $r['vehicle_type'],
+                'brand'        => $r['brand'],
+                'model'        => $r['model'],
+                'capacity'     => (int)$r['capacity'],
+            ];
+        }
+    }
+    return $map;
+}
+
+/**
  * Drivers (with phone) and vehicles assigned to the schedules created from
  * e-Kenderaan requests, so staff and Head of Section can contact them.
  * A multi-driver job lists every driver on it.

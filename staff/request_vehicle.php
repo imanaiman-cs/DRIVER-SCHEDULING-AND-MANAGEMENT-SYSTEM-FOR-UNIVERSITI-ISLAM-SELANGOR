@@ -29,33 +29,47 @@ $form   = [
     'destination'     => '',
     'purpose'         => '',
     'passenger_count' => '',
-    'vehicle_id'      => '',
+    'vehicle_ids'     => [],
+    'vehicles_needed' => '1',
     'officer_name'    => $full_name,
     'officer_phone'   => '',
     'waiting_place'   => '',
 ];
 $had_files = false; // true when the failed POST contained chosen files
 
-// ── Step 1 (choose a vehicle) or step 2 (the form) ───────────
-// GET without ?vehicle=  -> vehicle cards.  ?vehicle=<id>|any -> the form.
+// ── Step 1 (choose vehicles) or step 2 (the form) ────────────
+// GET with no choice          -> vehicle cards (pick one or more).
+// ?vehicles=5,7               -> the form for those vehicles.
+// ?any=2                      -> the form for "any available vehicle" x 2.
+// (old links ?vehicle=5 and ?vehicle=any still work)
 // A POST (including one that failed validation) always shows the form.
-$choice = trim($_GET['vehicle'] ?? '');
-$show_picker = ($_SERVER['REQUEST_METHOD'] !== 'POST') && $choice === '';
+$get_ids = [];
+$get_any = 0;
+if (isset($_GET['vehicle']) && $_GET['vehicle'] !== '') {            // old single-vehicle link
+    if ($_GET['vehicle'] === 'any') { $get_any = 1; } else { $get_ids = [(int)$_GET['vehicle']]; }
+}
+if (isset($_GET['vehicles']) && $_GET['vehicles'] !== '') {
+    $get_ids = array_slice(array_values(array_unique(array_filter(array_map('intval', explode(',', (string)$_GET['vehicles']))))), 0, 5);
+}
+if (isset($_GET['any']) && $_GET['any'] !== '') {
+    $get_any = max(1, min(5, (int)$_GET['any']));
+}
+$show_picker = ($_SERVER['REQUEST_METHOD'] !== 'POST') && !$get_ids && $get_any === 0;
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $choice !== '' && $choice !== 'any') {
-    // Only a vehicle that can be requested may be chosen (not retired / in maintenance)
-    $vid_choice = ctype_digit($choice) ? (int)$choice : 0;
-    $vc = $conn->prepare("SELECT vehicle_id FROM vehicles WHERE vehicle_id = ? AND status IN ('available', 'in_use')");
-    $vc->bind_param('i', $vid_choice);
-    $vc->execute();
-    $ok_choice = $vc->get_result()->num_rows > 0;
-    $vc->close();
-    if (!$ok_choice) {
-        setFlash('warning', 'That vehicle cannot be requested right now. Please choose another vehicle.');
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $get_ids) {
+    // Only vehicles that can be requested may be chosen (not retired / in maintenance)
+    $in_ids = implode(',', array_map('intval', $get_ids));
+    $okq = $conn->query("SELECT COUNT(*) AS c FROM vehicles WHERE vehicle_id IN ({$in_ids}) AND status IN ('available', 'in_use')");
+    $ok_count = $okq ? (int)$okq->fetch_assoc()['c'] : 0;
+    if ($ok_count !== count($get_ids)) {
+        setFlash('warning', 'One of the vehicles cannot be requested right now. Please choose again.');
         header('Location: request_vehicle.php');
         exit();
     }
-    $form['vehicle_id'] = (string)$vid_choice;
+    $form['vehicle_ids']     = $get_ids;
+    $form['vehicles_needed'] = (string)count($get_ids);
+} elseif ($_SERVER['REQUEST_METHOD'] !== 'POST' && $get_any > 0) {
+    $form['vehicles_needed'] = (string)$get_any;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -65,8 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $destination     = trim($_POST['destination']     ?? '');
     $purpose         = trim($_POST['purpose']         ?? '');
     $passenger_count = (int)($_POST['passenger_count'] ?? 0);
-    $vehicle_id_raw  = trim($_POST['vehicle_id']      ?? '');
-    $vehicle_id      = $vehicle_id_raw !== '' ? (int)$vehicle_id_raw : null;
+    $posted_ids      = (isset($_POST['vehicle_ids']) && is_array($_POST['vehicle_ids'])) ? $_POST['vehicle_ids'] : [];
+    $vehicle_ids     = array_slice(array_values(array_unique(array_filter(array_map('intval', $posted_ids)))), 0, 5);
+    $vehicles_needed = $vehicle_ids ? count($vehicle_ids) : max(1, min(5, (int)($_POST['vehicles_needed'] ?? 1)));
+    $vehicle_id      = $vehicle_ids ? $vehicle_ids[0] : null;       // the first one is kept on the request itself
     $officer_name    = trim($_POST['officer_name']    ?? '');
     $officer_phone   = trim($_POST['officer_phone']   ?? '');
     $waiting_place   = trim($_POST['waiting_place']   ?? '');
@@ -78,7 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'destination'     => $destination,
         'purpose'         => $purpose,
         'passenger_count' => $passenger_count > 0 ? (string)$passenger_count : '',
-        'vehicle_id'      => $vehicle_id_raw,
+        'vehicle_ids'     => $vehicle_ids,
+        'vehicles_needed' => (string)$vehicles_needed,
         'officer_name'    => $officer_name,
         'officer_phone'   => $officer_phone,
         'waiting_place'   => $waiting_place,
@@ -140,30 +157,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Please attach at least one supporting document.';
     }
 
-    // If a specific vehicle was chosen, re-verify it is actually free for
-    // that slot AND has enough seats for the passenger count
-    if (empty($errors) && $vehicle_id !== null) {
+    // Re-verify every chosen vehicle: can be requested, free for that slot, and
+    // the seats of all of them together cover the passengers
+    if (empty($errors) && $vehicle_ids) {
+        $in_ids = implode(',', array_map('intval', $vehicle_ids));
         $stmt = $conn->prepare(
-            "SELECT vehicle_id, capacity FROM vehicles
-             WHERE vehicle_id = ?
-               AND status = 'available'
-               AND capacity >= ?
-               AND vehicle_id NOT IN (
+            "SELECT v.vehicle_id, v.plate_number, v.capacity
+             FROM vehicles v
+             WHERE v.vehicle_id IN ({$in_ids}) AND v.status IN ('available', 'in_use')
+               AND v.vehicle_id NOT IN (
                      SELECT vehicle_id FROM schedules
-                     WHERE trip_date = ?
-                       AND status NOT IN ('cancelled','completed')
-                       AND vehicle_id IS NOT NULL
-                       AND (start_time < ? AND end_time > ?)
+                     WHERE trip_date = ? AND status NOT IN ('cancelled','completed')
+                       AND vehicle_id IS NOT NULL AND start_time < ? AND end_time > ?
                )"
         );
-        $stmt->bind_param('iisss', $vehicle_id, $passenger_count, $trip_date, $end_time, $start_time);
+        $stmt->bind_param('sss', $trip_date, $end_time, $start_time);
         $stmt->execute();
-        $free = $stmt->get_result()->fetch_assoc();
+        $free_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        if ($free === null) {
-            $errors[] = 'The selected vehicle is no longer available for that date/time or cannot fit your passenger count. Please choose another vehicle.';
-            $form['vehicle_id'] = '';
+        if (count($free_rows) !== count($vehicle_ids)) {
+            $free_ids = array_map('intval', array_column($free_rows, 'vehicle_id'));
+            $bad = array_diff($vehicle_ids, $free_ids);
+            $names = [];
+            if ($bad) {
+                $nq = $conn->query("SELECT plate_number FROM vehicles WHERE vehicle_id IN (" . implode(',', array_map('intval', $bad)) . ")");
+                while ($nq && ($nr = $nq->fetch_assoc())) { $names[] = $nr['plate_number']; }
+            }
+            $errors[] = 'Not free for that date and time, or not available: ' . ($names ? implode(', ', $names) : 'a selected vehicle')
+                      . '. Please choose other vehicles.';
+            $form['vehicle_ids'] = array_values(array_intersect($vehicle_ids, $free_ids));
+        } else {
+            $seats = array_sum(array_map('intval', array_column($free_rows, 'capacity')));
+            if ($seats < $passenger_count) {
+                $errors[] = 'The vehicles you chose seat ' . $seats . ' in total, but you have ' . $passenger_count
+                          . ' passengers. Add another vehicle or reduce the passengers.';
+            }
         }
     }
 
@@ -211,17 +240,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "INSERT INTO vehicle_requests
                      (staff_id, vehicle_id, trip_date, start_time, end_time,
                       destination, purpose, passenger_count, supervisor_id,
-                      officer_name, officer_phone, waiting_place)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                      officer_name, officer_phone, waiting_place, vehicles_needed)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             if (!$stmt) {
                 throw new RuntimeException('Could not prepare the request insert.');
             }
             $stmt->bind_param(
-                'iisssssiisss',
+                'iisssssiisssi',
                 $staff_id, $vehicle_id, $trip_date, $start_time, $end_time,
                 $destination, $purpose, $passenger_count, $supervisor_id,
-                $officer_name, $officer_phone, $waiting_place_db
+                $officer_name, $officer_phone, $waiting_place_db, $vehicles_needed
             );
             if (!$stmt->execute()) {
                 $stmt->close();
@@ -229,6 +258,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $new_request_id = (int)$stmt->insert_id;
             $stmt->close();
+
+            // Every vehicle the staff member asked for
+            if ($vehicle_ids) {
+                $rvs = $conn->prepare("INSERT INTO request_vehicles (request_id, vehicle_id) VALUES (?, ?)");
+                if (!$rvs) {
+                    throw new RuntimeException('Could not prepare the vehicle insert.');
+                }
+                foreach ($vehicle_ids as $vid) {
+                    $rvs->bind_param('ii', $new_request_id, $vid);
+                    if (!$rvs->execute()) {
+                        $rvs->close();
+                        throw new RuntimeException('Could not save the requested vehicles.');
+                    }
+                }
+                $rvs->close();
+            }
 
             if (!empty($saved_docs)) {
                 $doc_stmt = $conn->prepare(
@@ -336,15 +381,13 @@ if ($show_picker) {
     $picker_vehicles = $pv ? $pv->fetch_all(MYSQLI_ASSOC) : [];
 }
 
-// ── The vehicle chosen in step 1 (shown above the form) ──────
-$chosen_vehicle = null;
-if (!$show_picker && ($form['vehicle_id'] ?? '') !== '' && ctype_digit((string)$form['vehicle_id'])) {
-    $cv = $conn->prepare("SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity, fuel_type, status, photo FROM vehicles WHERE vehicle_id = ?");
-    $vid_banner = (int)$form['vehicle_id'];
-    $cv->bind_param('i', $vid_banner);
-    $cv->execute();
-    $chosen_vehicle = $cv->get_result()->fetch_assoc() ?: null;
-    $cv->close();
+// ── The vehicles chosen in step 1 (shown above the form) ─────
+$chosen_vehicles = [];
+if (!$show_picker && !empty($form['vehicle_ids'])) {
+    $in_ids = implode(',', array_map('intval', $form['vehicle_ids']));
+    $cvq = $conn->query("SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity, fuel_type, status, photo
+                         FROM vehicles WHERE vehicle_id IN ({$in_ids}) ORDER BY vehicle_type, plate_number");
+    $chosen_vehicles = $cvq ? $cvq->fetch_all(MYSQLI_ASSOC) : [];
 }
 $vehicle_icon = static function (string $type): string {
     return match ($type) {
@@ -392,6 +435,12 @@ $vehicle_icon = static function (string $type): string {
         .rv-chips { display:flex; flex-wrap:wrap; gap:.5rem; }
         .rv-chip { border:1px solid #d6e0da; background:#fff; border-radius:999px; padding:.35rem .9rem; font-size:.82rem; font-weight:600; color:#334155; cursor:pointer; }
         .rv-chip.active { background:#0b5d3b; color:#fff; border-color:#0b5d3b; }
+        .rv-bar { position:sticky; bottom:12px; margin-top:1rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;
+                  background:#fff; border:1px solid #cfe3d8; border-left:4px solid #0b5d3b; border-radius:12px; padding:.8rem 1rem; box-shadow:0 6px 24px rgba(11,93,59,.18); z-index:5; }
+        .rv-card.picked { outline:3px solid #0b5d3b; outline-offset:-1px; }
+        .rv-vlist { display:flex; flex-direction:column; gap:.5rem; flex:1; min-width:240px; }
+        .rv-vrow { display:flex; align-items:center; gap:.75rem; }
+        .rv-vrow img { width:64px; height:42px; object-fit:cover; border-radius:6px; background:#eef3f0; }
         .rv-banner { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; background:#fff; border:1px solid #cfe3d8; border-left:4px solid #0b5d3b;
                      border-radius:12px; padding:.8rem 1rem; margin-bottom:1.25rem; }
         .rv-banner img { width:84px; height:56px; object-fit:cover; border-radius:8px; background:#eef3f0; }
@@ -436,12 +485,16 @@ $vehicle_icon = static function (string $type): string {
     <!-- ── Step 1: choose a vehicle ─────────────────────────────── -->
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
         <div>
-            <h5 class="fw-bold mb-1">Step 1 of 2 &middot; Choose a vehicle</h5>
-            <p class="text-muted mb-0 small">Pick the vehicle you would like, then fill in the trip details. Vehicles under maintenance are shown for your information only.</p>
+            <h5 class="fw-bold mb-1">Step 1 of 2 &middot; Choose vehicle(s)</h5>
+            <p class="text-muted mb-0 small">Add the vehicle you would like. If your trip needs more than one, add each of them. Vehicles under maintenance are shown for your information only.</p>
         </div>
-        <a href="request_vehicle.php?vehicle=any" class="btn btn-outline-primary fw-semibold">
-            <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>Any available vehicle (let the transport unit decide)
-        </a>
+        <form method="get" action="request_vehicle.php" class="d-flex align-items-center gap-2 flex-wrap">
+            <label for="anyCount" class="small fw-semibold mb-0">Any available vehicle &times;</label>
+            <input type="number" id="anyCount" name="any" value="1" min="1" max="5" class="form-control form-control-sm" style="width:72px;" aria-label="How many vehicles">
+            <button type="submit" class="btn btn-outline-primary btn-sm fw-semibold">
+                <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>Let the transport unit decide
+            </button>
+        </form>
     </div>
 
     <div class="rv-chips mb-3" role="group" aria-label="Filter by vehicle type">
@@ -487,9 +540,11 @@ $vehicle_icon = static function (string $type): string {
             </div>
             <div class="rv-foot">
                 <?php if ($canPick): ?>
-                <a href="request_vehicle.php?vehicle=<?= (int)$v['vehicle_id'] ?>" class="btn btn-primary w-100 fw-semibold">
-                    Select this vehicle <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i>
-                </a>
+                <button type="button" class="btn btn-primary w-100 fw-semibold rv-toggle"
+                        data-id="<?= (int)$v['vehicle_id'] ?>" data-seats="<?= (int)$v['capacity'] ?>" aria-pressed="false">
+                    <span class="rv-off"><i class="fas fa-plus me-1" aria-hidden="true"></i>Add to request</span>
+                    <span class="rv-on d-none"><i class="fas fa-check me-1" aria-hidden="true"></i>Added &middot; click to remove</span>
+                </button>
                 <?php else: ?>
                 <button type="button" class="btn btn-outline-secondary w-100" disabled>Not available</button>
                 <?php endif; ?>
@@ -497,29 +552,43 @@ $vehicle_icon = static function (string $type): string {
         </article>
         <?php endforeach; ?>
     </div>
+
+    <!-- Selection bar -->
+    <div id="rvBar" class="rv-bar" style="display:none;" role="status" aria-live="polite">
+        <div>
+            <strong id="rvCount">0</strong> vehicle(s) selected
+            <span class="text-muted">&middot; <span id="rvSeats">0</span> seats in total</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="rvClear">Clear</button>
+            <a href="#" class="btn btn-primary btn-sm fw-semibold" id="rvContinue">Continue <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i></a>
+        </div>
+    </div>
     <?php else: ?>
 
     <!-- ── Step 2: the form, with the chosen vehicle on top ─────── -->
     <div class="rv-banner">
-        <?php if ($chosen_vehicle): ?>
-        <img alt="" src="<?= htmlspecialchars(vehiclePhotoUrl($chosen_vehicle['photo'] ?? null, $chosen_vehicle['vehicle_type'])) ?>"
-             data-fallback="<?= htmlspecialchars(vehiclePhotoUrl(null, $chosen_vehicle['vehicle_type'])) ?>"
-             onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;}">
-        <div>
-            <div class="small text-muted fw-semibold text-uppercase">Step 2 of 2 &middot; Selected vehicle</div>
-            <div class="fw-bold"><?= htmlspecialchars($chosen_vehicle['plate_number']) ?>
-                <span class="fw-semibold text-muted">&middot; <?= htmlspecialchars(trim($chosen_vehicle['brand'] . ' ' . $chosen_vehicle['model'])) ?></span></div>
-            <div class="small text-muted"><?= htmlspecialchars($chosen_vehicle['vehicle_type']) ?> &middot; <?= (int)$chosen_vehicle['capacity'] ?> seats</div>
-        </div>
-        <?php else: ?>
-        <div>
-            <div class="small text-muted fw-semibold text-uppercase">Step 2 of 2 &middot; Selected vehicle</div>
+        <div class="rv-vlist">
+            <div class="small text-muted fw-semibold text-uppercase">Step 2 of 2 &middot; Selected vehicle<?= count($chosen_vehicles) > 1 ? 's' : '' ?></div>
+            <?php if ($chosen_vehicles): foreach ($chosen_vehicles as $cv): ?>
+            <div class="rv-vrow">
+                <img alt="" src="<?= htmlspecialchars(vehiclePhotoUrl($cv['photo'] ?? null, $cv['vehicle_type'])) ?>"
+                     data-fallback="<?= htmlspecialchars(vehiclePhotoUrl(null, $cv['vehicle_type'])) ?>"
+                     onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;}">
+                <div>
+                    <div class="fw-bold"><?= htmlspecialchars($cv['plate_number']) ?>
+                        <span class="fw-semibold text-muted">&middot; <?= htmlspecialchars(trim($cv['brand'] . ' ' . $cv['model'])) ?></span></div>
+                    <div class="small text-muted"><?= htmlspecialchars($cv['vehicle_type']) ?> &middot; <?= (int)$cv['capacity'] ?> seats
+                        <span class="rv-free ms-2" data-vid="<?= (int)$cv['vehicle_id'] ?>"></span></div>
+                </div>
+            </div>
+            <?php endforeach; else: ?>
             <div class="fw-bold"><i class="fas fa-wand-magic-sparkles me-1 text-success" aria-hidden="true"></i>Any available vehicle</div>
-            <div class="small text-muted">The transport unit will choose a suitable vehicle for you.</div>
+            <div class="small text-muted">The transport unit will choose suitable vehicle(s) for you.</div>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
-        <a href="request_vehicle.php" class="btn btn-outline-secondary btn-sm ms-auto">
-            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i>Change vehicle
+        <a href="request_vehicle.php" class="btn btn-outline-secondary btn-sm ms-auto align-self-start">
+            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i>Change vehicle(s)
         </a>
     </div>
 
@@ -610,13 +679,22 @@ $vehicle_icon = static function (string $type): string {
                                        min="1" required>
                             </div>
                             <div class="col-md-8">
-                                <label class="form-label fw-semibold" for="vehicle_id">
-                                    Vehicle <span class="text-muted fw-normal">(optional)</span>
-                                </label>
-                                <select class="form-select" id="vehicle_id" name="vehicle_id" disabled
-                                        data-selected="<?= htmlspecialchars($form['vehicle_id']) ?>">
-                                    <option value="">Select date &amp; time first</option>
-                                </select>
+                                <label class="form-label fw-semibold">Vehicle<?= count($chosen_vehicles) > 1 ? 's' : '' ?></label>
+                                <?php foreach ($chosen_vehicles as $cv): ?>
+                                <input type="hidden" name="vehicle_ids[]" value="<?= (int)$cv['vehicle_id'] ?>">
+                                <?php endforeach; ?>
+                                <?php if ($chosen_vehicles): ?>
+                                <div class="form-control bg-light" style="height:auto;">
+                                    <?= htmlspecialchars(implode(', ', array_column($chosen_vehicles, 'plate_number'))) ?>
+                                    <span class="text-muted">&middot; <?= array_sum(array_map('intval', array_column($chosen_vehicles, 'capacity'))) ?> seats in total</span>
+                                </div>
+                                <?php else: ?>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="vehicles_needed" name="vehicles_needed" min="1" max="5"
+                                           value="<?= (int)$form['vehicles_needed'] ?>" aria-describedby="vehicleHint">
+                                    <span class="input-group-text">vehicle(s) needed &middot; any available</span>
+                                </div>
+                                <?php endif; ?>
                                 <div class="form-text mt-1" id="vehicleHint"></div>
                             </div>
                         </div>
@@ -828,6 +906,42 @@ $vehicle_icon = static function (string $type): string {
 <script src="<?= SITE_URL ?>/assets/js/main.js"></script>
 <?php if ($show_picker): ?>
 <script>
+(function () {
+    var picked = {};                                   // vehicle id -> seats
+    var bar = document.getElementById('rvBar');
+    function refresh() {
+        var ids = Object.keys(picked), seats = 0;
+        ids.forEach(function (id) { seats += picked[id]; });
+        document.getElementById('rvCount').textContent = ids.length;
+        document.getElementById('rvSeats').textContent = seats;
+        document.getElementById('rvContinue').href = 'request_vehicle.php?vehicles=' + ids.join(',');
+        bar.style.display = ids.length ? '' : 'none';
+    }
+    document.querySelectorAll('.rv-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id'), card = btn.closest('.rv-card');
+            if (picked[id] !== undefined) {
+                delete picked[id];
+            } else {
+                if (Object.keys(picked).length >= 5) { UIS.alert('You can request up to 5 vehicles at a time.', { title: 'Limit reached', tone: 'warning' }); return; }
+                picked[id] = parseInt(btn.getAttribute('data-seats'), 10) || 0;
+            }
+            var on = picked[id] !== undefined;
+            card.classList.toggle('picked', on);
+            btn.classList.toggle('btn-primary', !on);
+            btn.classList.toggle('btn-success', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            btn.querySelector('.rv-off').classList.toggle('d-none', on);
+            btn.querySelector('.rv-on').classList.toggle('d-none', !on);
+            refresh();
+        });
+    });
+    document.getElementById('rvClear').addEventListener('click', function () {
+        Object.keys(picked).forEach(function (id) {
+            var btn = document.querySelector('.rv-toggle[data-id="' + id + '"]'); if (btn) { btn.click(); }
+        });
+    });
+})();
 document.querySelectorAll('.rv-chip').forEach(function (chip) {
     chip.addEventListener('click', function () {
         document.querySelectorAll('.rv-chip').forEach(function (c) { c.classList.remove('active'); });
@@ -850,7 +964,6 @@ document.querySelectorAll('.rv-chip').forEach(function (chip) {
     var timeHint    = document.getElementById('timeHint');
     var purposeEl   = document.getElementById('purpose');
     var charCount   = document.getElementById('charCount');
-    var vehicleSel  = document.getElementById('vehicle_id');
     var vehicleHint = document.getElementById('vehicleHint');
 
     var AJAX_URL = '<?= SITE_URL ?>/ajax/get_free_vehicles.php';
@@ -861,97 +974,79 @@ document.querySelectorAll('.rv-chip').forEach(function (chip) {
         charCount.className   = len >= 20 ? 'fw-semibold text-success' : 'fw-semibold text-danger';
     }
 
-    function resetVehicleSelect(placeholder) {
-        vehicleSel.innerHTML = '';
-        var opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = placeholder;
-        vehicleSel.appendChild(opt);
-        vehicleSel.disabled = true;
+    var CHOSEN_IDS = <?= json_encode(array_map('intval', array_column($chosen_vehicles, 'vehicle_id'))) ?>;
+    var CHECK_URL  = '<?= SITE_URL ?>/ajax/check_vehicles_free.php';
+    var FREE_URL   = '<?= SITE_URL ?>/ajax/get_free_vehicles.php';
+
+    function setHint(text, tone) {
+        vehicleHint.textContent = text || '';
+        vehicleHint.className = 'form-text mt-1' + (tone ? ' text-' + tone + ' fw-semibold' : '');
+    }
+    function clearFreeMarks() {
+        document.querySelectorAll('.rv-free').forEach(function (el) { el.textContent = ''; el.className = 'rv-free ms-2'; });
     }
 
+    // Once date and time are known: tell the staff member whether the chosen
+    // vehicles are free, and whether their seats cover the passengers.
     function loadVehicles() {
-        var d = dateInput.value;
-        var s = startInput.value;
-        var e = endInput.value;
-
+        var d = dateInput.value, s = startInput.value, e = endInput.value;
         timeHint.textContent = '';
         timeHint.className   = 'form-text mt-1';
+        clearFreeMarks();
+        setHint('');
 
-        if (!d || !s || !e) {
-            resetVehicleSelect('Select date & time first');
-            vehicleHint.textContent = '';
-            return;
-        }
-
+        if (!d || !s || !e) { return; }
         if (e <= s) {
             timeHint.textContent = 'End time must be after the start time.';
             timeHint.className   = 'form-text mt-1 text-danger fw-semibold';
-            resetVehicleSelect('Select date & time first');
-            vehicleHint.textContent = '';
             return;
         }
-
-        resetVehicleSelect('Loading available vehicles...');
-        vehicleHint.textContent = '';
-
         var pax = parseInt(document.getElementById('passenger_count').value, 10) || 1;
-        var params = new URLSearchParams({ trip_date: d, start_time: s, end_time: e, passengers: pax });
 
-        fetch(AJAX_URL + '?' + params.toString())
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
-                vehicleSel.innerHTML = '';
-
-                var anyOpt = document.createElement('option');
-                anyOpt.value = '';
-                anyOpt.textContent = 'Any available vehicle (let admin decide)';
-                vehicleSel.appendChild(anyOpt);
-
-                if (data.success && data.vehicles.length > 0) {
+        if (CHOSEN_IDS.length) {
+            var q = new URLSearchParams({ trip_date: d, start_time: s, end_time: e, ids: CHOSEN_IDS.join(',') });
+            fetch(CHECK_URL + '?' + q.toString(), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.success) { return; }
+                    var bad = [];
                     data.vehicles.forEach(function (v) {
-                        var opt = document.createElement('option');
-                        opt.value = v.vehicle_id;
-                        var name = [v.brand, v.model].filter(Boolean).join(' ') || v.vehicle_type;
-                        opt.textContent = v.plate_number + ' — ' + name +
-                            ' (' + v.vehicle_type + ', ' + v.capacity + ' seats)';
-                        vehicleSel.appendChild(opt);
+                        var mark = document.querySelector('.rv-free[data-vid="' + v.vehicle_id + '"]');
+                        if (mark) {
+                            mark.textContent = v.free ? '✓ free at this time' : '✗ ' + v.reason;
+                            mark.className = 'rv-free ms-2 fw-semibold text-' + (v.free ? 'success' : 'danger');
+                        }
+                        if (!v.free) { bad.push(v.plate_number); }
                     });
-                    vehicleHint.textContent = data.vehicles.length + ' vehicle' +
-                        (data.vehicles.length !== 1 ? 's' : '') + ' free with enough seats for this slot.';
-                    vehicleHint.className = 'form-text mt-1 text-success fw-semibold';
-                } else if (data.success) {
-                    vehicleHint.textContent = 'No vehicle with enough seats is free for this slot. Reduce passengers, change the time, or submit with "Any available vehicle".';
-                    vehicleHint.className = 'form-text mt-1 text-warning fw-semibold';
-                } else {
-                    vehicleHint.textContent = data.message || 'Could not load vehicles.';
-                    vehicleHint.className = 'form-text mt-1 text-danger fw-semibold';
-                }
-
-                vehicleSel.disabled = false;
-
-                // Restore previous selection after a failed POST, if still free
-                var prev = vehicleSel.getAttribute('data-selected');
-                if (prev) {
-                    vehicleSel.value = prev;
-                    if (vehicleSel.value !== prev) {
-                        vehicleSel.value = '';
-                        vehicleHint.textContent = 'The vehicle you chose is not free for this date and time, or has too few seats. \u201cAny available vehicle\u201d is selected instead; you can pick another from the list.';
-                        vehicleHint.className   = 'form-text mt-1 text-warning fw-semibold';
+                    if (bad.length) {
+                        setHint('Not free: ' + bad.join(', ') + '. Change the date or time, or choose other vehicles.', 'danger');
+                    } else if (data.free_seats < pax) {
+                        setHint('The vehicles seat ' + data.free_seats + ' in total but you have ' + pax + ' passengers. Add another vehicle or reduce the passengers.', 'warning');
+                    } else {
+                        setHint('All chosen vehicles are free at this time and seat ' + data.free_seats + ' in total.', 'success');
                     }
-                }
-            })
-            .catch(function () {
-                resetVehicleSelect('Select date & time first');
-                vehicleHint.textContent = 'Could not load vehicles. Please try again.';
-                vehicleHint.className   = 'form-text mt-1 text-danger fw-semibold';
-            });
+                })
+                .catch(function () { /* the server checks again on submit */ });
+        } else {
+            var p = new URLSearchParams({ trip_date: d, start_time: s, end_time: e, passengers: 1 });
+            fetch(FREE_URL + '?' + p.toString(), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var need = parseInt((document.getElementById('vehicles_needed') || {}).value, 10) || 1;
+                    if (data.success) {
+                        setHint(data.vehicles.length + ' vehicle(s) are free at this time. The transport unit will choose ' + need + '.',
+                                data.vehicles.length >= need ? 'success' : 'warning');
+                    }
+                })
+                .catch(function () {});
+        }
     }
 
     dateInput.addEventListener('change',  loadVehicles);
     startInput.addEventListener('change', loadVehicles);
     endInput.addEventListener('change',   loadVehicles);
     document.getElementById('passenger_count').addEventListener('change', loadVehicles);
+    var vn = document.getElementById('vehicles_needed'); if (vn) { vn.addEventListener('change', loadVehicles); }
     purposeEl.addEventListener('input',   updateCharCount);
 
     // ── Supporting documents ─────────────────────────────────────
