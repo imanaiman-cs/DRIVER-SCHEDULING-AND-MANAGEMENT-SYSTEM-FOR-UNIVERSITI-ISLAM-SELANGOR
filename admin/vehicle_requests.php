@@ -53,6 +53,9 @@ if ($all_requests) {
     }
 }
 
+// ── Driver(s) assigned to processed requests ────────────────
+$assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_id'));
+
 // ── Summary counts ───────────────────────────────────────────
 $total     = count($all_requests);
 $approved  = 0;   // supervisor-approved, awaiting admin processing
@@ -541,6 +544,7 @@ const REQUEST_DATA = <?php
             'schedule_id'      => $r['schedule_id'] !== null ? (int)$r['schedule_id'] : null,
             'created_at'       => $r['created_at'],
             'documents'        => $request_documents[(int)$r['request_id']] ?? [],
+            'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
         ];
     }
     echo json_encode($json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
@@ -613,6 +617,23 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     // ── Phone number as tel: link ───────────────────────────
+    function assignedHtml(r) {
+        if (r.status !== 'processed') { return ''; }
+        var list = r.assigned || [];
+        if (!list.length) {
+            return '<div class="col-12"><div class="detail-label">Assigned Driver</div>'
+                 + '<div class="detail-value text-muted fst-italic">No driver assigned yet. Use Auto Assign or edit the schedule.</div></div>';
+        }
+        return '<div class="col-12"><div class="detail-label">' + (list.length > 1 ? 'Assigned Drivers' : 'Assigned Driver') + '</div>'
+             + list.map(function (d) {
+                 return '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 rounded-3 mt-1" style="background:#eef5f1;border:1px solid #cfe3d8;">'
+                      + '<div><div class="fw-semibold"><i class="fas fa-id-card-clip me-2 text-success" aria-hidden="true"></i>' + escHtml(d.driver_name) + '</div>'
+                      + (d.plate_number ? '<div class="small text-muted mt-1"><i class="fas fa-car me-1" aria-hidden="true"></i>' + escHtml(d.plate_number) + (d.vehicle ? ' &middot; ' + escHtml(d.vehicle) : '') + '</div>' : '')
+                      + '</div><div class="fw-semibold">' + telLink(d.driver_phone) + '</div></div>';
+               }).join('')
+             + '</div>';
+    }
+
     function telLink(phone) {
         if (!phone) return '<span class="text-muted fst-italic">&mdash;</span>';
         return '<a href="tel:' + escHtml(String(phone).replace(/[^0-9+]/g, '')) + '" class="text-decoration-none">'
@@ -751,6 +772,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-label">Requested Vehicle</div>'
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div>'
             + '</div>'
+
+            // Driver(s) assigned when the request was processed
+            + assignedHtml(r)
 
             // Supporting documents
             + '<div class="col-12">'
