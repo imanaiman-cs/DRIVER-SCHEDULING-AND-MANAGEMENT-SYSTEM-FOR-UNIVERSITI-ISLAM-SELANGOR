@@ -266,6 +266,127 @@ function getMonthlyTaskCounts(mysqli $conn, ?string $month = null): array
 }
 
 /**
+ * Finds a schedule that already books the same driver or vehicle in an
+ * overlapping time slot on the same day (cancelled trips are ignored).
+ *
+ * @param string $column       'driver_id' or 'vehicle_id'
+ * @param int[]  $exclude_ids  Schedule ids that must not count as a clash
+ *
+ * @return array|null  The clashing schedule (id, destination, times) or null
+ */
+function findResourceConflict(mysqli $conn, string $column, int $id, string $date,
+                              string $start, string $end, array $exclude_ids = []): ?array
+{
+    if (!in_array($column, ['driver_id', 'vehicle_id'], true) || $id <= 0) {
+        return null;
+    }
+    $exclude_ids = array_values(array_filter(array_map('intval', $exclude_ids)));
+    $not_in = $exclude_ids ? ' AND schedule_id NOT IN (' . implode(',', $exclude_ids) . ')' : '';
+
+    $stmt = $conn->prepare(
+        "SELECT schedule_id, destination, start_time, end_time
+         FROM schedules
+         WHERE {$column} = ? AND trip_date = ? AND status <> 'cancelled'
+           AND start_time < ? AND end_time > ?{$not_in}
+         LIMIT 1"
+    );
+    $stmt->bind_param('isss', $id, $date, $end, $start);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+/**
+ * Finds a job that is already booked for the same day, start time and
+ * destination (case and spacing ignored). Used to stop the same job being
+ * entered twice. Cancelled trips and the rows of $exclude_group / the
+ * schedule ids in $exclude_ids are ignored.
+ *
+ * @return array|null  The existing schedule (id, destination, times) or null
+ */
+function findDuplicateJob(mysqli $conn, string $date, string $start, string $destination,
+                          array $exclude_ids = [], int $exclude_group = 0): ?array
+{
+    $exclude_ids = array_values(array_filter(array_map('intval', $exclude_ids)));
+    $not_in = $exclude_ids ? ' AND schedule_id NOT IN (' . implode(',', $exclude_ids) . ')' : '';
+    $not_group = $exclude_group > 0
+        ? ' AND (job_group IS NULL OR job_group <> ' . (int)$exclude_group . ')'
+        : '';
+    $dest = mb_strtolower(preg_replace('/\s+/', ' ', trim($destination)));
+
+    $stmt = $conn->prepare(
+        "SELECT schedule_id, destination, start_time, end_time
+         FROM schedules
+         WHERE trip_date = ? AND start_time = ? AND status <> 'cancelled'
+           AND LOWER(TRIM(destination)) = ?{$not_in}{$not_group}
+         LIMIT 1"
+    );
+    $stmt->bind_param('sss', $date, $start, $dest);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+/**
+ * Returns the other drivers on the same multi-driver job.
+ * Empty array for a normal single-driver job.
+ *
+ * @return array<int, array{schedule_id:int, driver_id:?int, driver_name:?string,
+ *                          plate_number:?string, status:string}>
+ */
+function getJobTeam(mysqli $conn, int $schedule_id): array
+{
+    $stmt = $conn->prepare(
+        "SELECT m.schedule_id, m.driver_id, d.name AS driver_name,
+                v.plate_number, m.status
+         FROM schedules s
+         JOIN schedules m ON m.job_group = s.job_group AND m.schedule_id <> s.schedule_id
+         LEFT JOIN drivers  d ON d.driver_id  = m.driver_id
+         LEFT JOIN vehicles v ON v.vehicle_id = m.vehicle_id
+         WHERE s.schedule_id = ? AND s.job_group IS NOT NULL AND m.status <> 'cancelled'
+         ORDER BY d.name"
+    );
+    $stmt->bind_param('i', $schedule_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+/**
+ * Team lookup for a whole list: schedule_id => list of the other drivers.
+ * One query instead of one per row.
+ *
+ * @param int[] $schedule_ids
+ * @return array<int, array<int, array{driver_name:?string, plate_number:?string, schedule_id:int, status:string}>>
+ */
+function getJobTeams(mysqli $conn, array $schedule_ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $schedule_ids))));
+    if (!$ids) {
+        return [];
+    }
+    $in = implode(',', $ids);
+    $res = $conn->query(
+        "SELECT s.schedule_id AS owner_id, m.schedule_id, d.name AS driver_name,
+                v.plate_number, m.status
+         FROM schedules s
+         JOIN schedules m ON m.job_group = s.job_group AND m.schedule_id <> s.schedule_id
+         LEFT JOIN drivers  d ON d.driver_id  = m.driver_id
+         LEFT JOIN vehicles v ON v.vehicle_id = m.vehicle_id
+         WHERE s.schedule_id IN ({$in}) AND s.job_group IS NOT NULL AND m.status <> 'cancelled'
+         ORDER BY d.name"
+    );
+    $teams = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $teams[(int)$row['owner_id']][] = $row;
+    }
+    return $teams;
+}
+
+/**
  * Returns the licence classes that may operate a given vehicle type.
  *
  * B2 = motorcycle · D = car/van/minibus · E = bus/lorry (E holders

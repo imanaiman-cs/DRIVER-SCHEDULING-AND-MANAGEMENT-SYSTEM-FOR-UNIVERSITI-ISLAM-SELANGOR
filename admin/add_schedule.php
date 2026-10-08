@@ -53,6 +53,36 @@ function loadScoredDrivers(mysqli $conn, string $month): array
 
 $drivers = loadScoredDrivers($conn, date('Y-m'));
 
+// ── "Add a driver to an existing job" mode (?add_to=<schedule id>) ──
+// The job details are copied from the existing job and cannot be changed
+// here; the new driver becomes part of the same multi-driver job.
+$add_to = (int)($_GET['add_to'] ?? $_POST['add_to'] ?? 0);
+$lead   = null;
+if ($add_to > 0) {
+    $ls = $conn->prepare("SELECT * FROM schedules WHERE schedule_id = ? AND status IN ('pending','approved')");
+    $ls->bind_param('i', $add_to);
+    $ls->execute();
+    $lead = $ls->get_result()->fetch_assoc();
+    $ls->close();
+    if (!$lead) {
+        setFlash('danger', 'Another driver can only be added to a job that is still pending or approved.');
+        header('Location: ' . SITE_URL . '/admin/schedules.php');
+        exit();
+    }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        $old = [
+            'trip_date' => $lead['trip_date'], 'start_time' => substr($lead['start_time'], 0, 5),
+            'end_time' => substr($lead['end_time'], 0, 5), 'destination' => $lead['destination'],
+            'purpose' => $lead['purpose'], 'passenger_count' => $lead['passenger_count'],
+            'officer_name' => $lead['officer_name'], 'officer_phone' => $lead['officer_phone'],
+            'waiting_place' => $lead['waiting_place'], 'trip_type' => $lead['trip_type'],
+            'status' => $lead['status'],
+        ];
+    }
+}
+$driver_names = [];
+foreach ($drivers as $d) { $driver_names[(int)$d['driver_id']] = $d['name']; }
+
 // ── POST handler ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -74,6 +104,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $officer_phone   = trim($_POST['officer_phone']    ?? '');
     $waiting_place   = trim($_POST['waiting_place']    ?? '');
 
+    // Adding a driver to an existing job: the job details come from that job
+    if ($lead) {
+        $trip_date       = $lead['trip_date'];
+        $start_time      = substr($lead['start_time'], 0, 5);
+        $end_time        = substr($lead['end_time'], 0, 5);
+        $destination     = $lead['destination'];
+        $purpose         = (string)$lead['purpose'];
+        $passenger_count = (int)$lead['passenger_count'];
+        $officer_name    = (string)$lead['officer_name'];
+        $officer_phone   = (string)$lead['officer_phone'];
+        $waiting_place   = (string)$lead['waiting_place'];
+        $trip_type       = $lead['trip_type'];
+    }
+
+    // Team of drivers for this job: the first pair plus up to 4 extra pairs
+    $team_n = $lead ? 1 : max(1, min(5, (int)($_POST['drivers_needed'] ?? 1)));
+    $assign = [['driver' => $driver_id, 'vehicle' => $vehicle_id]];
+    $extra_d = (array)($_POST['extra_driver_id']  ?? []);
+    $extra_v = (array)($_POST['extra_vehicle_id'] ?? []);
+    for ($i = 0; $i < $team_n - 1; $i++) {
+        $assign[] = ['driver' => (int)($extra_d[$i] ?? 0), 'vehicle' => (int)($extra_v[$i] ?? 0)];
+    }
+
     if (empty($trip_date))   $errors['trip_date']   = 'Choose the trip date.';
     if (empty($start_time))  $errors['start_time']  = 'Enter the start time, for example 08:30.';
     if (empty($end_time))    $errors['end_time']    = 'Enter the end time, for example 17:00.';
@@ -94,6 +147,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!in_array($trip_type, ['regular','top_management'])) {
         $trip_type = 'regular';
+    }
+
+    // ── Team rules: no driver or vehicle twice in the same job ──
+    $valid_vehicle_ids = array_map('intval', array_column($vehicles, 'vehicle_id'));
+    if ($team_n > 1 || $lead) {
+        $label = function (int $i) use ($team_n) { return $team_n > 1 ? 'Driver ' . ($i + 1) : 'The new driver'; };
+        $seen_d = [];
+        $seen_v = [];
+        foreach ($assign as $i => $a) {
+            if ($a['driver'] <= 0) {
+                $errors['team'] = $lead
+                    ? 'Choose the driver to add to this job.'
+                    : 'This job needs ' . $team_n . ' drivers. Choose a driver for every row, or lower "Drivers needed".';
+                break;
+            }
+            if (!isset($driver_names[$a['driver']])) {
+                $errors['team'] = $label($i) . ' is not an active driver. Choose a driver from the list.';
+                break;
+            }
+            if (isset($seen_d[$a['driver']])) {
+                $errors['team'] = $driver_names[$a['driver']] . ' is selected more than once. The same driver cannot be assigned twice to the same job; choose a different driver.';
+                break;
+            }
+            $seen_d[$a['driver']] = true;
+            if ($a['vehicle'] > 0) {
+                if (!in_array($a['vehicle'], $valid_vehicle_ids, true)) {
+                    $errors['team'] = $label($i) . ' has a vehicle that is not available. Choose a vehicle from the list.';
+                    break;
+                }
+                if (isset($seen_v[$a['vehicle']])) {
+                    $errors['team'] = 'The same vehicle is selected for more than one driver. Each driver needs a different vehicle.';
+                    break;
+                }
+                $seen_v[$a['vehicle']] = true;
+            }
+        }
+        // Adding to an existing job: the driver must not already be on it
+        if ($lead && empty($errors['team']) && $driver_id > 0) {
+            $gid = (int)($lead['job_group'] ?: $lead['schedule_id']);
+            $dup = $conn->prepare(
+                "SELECT 1 FROM schedules
+                 WHERE (schedule_id = ? OR job_group = ?) AND driver_id = ? AND status <> 'cancelled' LIMIT 1"
+            );
+            $dup->bind_param('iii', $lead['schedule_id'], $gid, $driver_id);
+            $dup->execute();
+            if ($dup->get_result()->num_rows > 0) {
+                $errors['team'] = ($driver_names[$driver_id] ?? 'This driver') . ' is already on this job. Choose a different driver.';
+            }
+            $dup->close();
+        }
+    }
+
+    // ── Duplicate job: same day, start time and destination ──
+    if (empty($errors) && !$lead && $trip_date !== '' && $start_time !== '' && $destination !== '') {
+        $same = findDuplicateJob($conn, $trip_date, $start_time, $destination);
+        if ($same) {
+            $errors['destination'] = 'This job is already scheduled (Schedule #' . str_pad($same['schedule_id'], 4, '0', STR_PAD_LEFT)
+                . ': same destination, date and start time). The same job cannot be entered twice. If it needs another driver, use "Add driver" on that schedule instead.';
+        }
     }
 
     // ── Conflict check – vehicle ─────────────────────────────
@@ -146,67 +258,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->close();
     }
 
-    // ── Allocation score (for the trip month) ────────────────
-    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) && substr($trip_date, 0, 7) !== date('Y-m')) {
-        $drivers = loadScoredDrivers($conn, substr($trip_date, 0, 7));
-    }
-    $priority_score = 0.00;
-    if ($driver_id > 0) {
-        foreach ($drivers as $d) {
-            if ((int)$d['driver_id'] === $driver_id) {
-                $priority_score = $d['priority_score'];
+    // ── Conflict check – the other drivers/vehicles of a team job ──
+    if (empty($errors)) {
+        foreach ($assign as $i => $a) {
+            if ($i === 0) { continue; }          // first pair is checked above
+            $who = 'Driver ' . ($i + 1);
+            if ($a['driver'] > 0 && findResourceConflict($conn, 'driver_id', $a['driver'], $trip_date, $start_time, $end_time)) {
+                $errors['team'] = $who . ' (' . ($driver_names[$a['driver']] ?? '') . ') already has a schedule that overlaps this time slot. Choose another driver.';
+                break;
+            }
+            if ($a['vehicle'] > 0 && findResourceConflict($conn, 'vehicle_id', $a['vehicle'], $trip_date, $start_time, $end_time)) {
+                $errors['team'] = $who . '\'s vehicle already has a schedule that overlaps this time slot. Choose another vehicle.';
                 break;
             }
         }
     }
 
-    // ── INSERT ───────────────────────────────────────────────
+    // ── Allocation score (for the trip month) ────────────────
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) && substr($trip_date, 0, 7) !== date('Y-m')) {
+        $drivers = loadScoredDrivers($conn, substr($trip_date, 0, 7));
+    }
+    $score_of = function (int $driver) use ($drivers): float {
+        foreach ($drivers as $d) {
+            if ((int)$d['driver_id'] === $driver) { return (float)$d['priority_score']; }
+        }
+        return 0.00;
+    };
+
+    // ── INSERT (one row per driver; rows of a team job share job_group) ──
     if (empty($errors)) {
-        $vid = $vehicle_id > 0 ? $vehicle_id : null;
-        $did = $driver_id  > 0 ? $driver_id  : null;
         $uid = (int)($_SESSION['user_id'] ?? 0) ?: null;
         $officer_name_db  = $officer_name  === '' ? null : $officer_name;
         $officer_phone_db = $officer_phone === '' ? null : $officer_phone;
         $waiting_place_db = $waiting_place === '' ? null : $waiting_place;
+        $new_ids = [];
 
-        $ins = $conn->prepare(
-            "INSERT INTO schedules
-                 (driver_id, vehicle_id, trip_date, start_time, end_time,
-                  destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type,
-                  officer_name, officer_phone, waiting_place)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $ins->bind_param(
-            'iisssssisdisssss',
-            $did, $vid, $trip_date, $start_time, $end_time,
-            $destination, $purpose, $passenger_count,
-            $status, $priority_score, $uid, $notes, $trip_type,
-            $officer_name_db, $officer_phone_db, $waiting_place_db
-        );
-
-        if ($ins->execute()) {
-            $new_id = $ins->insert_id;
+        try {
+            $conn->begin_transaction();
+            $ins = $conn->prepare(
+                "INSERT INTO schedules
+                     (driver_id, vehicle_id, trip_date, start_time, end_time,
+                      destination, purpose, passenger_count, status, priority_score, created_by, notes, trip_type,
+                      officer_name, officer_phone, waiting_place)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            );
+            foreach ($assign as $a) {
+                $vid = $a['vehicle'] > 0 ? $a['vehicle'] : null;
+                $did = $a['driver']  > 0 ? $a['driver']  : null;
+                $priority_score = $did !== null ? $score_of($did) : 0.00;
+                $ins->bind_param(
+                    'iisssssisdisssss',
+                    $did, $vid, $trip_date, $start_time, $end_time,
+                    $destination, $purpose, $passenger_count,
+                    $status, $priority_score, $uid, $notes, $trip_type,
+                    $officer_name_db, $officer_phone_db, $waiting_place_db
+                );
+                if (!$ins->execute()) {
+                    throw new RuntimeException($conn->error);
+                }
+                $new_ids[] = (int)$ins->insert_id;
+            }
             $ins->close();
 
-            // E-mail the driver when one was chosen (never breaks the save)
+            // Link the rows of a team job together
+            $group = null;
+            if ($lead) {
+                $group = (int)($lead['job_group'] ?: $lead['schedule_id']);
+                if (!$lead['job_group']) {
+                    $conn->query("UPDATE schedules SET job_group = {$group} WHERE schedule_id = " . (int)$lead['schedule_id']);
+                }
+            } elseif (count($new_ids) > 1) {
+                $group = $new_ids[0];
+            }
+            if ($group !== null) {
+                $conn->query("UPDATE schedules SET job_group = {$group} WHERE schedule_id IN (" . implode(',', $new_ids) . ")");
+            }
+            $conn->commit();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            error_log('add_schedule: ' . $e->getMessage());
+            $new_ids = [];
+            $errors['db'] = 'The schedule could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
+        }
+
+        if ($new_ids) {
+            // E-mail the drivers that were chosen (never breaks the save)
             $email_note = '';
-            if ($did !== null && $status !== 'cancelled') {
+            $mail_ids = [];
+            foreach ($assign as $k => $a) {
+                if ($a['driver'] > 0 && $status !== 'cancelled') { $mail_ids[] = $new_ids[$k]; }
+            }
+            if ($mail_ids) {
                 try {
-                    $email_results = notifyDriversAssigned($conn, [(int)$new_id]);
+                    $email_results = notifyDriversAssigned($conn, $mail_ids);
                     $email_note    = emailSummary($email_results);
                 } catch (Throwable $e) {
                     error_log($e->getMessage());
                 }
             }
 
-            setFlash('success', "Schedule #" . str_pad($new_id, 4, '0', STR_PAD_LEFT) . " to <strong>" . htmlspecialchars($destination) . "</strong> created successfully." . ($did === null ? " It will be auto-assigned." : "") . ($email_note !== '' ? ' ' . htmlspecialchars($email_note) : ''));
+            $first = $new_ids[0];
+            $auto  = (!$lead && $assign[0]['driver'] <= 0);
+            if ($lead) {
+                $msg = "Driver added to the job to <strong>" . htmlspecialchars($destination) . "</strong> (Schedule #" . str_pad($first, 4, '0', STR_PAD_LEFT) . ").";
+            } elseif (count($new_ids) > 1) {
+                $msg = "Job to <strong>" . htmlspecialchars($destination) . "</strong> created with " . count($new_ids) . " drivers.";
+            } else {
+                $msg = "Schedule #" . str_pad($first, 4, '0', STR_PAD_LEFT) . " to <strong>" . htmlspecialchars($destination) . "</strong> created successfully." . ($auto ? " It will be auto-assigned." : "");
+            }
+            setFlash('success', $msg . ($email_note !== '' ? ' ' . htmlspecialchars($email_note) : ''));
             header('Location: ' . SITE_URL . '/admin/schedules.php');
             exit();
-        } else {
-            error_log('add_schedule: ' . $conn->error);
-            $errors['db'] = 'The schedule could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
         }
-        $ins->close();
     }
 }
 ?>
@@ -274,8 +437,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <h1><i class="fas fa-calendar-plus me-2" aria-hidden="true"></i>Create Schedule</h1>
-            <p>Add a new trip schedule to the system.</p>
+            <h1><i class="fas fa-calendar-plus me-2" aria-hidden="true"></i><?php echo $lead ? 'Add Driver to Job' : 'Create Schedule'; ?></h1>
+            <p><?php echo $lead
+                ? 'Another driver for the job to ' . htmlspecialchars($lead['destination']) . ' (Schedule #' . str_pad($lead['schedule_id'], 4, '0', STR_PAD_LEFT) . ').'
+                : 'Add a new trip schedule to the system.'; ?></p>
         </div>
         <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="btn btn-light fw-semibold text-primary">
             <i class="fas fa-arrow-left me-1" aria-hidden="true"></i> Back to Schedules
@@ -299,6 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'officer_phone'  => ['Officer phone number', 'officer_phone'],
         'vehicle_id'     => ['Vehicle',              'vehicle_id'],
         'driver_id'      => ['Driver',               'driver_id'],
+        'team'           => ['Drivers',              'teamCard'],
     ];
     $summary_errors = array_intersect_key($error_fields, $errors);
     ?>
@@ -315,7 +481,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
+    <?php if ($lead): ?>
+    <div class="alert alert-info" role="note">
+        <i class="fas fa-circle-info me-2" aria-hidden="true"></i>
+        The job details are taken from the existing job and cannot be changed here. Choose the extra driver
+        (and vehicle) below. To change the date, time or destination, edit the original schedule.
+    </div>
+    <?php endif; ?>
+
     <form method="POST" id="scheduleForm" novalidate>
+        <?php if ($lead): ?><input type="hidden" name="add_to" value="<?php echo (int)$lead['schedule_id']; ?>"><?php endif; ?>
 
         <div class="row g-4">
 
@@ -487,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Driver Selection -->
                 <div class="card form-card mb-4">
                     <div class="card-body p-4">
-                        <div class="section-title"><i class="fas fa-user me-2" aria-hidden="true"></i>Driver (optional)</div>
+                        <div class="section-title" id="driverCardTitle"><i class="fas fa-user me-2" aria-hidden="true"></i><span><?php echo $lead ? 'Driver to add' : 'Driver (optional)'; ?></span></div>
 
                         <!-- Conflict warning -->
                         <div id="driverConflictAlert" class="alert alert-danger py-2 mb-3" style="display:none;">
@@ -507,7 +682,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label for="driver_id" class="visually-hidden">Driver (optional)</label>
                         <select class="form-select <?php echo isset($errors['driver_id']) ? 'is-invalid' : ''; ?>" id="driver_id" name="driver_id"
                                 <?php echo isset($errors['driver_id']) ? 'aria-invalid="true" aria-describedby="driver_id_error"' : ''; ?>>
-                            <option value="">-- Auto-assign (leave blank) --</option>
+                            <option value=""><?php echo $lead ? '-- Choose driver --' : '-- Auto-assign (leave blank) --'; ?></option>
                             <?php foreach ($drivers as $i => $d): ?>
                             <option value="<?php echo (int)$d['driver_id']; ?>"
                                 data-score="<?php echo $d['priority_score']; ?>"
@@ -527,6 +702,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div id="driverScorePanel" class="mt-2 small" style="display:none;"></div>
                     </div>
                 </div>
+
+<?php
+    // Driver / vehicle <option> lists reused by the team rows
+    $driver_option_html = function (int $selected) use ($drivers): string {
+        $h = '<option value="">-- Choose driver --</option>';
+        foreach ($drivers as $i => $d) {
+            $h .= '<option value="' . (int)$d['driver_id'] . '"' . ((int)$d['driver_id'] === $selected ? ' selected' : '') . '>'
+                . ($i === 0 ? '★ ' : '') . htmlspecialchars($d['name']) . ' — Score ' . number_format($d['priority_score'], 2)
+                . ' (' . (int)$d['month_tasks'] . ' tasks)</option>';
+        }
+        return $h;
+    };
+    $vehicle_option_html = function (int $selected) use ($vehicles): string {
+        $h = '<option value="">-- No vehicle selected --</option>';
+        foreach ($vehicles as $v) {
+            $h .= '<option value="' . (int)$v['vehicle_id'] . '"' . ((int)$v['vehicle_id'] === $selected ? ' selected' : '') . '>'
+                . htmlspecialchars($v['plate_number'] . ' — ' . $v['vehicle_type'] . ' — ' . $v['capacity'] . ' pax') . '</option>';
+        }
+        return $h;
+    };
+    $team_n_old = $lead ? 1 : max(1, min(5, (int)($old['drivers_needed'] ?? 1)));
+?>
+                <?php if (!$lead): ?>
+                <!-- Team job: only for jobs that need more than one driver -->
+                <div class="card form-card mb-4" id="teamCard" tabindex="-1"
+                     style="<?php echo isset($errors['team']) ? 'border:2px solid #dc3545;' : ''; ?>">
+                    <div class="card-body p-4">
+                        <div class="section-title"><i class="fas fa-users me-2" aria-hidden="true"></i>Drivers needed</div>
+                        <label for="drivers_needed" class="form-label small text-muted mb-1">
+                            Most jobs need one driver. Choose more only for jobs such as seminars or events with several vehicles.
+                        </label>
+                        <select class="form-select" id="drivers_needed" name="drivers_needed" aria-describedby="teamHelp">
+                            <?php for ($n = 1; $n <= 5; $n++): ?>
+                            <option value="<?php echo $n; ?>" <?php echo $team_n_old === $n ? 'selected' : ''; ?>>
+                                <?php echo $n === 1 ? '1 driver (normal job)' : $n . ' drivers'; ?>
+                            </option>
+                            <?php endfor; ?>
+                        </select>
+                        <div class="form-text" id="teamHelp">
+                            For 2 or more drivers, each driver gets their own vehicle and the same driver cannot be chosen twice.
+                            The first driver and vehicle are the ones chosen above.
+                        </div>
+                        <?php if (isset($errors['team'])): ?>
+                        <div class="alert alert-danger py-2 mt-3 mb-0 small" role="alert">
+                            <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i><?php echo htmlspecialchars($errors['team']); ?>
+                        </div>
+                        <?php endif; ?>
+                        <div id="teamClientWarn" class="alert alert-warning py-2 mt-3 mb-0 small" style="display:none;" role="alert"></div>
+
+                        <div id="teamRows" class="mt-3">
+                            <?php for ($i = 0; $i < 4; $i++): ?>
+                            <div class="team-row border rounded-3 p-3 mb-3 bg-light" data-row="<?php echo $i; ?>" style="display:none;">
+                                <div class="small fw-semibold text-primary mb-2">Driver <?php echo $i + 2; ?></div>
+                                <label class="form-label small mb-1" for="extra_driver_<?php echo $i; ?>">Driver</label>
+                                <select class="form-select form-select-sm mb-2 team-driver" id="extra_driver_<?php echo $i; ?>" name="extra_driver_id[]" disabled>
+                                    <?php echo $driver_option_html((int)($old['extra_driver_id'][$i] ?? 0)); ?>
+                                </select>
+                                <label class="form-label small mb-1" for="extra_vehicle_<?php echo $i; ?>">Vehicle</label>
+                                <select class="form-select form-select-sm team-vehicle" id="extra_vehicle_<?php echo $i; ?>" name="extra_vehicle_id[]" disabled>
+                                    <?php echo $vehicle_option_html((int)($old['extra_vehicle_id'][$i] ?? 0)); ?>
+                                </select>
+                            </div>
+                            <?php endfor; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php elseif (isset($errors['team'])): ?>
+                <div class="alert alert-danger small" role="alert" id="teamCard">
+                    <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i><?php echo htmlspecialchars($errors['team']); ?>
+                </div>
+                <?php endif; ?>
 
                 <!-- Allocation score info -->
                 <div class="card form-card mb-4" style="border-left: 4px solid #0b5d3b !important;">
@@ -598,6 +844,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $('#driver_id').on('change', updateDriverUI);
     updateDriverUI();
+
+    // ── Team job: show one row per extra driver ──────────────
+    const teamSelect = document.getElementById('drivers_needed');
+    function syncTeamRows() {
+        const n = teamSelect ? parseInt(teamSelect.value, 10) : 1;
+        document.querySelectorAll('#teamRows .team-row').forEach(function (row) {
+            const show = parseInt(row.getAttribute('data-row'), 10) < n - 1;
+            row.style.display = show ? '' : 'none';
+            row.querySelectorAll('select').forEach(function (sel) { sel.disabled = !show; });
+        });
+        const first = document.getElementById('driver_id');
+        if (first) {
+            first.required = n > 1 || <?php echo $lead ? 'true' : 'false'; ?>;
+            first.options[0].textContent = n > 1 ? '-- Choose driver --' : '<?php echo $lead ? '-- Choose driver --' : '-- Auto-assign (leave blank) --'; ?>';
+        }
+        const title = document.querySelector('#driverCardTitle span');
+        if (title && !<?php echo $lead ? 'true' : 'false'; ?>) { title.textContent = n > 1 ? 'Driver 1' : 'Driver (optional)'; }
+        if (n > 1) { $('#autoAssignNotice').hide(); }
+        else if (!$('#driver_id').val()) { $('#autoAssignNotice').show(); }
+        syncTeamChoices();
+    }
+
+    // The same driver / vehicle cannot be picked twice in one job:
+    // grey out what another row already chose, and warn if it still happens.
+    function syncTeamChoices() {
+        ['team-driver', 'team-vehicle'].forEach(function (cls) {
+            const primary = document.getElementById(cls === 'team-driver' ? 'driver_id' : 'vehicle_id');
+            const selects = [primary].concat(Array.from(document.querySelectorAll('.' + cls))).filter(function (el) {
+                return el && !el.disabled;
+            });
+            const chosen = selects.map(function (el) { return el.value; });
+            selects.forEach(function (el, idx) {
+                Array.from(el.options).forEach(function (opt) {
+                    opt.disabled = opt.value !== '' && chosen.some(function (v, j) { return j !== idx && v === opt.value; });
+                });
+            });
+        });
+        const warn = document.getElementById('teamClientWarn');
+        if (warn) {
+            const ds = [$('#driver_id').val()].concat($('.team-driver:enabled').map(function () { return $(this).val(); }).get()).filter(Boolean);
+            const dup = ds.some(function (v, i) { return ds.indexOf(v) !== i; });
+            warn.style.display = dup ? '' : 'none';
+            warn.textContent = dup ? 'The same driver cannot be assigned twice to the same job.' : '';
+        }
+    }
+    if (teamSelect) { teamSelect.addEventListener('change', syncTeamRows); }
+    $(document).on('change', '#driver_id, #vehicle_id, .team-driver, .team-vehicle', syncTeamChoices);
+    syncTeamRows();
+
+    <?php if ($lead): ?>
+    // Adding a driver to an existing job: the job details are read-only
+    ['trip_date','start_time','end_time','destination','passenger_count','purpose','officer_name','officer_phone','waiting_place']
+        .forEach(function (id) { const el = document.getElementById(id); if (el) { el.readOnly = true; } });
+    const tt = document.getElementById('trip_type'); if (tt) { tt.style.pointerEvents = 'none'; tt.setAttribute('tabindex', '-1'); }
+    <?php endif; ?>
 
     // ── End time validation ──────────────────────────────────
     function validateTimes() {

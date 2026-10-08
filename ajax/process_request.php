@@ -89,6 +89,14 @@ function failJson(string $message): void
     exit();
 }
 
+// The same job (day, start time and destination) must not be entered twice
+$same_job = findDuplicateJob($conn, $trip_date, $start_time, $destination);
+if ($same_job) {
+    failJson('A job to this destination on the same date and start time already exists (Schedule #'
+        . str_pad($same_job['schedule_id'], 4, '0', STR_PAD_LEFT)
+        . '). The same job cannot be entered twice. If it needs another driver, open that schedule and use Add driver.');
+}
+
 // Vehicle: the one the admin picked, else (field not sent) the one that was requested; 0 = decide later
 $vehicle_id = $chosen_vehicle >= 0
     ? ($chosen_vehicle > 0 ? $chosen_vehicle : null)

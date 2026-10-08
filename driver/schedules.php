@@ -46,6 +46,15 @@ if (count($params) > 1) {
 $stmt->execute();
 $schedules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Other drivers on team jobs
+$teams = getJobTeams($conn, array_column($schedules, 'schedule_id'));
+foreach ($schedules as &$row) {
+    $row['team'] = array_map(static function ($m) {
+        return ['driver_name' => $m['driver_name'], 'plate_number' => $m['plate_number']];
+    }, $teams[(int)$row['schedule_id']] ?? []);
+}
+unset($row);
+
 // Tab counts
 $cnt_query = function($extra_where, $extra_params = [], $extra_types = '') use ($conn, $driver_id) {
     $s2 = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? $extra_where");
@@ -153,6 +162,10 @@ require_once '../includes/sidebar.php';
                 </td>
                 <td>
                   <strong><?= htmlspecialchars($s['destination']) ?></strong>
+                  <?php if (!empty($s['team'])): ?>
+                  <div class="small text-muted mt-1"><i class="fas fa-users me-1"></i>Team job with
+                    <?= htmlspecialchars(implode(', ', array_map(static function ($m) { return $m['driver_name'] ?? 'Unassigned'; }, $s['team']))) ?></div>
+                  <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($s['purpose'] ?? '—') ?></td>
                 <td>
@@ -230,6 +243,7 @@ function viewDetails(s){
       <div class="col-md-4"><label class="text-muted small">Vehicle</label><div class="fw-semibold">${s.plate_number||"Not assigned"}</div></div>
       <div class="col-md-4"><label class="text-muted small">Passengers</label><div class="fw-semibold">${s.passenger_count}</div></div>
       <div class="col-md-4"><label class="text-muted small">Status</label><div><span class="badge bg-${sc}">${s.status.replace("_"," ")}</span></div></div>
+      ${(s.team&&s.team.length)?`<div class="col-12"><label class="text-muted small">Team job: also on this job</label><div class="fw-semibold">${s.team.map(m=>esc(m.driver_name||"Unassigned")+(m.plate_number?" ("+esc(m.plate_number)+")":"")).join(", ")}</div></div>`:""}
       <div class="col-md-6"><label class="text-muted small">Officer(s)</label><div class="fw-semibold">${esc(s.officer_name)||"—"}</div></div>
       <div class="col-md-6"><label class="text-muted small">Waiting Place</label><div class="fw-semibold">${esc(s.waiting_place)||"—"}</div></div>
       <div class="col-12"><label class="text-muted small">Officer Phone</label>

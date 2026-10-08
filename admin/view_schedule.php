@@ -46,6 +46,8 @@ if (!$schedule) {
     exit();
 }
 
+$team = getJobTeam($conn, $schedule_id);
+
 require_once '../includes/header.php';
 require_once '../includes/sidebar.php';
 ?>
@@ -71,6 +73,18 @@ require_once '../includes/sidebar.php';
     </div>
 
     <?php showFlash(); ?>
+
+    <?php if ($team): ?>
+    <div class="alert alert-info" role="note">
+        <i class="fas fa-users me-2" aria-hidden="true"></i>
+        <strong>Team job &middot; <?php echo count($team) + 1; ?> drivers.</strong>
+        Also on this job:
+        <?php echo implode(', ', array_map(static function ($m) {
+            return '<a href="view_schedule.php?id=' . (int)$m['schedule_id'] . '" class="alert-link">' . htmlspecialchars($m['driver_name'] ?? 'Unassigned') . '</a>'
+                 . ($m['plate_number'] ? ' (' . htmlspecialchars($m['plate_number']) . ')' : '');
+        }, $team)); ?>
+    </div>
+    <?php endif; ?>
 
     <div class="row g-3">
 

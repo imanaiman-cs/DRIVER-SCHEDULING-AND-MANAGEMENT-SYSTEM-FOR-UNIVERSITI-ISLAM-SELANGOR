@@ -41,6 +41,25 @@ if (!$schedule) {
 $errors = [];
 $old    = $schedule; // pre-fill with existing data
 
+// ── Other drivers on the same multi-driver job (if any) ──────
+$job_group   = (int)($schedule['job_group'] ?? 0);
+$team_rows   = [];     // every other row of this job, any status but cancelled
+if ($job_group > 0) {
+    $tm = $conn->prepare(
+        "SELECT m.*, d.name AS driver_name, v.plate_number
+         FROM schedules m
+         LEFT JOIN drivers  d ON d.driver_id  = m.driver_id
+         LEFT JOIN vehicles v ON v.vehicle_id = m.vehicle_id
+         WHERE m.job_group = ? AND m.schedule_id <> ? AND m.status <> 'cancelled'
+         ORDER BY d.name"
+    );
+    $tm->bind_param('ii', $job_group, $schedule_id);
+    $tm->execute();
+    $team_rows = $tm->get_result()->fetch_all(MYSQLI_ASSOC);
+    $tm->close();
+}
+$team_ids = array_map(static function ($r) { return (int)$r['schedule_id']; }, $team_rows);
+
 // ── Fetch available vehicles ─────────────────────────────────
 // Include the currently assigned vehicle even if in_use
 $vehicles_result = $conn->query(
@@ -144,6 +163,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $trip_type = 'regular';
     }
 
+    // ── Same job: a driver / vehicle cannot appear twice ──────
+    if (empty($errors) && $team_rows) {
+        foreach ($team_rows as $m) {
+            if ($driver_id > 0 && (int)$m['driver_id'] === $driver_id) {
+                $errors['driver_id'] = ($m['driver_name'] ?? 'This driver') . ' is already on this job. The same driver cannot be assigned twice to the same job; choose a different driver.';
+                break;
+            }
+            if ($vehicle_id > 0 && (int)$m['vehicle_id'] === $vehicle_id) {
+                $errors['vehicle_id'] = 'This vehicle is already used by another driver on this job. Each driver needs a different vehicle.';
+                break;
+            }
+        }
+    }
+
     // ── Conflict check – vehicle (exclude this schedule) ────
     if (empty($errors) && $vehicle_id > 0) {
         $conflict_sql = "SELECT schedule_id FROM schedules
@@ -194,6 +227,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or set the driver to unassigned (auto-assign).';
         }
         $cs->close();
+    }
+
+    // ── Duplicate job: same day, start time and destination ──
+    if (empty($errors) && $status !== 'cancelled' && $trip_date !== '' && $start_time !== '' && $destination !== '') {
+        $same = findDuplicateJob($conn, $trip_date, $start_time, $destination, [$schedule_id], $job_group);
+        if ($same) {
+            $errors['destination'] = 'This job is already scheduled (Schedule #' . str_pad($same['schedule_id'], 4, '0', STR_PAD_LEFT)
+                . ': same destination, date and start time). The same job cannot be entered twice.';
+        }
+    }
+
+    // ── Shared details moved: the other drivers must still be free ──
+    $shared_changed = $trip_date !== $schedule['trip_date']
+        || substr($start_time, 0, 5) !== substr($schedule['start_time'], 0, 5)
+        || substr($end_time, 0, 5)   !== substr($schedule['end_time'], 0, 5);
+    if (empty($errors) && $team_rows && $shared_changed) {
+        $group_ids = array_merge([$schedule_id], $team_ids);
+        foreach ($team_rows as $m) {
+            if (!in_array($m['status'], ['pending', 'approved'], true)) { continue; }
+            $hit_d = findResourceConflict($conn, 'driver_id',  (int)$m['driver_id'],  $trip_date, $start_time, $end_time, $group_ids);
+            $hit_v = findResourceConflict($conn, 'vehicle_id', (int)$m['vehicle_id'], $trip_date, $start_time, $end_time, $group_ids);
+            if ($hit_d || $hit_v) {
+                $errors['trip_date'] = 'This job has other drivers, and the new date or time clashes with another schedule of '
+                    . ($m['driver_name'] ?? 'a teammate') . ($hit_v && !$hit_d ? '\'s vehicle' : '')
+                    . '. Choose another date or time, or remove that driver from the job first.';
+                break;
+            }
+        }
     }
 
     // ── Allocation score (for the trip month) ────────────────
@@ -257,6 +318,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($upd->execute()) {
             $upd->close();
+
+            // Keep the other drivers of the same job in step with the shared details
+            $cascade_before = [];
+            foreach ($team_rows as $m) {
+                if (!in_array($m['status'], ['pending', 'approved'], true)) { continue; }
+                try { $cascade_before[(int)$m['schedule_id']] = snapshotSchedule($conn, (int)$m['schedule_id']); }
+                catch (Throwable $e) { error_log($e->getMessage()); }
+                $mid = (int)$m['schedule_id'];
+                $cu = $conn->prepare(
+                    "UPDATE schedules SET trip_date = ?, start_time = ?, end_time = ?, destination = ?, purpose = ?,
+                            passenger_count = ?, trip_type = ?, officer_name = ?, officer_phone = ?, waiting_place = ?
+                     WHERE schedule_id = ?"
+                );
+                $cu->bind_param('sssssissssi', $trip_date, $start_time, $end_time, $destination, $purpose,
+                    $passenger_count, $trip_type, $officer_name_db, $officer_phone_db, $waiting_place_db, $mid);
+                $cu->execute();
+                $cu->close();
+            }
+            if ($cascade_before && $shared_changed) {
+                foreach ($cascade_before as $mid => $snap) {
+                    if ($snap === null) { continue; }
+                    try { notifyScheduleChanged($conn, $snap, $mid); } catch (Throwable $e) { error_log($e->getMessage()); }
+                }
+            }
 
             $email_note = '';
             if ($before !== null) {
@@ -383,6 +468,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php endforeach; ?>
         </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($team_rows): ?>
+    <div class="alert alert-info mb-4" role="note">
+        <i class="fas fa-users me-2" aria-hidden="true"></i>
+        <strong>Team job:</strong> this job has <?php echo count($team_rows) + 1; ?> drivers. You are editing
+        <strong><?php echo htmlspecialchars($schedule['driver_name'] ?? 'this driver'); ?></strong>'s part.
+        Date, time, destination and officer details are shared and change for every driver on the job
+        (drivers who already started or finished keep their own record).
+        <div class="small mt-1">With:
+            <?php echo implode(', ', array_map(static function ($m) {
+                return '<a href="edit_schedule.php?id=' . (int)$m['schedule_id'] . '">' . htmlspecialchars($m['driver_name'] ?? 'Unassigned') . '</a>'
+                     . ($m['plate_number'] ? ' (' . htmlspecialchars($m['plate_number']) . ')' : '');
+            }, $team_rows)); ?>
+        </div>
     </div>
     <?php endif; ?>
 

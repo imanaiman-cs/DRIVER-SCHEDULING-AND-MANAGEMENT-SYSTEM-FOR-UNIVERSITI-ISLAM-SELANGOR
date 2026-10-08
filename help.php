@@ -179,6 +179,17 @@ if ($role === 'admin') {
         <p><strong>You can always change it.</strong> If you know a better choice, pick another driver yourself.</p>
     ', 'role'];
 
+    $items[] = ['admin-team', 'users', 'Jobs that need more than one driver', '
+        <p>Most jobs need one driver. Some jobs, such as a seminar or an event with several buses, need two or more.</p>
+        <ol>
+            <li>Open <strong>Create Schedule</strong> and choose <strong>Drivers needed</strong> (2 to 5).</li>
+            <li>Pick a driver and a vehicle for each row.</li>
+            <li>Save. Every driver gets the same job on their own schedule and sees who else is on it.</li>
+        </ol>
+        <p>To add another driver to a job that already exists, press the <strong>group icon</strong> on that row in <strong>All Schedules</strong>.</p>
+        <p><strong>Duplicates are blocked.</strong> The same driver cannot be on the same job twice, and the same job (same date, start time and destination) cannot be entered twice.</p>
+    ', 'role'];
+
     $items[] = ['admin-manage', 'car-side', 'Managing vehicles and drivers', '
         <ul>
             <li><strong>Vehicles &rarr; All Vehicles</strong> and <strong>Drivers &rarr; All Drivers</strong> show everything in one place.</li>

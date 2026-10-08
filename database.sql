@@ -76,6 +76,12 @@ CREATE TABLE vehicles (
 
 -- ============================================================
 -- TABLE: schedules
+-- A job that needs several drivers (e.g. a seminar with 2+ buses) is
+-- stored as one row per driver. All rows share the same job_group.
+-- Upgrading an existing database:
+--   ALTER TABLE schedules
+--     ADD COLUMN job_group INT NULL DEFAULT NULL AFTER trip_type,
+--     ADD KEY idx_schedules_job_group (job_group);
 -- ============================================================
 CREATE TABLE schedules (
     schedule_id     INT           NOT NULL AUTO_INCREMENT,
@@ -95,9 +101,11 @@ CREATE TABLE schedules (
     created_by      INT           NULL DEFAULT NULL,
     notes           TEXT          NULL DEFAULT NULL,
     trip_type       ENUM('regular','top_management') NOT NULL DEFAULT 'regular',
+    job_group       INT           NULL DEFAULT NULL COMMENT 'Shared id of a job that needs several drivers (one row per driver); NULL for a normal single-driver job',
     created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (schedule_id),
+    KEY idx_schedules_job_group (job_group),
     CONSTRAINT fk_schedules_driver_id  FOREIGN KEY (driver_id)  REFERENCES drivers(driver_id)  ON DELETE SET NULL,
     CONSTRAINT fk_schedules_vehicle_id FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id) ON DELETE SET NULL,
     CONSTRAINT fk_schedules_created_by FOREIGN KEY (created_by) REFERENCES users(user_id)       ON DELETE SET NULL
@@ -1066,6 +1074,58 @@ VALUES
  'Programme accreditation briefing', 20,
  'Dr. Syafiq bin Zainal', '013-4455 6677', 'Pondok Pengawal Utama',
  'completed', 7.38, 1, 'top_management', 'Returned early.');
+
+-- Team jobs: one job that needs several drivers (one row per driver, sharing job_group)
+-- Seminar needing 2 vehicles (regular drivers, tomorrow)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(3,  7, CURDATE() + INTERVAL 1 DAY, '07:30:00', '17:30:00', 'Pusat Konvensyen Shah Alam',
+ 'Seminar Kebangsaan Pendidikan Islam - staff and student delegates', 28,
+ 'Pn. Norliza binti Abdul Rahman', '012-3344 5566', 'Lobi Fakulti',
+ 'approved', 6.72, 1, 'regular', 'Seminar needs 2 vehicles / 2 drivers.'),
+(7,  3, CURDATE() + INTERVAL 1 DAY, '07:30:00', '17:30:00', 'Pusat Konvensyen Shah Alam',
+ 'Seminar Kebangsaan Pendidikan Islam - staff and student delegates', 28,
+ 'Pn. Norliza binti Abdul Rahman', '012-3344 5566', 'Lobi Fakulti',
+ 'approved', 4.72, 1, 'regular', 'Seminar needs 2 vehicles / 2 drivers.');
+SET @team1 := LAST_INSERT_ID();
+UPDATE schedules SET job_group = @team1 WHERE schedule_id IN (@team1, @team1 + 1);
+
+-- Convocation transport needing 2 buses (top-management drivers, in 3 days)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(1,  1, CURDATE() + INTERVAL 3 DAY, '06:30:00', '16:00:00', 'Universiti Putra Malaysia, Serdang',
+ 'Convocation ceremony - graduates and guests', 70,
+ 'Prof. Madya Dr. Rohaizad bin Ismail', '019-7788 9900', 'Lobi Bangunan Pentadbiran',
+ 'approved', 8.72, 1, 'top_management', 'Two buses. Depart together from the main gate.'),
+(4,  2, CURDATE() + INTERVAL 3 DAY, '06:30:00', '16:00:00', 'Universiti Putra Malaysia, Serdang',
+ 'Convocation ceremony - graduates and guests', 70,
+ 'Prof. Madya Dr. Rohaizad bin Ismail', '019-7788 9900', 'Lobi Bangunan Pentadbiran',
+ 'approved', 8.41, 1, 'top_management', 'Two buses. Depart together from the main gate.');
+SET @team2 := LAST_INSERT_ID();
+UPDATE schedules SET job_group = @team2 WHERE schedule_id IN (@team2, @team2 + 1);
+
+-- A finished team job two days ago (so history also shows one)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(5,  15, CURDATE() - INTERVAL 2 DAY, '08:00:00', '12:00:00', 'Kolej Komuniti Klang',
+ 'Student programme set-up and equipment delivery', 2,
+ 'En. Hafiz bin Ramli', '016-6677 8899', 'Stor UIS',
+ 'completed', 5.53, 1, 'regular', 'Two riders for the equipment run.'),
+(10, 16, CURDATE() - INTERVAL 2 DAY, '08:00:00', '12:00:00', 'Kolej Komuniti Klang',
+ 'Student programme set-up and equipment delivery', 2,
+ 'En. Hafiz bin Ramli', '016-6677 8899', 'Stor UIS',
+ 'completed', 6.16, 1, 'regular', 'Two riders for the equipment run.');
+SET @team3 := LAST_INSERT_ID();
+UPDATE schedules SET job_group = @team3 WHERE schedule_id IN (@team3, @team3 + 1);
 
 -- Dates to fill: every day of the current month + 7 days either side of today
 DROP TEMPORARY TABLE IF EXISTS demo_dates;

@@ -55,6 +55,7 @@ $sql = "SELECT
             s.passenger_count,
             s.status,
             s.trip_type,
+            s.job_group,
             s.priority_score,
             s.notes,
             s.officer_name,
@@ -81,6 +82,9 @@ if ($types !== '') {
 $stmt->execute();
 $schedules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+// ── Other drivers on multi-driver jobs ───────────────────────
+$teams = getJobTeams($conn, array_column($schedules, 'schedule_id'));
 
 // ── Summary counts ───────────────────────────────────────────
 $total      = count($schedules);
@@ -425,6 +429,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     <?php if ($s['purpose']): ?>
                                     <div class="small text-muted"><?php echo htmlspecialchars($s['purpose']); ?></div>
                                     <?php endif; ?>
+                                    <?php if (!empty($teams[(int)$s['schedule_id']])): ?>
+                                    <?php $tm = $teams[(int)$s['schedule_id']]; ?>
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 mt-1"
+                                          title="Also on this job: <?php echo htmlspecialchars(implode(', ', array_map(static function ($m) { return $m['driver_name'] ?? 'Unassigned'; }, $tm))); ?>">
+                                        <i class="fas fa-users me-1" aria-hidden="true"></i>Team job &middot; <?php echo count($tm) + 1; ?> drivers
+                                    </span>
+                                    <?php endif; ?>
                                 </td>
                                 <td>
                                     <?php if ($s['driver_name']): ?>
@@ -477,6 +488,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                            aria-label="Edit schedule #<?php echo $s['schedule_id']; ?>">
                                             <i class="fas fa-pen-to-square" aria-hidden="true"></i>
                                         </a>
+                                        <?php if (in_array($s['status'], ['pending', 'approved'], true)): ?>
+                                        <!-- Add another driver to this job -->
+                                        <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php?add_to=<?php echo (int)$s['schedule_id']; ?>"
+                                           class="btn btn-outline-success btn-action"
+                                           title="Add another driver to this job"
+                                           aria-label="Add another driver to schedule #<?php echo $s['schedule_id']; ?>">
+                                            <i class="fas fa-user-group" aria-hidden="true"></i>
+                                        </a>
+                                        <?php endif; ?>
                                         <!-- Delete -->
                                         <button type="button"
                                                 class="btn btn-outline-danger btn-action"
@@ -541,6 +561,9 @@ const SCHEDULES_DATA = <?php
             'destination'        => $s['destination'],
             'purpose'            => $s['purpose'] ?? '',
             'passenger_count'    => (int)$s['passenger_count'],
+            'team'               => array_map(static function ($m) {
+                                        return ['driver_name' => $m['driver_name'], 'plate_number' => $m['plate_number']];
+                                    }, $teams[(int)$s['schedule_id']] ?? []),
             'status'             => $s['status'],
             'priority_score'     => (float)$s['priority_score'],
             'notes'              => $s['notes'] ?? '',
@@ -688,6 +711,10 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                                 : '<span class="text-muted">Not Assigned</span>'}
                         </div>
                     </div>
+                    ${(s.team && s.team.length) ? `<div class="col-12 mt-1">
+                        <div class="detail-label">Also on this job (${s.team.length + 1} drivers)</div>
+                        <div class="detail-value small">${s.team.map(function (m) { return escHtml(m.driver_name || 'Unassigned') + (m.plate_number ? ' <span class="text-muted font-monospace">(' + escHtml(m.plate_number) + ')</span>' : ''); }).join('<br>')}</div>
+                    </div>` : ''}
                     <div class="col-12 mt-1">
                         <div class="detail-label">Officer(s)</div>
                         <div class="detail-value">${s.officer_name ? escHtml(s.officer_name) : '<span class="text-muted">&mdash;</span>'}</div>

@@ -95,6 +95,17 @@ $recent_stmt->bind_param("i", $driver_id);
 $recent_stmt->execute();
 $recent_completed = $recent_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+// Team jobs: who else is on the same job as me
+$teams = getJobTeams($conn, array_merge(
+    array_column($today_schedules, 'schedule_id'),
+    array_column($upcoming_schedules, 'schedule_id')
+));
+$teamLine = static function (array $members): string {
+    return implode(', ', array_map(static function ($m) {
+        return htmlspecialchars($m['driver_name'] ?? 'Unassigned') . ($m['plate_number'] ? ' (' . htmlspecialchars($m['plate_number']) . ')' : '');
+    }, $members));
+};
+
 require_once '../includes/header.php';
 require_once '../includes/sidebar.php';
 ?>
@@ -190,6 +201,9 @@ require_once '../includes/sidebar.php';
                     <?php endif; ?>
                     <span class="badge bg-light text-dark"><i class="fas fa-users me-1"></i><?= $ts['passenger_count'] ?> pax</span>
                   </div>
+                  <?php if (!empty($teams[(int)$ts['schedule_id']])): ?>
+                  <div class="small mt-2"><i class="fas fa-users text-muted me-1"></i><strong>Team job</strong> with <?= $teamLine($teams[(int)$ts['schedule_id']]) ?></div>
+                  <?php endif; ?>
                   <?php if (!empty($ts['officer_name']) || !empty($ts['officer_phone']) || !empty($ts['waiting_place'])): ?>
                   <div class="small mt-2">
                     <?php if (!empty($ts['officer_name'])): ?><span class="me-2"><i class="fas fa-user-tie text-muted me-1"></i><?= htmlspecialchars($ts['officer_name']) ?></span><?php endif; ?>
@@ -285,6 +299,9 @@ require_once '../includes/sidebar.php';
                       <i class="fas fa-calendar me-1"></i><?= date('d M',strtotime($us['trip_date'])) ?>
                       &nbsp;<i class="fas fa-clock me-1"></i><?= substr($us['start_time'],0,5) ?>
                     </small>
+                    <?php if (!empty($teams[(int)$us['schedule_id']])): ?>
+                    <div class="small mt-1"><i class="fas fa-users text-muted me-1"></i>Team job with <?= $teamLine($teams[(int)$us['schedule_id']]) ?></div>
+                    <?php endif; ?>
                     <?php if (!empty($us['officer_name']) || !empty($us['officer_phone']) || !empty($us['waiting_place'])): ?>
                     <div class="small mt-1">
                       <?php if (!empty($us['officer_name'])): ?><span class="me-2"><i class="fas fa-user-tie text-muted me-1"></i><?= htmlspecialchars($us['officer_name']) ?></span><?php endif; ?>
