@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $get_ids) {
     $form['vehicle_ids']     = $get_ids;
     $form['vehicles_needed'] = (string)count($get_ids);
 } elseif ($_SERVER['REQUEST_METHOD'] !== 'POST' && $get_any > 0) {
-    $form['vehicles_needed'] = (string)$get_any;
+    $form['vehicles_needed'] = '1';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $passenger_count = (int)($_POST['passenger_count'] ?? 0);
     $posted_ids      = (isset($_POST['vehicle_ids']) && is_array($_POST['vehicle_ids'])) ? $_POST['vehicle_ids'] : [];
     $vehicle_ids     = array_slice(array_values(array_unique(array_filter(array_map('intval', $posted_ids)))), 0, 5);
-    $vehicles_needed = $vehicle_ids ? count($vehicle_ids) : max(1, min(5, (int)($_POST['vehicles_needed'] ?? 1)));
+    $vehicles_needed = $vehicle_ids ? count($vehicle_ids) : 1;     // 'any': the transport unit decides how many
     $vehicle_id      = $vehicle_ids ? $vehicle_ids[0] : null;       // the first one is kept on the request itself
     $officer_name    = trim($_POST['officer_name']    ?? '');
     $officer_phone   = trim($_POST['officer_phone']   ?? '');
@@ -486,15 +486,11 @@ $vehicle_icon = static function (string $type): string {
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
         <div>
             <h5 class="fw-bold mb-1">Step 1 of 2 &middot; Choose vehicle(s)</h5>
-            <p class="text-muted mb-0 small">Add the vehicle you would like. If your trip needs more than one, add each of them. Vehicles under maintenance are shown for your information only.</p>
+            <p class="text-muted mb-0 small">Add the vehicle you would like. If your trip needs more than one, add each of them. Not sure (for example a seminar or event)? Let the transport unit decide the vehicles and how many are needed. Vehicles under maintenance are shown for your information only.</p>
         </div>
-        <form method="get" action="request_vehicle.php" class="d-flex align-items-center gap-2 flex-wrap">
-            <label for="anyCount" class="small fw-semibold mb-0">Any available vehicle &times;</label>
-            <input type="number" id="anyCount" name="any" value="1" min="1" max="5" class="form-control form-control-sm" style="width:72px;" aria-label="How many vehicles">
-            <button type="submit" class="btn btn-outline-primary btn-sm fw-semibold">
-                <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>Let the transport unit decide
-            </button>
-        </form>
+        <a href="request_vehicle.php?any=1" class="btn btn-outline-primary fw-semibold">
+            <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>Let the transport unit decide
+        </a>
     </div>
 
     <div class="rv-chips mb-3" role="group" aria-label="Filter by vehicle type">
@@ -584,7 +580,7 @@ $vehicle_icon = static function (string $type): string {
             </div>
             <?php endforeach; else: ?>
             <div class="fw-bold"><i class="fas fa-wand-magic-sparkles me-1 text-success" aria-hidden="true"></i>Any available vehicle</div>
-            <div class="small text-muted">The transport unit will choose suitable vehicle(s) for you.</div>
+            <div class="small text-muted">The transport unit will choose the vehicles, and how many are needed for your passengers.</div>
             <?php endif; ?>
         </div>
         <a href="request_vehicle.php" class="btn btn-outline-secondary btn-sm ms-auto align-self-start">
@@ -689,10 +685,10 @@ $vehicle_icon = static function (string $type): string {
                                     <span class="text-muted">&middot; <?= array_sum(array_map('intval', array_column($chosen_vehicles, 'capacity'))) ?> seats in total</span>
                                 </div>
                                 <?php else: ?>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="vehicles_needed" name="vehicles_needed" min="1" max="5"
-                                           value="<?= (int)$form['vehicles_needed'] ?>" aria-describedby="vehicleHint">
-                                    <span class="input-group-text">vehicle(s) needed &middot; any available</span>
+                                <input type="hidden" name="vehicles_needed" value="1">
+                                <div class="form-control bg-light" style="height:auto;">
+                                    <i class="fas fa-wand-magic-sparkles text-success me-1" aria-hidden="true"></i>
+                                    Any available vehicle <span class="text-muted">&middot; the transport unit decides which and how many</span>
                                 </div>
                                 <?php endif; ?>
                                 <div class="form-text mt-1" id="vehicleHint"></div>
@@ -1028,17 +1024,7 @@ document.querySelectorAll('.rv-chip').forEach(function (chip) {
                 })
                 .catch(function () { /* the server checks again on submit */ });
         } else {
-            var p = new URLSearchParams({ trip_date: d, start_time: s, end_time: e, passengers: 1 });
-            fetch(FREE_URL + '?' + p.toString(), { credentials: 'same-origin' })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var need = parseInt((document.getElementById('vehicles_needed') || {}).value, 10) || 1;
-                    if (data.success) {
-                        setHint(data.vehicles.length + ' vehicle(s) are free at this time. The transport unit will choose ' + need + '.',
-                                data.vehicles.length >= need ? 'success' : 'warning');
-                    }
-                })
-                .catch(function () {});
+            setHint('The transport unit will choose suitable vehicles for ' + pax + ' passenger(s), and decide how many are needed.', 'success');
         }
     }
 
@@ -1046,7 +1032,6 @@ document.querySelectorAll('.rv-chip').forEach(function (chip) {
     startInput.addEventListener('change', loadVehicles);
     endInput.addEventListener('change',   loadVehicles);
     document.getElementById('passenger_count').addEventListener('change', loadVehicles);
-    var vn = document.getElementById('vehicles_needed'); if (vn) { vn.addEventListener('change', loadVehicles); }
     purposeEl.addEventListener('input',   updateCharCount);
 
     // ── Supporting documents ─────────────────────────────────────

@@ -28,7 +28,7 @@ $role_label = [
 $quick_start = [
     'staff' => [
         'Open <strong>Request Vehicle</strong> in the menu. You see the vehicles as cards. Vehicles under maintenance are shown for your information and cannot be chosen.',
-        'Press <strong>Add to request</strong> on each vehicle you need (add more than one if your trip needs several), then <strong>Continue</strong>. Or choose <strong>Any available vehicle</strong> and say how many, to let the transport unit decide. The request form opens.',
+        'Press <strong>Add to request</strong> on each vehicle you need (add more than one if your trip needs several), then <strong>Continue</strong>. Not sure what you need, for example for a seminar? Choose <strong>Let the transport unit decide</strong>: the transport unit picks the vehicles and how many. The request form opens.',
         'Pick your trip date and time. The form checks that your vehicle is free then.',
         'Fill in the trip details, the officer name, officer phone and waiting place. Attach your letter if you have one.',
         'Press submit. Your Head of Section will review it.',
@@ -167,14 +167,15 @@ if ($role === 'admin') {
         <p>After you process it, the status becomes <strong>Processed</strong> and the staff member can see it.</p>
     ', 'role'];
 
-    $items[] = ['admin-multi', 'bus-simple', 'Requests that need several vehicles', '
-        <p>When a staff member asks for more than one vehicle, the Process window shows one row for each vehicle.</p>
-        <ol>
-            <li>Check the vehicle in each row (the vehicles they asked for are already chosen).</li>
-            <li>Choose a driver for each vehicle. Each driver can only be used once.</li>
-            <li>Press <strong>Create Schedule</strong>. One job is created with one schedule per vehicle. Drivers you left blank stay Pending.</li>
-        </ol>
-        <p>The seats of all the vehicles together must cover the passengers.</p>
+    $items[] = ['admin-multi', 'bus-simple', 'Choosing the vehicles and drivers for a request', '
+        <p>The Process window shows one row for each vehicle: a vehicle and its driver.</p>
+        <ul>
+            <li>If the staff member chose vehicles, those rows are already filled in.</li>
+            <li>If they chose <strong>Let the transport unit decide</strong>, the system suggests vehicles that seat all the passengers (for example one car, or two buses for a big group). You decide: change them, press <strong>Add another vehicle</strong>, or <strong>Remove</strong> a row.</li>
+            <li>Choose a driver for each vehicle. A vehicle or driver can only be used once.</li>
+            <li>The seats of all the vehicles together must cover the passengers. The window shows the total.</li>
+        </ul>
+        <p>Press <strong>Create Schedule</strong>. With more than one vehicle, one job is created with one schedule per vehicle. Drivers you left blank stay Pending.</p>
     ', 'role'];
 
     $items[] = ['admin-auto', 'wand-magic-sparkles', 'Auto-assign and driver recommendations', '

@@ -891,7 +891,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
 
         document.getElementById('processTripType').value = 'regular';
-        if (!setupMulti(r)) { loadProcessVehicles(r); }
+        setupMulti(r);
 
         var modal = new bootstrap.Modal(document.getElementById('processModal'));
         modal.show();
@@ -907,10 +907,12 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     function updateProcessNote() {
         if (isMulti()) {
             var withDriver = _multiRows.filter(function (row) { return row.d.value !== '0'; }).length;
-            document.getElementById('processNoteText').textContent =
-                _multiRows.length + ' schedules will be created as one job, one for each vehicle. ' +
-                withDriver + ' will be Approved with a driver (and e-mailed); the other ' + (_multiRows.length - withDriver) +
-                ' stay Pending until you assign a driver.';
+            var total = _multiRows.length;
+            document.getElementById('processNoteText').textContent = total === 1
+                ? (withDriver ? 'The schedule will be created as Approved with this driver, and the driver is e-mailed the details.'
+                              : 'No driver chosen: the schedule stays Pending and unassigned. Use Auto Assign later to pick the best available driver.')
+                : total + ' schedules will be created as one job, one for each vehicle. ' + withDriver +
+                  ' will be Approved with a driver (and e-mailed); the other ' + (total - withDriver) + ' stay Pending until you assign a driver.';
             return;
         }
         var driverId = parseInt(document.getElementById('processDriver').value, 10) || 0;
@@ -1007,41 +1009,132 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             });
     }
 
-    // ── A trip that needs several vehicles: one vehicle + driver per row ──
-    var _multiRows = [];          // [{ v: <select>, d: <select> }]
+    // ── Vehicle rows: one vehicle + driver per row. The admin decides how many
+    //    vehicles the trip gets (add or remove rows); the seats must cover the passengers.
+    var _multiRows = [];          // [{ el, v: <select>, d: <select> }]
+    var _freeVehicles = [];       // vehicles free at this time
 
-    function isMulti() { return _multiRows.length > 1; }
+    function isMulti() { return _multiRows.length > 0; }
+
+    function vehicleOptionsHtml() {
+        var html = '<option value="0" data-seats="0">&mdash; Decide later &mdash;</option>';
+        _freeVehicles.forEach(function (v) {
+            var name = [v.brand, v.model].filter(Boolean).join(' ') || v.vehicle_type;
+            html += '<option value="' + v.vehicle_id + '" data-seats="' + v.capacity + '">'
+                  + escHtml(v.plate_number + ' — ' + name + ' (' + v.vehicle_type + ', ' + v.capacity + ' seats)') + '</option>';
+        });
+        return html;
+    }
+
+    // Suggest vehicles for "any available vehicle": the smallest single vehicle that fits,
+    // otherwise the biggest ones until the seats cover the passengers.
+    function recommendVehicles(pax) {
+        // Only passenger vehicles are suggested (not lorries or motorcycles)
+        var byCap = _freeVehicles.filter(function (v) { return v.vehicle_type !== 'Lorry' && v.vehicle_type !== 'Motorcycle'; })
+                                 .sort(function (a, b) { return a.capacity - b.capacity; });
+        var single = byCap.filter(function (v) { return v.capacity >= pax; })[0];
+        if (single) { return [single.vehicle_id]; }
+        var picked = [], seats = 0;
+        byCap.slice().reverse().forEach(function (v) {
+            if (seats < pax && picked.length < 5) { picked.push(v.vehicle_id); seats += v.capacity; }
+        });
+        return picked;
+    }
+
+    function renumberRows() {
+        _multiRows.forEach(function (row, i) {
+            row.el.querySelector('.pm-title').textContent = 'Vehicle ' + (i + 1) + ' of ' + _multiRows.length;
+            row.el.querySelector('.pm-remove').style.display = _multiRows.length > 1 ? '' : 'none';
+        });
+        var add = document.getElementById('pmAdd');
+        if (add) { add.disabled = _multiRows.length >= 5; }
+    }
+
+    function updateSeats() {
+        var r = findRequest(_processRequestId);
+        var el = document.getElementById('pmSeats');
+        if (!r || !el) { return; }
+        var seats = 0, chosen = 0;
+        _multiRows.forEach(function (row) {
+            var opt = row.v.options[row.v.selectedIndex];
+            var n = opt ? parseInt(opt.getAttribute('data-seats'), 10) || 0 : 0;
+            if (parseInt(row.v.value, 10) > 0) { chosen++; seats += n; }
+        });
+        if (!chosen) { el.className = 'small fw-semibold text-muted'; el.textContent = 'No vehicle chosen yet (' + r.passenger_count + ' passengers)'; return; }
+        var enough = seats >= r.passenger_count;
+        el.className = 'small fw-semibold ' + (enough ? 'text-success' : 'text-danger');
+        el.textContent = seats + ' seats for ' + r.passenger_count + ' passengers' + (enough ? ' ✓' : ' — not enough, add another vehicle or choose a bigger one');
+    }
+
+    function addRow(preVehicle) {
+        var i = _multiRows.length;
+        var el = document.createElement('div');
+        el.className = 'border rounded-3 p-3 mb-3';
+        el.innerHTML =
+            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+              '<div class="fw-semibold pm-title" style="color:#0b5d3b;"></div>' +
+              '<button type="button" class="btn btn-link btn-sm text-danger p-0 pm-remove"><i class="fas fa-xmark me-1" aria-hidden="true"></i>Remove</button>' +
+            '</div>' +
+            '<div class="row g-2">' +
+              '<div class="col-md-6"><label class="form-label small mb-1">Vehicle</label><select class="form-select form-select-sm pm-v"></select></div>' +
+              '<div class="col-md-6"><label class="form-label small mb-1">Driver</label><select class="form-select form-select-sm pm-d" disabled><option value="0">Loading&hellip;</option></select></div>' +
+            '</div>';
+        document.getElementById('pmRows').appendChild(el);
+        var row = { el: el, v: el.querySelector('.pm-v'), d: el.querySelector('.pm-d') };
+        row.v.innerHTML = vehicleOptionsHtml();
+        if (preVehicle && _freeVehicles.some(function (v) { return v.vehicle_id === preVehicle; })) { row.v.value = String(preVehicle); }
+        _multiRows.push(row);
+
+        row.v.addEventListener('change', function () {
+            var idx = _multiRows.indexOf(row);
+            loadRowDrivers(idx, false).then(function () { syncMultiChoices(); updateSeats(); updateProcessNote(); });
+        });
+        row.d.addEventListener('change', function () { syncMultiChoices(); updateProcessNote(); });
+        el.querySelector('.pm-remove').addEventListener('click', function () {
+            if (_multiRows.length <= 1) { return; }
+            _multiRows.splice(_multiRows.indexOf(row), 1);
+            el.remove();
+            renumberRows(); syncMultiChoices(); updateSeats(); updateProcessNote();
+        });
+        renumberRows();
+        return row;
+    }
 
     function setupMulti(r) {
-        var n = Math.max(parseInt(r.vehicles_needed, 10) || 1, (r.vehicles || []).length);
         var box = document.getElementById('processMulti');
         _multiRows = [];
-        box.innerHTML = '';
-        var multi = n > 1;
-        document.getElementById('processVehicleCol').style.display = multi ? 'none' : '';
-        document.getElementById('processDriverCol').style.display  = multi ? 'none' : '';
-        box.style.display = multi ? '' : 'none';
-        if (!multi) { return false; }
-
-        for (var i = 0; i < n; i++) {
-            var row = document.createElement('div');
-            row.className = 'border rounded-3 p-3 mb-3';
-            row.innerHTML =
-                '<div class="fw-semibold mb-2" style="color:#0b5d3b;"><i class="fas fa-bus-simple me-1" aria-hidden="true"></i>Vehicle ' + (i + 1) + ' of ' + n + '</div>' +
-                '<div class="row g-2">' +
-                  '<div class="col-md-6"><label class="form-label small mb-1" for="pmv' + i + '">Vehicle</label>' +
-                  '<select id="pmv' + i + '" class="form-select form-select-sm" disabled><option value="0">Loading&hellip;</option></select></div>' +
-                  '<div class="col-md-6"><label class="form-label small mb-1" for="pmd' + i + '">Driver</label>' +
-                  '<select id="pmd' + i + '" class="form-select form-select-sm" disabled><option value="0">Loading&hellip;</option></select></div>' +
-                '</div>';
-            box.appendChild(row);
-            _multiRows.push({ v: row.querySelector('#pmv' + i), d: row.querySelector('#pmd' + i) });
-        }
-        _multiRows.forEach(function (row, idx) {
-            row.v.addEventListener('change', function () { loadRowDrivers(idx, false).then(syncMultiChoices); });
-            row.d.addEventListener('change', function () { syncMultiChoices(); updateProcessNote(); });
+        document.getElementById('processVehicleCol').style.display = 'none';
+        document.getElementById('processDriverCol').style.display  = 'none';
+        box.style.display = '';
+        box.innerHTML =
+            '<div id="pmRows"></div>' +
+            '<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+              '<button type="button" class="btn btn-outline-primary btn-sm" id="pmAdd"><i class="fas fa-plus me-1" aria-hidden="true"></i>Add another vehicle</button>' +
+              '<div id="pmSeats" class="small fw-semibold" aria-live="polite"></div>' +
+            '</div>';
+        document.getElementById('pmAdd').addEventListener('click', function () {
+            if (_multiRows.length >= 5) { return; }
+            var row = addRow(0);
+            loadRowDrivers(_multiRows.indexOf(row), true).then(function () { syncMultiChoices(); updateSeats(); updateProcessNote(); });
+            syncMultiChoices(); updateSeats(); updateProcessNote();
         });
-        loadMultiVehicles(r);
+
+        var q = new URLSearchParams({ trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time, passengers: 1 });
+        fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
+            .then(function (res) { return res.json(); })
+            .then(function (data) { _freeVehicles = (data && data.success && data.vehicles) ? data.vehicles : []; })
+            .catch(function () { _freeVehicles = []; })
+            .then(function () {
+                var asked = (r.vehicles || []).map(function (v) { return v.vehicle_id; });
+                var start = asked.length ? asked : recommendVehicles(parseInt(r.passenger_count, 10) || 1);
+                if (!start.length) { start = [0]; }
+                start.forEach(function (vid) { addRow(vid); });
+                syncMultiChoices(); updateSeats();
+                return _multiRows.reduce(function (p, row, i) {
+                    return p.then(function () { return loadRowDrivers(i, true); });
+                }, Promise.resolve());
+            })
+            .then(function () { syncMultiChoices(); updateSeats(); updateProcessNote(); });
         return true;
     }
 
@@ -1056,46 +1149,10 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         });
     }
 
-    function loadMultiVehicles(r) {
-        var q = new URLSearchParams({ trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time, passengers: 1 });
-        fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
-                var list = (data && data.success && data.vehicles) ? data.vehicles : [];
-                var asked = (r.vehicles || []).map(function (v) { return v.vehicle_id; });
-                var used = {};
-                _multiRows.forEach(function (row, i) {
-                    var html = '<option value="0">&mdash; Decide later &mdash;</option>';
-                    list.forEach(function (v) {
-                        var name = [v.brand, v.model].filter(Boolean).join(' ') || v.vehicle_type;
-                        html += '<option value="' + v.vehicle_id + '">'
-                              + escHtml(v.plate_number + ' — ' + name + ' (' + v.vehicle_type + ', ' + v.capacity + ' seats)') + '</option>';
-                    });
-                    row.v.innerHTML = html;
-                    row.v.disabled = false;
-                    var want = asked[i];
-                    if (want && list.some(function (v) { return v.vehicle_id === want; })) {
-                        row.v.value = String(want); used[want] = true;
-                    }
-                });
-                syncMultiChoices();
-                // load drivers row by row so each one gets a different recommended driver
-                return _multiRows.reduce(function (p, row, i) {
-                    return p.then(function () { return loadRowDrivers(i, true); });
-                }, Promise.resolve());
-            })
-            .then(function () { syncMultiChoices(); updateProcessNote(); })
-            .catch(function () {
-                _multiRows.forEach(function (row) {
-                    row.v.innerHTML = '<option value="0">&mdash; Decide later &mdash;</option>'; row.v.disabled = false;
-                    row.d.innerHTML = '<option value="0">&mdash; Leave unassigned &mdash;</option>'; row.d.disabled = false;
-                });
-            });
-    }
-
     function loadRowDrivers(i, pickDefault) {
         var r = findRequest(_processRequestId);
         var row = _multiRows[i];
+        if (!row) { return Promise.resolve(); }
         var fd = new FormData();
         fd.append('trip_date',  r.trip_date);
         fd.append('start_time', r.start_time);
