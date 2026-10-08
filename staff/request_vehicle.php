@@ -36,6 +36,28 @@ $form   = [
 ];
 $had_files = false; // true when the failed POST contained chosen files
 
+// ── Step 1 (choose a vehicle) or step 2 (the form) ───────────
+// GET without ?vehicle=  -> vehicle cards.  ?vehicle=<id>|any -> the form.
+// A POST (including one that failed validation) always shows the form.
+$choice = trim($_GET['vehicle'] ?? '');
+$show_picker = ($_SERVER['REQUEST_METHOD'] !== 'POST') && $choice === '';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $choice !== '' && $choice !== 'any') {
+    // Only a vehicle that can be requested may be chosen (not retired / in maintenance)
+    $vid_choice = ctype_digit($choice) ? (int)$choice : 0;
+    $vc = $conn->prepare("SELECT vehicle_id FROM vehicles WHERE vehicle_id = ? AND status IN ('available', 'in_use')");
+    $vc->bind_param('i', $vid_choice);
+    $vc->execute();
+    $ok_choice = $vc->get_result()->num_rows > 0;
+    $vc->close();
+    if (!$ok_choice) {
+        setFlash('warning', 'That vehicle cannot be requested right now. Please choose another vehicle.');
+        header('Location: request_vehicle.php');
+        exit();
+    }
+    $form['vehicle_id'] = (string)$vid_choice;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trip_date       = trim($_POST['trip_date']       ?? '');
     $start_time      = trim($_POST['start_time']      ?? '');
@@ -302,6 +324,34 @@ if ($stmt) {
     }
     $stmt->close();
 }
+
+// ── Vehicles for the picker (retired ones are never shown) ───
+$picker_vehicles = [];
+if ($show_picker) {
+    $pv = $conn->query(
+        "SELECT vehicle_id, plate_number, vehicle_type, brand, model, year, capacity, fuel_type, status, photo
+         FROM vehicles WHERE status <> 'retired'
+         ORDER BY FIELD(status, 'available', 'in_use', 'maintenance'), vehicle_type, plate_number"
+    );
+    $picker_vehicles = $pv ? $pv->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+// ── The vehicle chosen in step 1 (shown above the form) ──────
+$chosen_vehicle = null;
+if (!$show_picker && ($form['vehicle_id'] ?? '') !== '' && ctype_digit((string)$form['vehicle_id'])) {
+    $cv = $conn->prepare("SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity, fuel_type, status, photo FROM vehicles WHERE vehicle_id = ?");
+    $vid_banner = (int)$form['vehicle_id'];
+    $cv->bind_param('i', $vid_banner);
+    $cv->execute();
+    $chosen_vehicle = $cv->get_result()->fetch_assoc() ?: null;
+    $cv->close();
+}
+$vehicle_icon = static function (string $type): string {
+    return match ($type) {
+        'Bus' => 'fa-bus', 'Minibus' => 'fa-bus-simple', 'Van' => 'fa-van-shuttle',
+        'Lorry' => 'fa-truck', 'Motorcycle' => 'fa-motorcycle', default => 'fa-car',
+    };
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -319,6 +369,33 @@ if ($stmt) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <style>
+        .rv-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:1rem; }
+        .rv-card { background:#fff; border:1px solid #e3e9e5; border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+                   box-shadow:0 2px 10px rgba(11,93,59,.06); position:relative; }
+        .rv-card::before { content:''; position:absolute; inset:0 0 auto 0; height:4px; background:var(--rv,#15803d); z-index:1; }
+        .rv-card.st-available { --rv:#15803d; } .rv-card.st-in_use { --rv:#0e7490; } .rv-card.st-maintenance { --rv:#b45309; }
+        .rv-card.st-maintenance .rv-photo img, .rv-card.st-maintenance .rv-body { opacity:.7; filter:grayscale(.4); }
+        .rv-photo { position:relative; background:#eef3f0; aspect-ratio:16/9; overflow:hidden; }
+        .rv-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+        .rv-photo.rv-ph img { object-fit:contain; padding:1.2rem; }
+        .rv-status { position:absolute; z-index:2; box-shadow:0 1px 4px rgba(0,0,0,.18); top:.7rem; right:.7rem; font-size:.7rem; font-weight:700; padding:.25rem .6rem; border-radius:999px; color:#fff; background:var(--rv); }
+        .rv-body { padding:1rem 1.1rem .6rem; flex:1; }
+        .rv-plate { font-weight:800; letter-spacing:.04em; font-size:1.05rem; color:#122018; }
+        .rv-name { font-weight:600; color:#334155; }
+        .rv-meta { font-size:.8rem; color:#64748b; }
+        .rv-specs { display:flex; gap:1.2rem; margin-top:.75rem; font-size:.82rem; color:#334155; }
+        .rv-specs i { color:#0b5d3b; margin-right:.35rem; }
+        .rv-note { font-size:.78rem; margin-top:.7rem; padding:.45rem .6rem; border-radius:8px; background:#fdf3e4; color:#92400e; }
+        .rv-note.info { background:#e6f4f7; color:#0e5e72; }
+        .rv-foot { padding:.7rem 1.1rem 1.1rem; }
+        .rv-chips { display:flex; flex-wrap:wrap; gap:.5rem; }
+        .rv-chip { border:1px solid #d6e0da; background:#fff; border-radius:999px; padding:.35rem .9rem; font-size:.82rem; font-weight:600; color:#334155; cursor:pointer; }
+        .rv-chip.active { background:#0b5d3b; color:#fff; border-color:#0b5d3b; }
+        .rv-banner { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; background:#fff; border:1px solid #cfe3d8; border-left:4px solid #0b5d3b;
+                     border-radius:12px; padding:.8rem 1rem; margin-bottom:1.25rem; }
+        .rv-banner img { width:84px; height:56px; object-fit:cover; border-radius:8px; background:#eef3f0; }
+    </style>
 </head>
 <body>
 <?php require_once '../includes/sidebar.php'; ?>
@@ -354,6 +431,97 @@ if ($stmt) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     <?php endif; ?>
+
+    <?php if ($show_picker): ?>
+    <!-- ── Step 1: choose a vehicle ─────────────────────────────── -->
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+        <div>
+            <h5 class="fw-bold mb-1">Step 1 of 2 &middot; Choose a vehicle</h5>
+            <p class="text-muted mb-0 small">Pick the vehicle you would like, then fill in the trip details. Vehicles under maintenance are shown for your information only.</p>
+        </div>
+        <a href="request_vehicle.php?vehicle=any" class="btn btn-outline-primary fw-semibold">
+            <i class="fas fa-wand-magic-sparkles me-1" aria-hidden="true"></i>Any available vehicle (let the transport unit decide)
+        </a>
+    </div>
+
+    <div class="rv-chips mb-3" role="group" aria-label="Filter by vehicle type">
+        <button type="button" class="rv-chip active" data-type="">All</button>
+        <?php foreach (array_values(array_unique(array_column($picker_vehicles, 'vehicle_type'))) as $t): ?>
+        <button type="button" class="rv-chip" data-type="<?= htmlspecialchars($t) ?>"><?= htmlspecialchars($t) ?></button>
+        <?php endforeach; ?>
+    </div>
+
+    <?php if (empty($picker_vehicles)): ?>
+    <div class="alert alert-info">There are no vehicles to show right now. Use &ldquo;Any available vehicle&rdquo; and the transport unit will decide.</div>
+    <?php endif; ?>
+
+    <div class="rv-grid" id="rvGrid">
+        <?php foreach ($picker_vehicles as $v):
+            $vStatusLabel = ['available' => 'Available', 'in_use' => 'In use', 'maintenance' => 'Under maintenance'][$v['status']] ?? ucfirst($v['status']);
+            $canPick = in_array($v['status'], ['available', 'in_use'], true);
+            $hasPhoto = !empty($v['photo']);
+            $fuelIcon = match ($v['fuel_type']) { 'Electric' => 'fa-bolt', 'Hybrid' => 'fa-leaf', default => 'fa-gas-pump' };
+        ?>
+        <article class="rv-card st-<?= htmlspecialchars($v['status']) ?>" data-type="<?= htmlspecialchars($v['vehicle_type']) ?>">
+            <div class="rv-photo<?= $hasPhoto ? '' : ' rv-ph' ?>">
+                <img alt="<?= htmlspecialchars(trim($v['plate_number'] . ' ' . $v['brand'] . ' ' . $v['model'])) ?>"
+                     src="<?= htmlspecialchars(vehiclePhotoUrl($v['photo'] ?? null, $v['vehicle_type'])) ?>"
+                     data-fallback="<?= htmlspecialchars(vehiclePhotoUrl(null, $v['vehicle_type'])) ?>"
+                     loading="lazy"
+                     onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;this.parentNode.classList.add('rv-ph');}">
+                <span class="rv-status"><?= $vStatusLabel ?></span>
+            </div>
+            <div class="rv-body">
+                <div class="rv-plate"><?= htmlspecialchars($v['plate_number']) ?></div>
+                <div class="rv-name"><?= htmlspecialchars(trim($v['brand'] . ' ' . $v['model'])) ?></div>
+                <div class="rv-meta"><i class="fas <?= $vehicle_icon($v['vehicle_type']) ?> me-1" aria-hidden="true"></i><?= htmlspecialchars($v['vehicle_type']) ?><?= !empty($v['year']) ? ' &middot; ' . (int)$v['year'] : '' ?></div>
+                <div class="rv-specs">
+                    <span><i class="fas fa-user-group" aria-hidden="true"></i><?= (int)$v['capacity'] ?> seats</span>
+                    <span><i class="fas <?= $fuelIcon ?>" aria-hidden="true"></i><?= htmlspecialchars($v['fuel_type']) ?></span>
+                </div>
+                <?php if ($v['status'] === 'maintenance'): ?>
+                <div class="rv-note"><i class="fas fa-screwdriver-wrench me-1" aria-hidden="true"></i>Under maintenance. It cannot be requested at the moment.</div>
+                <?php elseif ($v['status'] === 'in_use'): ?>
+                <div class="rv-note info"><i class="fas fa-circle-info me-1" aria-hidden="true"></i>In use now. You can still request it; the next step checks your date and time.</div>
+                <?php endif; ?>
+            </div>
+            <div class="rv-foot">
+                <?php if ($canPick): ?>
+                <a href="request_vehicle.php?vehicle=<?= (int)$v['vehicle_id'] ?>" class="btn btn-primary w-100 fw-semibold">
+                    Select this vehicle <i class="fas fa-arrow-right ms-1" aria-hidden="true"></i>
+                </a>
+                <?php else: ?>
+                <button type="button" class="btn btn-outline-secondary w-100" disabled>Not available</button>
+                <?php endif; ?>
+            </div>
+        </article>
+        <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+
+    <!-- ── Step 2: the form, with the chosen vehicle on top ─────── -->
+    <div class="rv-banner">
+        <?php if ($chosen_vehicle): ?>
+        <img alt="" src="<?= htmlspecialchars(vehiclePhotoUrl($chosen_vehicle['photo'] ?? null, $chosen_vehicle['vehicle_type'])) ?>"
+             data-fallback="<?= htmlspecialchars(vehiclePhotoUrl(null, $chosen_vehicle['vehicle_type'])) ?>"
+             onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src=this.dataset.fallback;}">
+        <div>
+            <div class="small text-muted fw-semibold text-uppercase">Step 2 of 2 &middot; Selected vehicle</div>
+            <div class="fw-bold"><?= htmlspecialchars($chosen_vehicle['plate_number']) ?>
+                <span class="fw-semibold text-muted">&middot; <?= htmlspecialchars(trim($chosen_vehicle['brand'] . ' ' . $chosen_vehicle['model'])) ?></span></div>
+            <div class="small text-muted"><?= htmlspecialchars($chosen_vehicle['vehicle_type']) ?> &middot; <?= (int)$chosen_vehicle['capacity'] ?> seats</div>
+        </div>
+        <?php else: ?>
+        <div>
+            <div class="small text-muted fw-semibold text-uppercase">Step 2 of 2 &middot; Selected vehicle</div>
+            <div class="fw-bold"><i class="fas fa-wand-magic-sparkles me-1 text-success" aria-hidden="true"></i>Any available vehicle</div>
+            <div class="small text-muted">The transport unit will choose a suitable vehicle for you.</div>
+        </div>
+        <?php endif; ?>
+        <a href="request_vehicle.php" class="btn btn-outline-secondary btn-sm ms-auto">
+            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i>Change vehicle
+        </a>
+    </div>
 
     <div class="row g-4">
 
@@ -649,6 +817,7 @@ if ($stmt) {
         </div>
 
     </div>
+    <?php endif; ?>
 </main>
 
 <!-- jQuery -->
@@ -657,6 +826,20 @@ if ($stmt) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <!-- Custom JS -->
 <script src="<?= SITE_URL ?>/assets/js/main.js"></script>
+<?php if ($show_picker): ?>
+<script>
+document.querySelectorAll('.rv-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+        document.querySelectorAll('.rv-chip').forEach(function (c) { c.classList.remove('active'); });
+        chip.classList.add('active');
+        var t = chip.getAttribute('data-type');
+        document.querySelectorAll('.rv-card').forEach(function (card) {
+            card.style.display = (!t || card.getAttribute('data-type') === t) ? '' : 'none';
+        });
+    });
+});
+</script>
+<?php else: ?>
 <script>
 (function () {
     'use strict';
@@ -753,6 +936,8 @@ if ($stmt) {
                     vehicleSel.value = prev;
                     if (vehicleSel.value !== prev) {
                         vehicleSel.value = '';
+                        vehicleHint.textContent = 'The vehicle you chose is not free for this date and time, or has too few seats. \u201cAny available vehicle\u201d is selected instead; you can pick another from the list.';
+                        vehicleHint.className   = 'form-text mt-1 text-warning fw-semibold';
                     }
                 }
             })
@@ -930,5 +1115,6 @@ if ($stmt) {
     officerNameEl.addEventListener('input',  fillFromOfficer);
 })();
 </script>
+<?php endif; ?>
 </body>
 </html>

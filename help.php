@@ -27,8 +27,9 @@ $role_label = [
 // ── Quick start steps (menu names match the sidebar) ────────────
 $quick_start = [
     'staff' => [
-        'Open <strong>Request Vehicle</strong> in the menu.',
-        'Pick your trip date and time first. The page then shows only the vehicles that are free.',
+        'Open <strong>Request Vehicle</strong> in the menu. You see the vehicles as cards. Vehicles under maintenance are shown for your information and cannot be chosen.',
+        'Press <strong>Select this vehicle</strong> (or <strong>Any available vehicle</strong> to let the transport unit decide). The request form opens.',
+        'Pick your trip date and time. The form checks that your vehicle is free then.',
         'Fill in the trip details, the officer name, officer phone and waiting place. Attach your letter if you have one.',
         'Press submit. Your Head of Section will review it.',
         'Open <strong>My Requests</strong> any time to see the status.',
