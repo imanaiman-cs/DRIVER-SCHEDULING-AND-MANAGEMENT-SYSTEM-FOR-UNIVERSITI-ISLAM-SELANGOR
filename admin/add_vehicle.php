@@ -312,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     <?php endif; ?>
 
-    <form class="form-stack" method="POST" action="" enctype="multipart/form-data" novalidate id="addVehicleForm">
+    <form method="POST" action="" enctype="multipart/form-data" novalidate id="addVehicleForm">
 
         <!-- ── Section 1: Vehicle Information ─────────────────── -->
         <div class="card form-card">

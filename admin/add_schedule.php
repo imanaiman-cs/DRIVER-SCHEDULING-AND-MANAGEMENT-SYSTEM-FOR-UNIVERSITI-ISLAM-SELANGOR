@@ -472,7 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form class="form-stack" method="POST" id="scheduleForm" novalidate>
+    <form method="POST" id="scheduleForm" novalidate>
         <?php if ($lead): ?><input type="hidden" name="add_to" value="<?php echo (int)$lead['schedule_id']; ?>"><?php endif; ?>
 
         <div class="row g-4">

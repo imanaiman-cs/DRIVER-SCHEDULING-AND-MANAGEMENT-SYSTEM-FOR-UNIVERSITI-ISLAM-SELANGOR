@@ -518,7 +518,7 @@ $display_requests = array_values($display_requests);
                     <i class="fas fa-user-check me-2" aria-hidden="true"></i>Assign now <span class="fw-normal text-muted small">(optional)</span>
                 </h6>
                 <div class="row g-3">
-                    <div class="col-12">
+                    <div class="col-md-5">
                         <label for="processTripType" class="form-label fw-semibold">Trip type</label>
                         <select id="processTripType" class="form-select">
                             <option value="regular">Regular</option>
@@ -526,7 +526,7 @@ $display_requests = array_values($display_requests);
                         </select>
                         <div class="form-text">Top Management trips are only offered to Top Management drivers.</div>
                     </div>
-                    <div class="col-12">
+                    <div class="col-md-7">
                         <label for="processVehicle" class="form-label fw-semibold">Vehicle</label>
                         <select id="processVehicle" class="form-select" disabled>
                             <option value="0">Loading vehicles&hellip;</option>

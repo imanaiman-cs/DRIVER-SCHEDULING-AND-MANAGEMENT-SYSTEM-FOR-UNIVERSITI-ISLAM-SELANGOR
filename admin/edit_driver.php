@@ -463,7 +463,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
 
-    <form class="form-stack" method="POST"
+    <form method="POST"
           action="edit_driver.php?id=<?php echo (int)$driver_id; ?>"
           id="editDriverForm"
           enctype="multipart/form-data"

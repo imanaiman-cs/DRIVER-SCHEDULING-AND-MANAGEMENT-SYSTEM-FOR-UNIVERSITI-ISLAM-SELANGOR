@@ -426,7 +426,7 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
     </div>
     <?php endif; ?>
 
-    <form class="form-stack" method="POST"
+    <form method="POST"
           action="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo $vehicle_id; ?>"
           enctype="multipart/form-data"
           novalidate
