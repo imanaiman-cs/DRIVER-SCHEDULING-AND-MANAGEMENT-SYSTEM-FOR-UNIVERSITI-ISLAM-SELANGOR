@@ -9,9 +9,10 @@ $staff_id = (int)$_SESSION['user_id'];
 
 // Fetch all vehicle requests for this staff member with vehicle + supervisor info
 $stmt = $conn->prepare("
-    SELECT vr.*, v.plate_number, v.brand, v.model, u.full_name AS supervisor_name
+    SELECT vr.*, v.plate_number, v.brand, v.model, u.full_name AS supervisor_name, pd.name AS preferred_driver_name
     FROM vehicle_requests vr
     LEFT JOIN vehicles v ON vr.vehicle_id = v.vehicle_id
+    LEFT JOIN drivers pd ON vr.preferred_driver_id = pd.driver_id
     LEFT JOIN users u ON vr.supervisor_id = u.user_id
     WHERE vr.staff_id = ?
     ORDER BY vr.created_at DESC
@@ -562,6 +563,14 @@ var REQUESTS_DATA = <?= json_encode(
                 '<div class="col-sm-6">' +
                     label('Waiting Place') +
                     '<div class="fw-semibold mt-1">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">—</span>') + '</div>' +
+                '</div>' +
+                '<div class="col-sm-6">' +
+                    label('Drivers Needed') +
+                    '<div class="fw-semibold mt-1">' + (parseInt(r.drivers_needed, 10) || 1) + '</div>' +
+                '</div>' +
+                '<div class="col-sm-6">' +
+                    label('Preferred Driver') +
+                    '<div class="fw-semibold mt-1">' + (r.preferred_driver_name ? escHtml(r.preferred_driver_name) : '<span class="text-muted fst-italic">No preference</span>') + '</div>' +
                 '</div>' +
                 '<div class="col-sm-6">' +
                     label('Requested Vehicle') +

@@ -252,6 +252,7 @@ echo json_encode([
     'message'         => 'Schedule created.',
     'schedule_id'     => $schedule_id,
     'driver_assigned' => $driver_id !== null,
+    'drivers_needed'  => (int)($request['drivers_needed'] ?? 1),
     'driver_name'     => $driver_name,
     'email'           => $email_note,
 ]);

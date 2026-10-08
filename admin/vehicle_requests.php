@@ -21,11 +21,13 @@ $sql = "
            s.full_name   AS staff_name,
            s.department,
            sup.full_name AS supervisor_name,
+           pd.name AS preferred_driver_name,
            v.plate_number, v.brand, v.model, v.vehicle_type, v.capacity
     FROM vehicle_requests vr
     JOIN users s        ON vr.staff_id      = s.user_id
     LEFT JOIN users sup ON vr.supervisor_id = sup.user_id
     LEFT JOIN vehicles v ON vr.vehicle_id   = v.vehicle_id
+    LEFT JOIN drivers pd ON vr.preferred_driver_id = pd.driver_id
     ORDER BY FIELD(vr.status, 'approved') DESC, vr.created_at DESC
 ";
 $result       = $conn->query($sql);
@@ -578,6 +580,9 @@ const REQUEST_DATA = <?php
             'officer_name'     => $r['officer_name']  ?? '',
             'officer_phone'    => $r['officer_phone'] ?? '',
             'waiting_place'    => $r['waiting_place'] ?? '',
+            'drivers_needed'   => (int)($r['drivers_needed'] ?? 1),
+            'preferred_driver_id'   => $r['preferred_driver_id'] !== null ? (int)$r['preferred_driver_id'] : null,
+            'preferred_driver_name' => $r['preferred_driver_name'] ?? '',
             'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
             'plate_number'     => $r['plate_number'] ?? '',
             'vehicle_brand'    => $r['brand'] ?? '',
@@ -793,6 +798,14 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-label">Waiting Place</div>'
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
             + '</div>'
+            + '<div class="col-md-6">'
+            +   '<div class="detail-label">Drivers Needed</div>'
+            +   '<div class="detail-value">' + (parseInt(r.drivers_needed, 10) || 1) + '</div>'
+            + '</div>'
+            + '<div class="col-md-6">'
+            +   '<div class="detail-label">Preferred Driver</div>'
+            +   '<div class="detail-value">' + (r.preferred_driver_name ? escHtml(r.preferred_driver_name) : '<span class="text-muted fst-italic">No preference</span>') + '</div>'
+            + '</div>'
 
             + '<div class="col-12">'
             +   '<div class="detail-label">Requested Vehicle</div>'
@@ -880,6 +893,10 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + telLink(r.officer_phone) + '</div></div>'
             + '<div class="col-6"><div class="detail-label">Waiting Place</div>'
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '&mdash;') + '</div></div>'
+            + '<div class="col-6"><div class="detail-label">Drivers needed</div>'
+            +   '<div class="detail-value">' + (parseInt(r.drivers_needed, 10) || 1) + '</div></div>'
+            + '<div class="col-6"><div class="detail-label">Preferred driver</div>'
+            +   '<div class="detail-value">' + (r.preferred_driver_name ? escHtml(r.preferred_driver_name) : '&mdash;') + '</div></div>'
             + '<div class="col-12"><div class="detail-label">Requested vehicle</div>'
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div></div>'
             + '<div class="col-12"><div class="detail-label">Supporting Documents</div>'
@@ -913,9 +930,13 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
     function updateProcessNote() {
         var driverId = parseInt(document.getElementById('processDriver').value, 10) || 0;
-        document.getElementById('processNoteText').textContent = driverId > 0
+        var rq = findRequest(_processRequestId);
+        var more = rq ? (parseInt(rq.drivers_needed, 10) || 1) - 1 : 0;
+        document.getElementById('processNoteText').textContent = (more > 0
+            ? 'This request needs ' + (more + 1) + ' drivers. Choose the first driver here; after processing, add the other ' + more + ' with the Add driver button. '
+            : '') + (driverId > 0
             ? 'The schedule will be created as Approved with this driver, and the driver is e-mailed the details.'
-            : 'No driver chosen: the schedule stays Pending and unassigned. Use Auto Assign later to pick the best available driver.';
+            : 'No driver chosen: the schedule stays Pending and unassigned. Use Auto Assign later to pick the best available driver.');
     }
 
     function loadProcessVehicles(r) {
@@ -983,16 +1004,23 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             .then(function (data) {
                 var list = (data && data.success && data.drivers) ? data.drivers : [];
                 var html = '<option value="0">&mdash; Leave unassigned (use Auto Assign later) &mdash;</option>';
+                // Staff may have asked for a driver; pre-select them when they are free, otherwise the top score
+                var wanted = r.preferred_driver_id ? parseInt(r.preferred_driver_id, 10) : 0;
+                var wantedFree = list.some(function (d) { return d.driver_id === wanted; });
                 list.forEach(function (d, i) {
-                    html += '<option value="' + d.driver_id + '"' + (i === 0 ? ' selected' : '') + '>'
+                    var isWanted = wantedFree ? d.driver_id === wanted : i === 0;
+                    html += '<option value="' + d.driver_id + '"' + (isWanted ? ' selected' : '') + '>'
                          + escHtml((i === 0 ? '\u2605 Recommended: ' : '') + d.name + ' \u2014 score ' + Number(d.priority).toFixed(2)
-                         + ' (' + d.month_tasks + ' task' + (d.month_tasks === 1 ? '' : 's') + ' this month, ' + d.month_weekend + ' weekend)')
+                         + ' (' + d.month_tasks + ' task' + (d.month_tasks === 1 ? '' : 's') + ' this month, ' + d.month_weekend + ' weekend)'
+                         + (d.driver_id === wanted ? ' \u00b7 requested by staff' : ''))
                          + '</option>';
                 });
                 dSel.innerHTML = html;
                 dSel.disabled = false;
-                if (list.length) {
-                    setHint('processDriverHint', list.length + ' driver(s) are free and hold the right licence. The top score is recommended; change it if you prefer someone else.');
+                if (wanted && !wantedFree) {
+                    setHint('processDriverHint', (r.preferred_driver_name || 'The driver the staff asked for') + ' is not free or does not hold the right licence for this trip, so the top score is selected instead.', 'danger');
+                } else if (list.length) {
+                    setHint('processDriverHint', list.length + ' driver(s) are free and hold the right licence. ' + (wantedFree ? 'The driver the staff asked for is selected.' : 'The top score is recommended; change it if you prefer someone else.'));
                 } else {
                     setHint('processDriverHint', 'No driver is free with the right licence for this time and trip type. Leave unassigned or change the vehicle or trip type.', 'danger');
                 }
@@ -1037,6 +1065,24 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             if (res.success) {
                 var num = String(res.schedule_id).padStart(4, '0');
                 var assigned = res.driver_assigned === true;
+                var more = res.drivers_needed && res.drivers_needed > 1 ? res.drivers_needed - 1 : 0;
+                if (more > 0) {
+                    Swal.fire({
+                        icon:              'success',
+                        title:             'Schedule #' + num + (assigned ? ' created and assigned' : ' created'),
+                        text:              'This request needs ' + (more + 1) + ' drivers. Add the other ' + more + ' now.',
+                        showCancelButton:  true,
+                        confirmButtonText: '<i class="fas fa-user-group me-1"></i> Add driver',
+                        cancelButtonText:  'Later'
+                    }).then(function (result) {
+                        if (result.isConfirmed) {
+                            window.location.href = SITE_URL + '/admin/add_schedule.php?add_to=' + res.schedule_id;
+                        } else {
+                            location.reload();
+                        }
+                    });
+                    return;
+                }
                 Swal.fire({
                     icon:               'success',
                     title:              'Schedule #' + num + (assigned ? ' created and assigned' : ' created'),

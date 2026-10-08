@@ -138,6 +138,10 @@ CREATE TABLE messages (
 --   ALTER TABLE vehicle_requests
 --     MODIFY status ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
 --     ADD COLUMN cancelled_at TIMESTAMP NULL DEFAULT NULL AFTER reviewed_at;
+--   ALTER TABLE vehicle_requests
+--     ADD COLUMN drivers_needed TINYINT NOT NULL DEFAULT 1 AFTER waiting_place,
+--     ADD COLUMN preferred_driver_id INT NULL DEFAULT NULL AFTER drivers_needed,
+--     ADD CONSTRAINT fk_vr_pref_driver FOREIGN KEY (preferred_driver_id) REFERENCES drivers(driver_id) ON DELETE SET NULL;
 -- ============================================================
 CREATE TABLE vehicle_requests (
     request_id      INT           NOT NULL AUTO_INCREMENT,
@@ -152,6 +156,8 @@ CREATE TABLE vehicle_requests (
     officer_name    VARCHAR(255)  NULL DEFAULT NULL,
     officer_phone   VARCHAR(50)   NULL DEFAULT NULL,
     waiting_place   VARCHAR(150)  NULL DEFAULT NULL,
+    drivers_needed  TINYINT       NOT NULL DEFAULT 1 COMMENT 'How many drivers the staff member asks for (1-5)',
+    preferred_driver_id INT       NULL DEFAULT NULL COMMENT 'Optional driver the staff member would like; a suggestion only',
     status          ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
     supervisor_id   INT           NULL DEFAULT NULL,
     supervisor_notes TEXT         NULL DEFAULT NULL,
@@ -164,7 +170,8 @@ CREATE TABLE vehicle_requests (
     CONSTRAINT fk_vr_staff      FOREIGN KEY (staff_id)      REFERENCES users(user_id)        ON DELETE CASCADE,
     CONSTRAINT fk_vr_vehicle    FOREIGN KEY (vehicle_id)    REFERENCES vehicles(vehicle_id)  ON DELETE SET NULL,
     CONSTRAINT fk_vr_supervisor FOREIGN KEY (supervisor_id) REFERENCES users(user_id)        ON DELETE SET NULL,
-    CONSTRAINT fk_vr_schedule   FOREIGN KEY (schedule_id)   REFERENCES schedules(schedule_id) ON DELETE SET NULL
+    CONSTRAINT fk_vr_schedule   FOREIGN KEY (schedule_id)   REFERENCES schedules(schedule_id) ON DELETE SET NULL,
+    CONSTRAINT fk_vr_pref_driver FOREIGN KEY (preferred_driver_id) REFERENCES drivers(driver_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -1018,6 +1025,12 @@ VALUES
     '2026-10-04 08:50:00'
 );
 
+
+-- Sample driver requests on the approved e-Kenderaan requests
+UPDATE vehicle_requests SET drivers_needed = 2, preferred_driver_id = 7
+WHERE destination = 'Universiti Kebangsaan Malaysia, Bangi';
+UPDATE vehicle_requests SET drivers_needed = 2, preferred_driver_id = 1
+WHERE destination = 'Universiti Malaya, Kuala Lumpur' AND status = 'approved';
 
 -- ============================================================
 -- SEED: demo trips around "today" (relative to the import date)
