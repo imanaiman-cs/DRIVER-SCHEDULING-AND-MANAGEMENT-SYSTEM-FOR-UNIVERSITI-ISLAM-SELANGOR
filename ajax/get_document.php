@@ -30,7 +30,7 @@ if (!$doc_id) {
 
 $stmt = $conn->prepare(
     "SELECT d.stored_path, d.original_name, d.mime_type,
-            vr.staff_id, vr.supervisor_id
+            vr.staff_id, vr.supervisor_id, vr.status
      FROM request_documents d
      JOIN vehicle_requests vr ON vr.request_id = d.request_id
      WHERE d.doc_id = ?
@@ -49,7 +49,8 @@ if (!$doc) {
 $uid     = (int)$_SESSION['user_id'];
 $allowed = false;
 if (isAdmin()) {
-    $allowed = true;
+    // Admin only receives requests the Head of Section has approved
+    $allowed = in_array($doc['status'], ['approved', 'processed'], true);
 } elseif (isStaff()) {
     $allowed = ((int)$doc['staff_id'] === $uid);
 } elseif (isSupervisor()) {

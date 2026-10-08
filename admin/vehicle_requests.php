@@ -26,6 +26,7 @@ $sql = "
     JOIN users s        ON vr.staff_id      = s.user_id
     LEFT JOIN users sup ON vr.supervisor_id = sup.user_id
     LEFT JOIN vehicles v ON vr.vehicle_id   = v.vehicle_id
+    WHERE vr.status IN ('approved', 'processed')   -- admin only receives requests the Head of Section approved
     ORDER BY FIELD(vr.status, 'approved') DESC, vr.created_at DESC
 ";
 $result       = $conn->query($sql);
@@ -55,24 +56,16 @@ if ($all_requests) {
 // ── Summary counts ───────────────────────────────────────────
 $total     = count($all_requests);
 $approved  = 0;   // supervisor-approved, awaiting admin processing
-$pending   = 0;   // awaiting supervisor review
 $processed = 0;
-$rejected  = 0;
-$cancelled = 0;   // withdrawn by staff – never counted as pending/awaiting
 
 foreach ($all_requests as $r) {
-    switch ($r['status']) {
-        case 'approved':  $approved++;  break;
-        case 'pending':   $pending++;   break;
-        case 'processed': $processed++; break;
-        case 'rejected':  $rejected++;  break;
-        case 'cancelled': $cancelled++; break;
-    }
+    if ($r['status'] === 'approved')  { $approved++; }
+    if ($r['status'] === 'processed') { $processed++; }
 }
 
 // ── Apply tab filter ─────────────────────────────────────────
 $active_tab = $_GET['status'] ?? 'all';
-$active_tab = in_array($active_tab, ['all', 'approved', 'pending', 'processed', 'rejected', 'cancelled'], true)
+$active_tab = in_array($active_tab, ['all', 'approved', 'processed'], true)
     ? $active_tab
     : 'all';
 
@@ -223,7 +216,7 @@ $display_requests = array_values($display_requests);
     <div class="row g-3 mb-4">
 
         <!-- Awaiting Processing (actionable) -->
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
             <a href="?status=approved" class="text-decoration-none">
                 <div class="card stat-card stat-actionable h-100 p-3">
                     <div class="d-flex align-items-center gap-3">
@@ -239,25 +232,8 @@ $display_requests = array_values($display_requests);
             </a>
         </div>
 
-        <!-- Pending Supervisor -->
-        <div class="col-6 col-md-3">
-            <a href="?status=pending" class="text-decoration-none">
-                <div class="card stat-card h-100 p-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
-                            <i class="fas fa-user-clock" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="stat-value text-warning"><?php echo $pending; ?></div>
-                            <div class="stat-label">Pending Supervisor</div>
-                        </div>
-                    </div>
-                </div>
-            </a>
-        </div>
-
         <!-- Processed -->
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
             <a href="?status=processed" class="text-decoration-none">
                 <div class="card stat-card h-100 p-3">
                     <div class="d-flex align-items-center gap-3">
@@ -273,17 +249,17 @@ $display_requests = array_values($display_requests);
             </a>
         </div>
 
-        <!-- Rejected -->
-        <div class="col-6 col-md-3">
-            <a href="?status=rejected" class="text-decoration-none">
+        <!-- Total received -->
+        <div class="col-12 col-md-4">
+            <a href="?status=all" class="text-decoration-none">
                 <div class="card stat-card h-100 p-3">
                     <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-danger bg-opacity-10 text-danger">
-                            <i class="fas fa-circle-xmark" aria-hidden="true"></i>
+                        <div class="stat-icon bg-secondary bg-opacity-10 text-secondary">
+                            <i class="fas fa-inbox" aria-hidden="true"></i>
                         </div>
                         <div>
-                            <div class="stat-value text-danger"><?php echo $rejected; ?></div>
-                            <div class="stat-label">Rejected</div>
+                            <div class="stat-value text-secondary"><?php echo $total; ?></div>
+                            <div class="stat-label">Received from Head of Section</div>
                         </div>
                     </div>
                 </div>
@@ -324,40 +300,17 @@ $display_requests = array_values($display_requests);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'pending' ? 'active' : ''; ?>"
-                           href="?status=pending">
-                            Pending
-                            <?php if ($pending > 0): ?>
-                            <span class="badge ms-1 <?php echo $active_tab === 'pending' ? 'bg-white text-warning' : 'bg-warning text-dark'; ?> rounded-pill">
-                                <?php echo $pending; ?>
-                            </span>
-                            <?php endif; ?>
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link <?php echo $active_tab === 'processed' ? 'active' : ''; ?>"
                            href="?status=processed">
                             Processed
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'rejected' ? 'active' : ''; ?>"
-                           href="?status=rejected">
-                            Rejected
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'cancelled' ? 'active' : ''; ?>"
-                           href="?status=cancelled">
-                            Cancelled
-                            <?php if ($cancelled > 0): ?>
-                            <span class="badge ms-1 <?php echo $active_tab === 'cancelled' ? 'bg-white text-secondary' : 'bg-secondary'; ?> rounded-pill">
-                                <?php echo $cancelled; ?>
-                            </span>
-                            <?php endif; ?>
-                        </a>
-                    </li>
                 </ul>
+            </div>
+
+            <div class="px-3 pt-3 small text-muted">
+                <i class="fas fa-circle-info me-1" aria-hidden="true"></i>
+                Only requests approved by the staff member's Head of Section appear here.
             </div>
 
             <!-- Table -->
