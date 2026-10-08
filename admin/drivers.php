@@ -709,8 +709,8 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         pageLength:  25,
         responsive:  true,
         columnDefs: [
-            { orderable: false, targets: 9 },
-            { searchable: false, targets: 9 }
+            { orderable: false, targets: 8 },
+            { searchable: false, targets: 8 }
         ],
         language: {
             search:         'Search drivers:',
