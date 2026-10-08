@@ -170,37 +170,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors['driver_id'] = ($m['driver_name'] ?? 'This driver') . ' is already on this job. The same driver cannot be assigned twice to the same job; choose a different driver.';
                 break;
             }
-            if ($vehicle_id > 0 && (int)$m['vehicle_id'] === $vehicle_id) {
-                $errors['vehicle_id'] = 'This vehicle is already used by another driver on this job. Each driver needs a different vehicle.';
-                break;
-            }
         }
     }
 
-    // ── Conflict check – vehicle (exclude this schedule) ────
+    // ── Conflict check – vehicle (exclude this job: its drivers may share a vehicle) ──
     if (empty($errors) && $vehicle_id > 0) {
-        $conflict_sql = "SELECT schedule_id FROM schedules
-                         WHERE vehicle_id = ? AND trip_date = ?
-                           AND schedule_id != ?
-                           AND status NOT IN ('cancelled')
-                           AND (
-                               (start_time < ? AND end_time > ?) OR
-                               (start_time < ? AND end_time > ?) OR
-                               (start_time >= ? AND end_time <= ?)
-                           )
-                         LIMIT 1";
-        $cs = $conn->prepare($conflict_sql);
-        $cs->bind_param('isississs', $vehicle_id, $trip_date, $schedule_id,
-            $end_time, $start_time,
-            $start_time, $end_time,
-            $start_time, $end_time
-        );
-        $cs->execute();
-        $cs->store_result();
-        if ($cs->num_rows > 0) {
+        if (findResourceConflict($conn, 'vehicle_id', $vehicle_id, $trip_date, $start_time, $end_time, array_merge([$schedule_id], $team_ids))) {
             $errors['vehicle_id'] = 'The selected vehicle already has a schedule that overlaps this time slot. Choose another vehicle, or change the date or times.';
         }
-        $cs->close();
     }
 
     // ── Conflict check – driver (exclude this schedule) ─────
@@ -809,7 +786,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 data:     {
                     vehicle_id: vehicleId, driver_id: driverId,
                     trip_date: date, start_time: startTime, end_time: endTime,
-                    exclude_id: SCHEDULE_ID
+                    exclude_id: SCHEDULE_ID, share_with: SCHEDULE_ID
                 },
                 dataType: 'json'
             }).done(function (res) {

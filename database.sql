@@ -1127,6 +1127,23 @@ VALUES
 SET @team3 := LAST_INSERT_ID();
 UPDATE schedules SET job_group = @team3 WHERE schedule_id IN (@team3, @team3 + 1);
 
+-- Long trip with a relief driver: two drivers share one bus (in 5 days)
+INSERT INTO schedules
+    (driver_id, vehicle_id, trip_date, start_time, end_time,
+     destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
+     status, priority_score, created_by, trip_type, notes)
+VALUES
+(9,  11, CURDATE() + INTERVAL 5 DAY, '06:00:00', '20:00:00', 'Universiti Malaysia Terengganu, Kuala Nerus',
+ 'Inter-university benchmarking visit (long distance)', 35,
+ 'Dr. Syafiq bin Zainal', '013-4455 6677', 'Lobi Bangunan Pentadbiran',
+ 'approved', 9.31, 1, 'top_management', 'Long trip: the two drivers take turns driving the same bus.'),
+(12, 11, CURDATE() + INTERVAL 5 DAY, '06:00:00', '20:00:00', 'Universiti Malaysia Terengganu, Kuala Nerus',
+ 'Inter-university benchmarking visit (long distance)', 35,
+ 'Dr. Syafiq bin Zainal', '013-4455 6677', 'Lobi Bangunan Pentadbiran',
+ 'approved', 7.38, 1, 'top_management', 'Long trip: the two drivers take turns driving the same bus.');
+SET @team4 := LAST_INSERT_ID();
+UPDATE schedules SET job_group = @team4 WHERE schedule_id IN (@team4, @team4 + 1);
+
 -- Dates to fill: every day of the current month + 7 days either side of today
 DROP TEMPORARY TABLE IF EXISTS demo_dates;
 CREATE TEMPORARY TABLE demo_dates (

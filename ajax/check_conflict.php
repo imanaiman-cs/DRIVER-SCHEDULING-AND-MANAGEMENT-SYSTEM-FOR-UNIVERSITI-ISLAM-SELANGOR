@@ -9,6 +9,17 @@ $trip_date   = $_POST['trip_date']   ?? '';
 $start_time  = $_POST['start_time']  ?? '';
 $end_time    = $_POST['end_time']    ?? '';
 $exclude_id  = isset($_POST['exclude_id']) ? (int)$_POST['exclude_id'] : 0;
+// Drivers on the same multi-driver job may share one vehicle: the job's own
+// schedules (this id and its job_group) do not count as a vehicle clash.
+$share_with  = isset($_POST['share_with']) ? (int)$_POST['share_with'] : 0;
+$share_ids   = [];
+if ($share_with > 0) {
+    $gs = $conn->prepare("SELECT schedule_id FROM schedules WHERE schedule_id = ? OR (job_group IS NOT NULL AND job_group = (SELECT job_group FROM schedules WHERE schedule_id = ?))");
+    $gs->bind_param('ii', $share_with, $share_with);
+    $gs->execute();
+    foreach ($gs->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $share_ids[] = (int)$r['schedule_id']; }
+    $gs->close();
+}
 
 $response = [
     'vehicle_conflict' => false,
@@ -29,9 +40,10 @@ $id_exclude = "AND schedule_id != ?";
 
 // Vehicle conflict
 if ($vehicle_id > 0) {
-    $sql = "SELECT schedule_id FROM schedules WHERE vehicle_id = ? AND $overlap_cond $id_exclude LIMIT 1";
+    $not_share = $share_ids ? ' AND schedule_id NOT IN (' . implode(',', $share_ids) . ')' : '';
+    $sql = "SELECT schedule_id FROM schedules WHERE vehicle_id = ? AND $overlap_cond $id_exclude $not_share LIMIT 1";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("issssssi",
+    $stmt->bind_param("isssssssi",
         $vehicle_id,
         $trip_date, $end_time, $start_time,
         $end_time, $start_time,
@@ -49,7 +61,7 @@ if ($vehicle_id > 0) {
 if ($driver_id > 0) {
     $sql = "SELECT schedule_id FROM schedules WHERE driver_id = ? AND $overlap_cond $id_exclude LIMIT 1";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("issssssi",
+    $stmt->bind_param("isssssssi",
         $driver_id,
         $trip_date, $end_time, $start_time,
         $end_time, $start_time,

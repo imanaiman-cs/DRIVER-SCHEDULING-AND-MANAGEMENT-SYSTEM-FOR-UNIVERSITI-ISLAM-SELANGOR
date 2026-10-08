@@ -154,7 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($team_n > 1 || $lead) {
         $label = function (int $i) use ($team_n) { return $team_n > 1 ? 'Driver ' . ($i + 1) : 'The new driver'; };
         $seen_d = [];
-        $seen_v = [];
         foreach ($assign as $i => $a) {
             if ($a['driver'] <= 0) {
                 $errors['team'] = $lead
@@ -176,11 +175,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $errors['team'] = $label($i) . ' has a vehicle that is not available. Choose a vehicle from the list.';
                     break;
                 }
-                if (isset($seen_v[$a['vehicle']])) {
-                    $errors['team'] = 'The same vehicle is selected for more than one driver. Each driver needs a different vehicle.';
-                    break;
-                }
-                $seen_v[$a['vehicle']] = true;
             }
         }
         // Adding to an existing job: the driver must not already be on it
@@ -209,28 +203,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Conflict check – vehicle ─────────────────────────────
+    // (drivers of the same job may share a vehicle, so the job being added to is ignored)
     if (empty($errors) && $vehicle_id > 0) {
-        $conflict_sql = "SELECT schedule_id FROM schedules
-                         WHERE vehicle_id = ? AND trip_date = ?
-                           AND status NOT IN ('cancelled')
-                           AND (
-                               (start_time < ? AND end_time > ?) OR
-                               (start_time < ? AND end_time > ?) OR
-                               (start_time >= ? AND end_time <= ?)
-                           )
-                         LIMIT 1";
-        $cs = $conn->prepare($conflict_sql);
-        $cs->bind_param('isssssss', $vehicle_id, $trip_date,
-            $end_time, $start_time,
-            $start_time, $end_time,
-            $start_time, $end_time
-        );
-        $cs->execute();
-        $cs->store_result();
-        if ($cs->num_rows > 0) {
+        $share_ids = [];
+        if ($lead) {
+            $gid = (int)($lead['job_group'] ?: $lead['schedule_id']);
+            $gq  = $conn->query("SELECT schedule_id FROM schedules WHERE schedule_id = " . (int)$lead['schedule_id'] . " OR job_group = {$gid}");
+            while ($gq && ($gr = $gq->fetch_assoc())) { $share_ids[] = (int)$gr['schedule_id']; }
+        }
+        if (findResourceConflict($conn, 'vehicle_id', $vehicle_id, $trip_date, $start_time, $end_time, $share_ids)) {
             $errors['vehicle_id'] = 'The selected vehicle already has a schedule that overlaps this time slot. Choose another vehicle, or change the date or times.';
         }
-        $cs->close();
     }
 
     // ── Conflict check – driver ──────────────────────────────
@@ -741,8 +724,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endfor; ?>
                         </select>
                         <div class="form-text" id="teamHelp">
-                            For 2 or more drivers, each driver gets their own vehicle and the same driver cannot be chosen twice.
-                            The first driver and vehicle are the ones chosen above.
+                            For 2 or more drivers, the same driver cannot be chosen twice. Drivers may use different vehicles or share one
+                            (for example a relief driver on a long trip). The first driver and vehicle are the ones chosen above.
                         </div>
                         <?php if (isset($errors['team'])): ?>
                         <div class="alert alert-danger py-2 mt-3 mb-0 small" role="alert">
@@ -866,11 +849,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         syncTeamChoices();
     }
 
-    // The same driver / vehicle cannot be picked twice in one job:
+    // The same driver cannot be picked twice in one job:
     // grey out what another row already chose, and warn if it still happens.
     function syncTeamChoices() {
-        ['team-driver', 'team-vehicle'].forEach(function (cls) {
-            const primary = document.getElementById(cls === 'team-driver' ? 'driver_id' : 'vehicle_id');
+        ['team-driver'].forEach(function (cls) {
+            const primary = document.getElementById('driver_id');
             const selects = [primary].concat(Array.from(document.querySelectorAll('.' + cls))).filter(function (el) {
                 return el && !el.disabled;
             });
@@ -929,7 +912,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $.ajax({
                 url:      SITE_URL + '/ajax/check_conflict.php',
                 method:   'POST',
-                data:     { vehicle_id: vehicleId, driver_id: driverId, trip_date: date, start_time: startTime, end_time: endTime },
+                data:     { vehicle_id: vehicleId, driver_id: driverId, trip_date: date, start_time: startTime, end_time: endTime, share_with: <?php echo $lead ? (int)$lead['schedule_id'] : 0; ?> },
                 dataType: 'json'
             }).done(function (res) {
                 if (res.vehicle_conflict) {

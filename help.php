@@ -183,7 +183,7 @@ if ($role === 'admin') {
         <p>Most jobs need one driver. Some jobs, such as a seminar or an event with several buses, need two or more.</p>
         <ol>
             <li>Open <strong>Create Schedule</strong> and choose <strong>Drivers needed</strong> (2 to 5).</li>
-            <li>Pick a driver and a vehicle for each row.</li>
+            <li>Pick a driver and a vehicle for each row. Drivers can use different vehicles, or share one (for example a relief driver on a long trip).</li>
             <li>Save. Every driver gets the same job on their own schedule and sees who else is on it.</li>
         </ol>
         <p>To add another driver to a job that already exists, press the <strong>group icon</strong> on that row in <strong>All Schedules</strong>.</p>
