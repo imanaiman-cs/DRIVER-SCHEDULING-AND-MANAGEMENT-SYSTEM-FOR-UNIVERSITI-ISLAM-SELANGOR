@@ -32,6 +32,10 @@ $stmt->execute();
 $all_requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+
+// Vehicles asked for on each request (a trip may need several)
+$req_vehicle_map = getRequestVehicles($conn, array_column($all_requests, 'request_id'));
+
 // ── Driver(s) assigned to processed requests ────────────────
 $assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_id'));
 
@@ -379,13 +383,17 @@ $display_requests = array_values($display_requests);
                                 $status_badge = requestStatusBadgeClass($req['status']);
                                 $status_label = ucfirst($req['status']);
 
-                                // Vehicle label
-                                if (!empty($req['vehicle_id']) && !empty($req['plate_number'])) {
-                                    $vehicle_label = $req['plate_number'];
-                                    $vehicle_sub   = trim(($req['brand'] ?? '') . ' ' . ($req['model'] ?? ''));
+                                // Vehicle label (a request may ask for several vehicles)
+                                $rv_list = $req_vehicle_map[(int)$req['request_id']] ?? [];
+                                $need    = (int)($req['vehicles_needed'] ?? 1);
+                                if ($rv_list) {
+                                    $vehicle_label = $rv_list[0]['plate_number'];
+                                    $vehicle_sub   = count($rv_list) > 1
+                                        ? '+' . (count($rv_list) - 1) . ' more vehicle' . (count($rv_list) > 2 ? 's' : '')
+                                        : trim(($rv_list[0]['brand'] ?? '') . ' ' . ($rv_list[0]['model'] ?? ''));
                                 } else {
                                     $vehicle_label = 'Any';
-                                    $vehicle_sub   = '';
+                                    $vehicle_sub   = $need > 1 ? '× ' . $need . ' vehicles' : '';
                                 }
 
                                 // Supporting documents count
@@ -421,6 +429,7 @@ $display_requests = array_values($display_requests);
                                 <td class="small">
                                     <?php if ($vehicle_label === 'Any'): ?>
                                         <span class="text-muted fst-italic">Any</span>
+                                        <?php if ($vehicle_sub !== ''): ?><div class="text-muted"><?php echo htmlspecialchars($vehicle_sub); ?></div><?php endif; ?>
                                     <?php else: ?>
                                         <div class="fw-medium font-monospace"><?php echo htmlspecialchars($vehicle_label); ?></div>
                                         <?php if ($vehicle_sub !== ''): ?>
@@ -573,6 +582,8 @@ const REQUEST_DATA = <?php
             'officer_phone'    => $r['officer_phone'] ?? '',
             'waiting_place'    => $r['waiting_place'] ?? '',
             'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
+            'vehicles'         => $req_vehicle_map[(int)$r['request_id']] ?? [],
+            'vehicles_needed'  => (int)($r['vehicles_needed'] ?? 1),
             'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
             'plate_number'     => $r['plate_number'] ?? '',
             'brand'            => $r['brand'] ?? '',
@@ -735,16 +746,16 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         var statusBadge = statusBadgeMap[r.status] || 'bg-secondary';
 
         var vehicleHtml;
-        if (r.vehicle_id && r.plate_number) {
-            vehicleHtml = '<span class="font-monospace fw-semibold">' + escHtml(r.plate_number) + '</span>'
-                        + ' &middot; ' + escHtml((r.brand + ' ' + r.model).trim());
-            if (r.vehicle_type) {
-                vehicleHtml += ' <span class="text-muted">(' + escHtml(r.vehicle_type)
-                             + (r.capacity ? ', ' + r.capacity + ' seats' : '')
-                             + ')</span>';
-            }
+        var vlist = r.vehicles || [];
+        if (vlist.length) {
+            vehicleHtml = vlist.map(function (v) {
+                return '<div><span class="font-monospace fw-semibold">' + escHtml(v.plate_number) + '</span>'
+                     + ' &middot; ' + escHtml(((v.brand || '') + ' ' + (v.model || '')).trim())
+                     + ' <span class="text-muted">(' + escHtml(v.vehicle_type) + ', ' + v.capacity + ' seats)</span></div>';
+            }).join('');
         } else {
-            vehicleHtml = '<span class="text-muted fst-italic">Any available vehicle</span>';
+            var need = parseInt(r.vehicles_needed, 10) || 1;
+            vehicleHtml = '<span class="text-muted fst-italic">Any available vehicle' + (need > 1 ? ' &times; ' + need : '') + '</span>';
         }
 
         var body = '<div class="row g-3">'
@@ -807,7 +818,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
             // Requested vehicle
             + '<div class="col-12">'
-            +   '<div class="detail-label">Requested Vehicle</div>'
+            +   '<div class="detail-label">Requested Vehicle(s)</div>'
             +   '<div class="detail-value">' + vehicleHtml + '</div>'
             + '</div>'
 

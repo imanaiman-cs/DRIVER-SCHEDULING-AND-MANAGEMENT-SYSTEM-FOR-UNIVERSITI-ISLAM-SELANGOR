@@ -21,6 +21,14 @@ $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+
+// Vehicles asked for on each request (a trip may need several)
+$req_vehicle_map = getRequestVehicles($conn, array_column($requests, 'request_id'));
+foreach ($requests as &$req_row) {
+    $req_row['vehicles'] = $req_vehicle_map[(int)$req_row['request_id']] ?? [];
+}
+unset($req_row);
+
 // Driver(s) and vehicle assigned by the transport unit (name + phone, so staff can call)
 $assigned_map = getAssignedDrivers($conn, array_column($requests, 'schedule_id'));
 foreach ($requests as &$req_row) {
@@ -271,12 +279,14 @@ foreach ($requests as $r) {
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if (!empty($r['plate_number'])): ?>
+                                <?php $rv = $r['vehicles'] ?? []; $need = (int)($r['vehicles_needed'] ?? 1); ?>
+                                <?php if ($rv): ?>
                                 <span class="badge bg-secondary">
-                                    <i class="fas fa-car me-1"></i><?= htmlspecialchars($r['plate_number']) ?>
+                                    <i class="fas fa-car me-1"></i><?= htmlspecialchars($rv[0]['plate_number']) ?>
                                 </span>
+                                <?php if (count($rv) > 1): ?><span class="badge bg-light text-dark border ms-1">+<?= count($rv) - 1 ?> more</span><?php endif; ?>
                                 <?php else: ?>
-                                <span class="text-muted small">Any</span>
+                                <span class="text-muted small">Any<?= $need > 1 ? ' &times; ' . $need : '' ?></span>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -485,16 +495,17 @@ var REQUESTS_DATA = <?= json_encode(
         var s = statusMap[r.status] || { color: 'secondary', icon: 'circle', label: r.status };
 
         var vehicleHtml;
-        if (r.plate_number) {
-            var vehicleName = [r.brand, r.model].filter(Boolean).join(' ');
-            vehicleHtml = '<span class="badge bg-secondary fs-6 px-3 py-2">' +
-                              '<i class="fas fa-car me-2"></i>' + escHtml(r.plate_number) +
-                          '</span>' +
-                          (vehicleName
-                              ? ' <span class="small text-muted ms-1">' + escHtml(vehicleName) + '</span>'
-                              : '');
+        var vlist = r.vehicles || [];
+        if (vlist.length) {
+            vehicleHtml = vlist.map(function (v) {
+                var name = [v.brand, v.model].filter(Boolean).join(' ');
+                return '<div class="mb-1"><span class="badge bg-secondary fs-6 px-3 py-2">' +
+                           '<i class="fas fa-car me-2"></i>' + escHtml(v.plate_number) +
+                       '</span>' + (name ? ' <span class="small text-muted ms-1">' + escHtml(name) + '</span>' : '') + '</div>';
+            }).join('');
         } else {
-            vehicleHtml = '<span class="text-muted fst-italic">Any available vehicle</span>';
+            var need = parseInt(r.vehicles_needed, 10) || 1;
+            vehicleHtml = '<span class="text-muted fst-italic">Any available vehicle' + (need > 1 ? ' &times; ' + need : '') + '</span>';
         }
 
         var reviewed = !!r.reviewed_at;
@@ -571,7 +582,7 @@ var REQUESTS_DATA = <?= json_encode(
                     '<div class="fw-semibold mt-1">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">—</span>') + '</div>' +
                 '</div>' +
                 '<div class="col-sm-6">' +
-                    label('Requested Vehicle') +
+                    label((r.vehicles && r.vehicles.length > 1) || (parseInt(r.vehicles_needed, 10) || 1) > 1 ? 'Requested Vehicles' : 'Requested Vehicle') +
                     '<div class="mt-1">' + vehicleHtml + '</div>' +
                 '</div>' +
                 '<div class="col-sm-6">' +

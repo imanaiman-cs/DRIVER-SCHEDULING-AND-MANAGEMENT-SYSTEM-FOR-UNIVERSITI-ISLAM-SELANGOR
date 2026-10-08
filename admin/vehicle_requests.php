@@ -53,6 +53,10 @@ if ($all_requests) {
     }
 }
 
+
+// Vehicles asked for on each request (a trip may need several)
+$req_vehicle_map = getRequestVehicles($conn, array_column($all_requests, 'request_id'));
+
 // ── Driver(s) assigned to processed requests ────────────────
 $assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_id'));
 
@@ -368,11 +372,14 @@ $display_requests = array_values($display_requests);
                                 </td>
                                 <td class="small"><?php echo htmlspecialchars($req['destination']); ?></td>
                                 <td class="small">
-                                    <?php if (!empty($req['plate_number'])): ?>
-                                        <div class="fw-medium font-monospace"><?php echo htmlspecialchars($req['plate_number']); ?></div>
-                                        <div class="text-muted"><?php echo htmlspecialchars(trim(($req['vehicle_type'] ?? '') . ' ' . ($req['brand'] ?? ''))); ?></div>
+                                    <?php $rvl = $req_vehicle_map[(int)$req['request_id']] ?? []; $need = (int)($req['vehicles_needed'] ?? 1); ?>
+                                    <?php if ($rvl): ?>
+                                        <div class="fw-medium font-monospace"><?php echo htmlspecialchars($rvl[0]['plate_number']); ?></div>
+                                        <div class="text-muted"><?php echo count($rvl) > 1
+                                            ? '+' . (count($rvl) - 1) . ' more vehicle' . (count($rvl) > 2 ? 's' : '')
+                                            : htmlspecialchars(trim(($rvl[0]['vehicle_type'] ?? '') . ' ' . ($rvl[0]['brand'] ?? ''))); ?></div>
                                     <?php else: ?>
-                                        <span class="badge bg-light text-muted border">Any</span>
+                                        <span class="badge bg-light text-muted border">Any<?php echo $need > 1 ? ' × ' . $need : ''; ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="small text-center"><?php echo (int)$req['passenger_count']; ?></td>
@@ -545,6 +552,8 @@ const REQUEST_DATA = <?php
             'created_at'       => $r['created_at'],
             'documents'        => $request_documents[(int)$r['request_id']] ?? [],
             'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
+            'vehicles'         => $req_vehicle_map[(int)$r['request_id']] ?? [],
+            'vehicles_needed'  => (int)($r['vehicles_needed'] ?? 1),
         ];
     }
     echo json_encode($json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
@@ -681,11 +690,17 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     function vehicleLabel(r) {
-        if (!r.plate_number) return '<span class="text-muted">Any available vehicle</span>';
-        var extra = [r.vehicle_type, r.vehicle_brand, r.vehicle_model].filter(Boolean).join(' ');
-        return escHtml(r.plate_number)
-            + (extra ? ' <span class="text-muted">(' + escHtml(extra) + ')</span>' : '')
-            + (r.vehicle_capacity ? ' <span class="text-muted">&mdash; ' + r.vehicle_capacity + ' pax</span>' : '');
+        var list = r.vehicles || [];
+        if (!list.length) {
+            var need = parseInt(r.vehicles_needed, 10) || 1;
+            return '<span class="text-muted">Any available vehicle' + (need > 1 ? ' &times; ' + need : '') + '</span>';
+        }
+        return list.map(function (v) {
+            var extra = [v.vehicle_type, v.brand, v.model].filter(Boolean).join(' ');
+            return '<div>' + escHtml(v.plate_number)
+                 + (extra ? ' <span class="text-muted">(' + escHtml(extra) + ')</span>' : '')
+                 + (v.capacity ? ' <span class="text-muted">&mdash; ' + v.capacity + ' pax</span>' : '') + '</div>';
+        }).join('');
     }
 
     // ── DataTable initialisation ─────────────────────────────
