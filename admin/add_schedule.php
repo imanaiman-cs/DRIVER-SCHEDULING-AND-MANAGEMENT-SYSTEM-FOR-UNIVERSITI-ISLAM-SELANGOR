@@ -668,6 +668,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="section-title" id="driverCardTitle"><i class="fas fa-user me-2" aria-hidden="true"></i><span><?php echo $lead ? 'Driver to add' : 'Driver (optional)'; ?></span></div>
 
                         <!-- Conflict warning -->
+                        <div id="busyNotice" class="alert alert-warning py-2 mb-3 small" style="display:none;" role="status"></div>
                         <div id="driverConflictAlert" class="alert alert-danger py-2 mb-3" style="display:none;">
                             <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>
                             <strong>Driver Conflict:</strong> <span id="driverConflictMsg"></span>
@@ -815,6 +816,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
+<script>
+window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.php', excludeId: 0, shareWith: <?php echo $lead ? (int)$lead['schedule_id'] : 0; ?> };
+</script>
+<script src="<?php echo SITE_URL; ?>/assets/js/schedule-busy.js"></script>
 
 <script>
 (function () {
@@ -878,7 +883,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const chosen = selects.map(function (el) { return el.value; });
             selects.forEach(function (el, idx) {
                 Array.from(el.options).forEach(function (opt) {
-                    opt.disabled = opt.value !== '' && chosen.some(function (v, j) { return j !== idx && v === opt.value; });
+                    const dup  = opt.value !== '' && chosen.some(function (v, j) { return j !== idx && v === opt.value; });
+                    const busy = opt.value !== '' && window.UIS_BUSY && window.UIS_BUSY.drivers.has(opt.value);
+                    opt.disabled = dup || busy;
+                    if (dup) { opt.setAttribute('data-dup', '1'); } else { opt.removeAttribute('data-dup'); }
                 });
             });
         });
@@ -892,6 +900,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (teamSelect) { teamSelect.addEventListener('change', syncTeamRows); }
     $(document).on('change', '#driver_id, #vehicle_id, .team-driver, .team-vehicle', syncTeamChoices);
+    document.addEventListener('busy:updated', syncTeamChoices);
     syncTeamRows();
 
     <?php if ($lead): ?>

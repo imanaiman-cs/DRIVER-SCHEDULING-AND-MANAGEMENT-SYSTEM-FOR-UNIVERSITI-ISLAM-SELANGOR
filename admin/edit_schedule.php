@@ -651,6 +651,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body p-4">
                         <div class="section-title"><i class="fas fa-user me-2" aria-hidden="true"></i>Driver</div>
 
+                        <div id="busyNotice" class="alert alert-warning py-2 mb-3 small" style="display:none;" role="status"></div>
                         <div id="driverConflictAlert" class="alert alert-danger py-2 mb-3" style="display:none;">
                             <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>
                             <strong>Driver Conflict:</strong> <span id="driverConflictMsg"></span>
@@ -721,6 +722,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
+<script>
+window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.php', excludeId: <?php echo (int)$schedule_id; ?>, shareWith: <?php echo (int)$schedule_id; ?> };
+</script>
+<script src="<?php echo SITE_URL; ?>/assets/js/schedule-busy.js"></script>
 
 <script>
 (function () {
