@@ -83,6 +83,13 @@ if ($add_to > 0) {
 $driver_names = [];
 foreach ($drivers as $d) { $driver_names[(int)$d['driver_id']] = $d['name']; }
 
+// Top Management officers and the one driver dedicated to each
+$top_officers = [];
+$to = $conn->query("SELECT driver_id, name, assigned_to FROM drivers
+                    WHERE status = 'active' AND driver_type = 'top_management' AND assigned_to IS NOT NULL AND assigned_to <> ''
+                    ORDER BY assigned_to");
+if ($to) { $top_officers = $to->fetch_all(MYSQLI_ASSOC); }
+
 // ── POST handler ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -595,7 +602,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="regular"        <?php echo (($old['trip_type'] ?? 'regular') === 'regular')        ? 'selected' : ''; ?>>Regular</option>
                                     <option value="top_management" <?php echo (($old['trip_type'] ?? 'regular') === 'top_management') ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
-                                <div class="form-text" id="trip_type_help">Top Management is for VIP and executive trips.</div>
+                                <div class="form-text" id="trip_type_help">Top Management is for trips that carry a Top Management officer.</div>
+                            </div>
+
+                            <div class="col-12" id="topOfficerGroup" style="display:none;">
+                                <label class="form-label fw-semibold" for="top_officer">Top Management officer travelling</label>
+                                <select class="form-select" id="top_officer" aria-describedby="top_officer_help">
+                                    <option value="">-- Choose officer (selects their driver) --</option>
+                                    <?php foreach ($top_officers as $o): ?>
+                                    <option value="<?php echo (int)$o['driver_id']; ?>" data-officer="<?php echo htmlspecialchars($o['assigned_to']); ?>">
+                                        <?php echo htmlspecialchars($o['assigned_to'] . ' — driver: ' . $o['name']); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="form-text" id="top_officer_help">Each Top Management officer has one dedicated driver. Choosing the officer selects that driver and fills in the officer name.</div>
                             </div>
 
                             <div class="col-12">
@@ -880,6 +900,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .forEach(function (id) { const el = document.getElementById(id); if (el) { el.readOnly = true; } });
     const tt = document.getElementById('trip_type'); if (tt) { tt.style.pointerEvents = 'none'; tt.setAttribute('tabindex', '-1'); }
     <?php endif; ?>
+
+    // ── Top Management trip: pick the officer, get their dedicated driver ──
+    function syncTopOfficer() {
+        const isTop = $('#trip_type').val() === 'top_management';
+        $('#topOfficerGroup').toggle(isTop);
+    }
+    $('#trip_type').on('change', syncTopOfficer);
+    $('#top_officer').on('change', function () {
+        const driverId = $(this).val();
+        if (!driverId) { return; }
+        $('#driver_id').val(driverId).trigger('change');
+        const officer = $(this).find('option:selected').data('officer');
+        const nameBox = $('#officer_name');
+        if (officer && (nameBox.val().trim() === '' || nameBox.data('auto'))) {
+            nameBox.val(officer).data('auto', true);
+        }
+    });
+    $('#officer_name').on('input', function () { $(this).data('auto', false); });
+    syncTopOfficer();
 
     // ── End time validation ──────────────────────────────────
     function validateTimes() {

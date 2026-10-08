@@ -51,6 +51,7 @@ $form = [
     'license_expiry'      => $driver['license_expiry']      ?? '',
     'status'              => $driver['status'],
     'driver_type'         => $driver['driver_type']         ?? 'regular',
+    'assigned_to'         => $driver['assigned_to']         ?? '',
 ];
 
 $errors = [];
@@ -86,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $form['license_expiry']      = trim($_POST['license_expiry']      ?? '');
     $form['status']              = trim($_POST['status']              ?? 'active');
     $form['driver_type']         = trim($_POST['driver_type']         ?? 'regular');
+    $form['assigned_to']         = trim($_POST['assigned_to']         ?? '');
 
     // ── Validation ───────────────────────────────────────────
     if ($form['employee_id'] === '') {
@@ -141,6 +143,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['driver_type'] = 'regular';
     }
 
+    // A Top Management driver serves exactly one Top Management officer, and
+    // one officer has exactly one driver.
+    if ($form['driver_type'] !== 'top_management') {
+        $form['assigned_to'] = '';
+    } elseif ($form['assigned_to'] === '') {
+        $errors['assigned_to'] = 'Enter the Top Management officer this driver serves, for example Vice-Chancellor.';
+    } elseif (mb_strlen($form['assigned_to']) > 150) {
+        $errors['assigned_to'] = 'Keep the name or title to 150 characters or fewer.';
+    } else {
+        $own = $driver_id;
+        $chk = $conn->prepare("SELECT name FROM drivers WHERE assigned_to = ? AND driver_id <> ? LIMIT 1");
+        $chk->bind_param('si', $form['assigned_to'], $own);
+        $chk->execute();
+        $taken = $chk->get_result()->fetch_assoc();
+        $chk->close();
+        if ($taken) {
+            $errors['assigned_to'] = $taken['name'] . ' already serves ' . $form['assigned_to'] . '. One Top Management officer has one driver; choose another officer or change that driver first.';
+        }
+    }
+
     // License class: one or more of B2, D, E (stored as comma list in stable order)
     $allowed_classes = ['B2', 'D', 'E'];
     if (empty($form['license_class'])) {
@@ -177,18 +199,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $license_class_csv = implode(',', $form['license_class']);
 
         $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
+        $assigned_db = $form['assigned_to'] !== '' ? $form['assigned_to'] : null;
 
         $stmt = $conn->prepare(
             "UPDATE drivers SET
                 employee_id = ?, name = ?, phone = ?, email = ?, address = ?,
                 experience_years = ?, performance_score = ?,
                 certification_score = ?, license_number = ?, license_class = ?,
-                license_expiry = ?, status = ?, driver_type = ?, photo = ?, updated_at = NOW()
+                license_expiry = ?, status = ?, driver_type = ?, assigned_to = ?, photo = ?, updated_at = NOW()
              WHERE driver_id = ?"
         );
 
         $stmt->bind_param(
-            'sssssdddssssssi',
+            'sssssdddsssssssi',
             $form['employee_id'],
             $form['name'],
             $form['phone'],
@@ -200,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expiry,
             $form['status'],
             $form['driver_type'],
+            $assigned_db,
             $photo_path,
             $driver_id
         );
@@ -447,6 +471,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'performance_score'   => ['Performance score',   'performance_score'],
         'certification_score' => ['Certification score', 'certification_score'],
         'license_class'       => ['License class',       'license_class_group'],
+        'assigned_to'         => ['Serves',              'assigned_to'],
     ];
     $summary_errors = array_intersect_key($error_fields, $errors);
     ?>
@@ -622,7 +647,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="regular"        <?php echo $form['driver_type'] === 'regular'        ? 'selected' : ''; ?>>Regular</option>
                                     <option value="top_management" <?php echo $form['driver_type'] === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
-                                <div class="form-text" id="driver_type_help">Top Management drivers handle VIP and executive trips only.</div>
+                                <div class="form-text" id="driver_type_help">A Top Management driver is the dedicated driver of one Top Management officer.</div>
+                            </div>
+
+                            <div class="col-12" id="assignedToGroup" style="<?php echo $form['driver_type'] === 'top_management' ? '' : 'display:none;'; ?>">
+                                <label for="assigned_to" class="form-label">Serves (Top Management officer) <span class="req" aria-hidden="true">*</span></label>
+                                <input type="text" id="assigned_to" name="assigned_to" maxlength="150"
+                                       class="form-control <?php echo isset($errors['assigned_to']) ? 'is-invalid' : ''; ?>"
+                                       placeholder="e.g. Vice-Chancellor"
+                                       value="<?php echo htmlspecialchars($form['assigned_to']); ?>"
+                                       autocomplete="off" aria-describedby="assigned_to_help">
+                                <?php if (isset($errors['assigned_to'])): ?><div class="invalid-feedback d-block" id="assigned_to_error"><?php echo htmlspecialchars($errors['assigned_to']); ?></div><?php endif; ?>
+                                <div class="form-text" id="assigned_to_help">One Top Management officer has one driver, and one driver serves one officer.</div>
                             </div>
 
                         </div>
@@ -1062,5 +1098,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 })();
 </script>
 
+<script>
+(function () {
+    var type = document.getElementById('driver_type');
+    var box  = document.getElementById('assignedToGroup');
+    if (!type || !box) { return; }
+    function sync() {
+        var top = type.value === 'top_management';
+        box.style.display = top ? '' : 'none';
+        var input = document.getElementById('assigned_to');
+        if (input) { input.required = top; }
+    }
+    type.addEventListener('change', sync);
+    sync();
+})();
+</script>
 </body>
 </html>

@@ -460,7 +460,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                 <td>
                                     <?php if (($s['trip_type'] ?? 'regular') === 'top_management'): ?>
                                     <span class="badge" style="background:#9a7209;font-size:.72rem;">
-                                        <i class="fas fa-crown fa-xs me-1"></i>VIP
+                                        <i class="fas fa-crown fa-xs me-1"></i>Top Management
                                     </span>
                                     <?php else: ?>
                                     <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem;">Regular</span>

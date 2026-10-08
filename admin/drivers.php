@@ -430,6 +430,9 @@ unset($d);
                         <div class="did"><?php echo htmlspecialchars($d['employee_id']); ?></div>
                         <?php if ($dType === 'top_management'): ?>
                         <span class="dtype dtype-vip"><i class="fas fa-crown" aria-hidden="true"></i>Top Management</span>
+                        <?php if (!empty($d['assigned_to'])): ?>
+                        <div class="small text-muted mt-1" title="The Top Management officer this driver serves"><i class="fas fa-user-tie me-1" aria-hidden="true"></i>Serves: <?php echo htmlspecialchars($d['assigned_to']); ?></div>
+                        <?php endif; ?>
                         <?php else: ?>
                         <span class="dtype dtype-regular">Regular</span>
                         <?php endif; ?>
@@ -573,8 +576,11 @@ unset($d);
                                 <td>
                                     <?php if (($d['driver_type'] ?? 'regular') === 'top_management'): ?>
                                     <span class="badge" style="background:#9a7209;font-size:.72rem;">
-                                        <i class="fas fa-crown fa-xs me-1"></i>VIP
+                                        <i class="fas fa-crown fa-xs me-1"></i>Top Management
                                     </span>
+                                    <?php if (!empty($d['assigned_to'])): ?>
+                                    <div class="small text-muted mt-1"><i class="fas fa-user-tie me-1"></i><?php echo htmlspecialchars($d['assigned_to']); ?></div>
+                                    <?php endif; ?>
                                     <?php else: ?>
                                     <span class="badge bg-secondary bg-opacity-25 text-secondary" style="font-size:.72rem;">Regular</span>
                                     <?php endif; ?>
@@ -676,6 +682,7 @@ const DRIVERS_DATA = <?php
             'license_expiry'      => $d['license_expiry'] ?? '',
             'status'              => $d['status'],
             'driver_type'         => $d['driver_type'] ?? 'regular',
+            'assigned_to'         => $d['assigned_to'] ?? '',
             'priority_score'      => $d['priority_score'],
             'created_at'          => $d['created_at'] ?? '',
         ];
@@ -864,6 +871,10 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                         <div class="detail-label">Address</div>
                         <div class="detail-value small">${d.address ? escHtml(d.address) : '&mdash;'}</div>
                     </div>
+                    ${d.driver_type === 'top_management' ? `<div class="col-12 mt-1">
+                        <div class="detail-label">Driver Type</div>
+                        <div class="detail-value">${typeBadge}${d.assigned_to ? '<span class="ms-2 small"><i class="fas fa-user-tie me-1 text-muted"></i>Serves ' + escHtml(d.assigned_to) + '</span>' : ''}</div>
+                    </div>` : ''}
                     <div class="col-6 mt-1">
                         <div class="detail-label">Registered</div>
                         <div class="detail-value small">${createdFormatted}</div>

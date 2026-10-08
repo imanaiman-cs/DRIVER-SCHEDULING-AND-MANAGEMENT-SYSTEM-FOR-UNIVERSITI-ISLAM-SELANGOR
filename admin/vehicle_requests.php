@@ -478,7 +478,7 @@ $display_requests = array_values($display_requests);
                         <label for="processTripType" class="form-label fw-semibold">Trip type</label>
                         <select id="processTripType" class="form-select">
                             <option value="regular">Regular</option>
-                            <option value="top_management">Top Management (VIP)</option>
+                            <option value="top_management">Top Management</option>
                         </select>
                         <div class="form-text">Top Management trips are only offered to Top Management drivers.</div>
                     </div>

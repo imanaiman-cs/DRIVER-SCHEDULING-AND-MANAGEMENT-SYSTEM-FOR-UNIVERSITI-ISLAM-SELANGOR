@@ -598,7 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <option value="regular"        <?php echo $currentTripType === 'regular'        ? 'selected' : ''; ?>>Regular</option>
                                     <option value="top_management" <?php echo $currentTripType === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
                                 </select>
-                                <div class="form-text" id="trip_type_help">Top Management is for VIP and executive trips.</div>
+                                <div class="form-text" id="trip_type_help">Top Management is for trips that carry a Top Management officer.</div>
                             </div>
 
                             <div class="col-12">

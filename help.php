@@ -195,7 +195,7 @@ if ($role === 'admin') {
             <li><strong>Vehicles &rarr; All Vehicles</strong> and <strong>Drivers &rarr; All Drivers</strong> show everything in one place.</li>
             <li>Use <strong>Add Vehicle</strong> or <strong>Add Driver</strong> to create new records. You can upload a photo.</li>
             <li>Switch between <strong>Cards</strong> and <strong>Table</strong> view with the buttons on the page. The page remembers your choice.</li>
-            <li>Mark a driver as <strong>Top Management</strong> if they only drive VIP or executive trips.</li>
+            <li>Mark a driver as <strong>Top Management</strong> if they are the dedicated driver of a Top Management officer. Each Top Management officer has one driver.</li>
         </ul>
     ', 'role'];
 
@@ -281,7 +281,7 @@ $items[] = ['glossary', 'book', 'Glossary', '
         <dd>A number that shows how well a driver suits a trip. It looks at workload, weekend work and experience. A higher number is a better match.</dd>
         <dt>Licence class</dt>
         <dd>The type of driving licence (B2, D or E). It must match the vehicle.</dd>
-        <dt>Top Management trip (VIP)</dt>
+        <dt>Top Management trip</dt>
         <dd>A trip for the university&rsquo;s leaders. It needs priority handling and a Top Management driver.</dd>
         <dt>Waiting place</dt>
         <dd>The place where the group waits for the driver to pick them up.</dd>

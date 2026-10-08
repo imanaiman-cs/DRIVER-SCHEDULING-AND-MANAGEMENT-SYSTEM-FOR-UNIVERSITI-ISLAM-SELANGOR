@@ -43,11 +43,13 @@ CREATE TABLE drivers (
     license_expiry      DATE            NULL DEFAULT NULL,
     status              ENUM('active','inactive','on_leave') NOT NULL DEFAULT 'active',
     driver_type         ENUM('top_management','regular') NOT NULL DEFAULT 'regular',
+    assigned_to         VARCHAR(150)    NULL DEFAULT NULL COMMENT 'Top Management drivers: the one Top Management officer this driver serves',
     photo               VARCHAR(255)    NULL DEFAULT NULL COMMENT 'relative path under uploads/drivers/',
     created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (driver_id),
-    UNIQUE KEY uq_drivers_employee_id (employee_id)
+    UNIQUE KEY uq_drivers_employee_id (employee_id),
+    UNIQUE KEY uq_drivers_assigned_to (assigned_to)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -358,7 +360,7 @@ VALUES
 (
     'BDF 4400 E', 'Car', 'Proton', 'X70', 2022, 5, 'Petrol', 'available',
     '2026-05-05', '2026-11-05', 72400,
-    'Executive sedan for VIP and senior management use.'
+    'Executive sedan for Top Management use.'
 ),
 (
     'BDG 5500 F', 'Car', 'Perodua', 'Bezza', 2023, 5, 'Petrol', 'available',
@@ -513,7 +515,7 @@ VALUES
  'Cyberjaya University College of Medical Sciences, Cyberjaya',
  'MOA signing ceremony with partner institution',
  8,  'completed', 7.61, 1,
- 'VIP trip. Vice Chancellor on board. Formal dress code for driver.'),
+ 'Top Management trip. Vice Chancellor on board. Formal dress code for driver.'),
 
 (12, 3, '2025-06-05', '09:00:00', '13:00:00',
  'Hospital Sungai Buloh, Selangor',
@@ -567,7 +569,7 @@ VALUES
 -- ── 2025 Q4 ────────────────────────────────────────────────
 (2,  9, '2025-10-14', '07:30:00', '18:00:00',
  'Langkawi International Airport, Kedah',
- 'VIP delegation pickup – international guests',
+ 'Top Management delegation pickup – international guests',
  8,  'completed', 7.61, 1,
  'Guests from Al-Azhar University, Egypt.'),
 
@@ -668,7 +670,7 @@ VALUES
  'Pusat Islam Malaysia, Putrajaya',
  'Islamic Studies faculty delegation visit',
  18, 'in_progress', 9.31, 1,
- 'VIP trip. Accompanied by Dean of Islamic Studies.'),
+ 'Top Management trip. Accompanied by Dean of Islamic Studies.'),
 
 (4,  1, '2026-07-02', '07:00:00', '12:00:00',
  'Universiti Islam Antarabangsa Malaysia, Gombak',
@@ -890,9 +892,19 @@ INSERT INTO messages (sender_id, receiver_id, body, is_read, created_at) VALUES
 UPDATE drivers SET driver_type = 'top_management'
 WHERE driver_id IN (1, 2, 4, 6, 9, 12);
 
+-- Each Top Management driver is dedicated to one Top Management officer
+UPDATE drivers SET assigned_to = ELT(FIELD(driver_id, 1, 2, 4, 6, 9, 12),
+    'Vice-Chancellor',
+    'Deputy Vice-Chancellor (Academic)',
+    'Deputy Vice-Chancellor (Student Affairs)',
+    'Registrar',
+    'Bursar',
+    'Chief Librarian')
+WHERE driver_id IN (1, 2, 4, 6, 9, 12);
+
 -- ============================================================
 -- UPDATE: trip_type assignments
--- Top Management trips: Ministry, VIP, accreditation, national conferences,
+-- Top Management trips: Ministry, senior management, accreditation, national conferences,
 --                       convocation, senior management affairs
 -- ============================================================
 UPDATE schedules SET trip_type = 'top_management'
