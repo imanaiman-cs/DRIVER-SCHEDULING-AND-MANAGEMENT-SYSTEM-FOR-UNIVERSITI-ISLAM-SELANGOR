@@ -29,3 +29,12 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - Upload a PDF -> downloadable from the request page; a `.php` file renamed to `.pdf` is rejected.
 - Cancel the request without a reason -> refused; with a reason -> *Cancelled*, vehicle free again.
 - As `staff2`, open `?page=requests/show&id=<staff1 request>` -> 403.
+
+## Step 5 - Approvals, comments, notifications, jobs
+- As `hod1`: *Approvals* lists the pending requests. Approve one -> status *Approved*; the requester and the admins get a bell notification.
+- Reject one without a reason -> refused; with a reason -> requester sees the reason on the request page.
+- As `staff2` try `?page=approvals/approve` by POST on someone else's request -> 403.
+- Add a comment on a request: it appears with your role. There is no edit/delete button, and `?page=comments/edit` is a 404.
+- Open the bell: a notification marks itself read and jumps to the request. Check `storage/logs/mail.log` for the e-mail copy.
+- As `admin1`: *Reminders* -> *Send reminder* on a pending request; pressing it again within 4 hours is refused.
+- Run `php cron/run_jobs.php`: requests pending more than 48 hours become *Lapsed* (vehicle released); confirmed trips past their return time become *Completed*.

@@ -22,6 +22,10 @@ class Dashboard extends Model
         if ($user['role'] === 'hod') {
             $out['to_approve'] = $this->count("SELECT COUNT(*) c FROM requests WHERE approver_id = ? AND status = 'Pending Approval'", [$id]);
         }
+        if ($user['role'] === 'head_admin') {
+            // A requester with no HOD above them (e.g. an HOD) is approved by the head admin.
+            $out['to_approve'] = $this->count("SELECT COUNT(*) c FROM requests WHERE approver_id IS NULL AND status = 'Pending Approval'");
+        }
         if ($user['role'] === 'driver') {
             $driver = $this->fetchOne('SELECT id FROM drivers WHERE user_id = ?', [$id]);
             $did = (int)($driver['id'] ?? 0);

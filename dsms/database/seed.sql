@@ -184,11 +184,11 @@ INSERT INTO reminders (request_id, sent_by, sent_at) VALUES
 (2, 4, DATE_SUB(NOW(), INTERVAL 5 HOUR));
 
 INSERT INTO notifications (user_id, message, link, is_read) VALUES
-(2, 'New vehicle request from Nurul Aisyah is waiting for your approval.', '?page=requests/view&id=1', 0),
-(2, 'Reminder: the request from Muhammad Haziq will lapse soon.', '?page=requests/view&id=2', 0),
-(3, 'A driver assignment (request #4) is waiting for your approval.', '?page=requests/view&id=4', 0),
-(5, 'Your request #7 was rejected: The purpose is not an official UIS duty.', '?page=requests/view&id=7', 1),
-(6, 'Your request #8 lapsed because it was not approved within two days.', '?page=requests/view&id=8', 0);
+(2, 'New vehicle request from Nurul Aisyah is waiting for your approval.', '?page=requests/show&id=1', 0),
+(2, 'Reminder: the request from Muhammad Haziq will lapse soon.', '?page=requests/show&id=2', 0),
+(3, 'A driver assignment (request #4) is waiting for your approval.', '?page=requests/show&id=4', 0),
+(5, 'Your request #7 was rejected: The purpose is not an official UIS duty.', '?page=requests/show&id=7', 1),
+(6, 'Your request #8 lapsed because it was not approved within two days.', '?page=requests/show&id=8', 0);
 
 INSERT INTO audit_log (user_id, user_role, action, request_id, reason, created_at) VALUES
 (2, 'hod', 'approve', 3, NULL, DATE_SUB(NOW(), INTERVAL 24 HOUR)),

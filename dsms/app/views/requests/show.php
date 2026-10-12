@@ -1,4 +1,4 @@
-<?php /** @var array $r @var array $legs @var array $documents @var bool $canCancel @var bool $showDrivers @var array $timeline */ ?>
+<?php /** @var array $r @var array $legs @var array $documents @var array $comments @var bool $canCancel @var bool $showDrivers @var array $timeline */ ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <a class="small" href="<?= e(url('requests/index')) ?>">&larr; My requests</a>

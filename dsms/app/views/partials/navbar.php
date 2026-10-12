@@ -16,7 +16,7 @@ if ($user) {
     if ($role === 'driver') {
         $menu[] = ['My tasks', 'tasks/index'];
     }
-    if ($role === 'hod') {
+    if (in_array($role, ['hod', 'head_admin'], true)) {
         $menu[] = ['Approvals', 'approvals/index'];
     }
     if (in_array($role, ['admin_assistant', 'head_admin'], true)) {

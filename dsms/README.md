@@ -54,7 +54,7 @@ Password for **every** account: `Password123`
 All names in the seed data are dummy. Demo dates are relative to the day you import
 `seed.sql`, so re-import it (after `dsms.sql`) to refresh the demo.
 
-## Composer (needed from Step 5)
+## Composer
 
 PHPMailer (email) and Dompdf (PDF report) are installed with Composer:
 
@@ -62,3 +62,39 @@ PHPMailer (email) and Dompdf (PDF report) are installed with Composer:
 cd dsms
 composer install
 ```
+
+## E-mail (optional)
+
+By default **no real e-mail is sent**: every notification e-mail is written to `storage/logs/mail.log`
+so the demo works without a mail server. To send real e-mail create `app/config/config.local.php`
+(it is ignored by Git, so your password is never committed):
+
+```php
+<?php
+return [
+    'app_url' => 'http://localhost/dsms/public',
+    'mail' => [
+        'host' => 'smtp.gmail.com', 'port' => 587, 'encryption' => 'tls',
+        'username' => 'your.address@gmail.com', 'password' => 'your-app-password',
+        'from_email' => 'your.address@gmail.com',
+    ],
+];
+```
+
+## Scheduled jobs (rule R11)
+
+`cron/run_jobs.php` (1) lapses requests that were not approved in 48 hours, (2) cancels approved trips
+that were never confirmed before they started, and (3) marks confirmed trips as Completed after their return time.
+The web pages also run the same jobs at most once every 5 minutes, so the demo works even without a scheduler.
+For a real deployment run the script every 15 minutes.
+
+**Windows (XAMPP) - Task Scheduler**
+
+1. Open *Task Scheduler* -> *Create Basic Task* -> name it `DSMS jobs`.
+2. Trigger: *Daily*, then in the task's *Triggers* tab choose *Repeat task every 15 minutes*.
+3. Action: *Start a program*
+   - Program: `C:\xampp\php\php.exe`
+   - Arguments: `C:\xampp\htdocs\dsms\cron\run_jobs.php`
+4. Test it by hand: `C:\xampp\php\php.exe C:\xampp\htdocs\dsms\cron\run_jobs.php` prints e.g. `lapsed=1 expired=0 completed=2`.
+
+**Linux** - add this line with `crontab -e`:  `*/15 * * * * php /var/www/dsms/cron/run_jobs.php`

@@ -96,6 +96,14 @@ class User extends Model
         );
     }
 
+    /** Ids of everyone in the Vehicle Section (they are told when a request needs a driver). */
+    public function activeAdminIds(bool $headAdminOnly = false): array
+    {
+        $roles = $headAdminOnly ? "('head_admin')" : "('admin_assistant','head_admin')";
+        return array_map('intval', array_column(
+            $this->fetchAll("SELECT id FROM users WHERE is_active = 1 AND role IN $roles"), 'id'));
+    }
+
     public function staffIdTaken(string $staffId, int $exceptId = 0): bool
     {
         return (bool)$this->fetchOne('SELECT id FROM users WHERE staff_id = ? AND id <> ?', [$staffId, $exceptId]);

@@ -17,6 +17,10 @@ $config = [
     'app_title' => 'Driver Scheduling and Management System',
     'org_name'  => 'Universiti Islam Selangor (UIS) - Vehicle Section',
 
+    // Public address of the site, used in e-mail links and by the cron script (which has no browser address).
+    // Example for XAMPP: 'http://localhost/dsms/public'. Set it in config.local.php.
+    'app_url'   => 'http://localhost/dsms/public',
+
     // Show detailed errors on screen? true while developing, FALSE in production
     // (users must never see raw SQL errors; they are written to storage/logs instead).
     'debug'     => true,

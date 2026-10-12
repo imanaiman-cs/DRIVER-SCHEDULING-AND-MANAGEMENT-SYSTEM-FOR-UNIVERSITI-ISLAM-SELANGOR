@@ -47,7 +47,7 @@ $card = function (string $label, $number, string $page, string $hint = '') {
 </div>
 <?php endif; ?>
 
-<?php if ($role === 'hod'): ?>
+<?php if (in_array($role, ['hod', 'head_admin'], true)): ?>
 <h2 class="h6 text-uppercase text-muted">Approvals</h2>
 <div class="row g-3 mb-4">
     <?php $card('Requests to approve', $counts['to_approve'], 'approvals/index', 'Not approved within 2 days = lapsed'); ?>

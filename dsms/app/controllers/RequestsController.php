@@ -176,7 +176,7 @@ class RequestsController extends Controller
         }
 
         (new AuditLog())->record('submit', $requestId, 'Request submitted');
-        $link = url('requests/show', ['id' => $requestId]);
+        $link = page_link('requests/show', ['id' => $requestId]);
         $who  = Auth::user()['name'];
         if ($approver) {
             NotificationService::notify((int)$approver['id'], "New vehicle request #$requestId from $who is waiting for your approval.", $link);
@@ -196,6 +196,7 @@ class RequestsController extends Controller
             'r'         => $request,
             'legs'      => $legs,
             'documents' => $model->documents((int)$request['id']),
+            'comments'  => (new RequestComment())->forRequest((int)$request['id']),
             'canCancel' => RequestPolicy::canCancel($user, $request),
             'showDrivers' => in_array($request['status'], [RequestStatus::ASSIGNED, RequestStatus::CONFIRMED, RequestStatus::COMPLETED], true),
             'timeline'  => $this->timeline($request),
@@ -229,7 +230,7 @@ class RequestsController extends Controller
         NotificationService::notify(
             array_diff($people, [(int)$user['id']]),
             "Request #$id ({$request['destination_name']}) was cancelled by {$user['name']}: $reason",
-            url('requests/show', ['id' => $id])
+            page_link('requests/show', ['id' => $id])
         );
         $this->flashRedirect('success', "Request #$id was cancelled.", 'requests/show', ['id' => $id]);
     }

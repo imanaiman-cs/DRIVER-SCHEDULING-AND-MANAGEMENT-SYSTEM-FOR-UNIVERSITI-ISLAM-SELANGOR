@@ -54,6 +54,9 @@ class TripRequest extends Model
     {
         $where = ['1=1']; $args = [];
         if (!empty($f['requester_id'])) { $where[] = 'r.requester_id = ?'; $args[] = (int)$f['requester_id']; }
+        if (!empty($f['approver_id'])) { $where[] = 'r.approver_id = ?'; $args[] = (int)$f['approver_id']; }
+        if (!empty($f['no_approver'])) { $where[] = 'r.approver_id IS NULL'; }
+        if (!empty($f['decided']))     { $where[] = "r.status <> 'Pending Approval'"; }
         if (!empty($f['status']) && in_array($f['status'], RequestStatus::ALL, true)) { $where[] = 'r.status = ?'; $args[] = $f['status']; }
         if (!empty($f['q'])) {
             $where[] = '(r.destination_name LIKE ? OR r.purpose LIKE ? OR r.id = ?)';

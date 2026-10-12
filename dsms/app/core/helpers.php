@@ -28,6 +28,22 @@ function url(string $page = 'home/index', array $params = []): string
     return base_url() . '/index.php?' . $query;
 }
 
+/**
+ * A link stored in the database (notifications, e-mails): "?page=requests/show&id=5".
+ * It has no folder in front of it, because the same link must work from a browser page
+ * AND from the cron script, which does not know the web folder.
+ */
+function page_link(string $page, array $params = []): string
+{
+    return '?page=' . $page . ($params ? '&' . http_build_query($params) : '');
+}
+
+/** Turn a stored page_link() into a clickable address for the current page. */
+function link_href(?string $stored): string
+{
+    return ($stored !== null && str_starts_with($stored, '?page=')) ? base_url() . '/index.php' . $stored : url('home/index');
+}
+
 /** Link to a file in public/assets. */
 function asset(string $path): string
 {
