@@ -12,6 +12,40 @@ class Auth
 {
     public const ROLES = ['staff', 'driver', 'hod', 'admin_assistant', 'head_admin'];
 
+    /** Put a user into the session after a successful login. */
+    public static function login(array $user): void
+    {
+        Session::regenerate();                 // new session id: stops session fixation
+        $_SESSION['user'] = [
+            'id'                   => (int)$user['id'],
+            'staff_id'             => $user['staff_id'],
+            'name'                 => $user['name'],
+            'email'                => $user['email'],
+            'role'                 => $user['role'],
+            'ptj_id'               => $user['ptj_id'] !== null ? (int)$user['ptj_id'] : null,
+            'approver_id'          => $user['approver_id'] !== null ? (int)$user['approver_id'] : null,
+            'must_change_password' => (bool)$user['must_change_password'],
+        ];
+    }
+
+    public static function logout(): void
+    {
+        Session::destroy();
+    }
+
+    /** Re-read the user's details from the database (e.g. after changing the password). */
+    public static function refresh(): void
+    {
+        if (self::check()) {
+            $fresh = (new User())->find(self::id());
+            if ($fresh && $fresh['is_active'] && !$fresh['is_locked']) {
+                self::login($fresh);
+            } else {
+                self::logout();
+            }
+        }
+    }
+
     /** The logged-in user (array) or null. */
     public static function user(): ?array
     {
@@ -52,7 +86,9 @@ class Auth
     public static function requireLogin(): void
     {
         if (!self::check()) {
-            Session::flash('warning', 'Please log in first.');
+            if (!Session::hasFlash()) {          // do not hide a more useful message (e.g. the timeout notice)
+                Session::flash('warning', 'Please log in first.');
+            }
             header('Location: ' . url('auth/login'));
             exit;
         }

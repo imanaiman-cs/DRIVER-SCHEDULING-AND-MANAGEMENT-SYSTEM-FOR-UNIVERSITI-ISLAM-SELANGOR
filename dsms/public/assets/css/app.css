@@ -17,3 +17,6 @@ code { color: var(--dsms-dark); background: #ececec; padding: .05rem .3rem; bord
 /* Status badges used from Step 4 onwards: grey shades only, text tells the status. */
 .status-badge { font-weight: 500; }
 @media print { .app-navbar, footer, .no-print { display: none !important; } body { background: #fff; } }
+
+.dash-card:hover { border-color: #111; }
+.dash-card .display-6 { line-height: 1.1; }

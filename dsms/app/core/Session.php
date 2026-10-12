@@ -31,7 +31,7 @@ class Session
         if (isset($_SESSION['_last_activity']) && ($now - $_SESSION['_last_activity']) > $timeoutMinutes * 60) {
             self::destroy();
             session_start();
-            $_SESSION['_flash'] = ['warning' => 'You were logged out after ' . $timeoutMinutes . ' minutes of inactivity.'];
+            self::flash('warning', 'You were logged out after ' . $timeoutMinutes . ' minutes of inactivity.');
         }
         $_SESSION['_last_activity'] = $now;
     }
@@ -70,10 +70,15 @@ class Session
     /** One-time messages shown after a redirect: Session::flash('success', 'Saved.') */
     public static function flash(string $type, string $message): void
     {
-        $_SESSION['_flash'][$type] = $message;
+        $_SESSION['_flash'][$type][] = $message;     // several messages of one type can be queued
     }
 
-    /** Read and clear all flash messages. */
+    public static function hasFlash(): bool
+    {
+        return !empty($_SESSION['_flash']);
+    }
+
+    /** Read and clear all flash messages: ['success' => ['...', ...], ...] */
     public static function takeFlash(): array
     {
         $flash = $_SESSION['_flash'] ?? [];

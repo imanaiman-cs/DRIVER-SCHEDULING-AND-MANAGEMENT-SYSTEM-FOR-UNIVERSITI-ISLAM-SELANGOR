@@ -20,7 +20,11 @@ function base_url(): string
 /** Link to a page: url('requests/view', ['id' => 5])  ->  /dsms/public/index.php?page=requests/view&id=5 */
 function url(string $page = 'home/index', array $params = []): string
 {
-    $query = http_build_query(['page' => $page] + $params);
+    // Keep the "/" in page=controller/action readable (http_build_query would write %2F).
+    $query = 'page=' . $page;
+    if ($params) {
+        $query .= '&' . http_build_query($params);
+    }
     return base_url() . '/index.php?' . $query;
 }
 
@@ -39,4 +43,56 @@ function app_log(string $message, string $file = 'app.log'): void
         @mkdir($dir, 0775, true);
     }
     @file_put_contents($dir . '/' . $file, '[' . date('Y-m-d H:i:s') . '] ' . $message . PHP_EOL, FILE_APPEND);
+}
+
+/** "12 Oct 2026" */
+function fmt_date(?string $value): string
+{
+    return $value ? date('d M Y', strtotime($value)) : '-';
+}
+
+/** "12 Oct 2026, 09:00" */
+function fmt_datetime(?string $value): string
+{
+    return $value ? date('d M Y, H:i', strtotime($value)) : '-';
+}
+
+/** "09:00" */
+function fmt_time(?string $value): string
+{
+    return $value ? date('H:i', strtotime($value)) : '-';
+}
+
+/** Readable role name for the screen: admin_assistant -> "Admin Assistant". */
+function role_label(?string $role): string
+{
+    return [
+        'staff' => 'Staff', 'driver' => 'Driver', 'hod' => 'Head of Department',
+        'admin_assistant' => 'Admin Assistant', 'head_admin' => 'Head Admin',
+    ][$role] ?? (string)$role;
+}
+
+/**
+ * Status badge. Grey/black shades only (the theme is black, white and grey);
+ * the TEXT carries the meaning, not the colour, so it is also readable when printed.
+ */
+function status_badge(string $status): string
+{
+    $class = [
+        'Pending Approval' => 'text-bg-light border',
+        'Approved'         => 'text-bg-secondary',
+        'Driver Assigned'  => 'text-bg-secondary',
+        'Confirmed'        => 'text-bg-dark',
+        'Completed'        => 'text-bg-dark',
+        'Rejected'         => 'text-bg-light border text-decoration-line-through',
+        'Cancelled'        => 'text-bg-light border text-decoration-line-through',
+        'Lapsed'           => 'text-bg-light border text-decoration-line-through',
+    ][$status] ?? 'text-bg-light border';
+    return '<span class="badge status-badge ' . $class . '">' . e($status) . '</span>';
+}
+
+/** Value of a posted/previous form field, escaped, for re-filling forms after an error. */
+function old(array $source, string $key, string $default = ''): string
+{
+    return e((string)($source[$key] ?? $default));
 }

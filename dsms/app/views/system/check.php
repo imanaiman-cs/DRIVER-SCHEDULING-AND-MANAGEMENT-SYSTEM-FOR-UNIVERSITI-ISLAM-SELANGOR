@@ -13,9 +13,8 @@ $missing = array_filter($counts, fn($c) => $c === -1);
 </div>
 
 <div class="alert alert-secondary">
-    <strong>Step 1 &ndash; project skeleton.</strong>
-    This page checks that the router, layout, database and demo data are working.
-    Login and the real dashboards come in Step 2.
+    <strong>System check (admin).</strong>
+    Confirms that PHP, the database connection, the tables and the demo data are in place.
 </div>
 
 <div class="row g-3 mb-4">
@@ -87,7 +86,7 @@ $missing = array_filter($counts, fn($c) => $c === -1);
 </div>
 
 <div class="card">
-    <div class="card-header bg-white fw-semibold">Test accounts (login works from Step 2)</div>
+    <div class="card-header bg-white fw-semibold">Test accounts</div>
     <div class="table-responsive">
         <table class="table table-sm mb-0">
             <thead><tr><th>Username</th><th>Role</th><th>Notes</th></tr></thead>

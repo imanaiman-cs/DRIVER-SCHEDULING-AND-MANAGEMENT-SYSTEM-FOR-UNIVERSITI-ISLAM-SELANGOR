@@ -15,6 +15,13 @@ class Router
     {
         $page = $_GET['page'] ?? 'home/index';
 
+        // A user still on a temporary password may only change it (or log out).
+        if (Auth::check() && (Auth::user()['must_change_password'] ?? false)
+            && !in_array($page, ['auth/change_password', 'auth/logout'], true)) {
+            header('Location: ' . url('auth/change_password'));
+            exit;
+        }
+
         if (!preg_match('/^[a-z][a-z0-9_]*\/[a-z][a-z0-9_]*$/', $page)) {
             $this->notFound();
             return;
