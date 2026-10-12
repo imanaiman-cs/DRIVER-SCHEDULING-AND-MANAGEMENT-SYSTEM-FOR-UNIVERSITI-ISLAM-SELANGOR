@@ -20,6 +20,7 @@ if ($user) {
         $menu[] = ['Approvals', 'approvals/index'];
     }
     if (in_array($role, ['admin_assistant', 'head_admin'], true)) {
+        $menu[] = ['All requests', 'requests/all'];
         $menu[] = ['Reminders', 'reminders/index'];
         $menu[] = ['Assign driver', 'assignments/index'];
         $menu[] = ['Change driver', 'assignments/change'];

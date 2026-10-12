@@ -2,7 +2,7 @@
 /**
  * Router - turns  index.php?page=controller/action  into a method call.
  *
- *   ?page=requests/view&id=5   ->   RequestsController::view()
+ *   ?page=requests/show&id=5   ->   RequestsController::show()
  *   (no page given)            ->   HomeController::index()
  *
  * Only controller methods that are declared in the controller itself can be

@@ -19,3 +19,13 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - *Drivers* -> Manage: tick licence classes, switch group to Management, add leave over a day that already has an assigned trip -> warning lists the trip.
 - *Vehicles* -> Add a Bus: licence shows PSV. Add a maintenance period over a booked trip -> warning lists the requests.
 - *Settings*: set weights 0.7 / 0.7 -> rejected ("must add up to 1"); 0.7 / 0.3 -> saved and written to the audit log.
+
+## Step 4 - Vehicle requests
+- Run `php tests/run.php` -> all tests pass (R1-R6 rules, availability, status map).
+- As `staff1`: *New request* -> choose a departure TOMORROW -> refused with the 2-day message that names form BPTK/BPI/2025/PIN.5.
+- Choose a date 5+ days ahead -> vehicle cards: free vehicles have a *Select* button; booked / maintenance / too-small vehicles are greyed with the reason.
+- Pick a vehicle -> fill the details -> *Review and submit* shows a confirm dialog -> Submit -> request appears as *Pending Approval*; the HOD gets a notification.
+- Try to book the same vehicle for the same day with another account -> refused (the vehicle is held per day).
+- Upload a PDF -> downloadable from the request page; a `.php` file renamed to `.pdf` is rejected.
+- Cancel the request without a reason -> refused; with a reason -> *Cancelled*, vehicle free again.
+- As `staff2`, open `?page=requests/show&id=<staff1 request>` -> 403.

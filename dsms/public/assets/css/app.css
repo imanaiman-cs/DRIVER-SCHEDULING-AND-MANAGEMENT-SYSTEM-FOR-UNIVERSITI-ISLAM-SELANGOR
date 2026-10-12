@@ -20,3 +20,11 @@ code { color: var(--dsms-dark); background: #ececec; padding: .05rem .3rem; bord
 
 .dash-card:hover { border-color: #111; }
 .dash-card .display-6 { line-height: 1.1; }
+
+/* Request wizard */
+.wizard-step { padding: .3rem .8rem; border: 1px solid var(--dsms-border); border-radius: 2rem; background: #fff; color: var(--dsms-grey); font-size: .9rem; }
+.wizard-step .wizard-num { display: inline-block; width: 1.4rem; height: 1.4rem; line-height: 1.4rem; text-align: center; border-radius: 50%; background: var(--dsms-light); margin-right: .25rem; }
+.wizard-step.active { border-color: var(--dsms-black); color: var(--dsms-black); font-weight: 600; }
+.wizard-step.active .wizard-num { background: var(--dsms-black); color: #fff; }
+.wizard-step.done .wizard-num { background: var(--dsms-grey); color: #fff; }
+.vehicle-card.unavailable { background: #f0f0f0; opacity: .75; }

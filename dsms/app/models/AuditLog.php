@@ -19,6 +19,15 @@ class AuditLog extends Model
         );
     }
 
+    /** Done by the system itself (lapse job, auto-complete): user_id stays NULL even if someone happens to be logged in. */
+    public function recordSystem(string $action, ?int $requestId = null, ?string $reason = null): void
+    {
+        $this->execute(
+            'INSERT INTO audit_log (user_id, user_role, action, request_id, reason) VALUES (NULL, \'system\', ?, ?, ?)',
+            [$action, $requestId, $reason !== null ? mb_substr($reason, 0, 500) : null]
+        );
+    }
+
     /** Newest first; optional filters for the viewer page. */
     public function search(string $action = '', int $requestId = 0, int $limit = 200): array
     {

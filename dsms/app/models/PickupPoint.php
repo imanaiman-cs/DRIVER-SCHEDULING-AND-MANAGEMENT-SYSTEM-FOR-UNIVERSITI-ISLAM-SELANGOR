@@ -6,6 +6,8 @@ class PickupPoint extends Model
     {
         return $this->fetchAll('SELECT * FROM pickup_points ' . ($activeOnly ? 'WHERE is_active = 1 ' : '') . 'ORDER BY name');
     }
+    public function active(): array { return $this->all(true); }
+    public function isActive(int $id): bool { return (bool)$this->fetchOne('SELECT id FROM pickup_points WHERE id = ? AND is_active = 1', [$id]); }
     public function find(int $id): ?array { return $this->fetchOne('SELECT * FROM pickup_points WHERE id = ?', [$id]); }
     public function nameTaken(string $name, int $exceptId = 0): bool
     {

@@ -26,4 +26,11 @@ class Setting extends Model
     {
         $this->execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$value, $key]);
     }
+
+    /** A numeric setting with a safe fallback (so a missing row never breaks a rule). */
+    public function int(string $key, int $default): int
+    {
+        $v = $this->get($key);
+        return ($v !== null && is_numeric($v)) ? (int)$v : $default;
+    }
 }

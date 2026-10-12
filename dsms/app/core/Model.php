@@ -37,4 +37,26 @@ abstract class Model
         $stmt->execute($params);
         return $stmt->rowCount();
     }
+
+    /**
+     * Run several statements as ONE unit: all succeed or none do.
+     * Safe to nest - if a transaction is already open the callback just joins it.
+     */
+    protected function transaction(callable $work)
+    {
+        if ($this->db->inTransaction()) {
+            return $work();
+        }
+        $this->db->beginTransaction();
+        try {
+            $result = $work();
+            $this->db->commit();
+            return $result;
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
 }

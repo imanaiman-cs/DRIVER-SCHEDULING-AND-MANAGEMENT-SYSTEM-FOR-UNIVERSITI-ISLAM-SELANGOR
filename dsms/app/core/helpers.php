@@ -17,7 +17,7 @@ function base_url(): string
     return $dir === '' ? '' : $dir;
 }
 
-/** Link to a page: url('requests/view', ['id' => 5])  ->  /dsms/public/index.php?page=requests/view&id=5 */
+/** Link to a page: url('requests/show', ['id' => 5])  ->  /dsms/public/index.php?page=requests/show&id=5 */
 function url(string $page = 'home/index', array $params = []): string
 {
     // Keep the "/" in page=controller/action readable (http_build_query would write %2F).
