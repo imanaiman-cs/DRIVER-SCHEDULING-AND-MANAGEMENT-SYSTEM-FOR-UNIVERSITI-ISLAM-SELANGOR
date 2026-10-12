@@ -1,0 +1,19 @@
+/* DSMS theme: black / white / grey only. Clean, simple, professional. */
+:root {
+    --dsms-black: #111111;
+    --dsms-dark: #212529;
+    --dsms-grey: #6c757d;
+    --dsms-light: #f5f5f5;
+    --dsms-border: #dddddd;
+}
+body { background: var(--dsms-light); color: var(--dsms-dark); }
+.app-navbar { background: var(--dsms-black); }
+.card { border: 1px solid var(--dsms-border); border-radius: .5rem; box-shadow: none; }
+.card-header { border-bottom: 1px solid var(--dsms-border); }
+.btn-dark { background: var(--dsms-black); border-color: var(--dsms-black); }
+.btn-dark:hover { background: #333; border-color: #333; }
+code { color: var(--dsms-dark); background: #ececec; padding: .05rem .3rem; border-radius: .25rem; }
+.table > :not(caption) > * > * { vertical-align: middle; }
+/* Status badges used from Step 4 onwards: grey shades only, text tells the status. */
+.status-badge { font-weight: 500; }
+@media print { .app-navbar, footer, .no-print { display: none !important; } body { background: #fff; } }
