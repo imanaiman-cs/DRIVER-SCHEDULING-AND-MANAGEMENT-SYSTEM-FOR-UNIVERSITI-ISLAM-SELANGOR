@@ -56,3 +56,10 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - As `admin1`: *Operations > Internal tasks* -> New task. A clash with another job shows a warning ("Save anyway"); a driver on leave is refused; management drivers are not offered.
 - *Operations > Welfare duty* -> *Fill empty days automatically*: every day gets one driver, nobody twice in a row, nobody on leave. Replace a day: a reason is required and shown.
 - Add leave to a driver who is on welfare duty -> the warning tells you to replace them in the roster.
+
+## Step 8 - Calendar and monthly report
+- *Calendar* (needs internet for the FullCalendar CDN): month / week / list views. Grey shades tell statuses apart (see the legend).
+- `staff1` sees only their own requests; `hod1` sees their department; `driver1` sees their own trips, tasks and welfare duty; `admin1` sees everything and can filter by vehicle.
+- Click an event -> opens the request. The data comes from `?page=calendar/events` (JSON) and is filtered on the server per role.
+- *Reports* (admin): pick a month -> summary, vehicle use, driver workload, department and request tables. *Print* uses the browser; *Download PDF* creates `DSMS_Report_<month>.pdf` with Dompdf.
+- `staff1` opening `?page=reports/index` -> 403.
