@@ -49,3 +49,10 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - *Self-drive* on an Approved request -> *Confirmed* with no driver.
 - *Change driver* -> reason required; the change appears in the request's "Driver changes" and the log cannot be edited.
 - Settings: change the weights to 0.9 / 0.1 and open the assign page again: the ranking changes.
+
+## Step 7 - Driver tasks, internal tasks, welfare roster
+- Open the site on a phone (or a 390 px wide browser window) as `driver1`: *My tasks* shows today's legs with a tap-to-call number, tabs Today / Next 7 days / This month / Last 14 days, and the month totals.
+- A driver cannot open another driver's tasks (the driver is taken from the login, never from the URL). `staff1` opening `?page=tasks/index` gets 403.
+- As `admin1`: *Operations > Internal tasks* -> New task. A clash with another job shows a warning ("Save anyway"); a driver on leave is refused; management drivers are not offered.
+- *Operations > Welfare duty* -> *Fill empty days automatically*: every day gets one driver, nobody twice in a row, nobody on leave. Replace a day: a reason is required and shown.
+- Add leave to a driver who is on welfare duty -> the warning tells you to replace them in the roster.

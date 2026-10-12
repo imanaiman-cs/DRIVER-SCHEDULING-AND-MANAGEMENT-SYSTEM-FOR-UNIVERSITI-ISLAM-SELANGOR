@@ -73,12 +73,20 @@ class DriversController extends Controller
         (new AuditLog())->record('driver_leave', null, "Driver {$driver['staff_id']}: $type $start to $end");
 
         $affected = $model->affectedLegs($id, $start, $end);
-        if ($affected) {
-            $list = implode('; ', array_map(
-                fn($a) => "Request #{$a['request_id']} ({$a['destination_name']}, " . fmt_datetime($a['start_datetime']) . ')',
-                $affected
-            ));
-            $this->flashRedirect('warning', "Leave saved, but this driver is already assigned to: $list. Please change the driver.", 'drivers/edit', ['id' => $id]);
+        $welfare  = $model->welfareDutyBetween($id, $start, $end);
+        if ($affected || $welfare) {
+            $msg = 'Leave saved, but';
+            if ($affected) {
+                $list = implode('; ', array_map(
+                    fn($a) => "Request #{$a['request_id']} ({$a['destination_name']}, " . fmt_datetime($a['start_datetime']) . ')',
+                    $affected
+                ));
+                $msg .= " this driver is already assigned to: $list. Please change the driver.";
+            }
+            if ($welfare) {
+                $msg .= ($affected ? ' Also,' : '') . ' this driver is on welfare duty on ' . implode(', ', array_map('fmt_date', $welfare)) . '. Please replace them in the Welfare roster.';
+            }
+            $this->flashRedirect('warning', $msg, 'drivers/edit', ['id' => $id]);
         }
         $this->flashRedirect('success', 'Leave saved.', 'drivers/edit', ['id' => $id]);
     }

@@ -81,4 +81,10 @@ class Driver extends Model
             [$id, $end, $start]
         );
     }
+
+    /** Welfare-duty days of this driver that fall inside a leave period. */
+    public function welfareDutyBetween(int $id, string $start, string $end): array
+    {
+        return array_column($this->fetchAll('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date BETWEEN ? AND ? ORDER BY duty_date', [$id, $start, $end]), 'duty_date');
+    }
 }
