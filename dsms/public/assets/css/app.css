@@ -28,3 +28,6 @@ code { color: var(--dsms-dark); background: #ececec; padding: .05rem .3rem; bord
 .wizard-step.active .wizard-num { background: var(--dsms-black); color: #fff; }
 .wizard-step.done .wizard-num { background: var(--dsms-grey); color: #fff; }
 .vehicle-card.unavailable { background: #f0f0f0; opacity: .75; }
+
+/* Long names must not push the menu off the screen. */
+.nav-user { display: inline-block; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }

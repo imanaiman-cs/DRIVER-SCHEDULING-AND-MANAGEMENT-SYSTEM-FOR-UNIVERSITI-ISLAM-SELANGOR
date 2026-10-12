@@ -38,3 +38,14 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - Open the bell: a notification marks itself read and jumps to the request. Check `storage/logs/mail.log` for the e-mail copy.
 - As `admin1`: *Reminders* -> *Send reminder* on a pending request; pressing it again within 4 hours is refused.
 - Run `php cron/run_jobs.php`: requests pending more than 48 hours become *Lapsed* (vehicle released); confirmed trips past their return time become *Completed*.
+
+## Step 6 - Driver recommendation and assignment
+- Run `php tests/run.php Recommender` -> the scoring formula and the hard filters pass.
+- As `admin1`: *Drivers > Assign driver* -> open an Approved request. Each leg (departure / return) has its own ranked table:
+  score, tasks this month, after-hours, welfare duty and clash warnings. "Why are N drivers not listed?" explains the excluded ones (management, wrong licence, on leave).
+- Choose a management driver / a driver without the licence by tampering with the form -> refused by the server.
+- Choose a driver who already has a job in that time slot -> a warning with "Assign anyway".
+- Assign -> status *Driver Assigned*. As `admin1`, *Approve assignment* is NOT available (403); as `headadmin1` it is -> *Confirmed*, and the drivers get a notification.
+- *Self-drive* on an Approved request -> *Confirmed* with no driver.
+- *Change driver* -> reason required; the change appears in the request's "Driver changes" and the log cannot be edited.
+- Settings: change the weights to 0.9 / 0.1 and open the assign page again: the ranking changes.

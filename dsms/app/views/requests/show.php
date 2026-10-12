@@ -1,4 +1,4 @@
-<?php /** @var array $r @var array $legs @var array $documents @var array $comments @var bool $canCancel @var bool $showDrivers @var array $timeline */ ?>
+<?php /** @var array $r @var array $legs @var array $documents @var array $comments @var array $replacements @var bool $canCancel @var bool $showDrivers @var array $timeline */ ?>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <a class="small" href="<?= e(url('requests/index')) ?>">&larr; My requests</a>
@@ -46,6 +46,12 @@
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+                <?php if ($replacements): ?>
+                    <div class="small fw-semibold mt-3">Driver changes</div>
+                    <ul class="small mb-0"><?php foreach ($replacements as $p): ?>
+                        <li><?= e(fmt_datetime($p['changed_at'])) ?> - <?= e(ucfirst($p['leg_type'])) ?> leg: <?= e($p['previous_name'] ?? 'nobody') ?> &rarr; <?= e($p['new_name']) ?> (<?= e($p['reason']) ?>)</li>
+                    <?php endforeach; ?></ul>
+                <?php endif; ?>
             <?php else: ?>
                 <p class="small text-muted mb-0">A driver is arranged by the Vehicle Section after the request is approved.</p>
             <?php endif; ?>

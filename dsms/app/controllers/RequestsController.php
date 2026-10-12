@@ -196,6 +196,7 @@ class RequestsController extends Controller
             'r'         => $request,
             'legs'      => $legs,
             'documents' => $model->documents((int)$request['id']),
+            'replacements' => (new AssignmentService())->replacements((int)$request['id']),
             'comments'  => (new RequestComment())->forRequest((int)$request['id']),
             'canCancel' => RequestPolicy::canCancel($user, $request),
             'showDrivers' => in_array($request['status'], [RequestStatus::ASSIGNED, RequestStatus::CONFIRMED, RequestStatus::COMPLETED], true),

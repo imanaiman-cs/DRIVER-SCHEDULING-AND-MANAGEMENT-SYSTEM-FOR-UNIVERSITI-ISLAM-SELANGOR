@@ -14,3 +14,16 @@ if (RequestPolicy::canApprove(Auth::user(), $r)): ?>
         <div class="modal-footer"><button type="button" class="btn btn-link" data-bs-dismiss="modal">Back</button><button class="btn btn-dark" type="submit">Reject request</button></div>
     </form></div></div>
 <?php endif; ?>
+<?php
+/** Vehicle Section shortcuts (only for admins; the target pages check the role again). */
+if (RequestPolicy::isAdmin(Auth::user())):
+    if ($r['status'] === RequestStatus::APPROVED): ?>
+        <a class="btn btn-dark btn-sm" href="<?= e(url('assignments/assign', ['id' => $r['id']])) ?>">Assign driver</a>
+    <?php elseif (in_array($r['status'], [RequestStatus::ASSIGNED, RequestStatus::CONFIRMED], true) && !$r['is_self_drive'] && $r['return_datetime'] > date('Y-m-d H:i:s')): ?>
+        <a class="btn btn-outline-dark btn-sm" href="<?= e(url('assignments/change', ['id' => $r['id']])) ?>">Change driver</a>
+    <?php endif;
+    if ($r['status'] === RequestStatus::ASSIGNED && Auth::hasRole('head_admin')): ?>
+        <form method="post" action="<?= e(url('assignments/confirm')) ?>" class="d-inline"><?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+            <button class="btn btn-dark btn-sm" data-confirm="Approve the drivers for request #<?= (int)$r['id'] ?>?">Approve assignment</button></form>
+    <?php endif;
+endif; ?>
