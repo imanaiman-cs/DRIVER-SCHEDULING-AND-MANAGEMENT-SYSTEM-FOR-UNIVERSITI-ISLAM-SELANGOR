@@ -63,3 +63,9 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - Click an event -> opens the request. The data comes from `?page=calendar/events` (JSON) and is filtered on the server per role.
 - *Reports* (admin): pick a month -> summary, vehicle use, driver workload, department and request tables. *Print* uses the browser; *Download PDF* creates `DSMS_Report_<month>.pdf` with Dompdf.
 - `staff1` opening `?page=reports/index` -> 403.
+
+## Step 9 - Security, audit log, backup
+- `php tests/run.php` -> all tests pass.
+- As `admin1`: *Manage > Audit log*: filter by action or request number. There is no way to change or delete an entry (the database also refuses it).
+- `php database/backup.php` -> a `.sql` file appears in `storage/backups/`. Import it into an empty MySQL to confirm it restores (the insert-only triggers come back too).
+- Security spot checks: opening an admin page as `staff1` gives 403; posting a form without its token gives 419; `?page=users/__construct` is a 404; files such as `app/config/config.php` cannot be opened from the browser.

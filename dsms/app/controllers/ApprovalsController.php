@@ -20,6 +20,7 @@ class ApprovalsController extends Controller
 
     public function approve(): void
     {
+        Auth::requireRole('hod', 'head_admin');       // who you are is checked before anything else
         $this->requirePost();
         [$model, $request] = $this->loadForDecision();
 
@@ -34,6 +35,7 @@ class ApprovalsController extends Controller
 
     public function reject(): void
     {
+        Auth::requireRole('hod', 'head_admin');
         $this->requirePost();
         [$model, $request] = $this->loadForDecision();
 
