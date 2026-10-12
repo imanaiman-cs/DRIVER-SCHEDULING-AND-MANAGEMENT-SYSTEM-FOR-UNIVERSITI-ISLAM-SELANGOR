@@ -18,6 +18,36 @@ abstract class Controller
         exit;
     }
 
+    /** Trimmed posted text. */
+    protected function post(string $key, string $default = ''): string
+    {
+        return trim((string)($_POST[$key] ?? $default));
+    }
+
+    protected function postInt(string $key): int
+    {
+        return (int)($_POST[$key] ?? 0);
+    }
+
+    /** ?id=5 in the URL. */
+    protected function getInt(string $key): int
+    {
+        return (int)($_GET[$key] ?? 0);
+    }
+
+    /** Set a flash message and go to another page. */
+    protected function flashRedirect(string $type, string $message, string $page, array $params = []): void
+    {
+        Session::flash($type, $message);
+        $this->redirect($page, $params);
+    }
+
+    /** Pages for the Vehicle Section (admin_assistant and head_admin share every admin function). */
+    protected function adminOnly(): void
+    {
+        Auth::requireRole('admin_assistant', 'head_admin');
+    }
+
     /** Actions that change data must be POST + carry a valid CSRF token. */
     protected function requirePost(): void
     {

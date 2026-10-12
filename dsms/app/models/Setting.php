@@ -20,4 +20,10 @@ class Setting extends Model
         $row = $this->fetchOne('SELECT setting_value FROM settings WHERE setting_key = ?', [$key]);
         return $row['setting_value'] ?? $default;
     }
+
+    /** Change one existing setting (keys are fixed by the seed; the admin only edits values). */
+    public function set(string $key, string $value): void
+    {
+        $this->execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$value, $key]);
+    }
 }
