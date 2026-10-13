@@ -71,6 +71,14 @@ function upgradeDatabaseSchema(mysqli $conn): void
         'vehicles' => [
             'photo' => "VARCHAR(255) NULL DEFAULT NULL",
         ],
+        'users' => [
+            'phone'                => "VARCHAR(30) NULL DEFAULT NULL",
+            'failed_attempts'      => "TINYINT UNSIGNED NOT NULL DEFAULT 0",        // locks the account at 5
+            'is_locked'            => "TINYINT(1) NOT NULL DEFAULT 0",
+            'is_active'            => "TINYINT(1) NOT NULL DEFAULT 1",              // no hard delete: deactivate instead
+            'must_change_password' => "TINYINT(1) NOT NULL DEFAULT 0",              // 1 = temporary password
+            'last_login_at'        => "DATETIME NULL DEFAULT NULL",
+        ],
         'schedules' => [
             'trip_type'     => "ENUM('regular','top_management') NOT NULL DEFAULT 'regular'",
             'officer_name'  => "VARCHAR(255) NULL DEFAULT NULL",
@@ -283,12 +291,27 @@ function upgradeWorkflowTables(mysqli $conn, callable $hasTable, callable $run):
 // Must happen before any output is sent to the browser
 // ============================================================
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');            // the server never accepts a session id it did not make
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'httponly' => true,                              // JavaScript cannot read the session cookie
+        'samesite' => 'Lax',                             // not sent with cross-site POSTs
+        'secure'   => !empty($_SERVER['HTTPS']),
+    ]);
     session_start();
+}
+
+// Basic browser protections on every page
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header('X-Frame-Options: DENY');                     // nobody can show our pages in a frame (clickjacking)
+    header('X-Content-Type-Options: nosniff');           // the browser must trust the declared file type
+    header('Referrer-Policy: same-origin');              // page addresses are not leaked to other sites
 }
 
 // Bring an older database up to date once per session (see upgradeDatabaseSchema above).
 // Raise SCHEMA_VERSION whenever the upgrade function learns something new.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 if (($_SESSION['schema_version'] ?? 0) < SCHEMA_VERSION) {
@@ -304,6 +327,95 @@ if (isLoggedIn() && !defined('SKIP_REQUEST_JOBS')) {
         error_log('request jobs: ' . $e->getMessage());
     }
 }
+
+// ============================================================
+// Security checks that run on EVERY request of a signed-in user
+//   1. idle timeout (SESSION_TIMEOUT_MIN, default 15 minutes)
+//   2. the account must still be active and not locked (an admin may have changed it)
+//   3. a temporary password must be changed before anything else
+//   4. CSRF: every POST must carry the session's token (added automatically by assets/js/ui.js)
+// ============================================================
+
+/** The CSRF token of this session (created on first use). */
+function csrfToken(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/** Is this request an AJAX / JSON call (so it gets a JSON answer instead of a redirect)? */
+function isAjaxRequest(): bool
+{
+    return str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ajax/')
+        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+        || ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
+}
+
+function securityStop(int $http, string $message, ?string $redirect = null): void
+{
+    if (isAjaxRequest()) {
+        http_response_code($http);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => $message]);
+        exit();
+    }
+    if ($redirect !== null) {
+        header('Location: ' . $redirect);
+        exit();
+    }
+    http_response_code($http);
+    echo '<!DOCTYPE html><meta charset="utf-8"><title>' . $http . '</title><body style="font-family:sans-serif;max-width:32rem;margin:4rem auto">'
+       . '<h2>' . htmlspecialchars($message) . '</h2><p><a href="' . htmlspecialchars(SITE_URL) . '/login.php">Back to the system</a></p></body>';
+    exit();
+}
+
+function runSecurityChecks(mysqli $conn): void
+{
+    if (PHP_SAPI === 'cli' || !isLoggedIn()) {
+        return;
+    }
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+    // 1. idle timeout
+    $limit = max(1, getSettingInt($conn, 'SESSION_TIMEOUT_MIN')) * 60;
+    if (isset($_SESSION['last_activity']) && time() - (int)$_SESSION['last_activity'] > $limit) {
+        $minutes = (int)($limit / 60);
+        $keep = $_SESSION['schema_version'] ?? 0;
+        session_unset();
+        $_SESSION['schema_version'] = $keep;
+        $_SESSION['login_notice'] = "You were signed out after $minutes minutes without activity. Please sign in again.";
+        securityStop(401, 'Your session expired. Please sign in again.', SITE_URL . '/login.php');
+    }
+    $_SESSION['last_activity'] = time();
+
+    // 2 + 3. the account itself
+    try {
+        $uid = (int)$_SESSION['user_id'];
+        $u = $conn->query("SELECT is_active, is_locked, must_change_password FROM users WHERE user_id = $uid")->fetch_assoc();
+        if (!$u || !(int)$u['is_active'] || (int)$u['is_locked']) {
+            session_unset();
+            $_SESSION['login_notice'] = 'Your account is not available. Please contact the transport unit.';
+            securityStop(401, 'Your account is not available.', SITE_URL . '/login.php');
+        }
+        $_SESSION['must_change_password'] = (bool)$u['must_change_password'];
+        if ($_SESSION['must_change_password'] && !in_array($script, ['change_password.php', 'logout.php'], true)) {
+            securityStop(403, 'Please change your temporary password first.', SITE_URL . '/change_password.php');
+        }
+    } catch (Throwable $e) {
+        // columns not created yet (very first request): nothing to check
+    }
+
+    // 4. CSRF on every state-changing request
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $sent = (string)($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+        if ($sent === '' || !hash_equals(csrfToken(), $sent)) {
+            securityStop(419, 'Your page expired. Please go back, reload it and try again.');
+        }
+    }
+}
+runSecurityChecks($conn);
 
 // ============================================================
 // Authentication helper functions

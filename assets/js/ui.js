@@ -439,3 +439,63 @@
         }
     });
 })();
+
+/* ============================================================
+   CSRF protection: every POST carries the session token.
+   - forms get a hidden csrf_token field
+   - fetch() / XMLHttpRequest send an X-CSRF-Token header
+   ============================================================ */
+(function () {
+    'use strict';
+    var token = window.UIS_CSRF || '';
+    if (!token) { return; }
+
+    function sameOrigin(url) {
+        try { return new URL(url, window.location.href).origin === window.location.origin; }
+        catch (e) { return true; }
+    }
+
+    function addToForm(form) {
+        if (!form || (form.method || '').toLowerCase() !== 'post') { return; }
+        if (form.querySelector('input[name="csrf_token"]')) { return; }
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = token;
+        form.appendChild(input);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('form').forEach(addToForm);
+    });
+    document.addEventListener('submit', function (event) { addToForm(event.target); }, true);
+
+    if (window.fetch) {
+        var nativeFetch = window.fetch;
+        window.fetch = function (input, init) {
+            init = init || {};
+            var url = typeof input === 'string' ? input : (input && input.url) || '';
+            var method = (init.method || (input && input.method) || 'GET').toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD' && sameOrigin(url)) {
+                var headers = new Headers(init.headers || (input && input.headers) || {});
+                if (!headers.has('X-CSRF-Token')) { headers.set('X-CSRF-Token', token); }
+                init.headers = headers;
+            }
+            return nativeFetch.call(this, input, init);
+        };
+    }
+
+    var nativeOpen = XMLHttpRequest.prototype.open;
+    var nativeSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url) {
+        this.__uisMethod = (method || 'GET').toUpperCase();
+        this.__uisUrl = url;
+        return nativeOpen.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function () {
+        if (this.__uisMethod && this.__uisMethod !== 'GET' && sameOrigin(this.__uisUrl)) {
+            try { this.setRequestHeader('X-CSRF-Token', token); } catch (e) {}
+        }
+        return nativeSend.apply(this, arguments);
+    };
+})();

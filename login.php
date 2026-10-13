@@ -22,13 +22,21 @@ if (isLoggedIn()) {
 if (isset($_GET['msg']) && $_GET['msg'] === 'logged_out') {
     $success = 'You have been successfully logged out.';
 }
+// Notice left by the idle timeout / deactivated account
+if (!empty($_SESSION['login_notice'])) {
+    $error = $_SESSION['login_notice'];
+    unset($_SESSION['login_notice']);
+}
 
 // Handle login form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $generic  = 'Invalid username or password. Please try again.';
 
-    if (empty($username) || empty($password)) {
+    if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? ''))) {
+        $error = 'Your page expired. Please try again.';
+    } elseif ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } else {
         $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
@@ -37,39 +45,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        $authenticated = false;
+        $maxAttempts = max(1, getSettingInt($conn, 'MAX_FAILED_ATTEMPTS'));
 
-        if ($user) {
-            // Try bcrypt first
-            if (password_verify($password, $user['password'])) {
-                $authenticated = true;
+        if (!$user) {
+            $error = $generic;
+        } elseif ((int)($user['is_locked'] ?? 0) === 1) {
+            $error = 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.';
+        } elseif (!verifyPassword($password, $user['password'])) {
+            $uid = (int)$user['user_id'];
+            $conn->query("UPDATE users SET failed_attempts = failed_attempts + 1 WHERE user_id = $uid");
+            $n = (int)$conn->query("SELECT failed_attempts FROM users WHERE user_id = $uid")->fetch_row()[0];
+            if ($n >= $maxAttempts) {
+                $conn->query("UPDATE users SET is_locked = 1 WHERE user_id = $uid");
+                auditLog($conn, 'account_locked', null, "User #$uid locked after $n failed sign-ins", $uid, 'system');
+                $error = 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.';
+            } else {
+                $error = $generic;
             }
-            // Fallback: SHA2-256 (seed passwords)
-            elseif (hash('sha256', $password) === $user['password']) {
-                $authenticated = true;
-                $new_hash = password_hash($password, PASSWORD_DEFAULT);
-                $upd = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
-                $upd->bind_param('si', $new_hash, $user['user_id']);
-                $upd->execute();
-                $upd->close();
-            }
-            // Fallback: MD5 (legacy)
-            elseif (md5($password) === $user['password']) {
-                $authenticated = true;
-            }
-        }
-
-        if ($authenticated) {
-            $driver_id = null;
-            if ($user['role'] === 'driver') {
-                $driver_id = isset($user['driver_id']) ? (int)$user['driver_id'] : null;
+        } elseif ((int)($user['is_active'] ?? 1) === 0) {
+            $error = 'This account has been deactivated. Please contact the transport unit.';
+        } else {
+            $uid = (int)$user['user_id'];
+            $conn->query("UPDATE users SET failed_attempts = 0, last_login_at = NOW() WHERE user_id = $uid");
+            if (!password_get_info($user['password'])['algo']) {
+                upgradeLegacyPassword($conn, $uid, $password);   // seed SHA-256 -> bcrypt
             }
 
-            if (!empty($_POST['remember_me'])) {
-                $token = bin2hex(random_bytes(32));
-                setcookie('remember_token', $token, time() + (86400 * 30), '/', '', false, true);
-            }
+            // new session id after authentication (prevents session fixation)
+            session_regenerate_id(true);
 
+            $driver_id = ($user['role'] === 'driver' && isset($user['driver_id'])) ? (int)$user['driver_id'] : null;
             $_SESSION['user_id']   = $user['user_id'];
             $_SESSION['username']  = $user['username'];
             $_SESSION['role']      = $user['role'];
@@ -77,8 +82,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['driver_id'] = $driver_id;
             $_SESSION['department']    = $user['department']    ?? null;
             $_SESSION['supervisor_id'] = isset($user['supervisor_id']) ? (int)$user['supervisor_id'] : null;
+            $_SESSION['last_activity'] = time();
+            $_SESSION['must_change_password'] = (bool)($user['must_change_password'] ?? 0);
 
-            if ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
+            if ($_SESSION['must_change_password']) {
+                header('Location: change_password.php');
+            } elseif ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
                 header('Location: admin/dashboard.php');
             } elseif ($user['role'] === 'staff') {
                 header('Location: staff/dashboard.php');
@@ -88,8 +97,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: driver/dashboard.php');
             }
             exit();
-        } else {
-            $error = 'Invalid username or password. Please try again.';
         }
     }
 }
@@ -603,7 +610,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" action="login.php" id="loginForm" novalidate autocomplete="off">
 
                     <!-- CSRF token -->
-                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
 
                     <!-- Username -->
                     <div class="input-group-custom">
@@ -650,12 +657,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <i class="fas fa-eye" id="toggleIcon" aria-hidden="true"></i>
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Remember me -->
-                    <div class="remember-row">
-                        <input type="checkbox" id="remember_me" name="remember_me" value="1">
-                        <label for="remember_me">Remember me for 30 days</label>
                     </div>
 
                     <!-- Submit -->

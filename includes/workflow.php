@@ -533,3 +533,32 @@ function requestForCurrentUser(mysqli $conn, int $request_id): ?array
         || (!empty($_SESSION['department']) && $req['staff_department'] === $_SESSION['department']))) { return $req; }
     return null;
 }
+
+// ============================================================
+// Passwords
+// ============================================================
+
+/** Why a new password is not acceptable (null = fine): at least 8 characters, a letter and a number. */
+function passwordProblem(string $pw): ?string
+{
+    if (strlen($pw) < 8) {
+        return 'The password must be at least 8 characters long.';
+    }
+    if (!preg_match('/[A-Za-z]/', $pw) || !preg_match('/\d/', $pw)) {
+        return 'The password must contain at least one letter and one number.';
+    }
+    return null;
+}
+
+/** A random temporary password (no look-alike characters such as 0/O or 1/l). */
+function generateTempPassword(int $length = 10): string
+{
+    $letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
+    $digits  = '23456789';
+    $all     = $letters . $digits;
+    $pw = $letters[random_int(0, strlen($letters) - 1)] . $digits[random_int(0, strlen($digits) - 1)];
+    for ($i = strlen($pw); $i < $length; $i++) {
+        $pw .= $all[random_int(0, strlen($all) - 1)];
+    }
+    return str_shuffle($pw);
+}

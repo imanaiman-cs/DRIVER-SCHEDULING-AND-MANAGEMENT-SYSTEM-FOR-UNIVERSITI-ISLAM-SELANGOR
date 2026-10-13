@@ -375,6 +375,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     <span class="sidebar-label">Audit Log</span>
                 </a>
             </li>
+            <li class="sidebar-item <?php echo sidebarActive('users.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/users.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-users-gear" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">User Accounts</span>
+                </a>
+            </li>
             <li class="sidebar-item <?php echo sidebarActive('settings.php', $current_page); ?>">
                 <a href="<?php echo SITE_URL; ?>/admin/settings.php" class="sidebar-link">
                     <span class="sidebar-icon"><i class="fas fa-sliders" aria-hidden="true"></i></span>
@@ -654,6 +660,11 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </li>
                 <li><hr class="dropdown-divider my-1"></li>
                 <li>
+                    <a class="dropdown-item" href="<?php echo SITE_URL; ?>/change_password.php" style="font-size:.84rem;">
+                        <i class="fas fa-key me-2"></i>Change Password
+                    </a>
+                </li>
+                <li>
                     <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
                        style="font-size:.84rem;color:#dc2626;">
@@ -667,6 +678,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 </header>
 
 <!-- Shared popup dialogs (SweetAlert2 + UIS theme) -->
+<script>window.UIS_CSRF = <?php echo json_encode(csrfToken()); ?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 

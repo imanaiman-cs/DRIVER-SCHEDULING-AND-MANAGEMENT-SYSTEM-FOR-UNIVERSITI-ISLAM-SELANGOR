@@ -1,0 +1,7 @@
+# Keep SQL dumps, notes and version-control data away from the browser
+<FilesMatch "\.(sql|md|txt|log|sample)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>
+Options -Indexes
