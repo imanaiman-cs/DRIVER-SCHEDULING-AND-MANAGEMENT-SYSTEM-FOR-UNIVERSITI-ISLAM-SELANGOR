@@ -220,6 +220,7 @@ INSERT INTO settings (setting_key, setting_value, description) VALUES
 ('W_AFTER_HOURS',      '0.4', 'Recommendation weight for after-hours tasks this month'),
 ('WELFARE_PENALTY',    '20',  'Points removed from the score of the welfare duty driver of that day'),
 ('LAPSE_HOURS',        '48',  'Pending requests not approved within this many hours lapse'),
+('REMINDER_AFTER_HOURS','24', 'The approver gets one automatic reminder after this many hours'),
 ('MIN_DAYS_AHEAD',     '2',   'Departure must be at least this many days after today (rule R1)'),
 ('WORK_START',         '08:00','Start of normal working hours (earlier = after-hours)'),
 ('WORK_END',           '17:30','End of normal working hours (later = after-hours)'),

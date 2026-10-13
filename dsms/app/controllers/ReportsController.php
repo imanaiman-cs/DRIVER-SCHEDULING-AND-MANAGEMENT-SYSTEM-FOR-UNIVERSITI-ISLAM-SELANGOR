@@ -20,6 +20,9 @@ class ReportsController extends Controller
         if (!class_exists('Dompdf\\Dompdf')) {
             $this->flashRedirect('danger', 'The PDF library is not installed. Run "composer install" in the dsms folder.', 'reports/index', ['month' => $this->month()]);
         }
+        // A PDF is binary: one stray warning printed before it (Dompdf triggers PHP 8.4 "deprecated"
+        // notices on its first run) would corrupt the whole file. So nothing may be printed here.
+        ini_set('display_errors', '0');
         $month  = $this->month();
         $report = (new Report())->build($month);
 
@@ -37,6 +40,7 @@ class ReportsController extends Controller
         $pdf->render();
 
         (new AuditLog())->record('report_pdf', null, "Monthly report $month downloaded");
+        while (ob_get_level() > 0) { ob_end_clean(); }      // drop anything that was printed before
         $pdf->stream("DSMS_Report_$month.pdf", ['Attachment' => true]);
         exit;
     }

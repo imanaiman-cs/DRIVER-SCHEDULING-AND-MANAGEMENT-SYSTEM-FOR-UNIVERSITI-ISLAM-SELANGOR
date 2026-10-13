@@ -7,6 +7,9 @@
  *   2. EXPIRE     An approved request that never got confirmed before the trip started is cancelled
  *                 by the system (otherwise it would hold a vehicle for a trip that cannot happen).
  *   3. COMPLETE   A "Confirmed" trip whose return time has passed becomes "Completed".
+ *   4. REMIND     A request still waiting after REMINDER_AFTER_HOURS (default 24 h) gets ONE automatic
+ *                 reminder to its approver, so it is decided before it lapses. (Admins can still send
+ *                 more by hand on the Reminders page.)
  *
  * It runs from the cron script (cron/run_jobs.php, e.g. every 15 minutes) AND lightly on page
  * loads (at most once every few minutes), so the system still behaves correctly on a laptop
@@ -16,10 +19,32 @@ class Jobs
 {
     private const THROTTLE_SECONDS = 300;
 
-    /** @return array{lapsed:int, expired:int, completed:int} */
+    /** @return array{lapsed:int, expired:int, completed:int, reminded:int} */
     public function run(): array
     {
-        return ['lapsed' => $this->lapse(), 'expired' => $this->expire(), 'completed' => $this->complete()];
+        // Lapse first, so a request that is already too old is not reminded about.
+        return ['lapsed' => $this->lapse(), 'expired' => $this->expire(), 'completed' => $this->complete(), 'reminded' => $this->remind()];
+    }
+
+    /** One automatic reminder per request. "Already reminded" is remembered in the audit log (action auto_reminder). */
+    public function remind(): int
+    {
+        $after = (new Setting())->int('REMINDER_AFTER_HOURS', 24);
+        $rows = Database::connection()->query(
+            "SELECT r.id, r.approver_id, r.destination_name, ru.name AS requester_name
+               FROM requests r JOIN users ru ON ru.id = r.requester_id
+              WHERE r.status = 'Pending Approval' AND r.submitted_at <= DATE_SUB(NOW(), INTERVAL " . (int)$after . " HOUR)
+                AND NOT EXISTS (SELECT 1 FROM audit_log a WHERE a.request_id = r.id AND a.action = 'auto_reminder')"
+        )->fetchAll();
+        $count = 0;
+        foreach ($rows as $r) {
+            $id = (int)$r['id'];
+            $who = $r['approver_id'] ? [(int)$r['approver_id']] : (new User())->activeAdminIds(true);
+            NotificationService::notify($who, "Reminder: request #$id from {$r['requester_name']} to {$r['destination_name']} is still waiting for your approval and will lapse soon.", page_link('requests/show', ['id' => $id]));
+            (new AuditLog())->recordSystem('auto_reminder', $id, "Automatic reminder after $after hours");
+            $count++;
+        }
+        return $count;
     }
 
     /** Run at most once every 5 minutes, whoever loads a page. A file lock stops two visitors running it together. */

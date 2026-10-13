@@ -183,7 +183,8 @@ return [
 ## Scheduled jobs (rule R11)
 
 `cron/run_jobs.php` (1) lapses requests that were not approved in 48 hours, (2) cancels approved trips
-that were never confirmed before they started, and (3) marks confirmed trips as Completed after their return time.
+that were never confirmed before they started, (3) marks confirmed trips as Completed after their return time, and
+(4) sends the approver one automatic reminder after 24 hours (`REMINDER_AFTER_HOURS` in Settings).
 The web pages also run the same jobs at most once every 5 minutes, so the demo works even without a scheduler.
 For a real deployment run the script every 15 minutes.
 
@@ -194,6 +195,6 @@ For a real deployment run the script every 15 minutes.
 3. Action: *Start a program*
    - Program: `C:\xampp\php\php.exe`
    - Arguments: `C:\xampp\htdocs\dsms\cron\run_jobs.php`
-4. Test it by hand: `C:\xampp\php\php.exe C:\xampp\htdocs\dsms\cron\run_jobs.php` prints e.g. `lapsed=1 expired=0 completed=2`.
+4. Test it by hand: `C:\xampp\php\php.exe C:\xampp\htdocs\dsms\cron\run_jobs.php` prints e.g. `lapsed=1 expired=0 completed=2 reminded=1`.
 
 **Linux** - add this line with `crontab -e`:  `*/15 * * * * php /var/www/dsms/cron/run_jobs.php`

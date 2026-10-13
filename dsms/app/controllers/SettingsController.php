@@ -12,6 +12,7 @@ class SettingsController extends Controller
         'W_TASKS'            => ['Weight: tasks this month',  'float', 0, 1,   'Share of the score that depends on how many tasks the driver already has this month.'],
         'W_AFTER_HOURS'      => ['Weight: after-hours work',  'float', 0, 1,   'Share of the score that depends on after-hours / weekend work this month. Must add up to 1 with the weight above.'],
         'WELFARE_PENALTY'    => ['Welfare penalty (points)',  'int',   0, 100, 'Points taken off the score of a driver who is on the welfare roster (already worked late recently).'],
+        'REMINDER_AFTER_HOURS'=> ['Auto reminder after (hours)', 'int',   1, 720, 'The approver gets one automatic reminder when a request has waited this long. Use a value below the lapse time.'],
         'LAPSE_HOURS'        => ['Lapse after (hours)',       'int',   1, 720, 'A request still Pending Approval after this many hours becomes Lapsed.'],
         'MIN_DAYS_AHEAD'     => ['Minimum days ahead',        'int',   0, 30,  'Two-day rule (form BPTK/BPI/2025/PIN.5): requests need at least this many days notice.'],
         'WORK_START'         => ['Office hours start',        'time',  0, 0,   'Trips starting before this time count as after-hours.'],
@@ -24,7 +25,7 @@ class SettingsController extends Controller
     public function index(): void
     {
         $this->adminOnly();
-        $this->show((new Setting())->all(), []);
+        $this->show(['REMINDER_AFTER_HOURS' => '24'] + (new Setting())->all(), []);   // default for a database made before this setting existed
     }
 
     private function show(array $values, array $errors): void
@@ -51,6 +52,9 @@ class SettingsController extends Controller
         if (!isset($errors['W_TASKS'], $errors['W_AFTER_HOURS']) && abs((float)$new['W_TASKS'] + (float)$new['W_AFTER_HOURS'] - 1.0) > 0.0001) {
             $errors['W_AFTER_HOURS'] = 'The two weights must add up to exactly 1.';
         }
+        if (!isset($errors['REMINDER_AFTER_HOURS'], $errors['LAPSE_HOURS']) && (int)$new['REMINDER_AFTER_HOURS'] >= (int)$new['LAPSE_HOURS']) {
+            $errors['REMINDER_AFTER_HOURS'] = 'The reminder must come before the request lapses.';
+        }
         if (!isset($errors['WORK_START'], $errors['WORK_END']) && $new['WORK_END'] <= $new['WORK_START']) {
             $errors['WORK_END'] = 'Office hours must end after they start.';
         }
@@ -61,7 +65,7 @@ class SettingsController extends Controller
 
         $setting = new Setting();
         $changed = [];
-        $current = $setting->all();
+        $current = ['REMINDER_AFTER_HOURS' => '24'] + $setting->all();
         foreach ($new as $key => $value) {
             if ((string)($current[$key] ?? '') !== $value) {
                 $setting->set($key, $value);

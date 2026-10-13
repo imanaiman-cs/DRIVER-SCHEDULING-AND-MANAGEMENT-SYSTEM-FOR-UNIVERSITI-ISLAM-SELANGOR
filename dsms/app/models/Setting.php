@@ -21,10 +21,10 @@ class Setting extends Model
         return $row['setting_value'] ?? $default;
     }
 
-    /** Change one existing setting (keys are fixed by the seed; the admin only edits values). */
+    /** Change one existing setting (a key that an older seed did not have is created on first save). */
     public function set(string $key, string $value): void
     {
-        $this->execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$value, $key]);
+        $this->execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [$key, $value]);
     }
 
     /** A numeric setting with a safe fallback (so a missing row never breaks a rule). */

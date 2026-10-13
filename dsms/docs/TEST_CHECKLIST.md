@@ -69,3 +69,7 @@ Seed accounts (all use password `Password123`; the first login forces a password
 - As `admin1`: *Manage > Audit log*: filter by action or request number. There is no way to change or delete an entry (the database also refuses it).
 - `php database/backup.php` -> a `.sql` file appears in `storage/backups/`. Import it into an empty MySQL to confirm it restores (the insert-only triggers come back too).
 - Security spot checks: opening an admin page as `staff1` gives 403; posting a form without its token gives 419; `?page=users/__construct` is a 404; files such as `app/config/config.php` cannot be opened from the browser.
+
+## Follow-ups
+- Automatic reminder: a request pending for more than 24 hours gives its approver one notification (run `php cron/run_jobs.php`; the output shows `reminded=1`). The limit is *Settings > Auto reminder after (hours)*.
+- Download the monthly PDF right after starting Apache: the file must open normally (PHP 8.4 notices from Dompdf are suppressed while it is created).

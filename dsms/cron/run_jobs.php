@@ -19,4 +19,4 @@ if (PHP_SAPI !== 'cli') {
 require dirname(__DIR__) . '/app/bootstrap.php';
 
 $result = (new Jobs())->run();
-echo date('Y-m-d H:i:s') . " lapsed={$result['lapsed']} expired={$result['expired']} completed={$result['completed']}" . PHP_EOL;
+echo date('Y-m-d H:i:s') . " lapsed={$result['lapsed']} expired={$result['expired']} completed={$result['completed']} reminded={$result['reminded']}" . PHP_EOL;
