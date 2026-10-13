@@ -84,6 +84,9 @@ function upgradeDatabaseSchema(mysqli $conn): void
             'waiting_place'   => "VARCHAR(150) NULL DEFAULT NULL",
             'vehicles_needed' => "TINYINT NOT NULL DEFAULT 1",
             'cancelled_at'    => "TIMESTAMP NULL DEFAULT NULL",
+            'status_reason'   => "VARCHAR(500) NULL DEFAULT NULL",      // why it was rejected / cancelled / lapsed
+            'cancelled_by'    => "INT NULL DEFAULT NULL",
+            'cancelled_by_role' => "VARCHAR(20) NULL DEFAULT NULL",
         ],
     ];
     foreach ($columns as $table => $cols) {
@@ -103,12 +106,12 @@ function upgradeDatabaseSchema(mysqli $conn): void
         $run("ALTER TABLE drivers ADD UNIQUE KEY uq_drivers_assigned_to (assigned_to)");
     }
 
-    // vehicle_requests.status must allow 'cancelled'
+    // vehicle_requests.status must allow every status of the lifecycle
     if ($hasTable('vehicle_requests')) {
         $r = $conn->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='vehicle_requests' AND COLUMN_NAME='status'");
         $type = $r ? (string)($r->fetch_row()[0] ?? '') : '';
-        if ($type !== '' && stripos($type, 'cancelled') === false) {
-            $run("ALTER TABLE vehicle_requests MODIFY status ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending'");
+        if ($type !== '' && (stripos($type, 'cancelled') === false || stripos($type, 'lapsed') === false || stripos($type, 'completed') === false)) {
+            $run("ALTER TABLE vehicle_requests MODIFY status ENUM('pending','approved','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending'");
         }
     }
 
@@ -145,6 +148,134 @@ function upgradeDatabaseSchema(mysqli $conn): void
                 CONSTRAINT fk_email_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE SET NULL
               ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
+
+    upgradeWorkflowTables($conn, $hasTable, $run);
+}
+
+/**
+ * Tables of the request workflow (audit log, notifications, comments, reminders, settings,
+ * vehicle holds, maintenance, leave, internal tasks, welfare roster, driver changes).
+ * CREATE TABLE IF NOT EXISTS, so it is safe to run again and again.
+ */
+function upgradeWorkflowTables(mysqli $conn, callable $hasTable, callable $run): void
+{
+    $db = DB_NAME;
+    $opts = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
+    $run("CREATE TABLE IF NOT EXISTS audit_log (
+            log_id INT NOT NULL AUTO_INCREMENT, user_id INT NULL, user_role VARCHAR(20) NULL,
+            action VARCHAR(50) NOT NULL, request_id INT NULL, reason VARCHAR(500) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (log_id), KEY idx_audit_request (request_id), KEY idx_audit_action (action, created_at)
+          ) $opts");
+    $run("CREATE TABLE IF NOT EXISTS notifications (
+            notification_id INT NOT NULL AUTO_INCREMENT, user_id INT NOT NULL, message VARCHAR(500) NOT NULL,
+            link VARCHAR(255) NULL, is_read TINYINT(1) NOT NULL DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (notification_id), KEY idx_notif_user (user_id, is_read, created_at),
+            CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+          ) $opts");
+    $run("CREATE TABLE IF NOT EXISTS settings (
+            setting_key VARCHAR(60) NOT NULL, setting_value VARCHAR(255) NOT NULL, description VARCHAR(255) NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (setting_key)
+          ) $opts");
+    if ($hasTable('vehicle_requests')) {
+        $run("CREATE TABLE IF NOT EXISTS request_comments (
+                comment_id INT NOT NULL AUTO_INCREMENT, request_id INT NOT NULL, user_id INT NOT NULL, user_role VARCHAR(20) NOT NULL,
+                comment TEXT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (comment_id), KEY idx_comment_request (request_id, created_at),
+                CONSTRAINT fk_comment_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE,
+                CONSTRAINT fk_comment_user FOREIGN KEY (user_id) REFERENCES users(user_id)
+              ) $opts");
+        $run("CREATE TABLE IF NOT EXISTS reminders (
+                reminder_id INT NOT NULL AUTO_INCREMENT, request_id INT NOT NULL, sent_by INT NULL,
+                sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (reminder_id), KEY idx_reminder_request (request_id),
+                CONSTRAINT fk_reminder_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE
+              ) $opts");
+        // R3: one vehicle can be held by only ONE request on a given day (the database enforces it)
+        $had_holds = $hasTable('vehicle_day_holds');
+        $run("CREATE TABLE IF NOT EXISTS vehicle_day_holds (
+                hold_id INT NOT NULL AUTO_INCREMENT, vehicle_id INT NOT NULL, hold_date DATE NOT NULL, request_id INT NOT NULL,
+                PRIMARY KEY (hold_id), UNIQUE KEY uq_hold_vehicle_day (vehicle_id, hold_date), KEY idx_hold_request (request_id),
+                CONSTRAINT fk_hold_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id) ON DELETE CASCADE,
+                CONSTRAINT fk_hold_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE
+              ) $opts");
+        if (!$had_holds && $hasTable('request_vehicles')) {
+            // First time: requests that already exist and are still active hold their vehicles from now on.
+            // (INSERT IGNORE: if two old requests want the same vehicle on one day, the first keeps it.)
+            $run("INSERT IGNORE INTO vehicle_day_holds (vehicle_id, hold_date, request_id)
+                  SELECT rv.vehicle_id, vr.trip_date, vr.request_id
+                    FROM vehicle_requests vr JOIN request_vehicles rv ON rv.request_id = vr.request_id
+                   WHERE vr.status IN ('pending','approved') AND vr.trip_date >= CURDATE()
+                   ORDER BY vr.created_at");
+            $run("INSERT IGNORE INTO vehicle_day_holds (vehicle_id, hold_date, request_id)
+                  SELECT s.vehicle_id, vr.trip_date, vr.request_id
+                    FROM vehicle_requests vr
+                    JOIN schedules s ON s.schedule_id = vr.schedule_id
+                      OR (s.job_group IS NOT NULL AND s.job_group = (SELECT s0.job_group FROM schedules s0 WHERE s0.schedule_id = vr.schedule_id))
+                   WHERE vr.status = 'processed' AND vr.trip_date >= CURDATE() AND s.vehicle_id IS NOT NULL AND s.status <> 'cancelled'");
+        }
+    }
+    if ($hasTable('vehicles')) {
+        $run("CREATE TABLE IF NOT EXISTS vehicle_maintenance (
+                maintenance_id INT NOT NULL AUTO_INCREMENT, vehicle_id INT NOT NULL, start_date DATE NOT NULL, end_date DATE NOT NULL,
+                workshop VARCHAR(120) NULL, note VARCHAR(255) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (maintenance_id), KEY idx_maint_dates (vehicle_id, start_date, end_date),
+                CONSTRAINT fk_maint_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id) ON DELETE CASCADE
+              ) $opts");
+    }
+    if ($hasTable('drivers')) {
+        $run("CREATE TABLE IF NOT EXISTS driver_leaves (
+                leave_id INT NOT NULL AUTO_INCREMENT, driver_id INT NOT NULL, start_date DATE NOT NULL, end_date DATE NOT NULL,
+                leave_type ENUM('leave','mc') NOT NULL DEFAULT 'leave', note VARCHAR(255) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (leave_id), KEY idx_leave_dates (driver_id, start_date, end_date),
+                CONSTRAINT fk_leave_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+              ) $opts");
+        $run("CREATE TABLE IF NOT EXISTS internal_tasks (
+                task_id INT NOT NULL AUTO_INCREMENT,
+                task_type ENUM('workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','other') NOT NULL,
+                task_date DATE NOT NULL, start_time TIME NOT NULL, end_time TIME NOT NULL,
+                vehicle_id INT NULL, driver_id INT NOT NULL, location VARCHAR(150) NULL, description VARCHAR(255) NULL,
+                created_by INT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (task_id), KEY idx_itask_driver (driver_id, task_date),
+                CONSTRAINT fk_itask_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+              ) $opts");
+        $run("CREATE TABLE IF NOT EXISTS welfare_roster (
+                roster_id INT NOT NULL AUTO_INCREMENT, duty_date DATE NOT NULL, driver_id INT NOT NULL,
+                replaced_from_driver_id INT NULL, replacement_reason VARCHAR(500) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (roster_id), UNIQUE KEY uq_welfare_date (duty_date), KEY idx_welfare_driver (driver_id, duty_date),
+                CONSTRAINT fk_welfare_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+              ) $opts");
+    }
+    if ($hasTable('schedules')) {
+        // R7: every change of driver is logged
+        $run("CREATE TABLE IF NOT EXISTS driver_replacements (
+                replacement_id INT NOT NULL AUTO_INCREMENT, schedule_id INT NOT NULL, previous_driver_id INT NULL, new_driver_id INT NULL,
+                reason VARCHAR(500) NOT NULL, changed_by INT NULL, changed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (replacement_id), KEY idx_repl_schedule (schedule_id),
+                CONSTRAINT fk_repl_schedule FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id) ON DELETE CASCADE
+              ) $opts");
+    }
+
+    // R9 / R10: the audit log and the comments can never be changed or deleted - the database refuses it.
+    $triggers = [
+        'trg_audit_no_update'   => ['audit_log', 'UPDATE', 'audit_log is insert-only'],
+        'trg_audit_no_delete'   => ['audit_log', 'DELETE', 'audit_log is insert-only'],
+        'trg_comment_no_update' => ['request_comments', 'UPDATE', 'Comments cannot be edited'],
+        'trg_comment_no_delete' => ['request_comments', 'DELETE', 'Comments cannot be deleted'],
+    ];
+    foreach ($triggers as $name => [$table, $event, $message]) {
+        if (!$hasTable($table)) { continue; }
+        $r = $conn->query("SELECT 1 FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='$db' AND TRIGGER_NAME='$name'");
+        if ($r && $r->num_rows === 0) {
+            $run("CREATE TRIGGER $name BEFORE $event ON $table FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '$message'");
+        }
+    }
+
+    // default settings (an existing value is never overwritten)
+    foreach (SETTING_DEFAULTS as $k => $v) {
+        $run("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES ('" . $conn->real_escape_string($k) . "', '" . $conn->real_escape_string($v) . "')");
+    }
 }
 
 // ============================================================
@@ -156,9 +287,21 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Bring an older database up to date once per session (see upgradeDatabaseSchema above).
-if (empty($_SESSION['schema_checked'])) {
+// Raise SCHEMA_VERSION whenever the upgrade function learns something new.
+const SCHEMA_VERSION = 3;
+require_once __DIR__ . '/../includes/workflow.php';
+if (($_SESSION['schema_version'] ?? 0) < SCHEMA_VERSION) {
     upgradeDatabaseSchema($conn);
-    $_SESSION['schema_checked'] = true;
+    $_SESSION['schema_version'] = SCHEMA_VERSION;
+}
+
+// R11: lapse / complete / remind, lightly, whenever a signed-in user opens a page
+if (isLoggedIn() && !defined('SKIP_REQUEST_JOBS')) {
+    try {
+        runRequestJobsThrottled($conn);
+    } catch (Throwable $e) {
+        error_log('request jobs: ' . $e->getMessage());
+    }
 }
 
 // ============================================================
@@ -303,6 +446,8 @@ function requestStatusBadgeClass(string $status): string
         'rejected'  => 'bg-danger',
         'processed' => 'bg-primary',
         'cancelled' => 'bg-secondary',
+        'lapsed'    => 'bg-secondary',
+        'completed' => 'bg-dark',
         default     => 'bg-secondary',
     };
 }

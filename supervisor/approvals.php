@@ -74,7 +74,8 @@ foreach ($all_requests as $r) {
         case 'approved':  $approved++;  break;
         case 'rejected':  $rejected++;  break;
         case 'processed': $processed++; break;
-        case 'cancelled': $cancelled++; break;
+        case 'cancelled':
+        case 'lapsed':    $cancelled++; break;     // lapsed = not approved in time
     }
 }
 
@@ -86,7 +87,7 @@ $active_tab = in_array($active_tab, ['all', 'pending', 'approved', 'rejected', '
 
 $display_requests = $active_tab === 'all'
     ? $all_requests
-    : array_filter($all_requests, fn($r) => $r['status'] === $active_tab);
+    : array_filter($all_requests, fn($r) => $r['status'] === $active_tab || ($active_tab === 'cancelled' && $r['status'] === 'lapsed'));
 $display_requests = array_values($display_requests);
 ?>
 <!DOCTYPE html>
@@ -477,6 +478,17 @@ $display_requests = array_values($display_requests);
                                             <i class="fas fa-xmark" aria-hidden="true"></i>
                                         </button>
                                         <?php endif; ?>
+                                        <?php if (in_array($req['status'], ['approved', 'processed'], true)
+                                                  && strtotime($req['trip_date'] . ' ' . $req['start_time']) > time()): ?>
+                                        <!-- Cancel (reason required) -->
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-action"
+                                                title="Cancel this request"
+                                                onclick="cancelApproved(<?php echo (int)$req['request_id']; ?>)"
+                                                aria-label="Cancel vehicle request">
+                                            <i class="fas fa-ban" aria-hidden="true"></i>
+                                        </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -612,6 +624,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 <!-- SweetAlert2 -->
 <!-- Custom JS -->
 <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
+<script src="<?php echo SITE_URL; ?>/assets/js/comments.js"></script>
 
 <script>
 (function () {
@@ -717,6 +730,35 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         rejected:  'bg-danger',
         processed: 'bg-primary',
         cancelled: 'bg-secondary',
+        lapsed:    'bg-secondary',
+        completed: 'bg-dark',
+    };
+
+    // The Head of Section may cancel an approved request before the trip starts (reason required)
+    window.cancelApproved = function (requestId) {
+        UIS.askReason({
+            title:       'Cancel request #' + requestId + '?',
+            text:        'The vehicle is released, and the requester and the transport unit are told.',
+            label:       'Reason for cancelling',
+            confirmText: 'Cancel request',
+            cancelText:  'Keep request',
+            tone:        'danger',
+            icon:        'fa-ban'
+        }).then(function (reason) {
+            if (!reason) return;
+            var body = new URLSearchParams();
+            body.append('request_id', String(requestId));
+            body.append('reason', reason);
+            fetch('../ajax/cancel_request.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+            }).then(function (res) { return res.json(); }).then(function (data) {
+                UIS.alert(data.message, { title: data.success ? 'Request cancelled' : 'Could not cancel', tone: data.success ? 'primary' : 'danger' })
+                   .then(function () { if (data.success) { window.location.reload(); } });
+            }).catch(function () {
+                UIS.alert('Network error. Please try again.', { title: 'Could not cancel', tone: 'danger' });
+            });
+        });
     };
 
     // ── DataTable initialisation ─────────────────────────────
@@ -855,6 +897,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         body += '</div>';
 
         document.getElementById('viewRequestBody').innerHTML = body;
+        if (window.UISComments) { UISComments.mount('viewRequestBody', requestId); }
         var modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
         modal.show();
     };

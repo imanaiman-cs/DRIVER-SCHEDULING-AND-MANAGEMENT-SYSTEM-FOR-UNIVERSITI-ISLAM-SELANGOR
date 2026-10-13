@@ -426,6 +426,12 @@ if (empty($form['next_maintenance']) || $form['next_maintenance'] === '0000-00-0
     </div>
     <?php endif; ?>
 
+    <div class="mb-3">
+        <a class="btn btn-outline-warning btn-sm" href="<?php echo SITE_URL; ?>/admin/vehicle_maintenance.php?id=<?php echo $vehicle_id; ?>">
+            <i class="fas fa-screwdriver-wrench me-1"></i>Maintenance periods
+        </a>
+    </div>
+
     <form method="POST"
           action="<?php echo SITE_URL; ?>/admin/edit_vehicle.php?id=<?php echo $vehicle_id; ?>"
           enctype="multipart/form-data"

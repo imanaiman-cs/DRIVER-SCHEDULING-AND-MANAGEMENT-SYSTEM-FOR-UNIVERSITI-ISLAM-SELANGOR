@@ -47,50 +47,24 @@ if ($action === 'reject' && $notes === '') {
     exit();
 }
 
-// ── Determine new status ──────────────────────────────────────
-$new_status = ($action === 'approve') ? 'approved' : 'rejected';
+// ── Do it through the status engine ───────────────────────────
+// It checks the supervisor owns the request and that it is still pending,
+// releases the vehicle on a rejection, writes the audit log and tells the
+// requester (with the reason).
+$result = changeRequestStatus($conn, $request_id, $action === 'approve' ? 'approved' : 'rejected', [
+    'reason'             => $action === 'reject' ? $notes : null,
+    'only_if_supervisor' => (int)$_SESSION['user_id'],
+]);
 
-// ── Perform the update ────────────────────────────────────────
-// The supervisor must own the request (supervisor_id matches the
-// session user) and it must still be pending (optimistic lock).
-$supervisor_id = (int)$_SESSION['user_id'];
-
-$stmt = $conn->prepare(
-    "UPDATE vehicle_requests
-     SET status           = ?,
-         supervisor_notes = ?,
-         reviewed_at      = NOW()
-     WHERE request_id    = ?
-       AND supervisor_id = ?
-       AND status        = 'pending'"
-);
-
-if (!$stmt) {
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again.']);
-    exit();
+if ($action === 'approve' && $result['ok'] && $notes !== '') {
+    // an optional note on approval is kept as before
+    $upd = $conn->prepare('UPDATE vehicle_requests SET supervisor_notes = ? WHERE request_id = ?');
+    $upd->bind_param('si', $notes, $request_id);
+    $upd->execute();
+    $upd->close();
 }
-
-$stmt->bind_param('ssii', $new_status, $notes, $request_id, $supervisor_id);
-$stmt->execute();
-
-$affected = $stmt->affected_rows;
-$stmt->close();
-
-// ── Respond ───────────────────────────────────────────────────
-if ($affected === 0) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Request already reviewed or not assigned to you.'
-    ]);
-    exit();
-}
-
-$message = ($action === 'approve')
-    ? 'Request approved.'
-    : 'Request rejected.';
 
 echo json_encode([
-    'success' => true,
-    'message' => $message,
+    'success' => $result['ok'],
+    'message' => $result['ok'] ? ($action === 'approve' ? 'Request approved.' : 'Request rejected.') : $result['message'],
 ]);
-?>

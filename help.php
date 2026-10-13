@@ -64,7 +64,7 @@ if ($role === 'staff') {
     $items[] = ['staff-request', 'file-circle-plus', 'How to request a vehicle', '
         <p>Use <strong>Request Vehicle</strong> in the menu.</p>
         <ol>
-            <li><strong>Plan ahead.</strong> You must send your request at least <strong>3 days before</strong> the trip. Earlier dates cannot be picked.</li>
+            <li><strong>Plan ahead.</strong> You must send your request at least <strong>two days before</strong> the trip. Earlier dates cannot be picked. For a last-minute trip use the paper form <strong>BPTK/BPI/2025/PIN.5</strong>.</li>
             <li><strong>Choose the date and time first.</strong> The page then shows only vehicles that are free and have enough seats for your passengers.</li>
             <li><strong>Write the trip details</strong>: where you are going, why, and how many passengers.</li>
             <li><strong>Give the officer name, officer phone and waiting place.</strong> The driver will call the officer when the vehicle arrives or if the driver cannot find the group. The waiting place tells the driver where to pick you up.</li>

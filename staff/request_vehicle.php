@@ -19,7 +19,9 @@ $supervisor_id = isset($_SESSION['supervisor_id']) && !empty($_SESSION['supervis
     ? (int)$_SESSION['supervisor_id']
     : null;
 
-$min_date = date('Y-m-d', strtotime('+3 days'));
+// R1 two-day rule (the number of days is a setting)
+$min_days = max(0, getSettingInt($conn, 'MIN_DAYS_AHEAD'));
+$min_date = date('Y-m-d', strtotime('+' . $min_days . ' days'));
 
 $errors = [];
 $form   = [
@@ -101,11 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'waiting_place'   => $waiting_place,
     ];
 
-    // Trip date: required, valid, at least 3 days ahead
+    // Trip date: required, valid, at least 2 days ahead (R1)
     if ($trip_date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) || !strtotime($trip_date)) {
         $errors[] = 'Trip date is required and must be a valid date.';
     } elseif ($trip_date < $min_date) {
-        $errors[] = 'Requests must be submitted at least 3 days in advance (earliest allowed date: ' . date('d M Y', strtotime($min_date)) . ').';
+        $errors[] = 'Requests must be made at least two days before the trip (earliest date: ' . date('d M Y', strtotime($min_date)) . '). For last-minute requests, use the paper form BPTK/BPI/2025/PIN.5.';
     }
 
     // Times: required, valid, end after start
@@ -155,6 +157,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' supporting documents.';
     } elseif (REQUIRE_SUPPORTING_DOCUMENT && empty($files)) {
         $errors[] = 'Please attach at least one supporting document.';
+    }
+
+    // R3 / R4: a vehicle in maintenance, or already held by another request for that DAY, cannot be chosen
+    if (empty($errors) && $vehicle_ids) {
+        $blocked = blockedVehicleIds($conn, $trip_date);
+        $hit = array_intersect_key($blocked, array_flip($vehicle_ids));
+        if ($hit) {
+            $names = [];
+            $nq = $conn->query("SELECT vehicle_id, plate_number FROM vehicles WHERE vehicle_id IN (" . implode(',', array_map('intval', array_keys($hit))) . ")");
+            while ($nq && ($nr = $nq->fetch_assoc())) { $names[] = $nr['plate_number'] . ' (' . vehicleBlockText($hit[(int)$nr['vehicle_id']]) . ')'; }
+            $errors[] = 'Not available on ' . date('d M Y', strtotime($trip_date)) . ': ' . implode(', ', $names) . '. Please choose other vehicles.';
+            $form['vehicle_ids'] = array_values(array_diff($vehicle_ids, array_keys($hit)));
+        }
     }
 
     // Re-verify every chosen vehicle: can be requested, free for that slot, and
@@ -297,8 +312,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $doc_stmt->close();
             }
 
+            // R3: hold the chosen vehicles for the whole day (the database refuses a double booking)
+            if ($vehicle_ids) {
+                holdVehiclesForRequest($conn, $new_request_id, $vehicle_ids, $trip_date);
+            }
+
             $conn->commit();
             $in_transaction = false;
+
+            auditLog($conn, 'submit', $new_request_id, 'Request submitted');
+            if ($supervisor_id) {
+                notifyUsers($conn, [$supervisor_id],
+                    'New vehicle request #' . $new_request_id . ' from ' . $full_name . ' to ' . $destination . ' (' . date('d M Y', strtotime($trip_date)) . ') is waiting for your decision.',
+                    'supervisor/approvals.php');
+            }
 
             $doc_count = count($saved_docs);
             setFlash(
@@ -320,7 +347,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($saved_docs as $d) {
                 deleteStoredDocument($d['path']);
             }
-            $errors[] = 'A database error occurred. Please try again.';
+            $errors[] = ($ex instanceof RuntimeException && str_starts_with($ex->getMessage(), 'Sorry,'))
+                ? $ex->getMessage()
+                : 'A database error occurred. Please try again.';
         }
     }
 }
@@ -611,7 +640,7 @@ $vehicle_icon = static function (string $type): string {
                                    min="<?= htmlspecialchars($min_date) ?>" required>
                             <div class="form-text mt-1">
                                 <i class="fas fa-circle-info me-1" style="color: var(--uis-primary);"></i>
-                                Requests must be submitted at least 3 days in advance.
+                                Requests must be made at least two days before the trip. For last-minute requests use the paper form BPTK/BPI/2025/PIN.5.
                             </div>
                         </div>
 
@@ -839,7 +868,7 @@ $vehicle_icon = static function (string $type): string {
                         <div>
                             <div class="fw-semibold small mb-1">Submit Request</div>
                             <div class="text-muted" style="font-size:0.82rem;">
-                                Fill in your trip details at least 3 days before the trip date,
+                                Fill in your trip details at least two days before the trip date (last-minute trips: paper form BPTK/BPI/2025/PIN.5),
                                 as required by UIS transport policy, and attach any supporting
                                 letters (e.g. Release Letter or Seminar Letter).
                             </div>

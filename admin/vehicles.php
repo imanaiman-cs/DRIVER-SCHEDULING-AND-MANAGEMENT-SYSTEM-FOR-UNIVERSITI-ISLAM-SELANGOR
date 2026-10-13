@@ -628,6 +628,14 @@ foreach ($vehicles as $v) {
                                             <i class="fas fa-pen-to-square" aria-hidden="true"></i>
                                         </a>
 
+                                        <!-- Maintenance periods -->
+                                        <a href="<?php echo SITE_URL; ?>/admin/vehicle_maintenance.php?id=<?php echo (int)$v['vehicle_id']; ?>"
+                                           class="btn btn-outline-warning btn-action"
+                                           title="Maintenance periods"
+                                           aria-label="Maintenance periods of <?php echo htmlspecialchars($v['plate_number']); ?>">
+                                            <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i>
+                                        </a>
+
                                         <!-- Toggle Status -->
                                         <button type="button"
                                                 class="btn btn-outline-secondary btn-action"

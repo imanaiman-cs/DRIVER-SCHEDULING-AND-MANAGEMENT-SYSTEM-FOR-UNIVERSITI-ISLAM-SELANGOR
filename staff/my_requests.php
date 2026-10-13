@@ -59,6 +59,13 @@ foreach ($requests as &$req_row) {
 }
 unset($req_row);
 
+// May the requester still cancel it? Active request and the trip has not started yet.
+foreach ($requests as &$req_row) {
+    $req_row['can_cancel'] = in_array($req_row['status'], REQUEST_ACTIVE_STATUSES, true)
+        && strtotime($req_row['trip_date'] . ' ' . $req_row['start_time']) > time();
+}
+unset($req_row);
+
 // Summary counts
 $total    = count($requests);
 $pending  = 0;
@@ -69,7 +76,7 @@ foreach ($requests as $r) {
     if ($r['status'] === 'pending')  $pending++;
     if ($r['status'] === 'approved') $approved++;
     if ($r['status'] === 'rejected') $rejected++;
-    if ($r['status'] === 'cancelled') $cancelled++;
+    if (in_array($r['status'], ['cancelled', 'lapsed'], true)) $cancelled++;
 }
 ?>
 <!DOCTYPE html>
@@ -158,8 +165,9 @@ foreach ($requests as $r) {
                 <span class="badge bg-success">Approved</span> waiting for the transport unit to assign a driver &nbsp;&bull;&nbsp;
                 <span class="badge bg-primary">Processed</span> driver &amp; vehicle assigned &nbsp;&bull;&nbsp;
                 <span class="badge bg-danger">Rejected</span> see supervisor notes for the reason &nbsp;&bull;&nbsp;
-                <span class="badge bg-secondary">Cancelled</span> withdrawn by you.
-                <div class="mt-1 text-muted">You can cancel a request yourself while it is still <em>Pending</em>. Once your Head of Section has reviewed it, please contact the transport unit.</div>
+                <span class="badge bg-secondary">Cancelled</span> cancelled (the reason is shown) &nbsp;&bull;&nbsp;
+                <span class="badge bg-secondary">Lapsed</span> not approved in time.
+                <div class="mt-1 text-muted">You can cancel your own request any time before the trip starts. A reason is required.</div>
             </div>
         </div>
     </div>
@@ -224,7 +232,7 @@ foreach ($requests as $r) {
             <div class="text-center py-5">
                 <i class="fas fa-file-circle-plus fa-3x text-muted mb-3"></i>
                 <h6 class="text-muted">No requests yet</h6>
-                <p class="text-muted small mb-3">You have not made any requests yet. Requests must be submitted at least 3 days before the trip.</p>
+                <p class="text-muted small mb-3">You have not made any requests yet. Requests must be made at least two days before the trip (last-minute: paper form BPTK/BPI/2025/PIN.5).</p>
                 <a href="request_vehicle.php" class="btn btn-primary btn-sm">
                     <i class="fas fa-plus me-1"></i>Request a vehicle
                 </a>
@@ -252,6 +260,8 @@ foreach ($requests as $r) {
                             'rejected'  => ['danger',            'times-circle',  'Rejected'],
                             'processed' => ['primary',           'user-check',    'Processed — driver assigned'],
                             'cancelled' => ['secondary',         'ban',           'Cancelled'],
+                            'lapsed'    => ['secondary',         'hourglass-end', 'Lapsed'],
+                            'completed' => ['dark',              'flag-checkered','Completed'],
                         ];
                         [$sc, $si, $sl] = $status_map[$r['status']] ?? ['secondary', 'circle', ucfirst($r['status'])];
                         ?>
@@ -304,7 +314,7 @@ foreach ($requests as $r) {
                                             title="View Details">
                                         <i class="fas fa-eye me-1"></i>View
                                     </button>
-                                    <?php if ($r['status'] === 'pending'): ?>
+                                    <?php if (!empty($r['can_cancel'])): ?>
                                     <button class="btn btn-sm btn-outline-danger"
                                             onclick="cancelRequest(<?= (int)$r['request_id'] ?>)"
                                             title="Cancel this request">
@@ -364,6 +374,7 @@ foreach ($requests as $r) {
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <!-- Custom JS -->
 <script src="<?= SITE_URL ?>/assets/js/main.js"></script>
+<script src="<?= SITE_URL ?>/assets/js/comments.js"></script>
 <script>
 // Embedded request data keyed by request_id for the details modal
 var REQUESTS_DATA = <?= json_encode(
@@ -403,7 +414,9 @@ var REQUESTS_DATA = <?= json_encode(
         approved:  { color: 'success',           icon: 'check-circle', label: 'Approved' },
         rejected:  { color: 'danger',            icon: 'times-circle', label: 'Rejected' },
         processed: { color: 'primary',           icon: 'user-check',   label: 'Processed — driver assigned' },
-        cancelled: { color: 'secondary',         icon: 'ban',          label: 'Cancelled' }
+        cancelled: { color: 'secondary',         icon: 'ban',          label: 'Cancelled' },
+        lapsed:    { color: 'secondary',         icon: 'hourglass-end', label: 'Lapsed' },
+        completed: { color: 'dark',              icon: 'flag-checkered', label: 'Completed' }
     };
 
     // ── Progress tracker state (pure logic: status + dates -> steps) ─
@@ -416,23 +429,25 @@ var REQUESTS_DATA = <?= json_encode(
         switch (status) {
             case 'approved':  states = ['done', 'done',      'current',  'upcoming']; break;
             case 'processed': states = ['done', 'done',      'done',     'done'];     break;
+            case 'completed': states = ['done', 'done',      'done',     'done'];     break;
+            case 'lapsed':    states = ['done', 'cancelled', 'upcoming', 'upcoming']; break;
             case 'rejected':  states = ['done', 'rejected',  'upcoming', 'upcoming']; break;
             case 'cancelled': states = ['done', 'cancelled', 'upcoming', 'upcoming']; break;
             default:          states = ['done', 'current',   'upcoming', 'upcoming']; // pending
         }
-        var stopped = (status === 'rejected' || status === 'cancelled');
+        var stopped = (status === 'rejected' || status === 'cancelled' || status === 'lapsed');
         var stepDates = [dates.created || null, null, null, null];
-        if (status === 'approved' || status === 'processed' || status === 'rejected') {
+        if (status === 'approved' || status === 'processed' || status === 'completed' || status === 'rejected') {
             stepDates[1] = dates.reviewed || null;
-        } else if (status === 'cancelled') {
-            stepDates[1] = dates.cancelled || null;
+        } else if (status === 'cancelled' || status === 'lapsed') {
+            stepDates[1] = dates.cancelled || dates.updated || null;
         }
         var texts = {
             done:      'Completed',
             current:   'In progress',
             upcoming:  stopped ? 'Not reached' : 'Not started',
             rejected:  'Rejected',
-            cancelled: 'Cancelled'
+            cancelled: (status === 'lapsed' ? 'Lapsed' : 'Cancelled')
         };
         return titles.map(function (title, i) {
             return { number: i + 1, title: title, state: states[i],
@@ -446,7 +461,8 @@ var REQUESTS_DATA = <?= json_encode(
         var steps = requestSteps(r.status, {
             created:   r.created_at,
             reviewed:  r.reviewed_at,
-            cancelled: r.cancelled_at
+            cancelled: r.cancelled_at,
+            updated:   r.updated_at
         });
         var html = '<ol class="uis-stepper" aria-label="Request progress">';
         steps.forEach(function (st) {
@@ -482,6 +498,13 @@ var REQUESTS_DATA = <?= json_encode(
                         (r.supervisor_notes
                             ? escHtml(r.supervisor_notes)
                             : '<span class="fst-italic">No reason was provided.</span>') +
+                    '</div>';
+        }
+        if (r.status === 'cancelled' || r.status === 'lapsed') {
+            var byWho = { staff: 'you', supervisor: 'your Head of Section', admin: 'the transport unit', superadmin: 'the transport unit', system: 'the system' };
+            html += '<div class="alert alert-secondary py-2 px-3 small" role="note">' +
+                        '<i class="fas fa-circle-info me-1"></i><strong>' + (r.status === 'lapsed' ? 'Lapsed.' : 'Cancelled by ' + escHtml(byWho[r.cancelled_by_role] || 'someone') + '.') + '</strong> ' +
+                        (r.status_reason ? escHtml(r.status_reason) : '<span class="fst-italic">No reason was recorded.</span>') +
                     '</div>';
         }
         return html;
@@ -604,30 +627,33 @@ var REQUESTS_DATA = <?= json_encode(
         // Cancel is only offered while the request still awaits the supervisor
         var cancelBtn = document.getElementById('detailsCancelBtn');
         if (cancelBtn) {
-            cancelBtn.classList.toggle('d-none', r.status !== 'pending');
+            cancelBtn.classList.toggle('d-none', !r.can_cancel);
             cancelBtn.onclick = function () { cancelRequest(requestId); };
         }
 
+        if (window.UISComments) { UISComments.mount('detailsModalBody', requestId); }
         new bootstrap.Modal(document.getElementById('detailsModal')).show();
     };
 
-    // ── Cancel (withdraw) a pending request ──────────────────────────
+    // ── Cancel a request (a reason is always required) ───────────────
     window.cancelRequest = function (requestId) {
         var r = REQUESTS_DATA[requestId];
-        if (!r || r.status !== 'pending') return;
+        if (!r || !r.can_cancel) return;
 
-        UIS.confirm({
+        UIS.askReason({
             title:       'Cancel this request?',
-            text:        'Your Head of Section will no longer see it. You can submit a new request at any time.',
-            confirmText: 'Yes, cancel request',
+            text:        'The vehicle will be free for other people, and everyone involved is told.',
+            label:       'Reason for cancelling',
+            confirmText: 'Cancel request',
             cancelText:  'Keep request',
             tone:        'danger',
             icon:        'fa-ban'
-        }).then(function (ok) {
-            if (!ok) return;
+        }).then(function (reason) {
+            if (!reason) return;
 
             var body = new URLSearchParams();
             body.append('request_id', String(requestId));
+            body.append('reason', reason);
 
             fetch('../ajax/cancel_request.php', {
                 method:      'POST',

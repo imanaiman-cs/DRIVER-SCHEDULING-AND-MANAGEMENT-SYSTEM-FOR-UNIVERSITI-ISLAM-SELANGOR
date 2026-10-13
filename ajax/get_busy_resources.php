@@ -71,6 +71,11 @@ foreach ($rows as $r) {
     }
 }
 
+// maintenance periods and vehicles held for the day by a request
+foreach (blockedVehicleIds($conn, $trip_date, (int)($_POST['request_id'] ?? 0)) as $vid => $why) {
+    $vehicles[$vid] = true;
+}
+
 echo json_encode([
     'success'     => true,
     'driver_ids'  => array_keys($drivers),

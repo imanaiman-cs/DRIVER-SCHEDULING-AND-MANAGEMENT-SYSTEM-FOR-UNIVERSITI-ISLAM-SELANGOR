@@ -163,7 +163,7 @@ $stmt->close();
                     <div class="text-center py-5">
                         <i class="fas fa-file-circle-plus fa-3x text-muted mb-3"></i>
                         <h6 class="text-muted">No requests yet</h6>
-                        <p class="text-muted small mb-3">You have not made any requests yet. Requests must be submitted at least 3 days before the trip.</p>
+                        <p class="text-muted small mb-3">You have not made any requests yet. Requests must be made at least two days before the trip (last-minute: paper form BPTK/BPI/2025/PIN.5).</p>
                         <a href="request_vehicle.php" class="btn btn-primary btn-sm">
                             <i class="fas fa-plus me-1"></i>Request a vehicle
                         </a>

@@ -46,10 +46,13 @@ $stmt->close();
 
 $out = [];
 $seats = 0;
+$blocked = blockedVehicleIds($conn, $trip_date, (int)($_GET['request_id'] ?? 0));   // maintenance period / held for the day
 foreach ($rows as $r) {
-    $ok = in_array($r['status'], ['available', 'in_use'], true) && (int)$r['booked'] === 0;
+    $vb = $blocked[(int)$r['vehicle_id']] ?? null;
+    $ok = in_array($r['status'], ['available', 'in_use'], true) && (int)$r['booked'] === 0 && $vb === null;
     $reason = $ok ? '' : ($r['status'] === 'maintenance' ? 'under maintenance'
-                        : ($r['status'] === 'retired' ? 'not in service' : 'already booked at this time'));
+                        : ($r['status'] === 'retired' ? 'not in service'
+                        : ($vb !== null ? vehicleBlockText($vb) : 'already booked at this time')));
     $out[] = [
         'vehicle_id' => (int)$r['vehicle_id'], 'plate_number' => $r['plate_number'],
         'capacity' => (int)$r['capacity'], 'free' => $ok, 'reason' => $reason,

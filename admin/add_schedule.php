@@ -220,6 +220,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (findResourceConflict($conn, 'vehicle_id', $vehicle_id, $trip_date, $start_time, $end_time, $share_ids)) {
             $errors['vehicle_id'] = 'The selected vehicle already has a schedule that overlaps this time slot. Choose another vehicle, or change the date or times.';
+        } else {
+            // R3 / R4: in maintenance, or held for that whole day by a vehicle request
+            $blk = blockedVehicleIds($conn, $trip_date);
+            if (isset($blk[$vehicle_id])) {
+                $errors['vehicle_id'] = 'The selected vehicle is ' . vehicleBlockText($blk[$vehicle_id]) . '. Choose another vehicle or date.';
+            }
         }
     }
 
@@ -259,6 +265,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($a['vehicle'] > 0 && findResourceConflict($conn, 'vehicle_id', $a['vehicle'], $trip_date, $start_time, $end_time)) {
                 $errors['team'] = $who . '\'s vehicle already has a schedule that overlaps this time slot. Choose another vehicle.';
+                break;
+            }
+            if ($a['vehicle'] > 0 && isset(($blk_team ??= blockedVehicleIds($conn, $trip_date))[$a['vehicle']])) {
+                $errors['team'] = $who . '\'s vehicle is ' . vehicleBlockText($blk_team[$a['vehicle']]) . '. Choose another vehicle.';
                 break;
             }
         }

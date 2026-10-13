@@ -56,7 +56,12 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $vehicles = [];
+// maintenance periods and day holds of other requests (R3 / R4); the request being processed keeps its own
+$blocked = blockedVehicleIds($conn, $trip_date, (int)($_GET['request_id'] ?? 0));
 while ($row = $result->fetch_assoc()) {
+    if (isset($blocked[(int)$row['vehicle_id']])) {
+        continue;
+    }
     $vehicles[] = [
         'vehicle_id'   => (int)$row['vehicle_id'],
         'plate_number' => $row['plate_number'],

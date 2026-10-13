@@ -411,6 +411,16 @@ $display_requests = array_values($display_requests);
                                                 aria-label="View request details">
                                             <i class="fas fa-eye" aria-hidden="true"></i>
                                         </button>
+                                        <?php if (strtotime($req['trip_date'] . ' ' . $req['start_time']) > time()): ?>
+                                        <!-- Cancel (reason required) -->
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-action"
+                                                title="Cancel this request"
+                                                onclick="cancelRequestAdmin(<?php echo (int)$req['request_id']; ?>)"
+                                                aria-label="Cancel vehicle request">
+                                            <i class="fas fa-ban" aria-hidden="true"></i>
+                                        </button>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
@@ -572,6 +582,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 <!-- SweetAlert2 -->
 <!-- Custom JS -->
 <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
+<script src="<?php echo SITE_URL; ?>/assets/js/comments.js"></script>
 
 <script>
 (function () {
@@ -724,6 +735,34 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     });
 
     // ── View Details Modal ────────────────────────────────────
+    // Cancel any request before the trip starts. A reason is required; the vehicle is released
+    // and the requester, Head of Section and drivers are told.
+    window.cancelRequestAdmin = function (requestId) {
+        UIS.askReason({
+            title:       'Cancel request #' + requestId + '?',
+            text:        'The vehicle is released and the driver task (if any) is removed.',
+            label:       'Reason for cancelling',
+            confirmText: 'Cancel request',
+            cancelText:  'Keep request',
+            tone:        'danger',
+            icon:        'fa-ban'
+        }).then(function (reason) {
+            if (!reason) return;
+            var body = new URLSearchParams();
+            body.append('request_id', String(requestId));
+            body.append('reason', reason);
+            fetch('../ajax/cancel_request.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
+            }).then(function (res) { return res.json(); }).then(function (data) {
+                UIS.alert(data.message, { title: data.success ? 'Request cancelled' : 'Could not cancel', tone: data.success ? 'primary' : 'danger' })
+                   .then(function () { if (data.success) { window.location.reload(); } });
+            }).catch(function () {
+                UIS.alert('Network error. Please try again.', { title: 'Could not cancel', tone: 'danger' });
+            });
+        });
+    };
+
     window.viewRequest = function (requestId) {
         var r = findRequest(requestId);
         if (!r) return;
@@ -842,6 +881,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         body += '</div>';
 
         document.getElementById('viewRequestBody').innerHTML = body;
+        if (window.UISComments) { UISComments.mount('viewRequestBody', requestId); }
         var modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
         modal.show();
     };
@@ -929,7 +969,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
         var q = new URLSearchParams({
             trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time,
-            passengers: r.passenger_count
+            passengers: r.passenger_count, request_id: r.request_id
         });
         fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
             .then(function (res) { return res.json(); })
@@ -1119,7 +1159,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             syncMultiChoices(); updateSeats(); updateProcessNote();
         });
 
-        var q = new URLSearchParams({ trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time, passengers: 1 });
+        var q = new URLSearchParams({ trip_date: r.trip_date, start_time: r.start_time, end_time: r.end_time, passengers: 1, request_id: r.request_id });
         fetch(SITE_URL + '/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
             .then(function (res) { return res.json(); })
             .then(function (data) { _freeVehicles = (data && data.success && data.vehicles) ? data.vehicles : []; })

@@ -57,7 +57,7 @@ function submenuShow(array $pages, string $current): string
 
 // ── Admin page groups ────────────────────────────────────────────
 $driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'];
-$vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'];
+$vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'];
 $schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php', 'calendar.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
 
@@ -68,6 +68,8 @@ $_pending_assignments = 0;
 $_failed_emails      = 0;   // admin: e-mails that failed in the last 7 days
 $_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
 $_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
+$_app_unread         = 0;   // unread in-app notifications (bell)
+$_app_notifs         = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
@@ -82,6 +84,16 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         } catch (Throwable $e) {
             $_failed_emails = 0;
         }
+    }
+    // In-app notifications (the bell) for every role
+    try {
+        $rn = $conn->query("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id=$_sidebar_uid AND is_read=0");
+        if ($rn) $_app_unread = (int)$rn->fetch_assoc()['cnt'];
+        $rl = $conn->query("SELECT notification_id, message, link, is_read, created_at FROM notifications
+                             WHERE user_id=$_sidebar_uid ORDER BY created_at DESC, notification_id DESC LIMIT 6");
+        while ($rl && ($nrow = $rl->fetch_assoc())) { $_app_notifs[] = $nrow; }
+    } catch (Throwable $e) {
+        // table not created yet
     }
     if ($role === 'supervisor') {
         $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE supervisor_id=$_sidebar_uid AND status='pending'");
@@ -262,6 +274,14 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </a>
             </li>
 
+            <!-- Reminders to the Head of Section -->
+            <li class="sidebar-item <?php echo sidebarActive('reminders.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/reminders.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-bell-concierge" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Reminders</span>
+                </a>
+            </li>
+
             <!-- Notifications (driver e-mails) -->
             <li class="sidebar-item <?php echo sidebarActive('notifications.php', $current_page); ?>">
                 <a href="<?php echo SITE_URL; ?>/admin/notifications.php" class="sidebar-link">
@@ -329,6 +349,16 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                         </a>
                     </li>
                 </ul>
+            </li>
+
+            <li class="sidebar-section-label">System</li>
+
+            <!-- Audit log -->
+            <li class="sidebar-item <?php echo sidebarActive('audit_log.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/audit_log.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-clipboard-list" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Audit Log</span>
+                </a>
             </li>
 
             <?php elseif ($role === 'staff'): ?>
@@ -510,9 +540,11 @@ if ($_sidebar_uid > 0 && isset($conn)) {
             <div id="dhClock" style="font-size:.88rem;font-weight:700;color:var(--uis-primary);letter-spacing:.03em;white-space:nowrap;"></div>
         </div>
 
-        <?php if ($role === 'admin' || $role === 'superadmin'):
-            $_dh_total = $_pending_assignments; ?>
-        <!-- Notification bell (admin) -->
+        <?php
+            $_is_admin_role = ($role === 'admin' || $role === 'superadmin');
+            $_dh_total = $_app_unread + ($_is_admin_role ? $_pending_assignments : 0);
+        ?>
+        <!-- Notification bell (all roles) -->
         <div class="dropdown">
             <button class="btn btn-light btn-sm position-relative rounded-circle"
                     style="width:38px;height:38px;border:1.5px solid #e5e9f0;"
@@ -523,14 +555,14 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                       style="font-size:.58rem;"><?php echo $_dh_total; ?></span>
                 <?php endif; ?>
             </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:260px;border:1px solid #e8edf5;border-radius:var(--radius-md);">
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:320px;max-width:360px;border:1px solid #e8edf5;border-radius:var(--radius-md);">
                 <li>
                     <h6 class="dropdown-header"
                         style="font-size:.74rem;font-weight:700;color:var(--uis-primary);text-transform:uppercase;letter-spacing:.06em;">
                         Notifications
                     </h6>
                 </li>
-                <?php if ($_pending_assignments > 0): ?>
+                <?php if ($_is_admin_role && $_pending_assignments > 0): ?>
                 <li>
                     <a class="dropdown-item py-2" href="<?php echo SITE_URL; ?>/admin/schedules.php">
                         <div class="d-flex align-items-center gap-2">
@@ -546,7 +578,20 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if ($_dh_total === 0): ?>
+                <?php foreach ($_app_notifs as $_n): ?>
+                <li>
+                    <a class="dropdown-item py-2 <?php echo $_n['is_read'] ? '' : 'fw-semibold'; ?>"
+                       href="<?php echo SITE_URL; ?>/notifications.php?open=<?php echo (int)$_n['notification_id']; ?>"
+                       style="white-space:normal;">
+                        <div style="font-size:.8rem;line-height:1.35;">
+                            <?php if (!$_n['is_read']): ?><span class="badge bg-success me-1" style="font-size:.58rem;">New</span><?php endif; ?>
+                            <?php echo htmlspecialchars($_n['message']); ?>
+                        </div>
+                        <div class="text-muted" style="font-size:.7rem;"><?php echo date('d M Y, H:i', strtotime($_n['created_at'])); ?></div>
+                    </a>
+                </li>
+                <?php endforeach; ?>
+                <?php if ($_dh_total === 0 && !$_app_notifs): ?>
                 <li>
                     <span class="dropdown-item-text text-center py-3" style="font-size:.82rem;color:#6b7280;">
                         <i class="fas fa-check-circle text-success me-1"></i>All clear
@@ -556,14 +601,13 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <li><hr class="dropdown-divider my-1"></li>
                 <li>
                     <a class="dropdown-item text-center py-2"
-                       href="<?php echo SITE_URL; ?>/admin/schedules.php"
+                       href="<?php echo SITE_URL; ?>/notifications.php"
                        style="font-size:.79rem;color:var(--uis-primary);font-weight:600;">
-                        View All Schedules
+                        See all notifications
                     </a>
                 </li>
             </ul>
         </div>
-        <?php endif; ?>
 
         <!-- User dropdown -->
         <div class="dropdown">

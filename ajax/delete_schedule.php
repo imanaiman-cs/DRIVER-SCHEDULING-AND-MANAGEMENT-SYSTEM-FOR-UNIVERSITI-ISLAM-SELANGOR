@@ -30,9 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
         error_log($e->getMessage());
     }
 
+    $linked_request = requestIdOfSchedule($conn, $id);     // a request's vehicle hold ends with its schedule
     $stmt = $conn->prepare("DELETE FROM schedules WHERE schedule_id = ?");
     $stmt->bind_param("i", $id);
     if ($stmt->execute()) {
+        if ($linked_request > 0) {
+            // the request lost its schedule: its vehicle is no longer held
+            $left = $conn->query('SELECT schedule_id FROM vehicle_requests WHERE request_id = ' . $linked_request)->fetch_assoc();
+            if ($left && $left['schedule_id'] === null) { releaseVehicleHolds($conn, $linked_request); }
+        }
         $message = 'Schedule deleted successfully.';
         try {
             $email_results = notifyScheduleDeleted($conn, $before);

@@ -177,6 +177,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors) && $vehicle_id > 0) {
         if (findResourceConflict($conn, 'vehicle_id', $vehicle_id, $trip_date, $start_time, $end_time, array_merge([$schedule_id], $team_ids))) {
             $errors['vehicle_id'] = 'The selected vehicle already has a schedule that overlaps this time slot. Choose another vehicle, or change the date or times.';
+        } else {
+            // R3 / R4: maintenance, or held for the whole day by ANOTHER request (this job's own request is fine)
+            $blk = blockedVehicleIds($conn, $trip_date, requestIdOfSchedule($conn, $schedule_id));
+            if (isset($blk[$vehicle_id])) {
+                $errors['vehicle_id'] = 'The selected vehicle is ' . vehicleBlockText($blk[$vehicle_id]) . '. Choose another vehicle or date.';
+            }
         }
     }
 
@@ -295,6 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($upd->execute()) {
             $upd->close();
+            syncHoldsForSchedule($conn, $schedule_id);      // keep the vehicle day hold in step
 
             // Keep the other drivers of the same job in step with the shared details
             $cascade_before = [];

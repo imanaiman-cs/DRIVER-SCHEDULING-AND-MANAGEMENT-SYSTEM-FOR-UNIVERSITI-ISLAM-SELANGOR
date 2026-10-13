@@ -134,6 +134,8 @@ foreach ($assign as $a) {
 }
 
 $month_counts = getMonthlyTaskCounts($conn, substr($trip_date, 0, 7));
+// R3 / R4: maintenance periods and days held by ANOTHER request (this request's own hold is fine)
+$blocked_vehicles = blockedVehicleIds($conn, $trip_date, $request_id);
 $plan = [];          // validated rows: vehicle, driver, driver_name, score
 $seat_total = 0;
 $all_vehicles_chosen = true;
@@ -143,6 +145,9 @@ foreach ($assign as $a) {
     $vehicle_type = null;
     if ($vehicle_id !== null) {
         // One vehicle must seat everybody; with several vehicles the seats are added up below
+        if (isset($blocked_vehicles[$vehicle_id])) {
+            failJson('A chosen vehicle is ' . vehicleBlockText($blocked_vehicles[$vehicle_id]) . '. Please choose another vehicle.');
+        }
         $need_seats = $multi ? 0 : $passenger_count;
         $vs = $conn->prepare(
             "SELECT vehicle_type, capacity FROM vehicles
@@ -265,13 +270,30 @@ try {
         echo json_encode(['success' => false, 'message' => 'This request has already been processed by another admin.']);
         exit();
     }
+    // R3: the day hold now follows the vehicles that were really assigned
+    holdVehiclesForRequest($conn, $request_id, array_filter(array_column($plan, 'vehicle')), $trip_date);
     $conn->commit();
 } catch (Throwable $e) {
     $conn->rollback();
+    if ($e instanceof RuntimeException && str_starts_with($e->getMessage(), 'Sorry,')) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit();
+    }
     error_log('process_request: ' . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Failed to create the schedule. Please try again.']);
     exit();
 }
+
+// ── Audit log + tell the requester (never lets a problem undo the assignment) ──
+$who = [];
+foreach ($plan as $row) {
+    if ($row['driver_name']) { $who[] = $row['driver_name']; }
+}
+auditLog($conn, 'assign', $request_id, $who ? 'Drivers: ' . implode(', ', $who) : 'Vehicle set, driver to be assigned');
+notifyUsers($conn, [(int)$request['staff_id']],
+    'Your request #' . $request_id . ' (' . $destination . ', ' . date('d M Y', strtotime($trip_date)) . ') was processed by the transport unit'
+    . ($who ? '. Driver: ' . implode(', ', $who) . '.' : '. A driver will be assigned soon.'),
+    'staff/my_requests.php');
 
 // ── Tell the drivers (never lets an e-mail problem undo the assignment) ──
 $email_note = '';

@@ -108,7 +108,55 @@
         }).then(function () { /* resolved when dismissed */ });
     }
 
+    // Asks for a written reason (cancel / reject need one). Resolves to the text, or null if dismissed.
+    function askReason(options) {
+        var o = Object.assign({
+            title:       'Reason required',
+            text:        '',
+            label:       'Reason',
+            placeholder: 'Write the reason here...',
+            confirmText: 'Continue',
+            cancelText:  'Back',
+            tone:        'danger',
+            icon:        null,
+            minLength:   3
+        }, options || {});
+        o.tone = toneOf(o.tone);
+
+        if (!swalReady()) {
+            var typed = window.prompt(o.title + (o.text ? '\n' + o.text : '') + '\n' + o.label);
+            return Promise.resolve(typed && typed.trim().length >= o.minLength ? typed.trim() : null);
+        }
+
+        var icon = o.icon || DEFAULT_ICON[o.tone];
+        return window.Swal.fire({
+            title:             o.title,
+            text:              o.text,
+            icon:              'question',
+            iconHtml:          '<i class="fas ' + icon + '" aria-hidden="true"></i>',
+            input:             'textarea',
+            inputLabel:        o.label,
+            inputPlaceholder:  o.placeholder,
+            inputAttributes:   { maxlength: 500, 'aria-label': o.label },
+            showCancelButton:  true,
+            confirmButtonText: o.confirmText,
+            cancelButtonText:  o.cancelText,
+            reverseButtons:    true,
+            buttonsStyling:    false,
+            customClass:       classes(o.tone),
+            inputValidator:    function (value) {
+                if (!value || value.trim().length < o.minLength) {
+                    return 'Please write the reason (at least ' + o.minLength + ' characters).';
+                }
+                return null;
+            }
+        }).then(function (result) {
+            return result.isConfirmed ? String(result.value).trim() : null;
+        });
+    }
+
     window.UIS = window.UIS || {};
+    window.UIS.askReason = askReason;
     window.UIS.confirm = confirmDialog;
     window.UIS.alert   = alertDialog;
 
