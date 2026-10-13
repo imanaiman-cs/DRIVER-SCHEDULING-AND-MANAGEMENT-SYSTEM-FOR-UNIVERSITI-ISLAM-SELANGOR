@@ -31,11 +31,134 @@ $conn->set_charset("utf8mb4");
 $conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with PHP
 
 // ============================================================
+// Automatic database upgrade
+// The code is updated with "git pull", but a database that was imported earlier
+// does not get the new columns by itself, and pages then crash with
+// "Call to a member function execute() on bool". This adds whatever is
+// missing (columns, keys, tables) - it never deletes or changes existing data.
+// It is safe to run many times, and runs once per login session.
+// ============================================================
+function upgradeDatabaseSchema(mysqli $conn): void
+{
+    $db = DB_NAME;
+    $hasTable = function (string $t) use ($conn, $db): bool {
+        $r = $conn->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='$t'");
+        return $r && $r->num_rows > 0;
+    };
+    $hasColumn = function (string $t, string $c) use ($conn, $db): bool {
+        $r = $conn->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='$t' AND COLUMN_NAME='$c'");
+        return $r && $r->num_rows > 0;
+    };
+    $hasIndex = function (string $t, string $i) use ($conn, $db): bool {
+        $r = $conn->query("SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='$t' AND INDEX_NAME='$i'");
+        return $r && $r->num_rows > 0;
+    };
+    $run = function (string $sql) use ($conn): void {
+        try {
+            $conn->query($sql);
+        } catch (Throwable $e) {
+            error_log('Schema upgrade skipped: ' . $e->getMessage());
+        }
+    };
+
+    // column additions: table => [column => definition]
+    $columns = [
+        'drivers' => [
+            'driver_type' => "ENUM('top_management','regular') NOT NULL DEFAULT 'regular'",
+            'assigned_to' => "VARCHAR(150) NULL DEFAULT NULL",
+            'photo'       => "VARCHAR(255) NULL DEFAULT NULL",
+        ],
+        'vehicles' => [
+            'photo' => "VARCHAR(255) NULL DEFAULT NULL",
+        ],
+        'schedules' => [
+            'trip_type'     => "ENUM('regular','top_management') NOT NULL DEFAULT 'regular'",
+            'officer_name'  => "VARCHAR(255) NULL DEFAULT NULL",
+            'officer_phone' => "VARCHAR(50) NULL DEFAULT NULL",
+            'waiting_place' => "VARCHAR(150) NULL DEFAULT NULL",
+            'job_group'     => "INT NULL DEFAULT NULL",
+        ],
+        'vehicle_requests' => [
+            'officer_name'    => "VARCHAR(255) NULL DEFAULT NULL",
+            'officer_phone'   => "VARCHAR(50) NULL DEFAULT NULL",
+            'waiting_place'   => "VARCHAR(150) NULL DEFAULT NULL",
+            'vehicles_needed' => "TINYINT NOT NULL DEFAULT 1",
+            'cancelled_at'    => "TIMESTAMP NULL DEFAULT NULL",
+        ],
+    ];
+    foreach ($columns as $table => $cols) {
+        if (!$hasTable($table)) { continue; }
+        foreach ($cols as $col => $def) {
+            if (!$hasColumn($table, $col)) {
+                $run("ALTER TABLE `$table` ADD COLUMN `$col` $def");
+            }
+        }
+    }
+
+    // keys
+    if ($hasTable('schedules') && $hasColumn('schedules', 'job_group') && !$hasIndex('schedules', 'idx_schedules_job_group')) {
+        $run("ALTER TABLE schedules ADD KEY idx_schedules_job_group (job_group)");
+    }
+    if ($hasTable('drivers') && $hasColumn('drivers', 'assigned_to') && !$hasIndex('drivers', 'uq_drivers_assigned_to')) {
+        $run("ALTER TABLE drivers ADD UNIQUE KEY uq_drivers_assigned_to (assigned_to)");
+    }
+
+    // vehicle_requests.status must allow 'cancelled'
+    if ($hasTable('vehicle_requests')) {
+        $r = $conn->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='vehicle_requests' AND COLUMN_NAME='status'");
+        $type = $r ? (string)($r->fetch_row()[0] ?? '') : '';
+        if ($type !== '' && stripos($type, 'cancelled') === false) {
+            $run("ALTER TABLE vehicle_requests MODIFY status ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending'");
+        }
+    }
+
+    // tables
+    if ($hasTable('vehicle_requests') && !$hasTable('request_vehicles')) {
+        $run("CREATE TABLE request_vehicles (
+                request_id INT NOT NULL, vehicle_id INT NOT NULL,
+                PRIMARY KEY (request_id, vehicle_id),
+                CONSTRAINT fk_rv_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE,
+                CONSTRAINT fk_rv_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(vehicle_id) ON DELETE CASCADE
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        // earlier requests asked for one vehicle: keep that choice
+        $run("INSERT IGNORE INTO request_vehicles (request_id, vehicle_id)
+              SELECT request_id, vehicle_id FROM vehicle_requests WHERE vehicle_id IS NOT NULL");
+    }
+    if ($hasTable('vehicle_requests') && !$hasTable('request_documents')) {
+        $run("CREATE TABLE request_documents (
+                doc_id INT NOT NULL AUTO_INCREMENT, request_id INT NOT NULL,
+                doc_type ENUM('release_letter','seminar_letter','approval_letter','programme','other') NOT NULL DEFAULT 'other',
+                original_name VARCHAR(255) NOT NULL, stored_path VARCHAR(255) NOT NULL, mime_type VARCHAR(100) NOT NULL,
+                file_size INT NOT NULL, uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (doc_id), INDEX idx_rd_request (request_id),
+                CONSTRAINT fk_rd_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    }
+    if ($hasTable('drivers') && !$hasTable('email_log')) {
+        $run("CREATE TABLE email_log (
+                log_id INT NOT NULL AUTO_INCREMENT, driver_id INT NULL DEFAULT NULL, to_email VARCHAR(190) NULL DEFAULT NULL,
+                delivered_to VARCHAR(255) NULL DEFAULT NULL, subject VARCHAR(255) NOT NULL, kind VARCHAR(30) NOT NULL,
+                ref_date DATE NULL DEFAULT NULL, schedule_ids VARCHAR(255) NULL DEFAULT NULL,
+                status ENUM('sent','failed','skipped') NOT NULL, error_message VARCHAR(500) NULL DEFAULT NULL,
+                body_html MEDIUMTEXT NULL DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (log_id), KEY idx_email_created (created_at), KEY idx_email_driver_kind (driver_id, kind, ref_date),
+                CONSTRAINT fk_email_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE SET NULL
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    }
+}
+
+// ============================================================
 // Session initialisation
 // Must happen before any output is sent to the browser
 // ============================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+// Bring an older database up to date once per session (see upgradeDatabaseSchema above).
+if (empty($_SESSION['schema_checked'])) {
+    upgradeDatabaseSchema($conn);
+    $_SESSION['schema_checked'] = true;
 }
 
 // ============================================================
