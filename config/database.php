@@ -407,6 +407,26 @@ function runSecurityChecks(mysqli $conn): void
         // columns not created yet (very first request): nothing to check
     }
 
+    // Put the CSRF token into every POST form of the page on the server, so forms work
+    // even if a script is cached, blocked or fails to load.
+    if (!isAjaxRequest()) {
+        $token = csrfToken();
+        ob_start(function (string $html) use ($token) {
+            if (stripos($html, '<form') === false) {
+                return false;
+            }
+            foreach (headers_list() as $h) {
+                if (stripos($h, 'content-type:') === 0 && stripos($h, 'html') === false) {
+                    return false;
+                }
+            }
+            $field = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES) . '">';
+            return preg_replace_callback('/<form\b[^>]*\bmethod\s*=\s*["\']?post["\']?[^>]*>/i', function ($m) use ($field) {
+                return $m[0] . $field;
+            }, $html);
+        });
+    }
+
     // 4. CSRF on every state-changing request
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sent = (string)($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
