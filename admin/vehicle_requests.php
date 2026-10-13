@@ -1029,7 +1029,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                 list.forEach(function (d, i) {
                     html += '<option value="' + d.driver_id + '"' + (i === 0 ? ' selected' : '') + '>'
                          + escHtml((i === 0 ? '\u2605 Recommended: ' : '') + d.name + ' \u2014 score ' + Number(d.priority).toFixed(2)
-                         + ' (' + d.month_tasks + ' task' + (d.month_tasks === 1 ? '' : 's') + ' this month, ' + d.month_weekend + ' weekend)')
+                         + ' (' + d.month_tasks + ' task' + (d.month_tasks === 1 ? '' : 's') + ' this month, ' + d.month_weekend + ' after-hours' + (d.welfare ? ', welfare duty' : '') + ((d.warnings && d.warnings.length) ? ', CLASH: ' + d.warnings.join('; ') : '') + ')')
                          + '</option>';
                 });
                 dSel.innerHTML = html;

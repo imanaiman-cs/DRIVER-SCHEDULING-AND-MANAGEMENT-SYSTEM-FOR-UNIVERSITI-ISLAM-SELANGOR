@@ -30,6 +30,24 @@ $priority_score = calculateAllocationScore(
 );
 
 $today = date('Y-m-d');
+
+// Other duties: internal tasks and welfare duty in the next 30 days (UC005 also shows them)
+$my_tasks = []; $my_welfare = [];
+try {
+    $q = $conn->prepare("SELECT task_type, task_date, start_time, end_time, location, description FROM internal_tasks
+                          WHERE driver_id = ? AND task_date BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) ORDER BY task_date, start_time");
+    $q->bind_param('iss', $driver_id, $today, $today);
+    $q->execute();
+    $my_tasks = $q->get_result()->fetch_all(MYSQLI_ASSOC);
+    $q->close();
+    $q = $conn->prepare("SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) ORDER BY duty_date");
+    $q->bind_param('iss', $driver_id, $today, $today);
+    $q->execute();
+    $my_welfare = array_column($q->get_result()->fetch_all(MYSQLI_ASSOC), 'duty_date');
+    $q->close();
+} catch (Throwable $e) {
+    // tables not created yet
+}
 $week_start = date('Y-m-d', strtotime('monday this week'));
 $week_end   = date('Y-m-d', strtotime('sunday this week'));
 $month_start = date('Y-m-01');
@@ -245,20 +263,18 @@ require_once '../includes/sidebar.php';
           </div>
           <div class="card-body">
             <?php
-            $task_factor    = 1 - min($month_tasks / 10, 1);
-            $weekend_factor = 1 - min($month_weekend / 4, 1);
-            $exp_factor     = min(((float)$driver['experience_years']) / 20, 1);
+            // Share of the busiest driver this month (the same comparison the score uses)
+            $max_load = $GLOBALS['__load_max'] ?? ['tasks' => 0, 'after' => 0];
             $metrics = [
-                ['label'=>'Tasks this month','value'=>$task_factor*10,'raw'=>$month_tasks.' task'.($month_tasks!==1?'s':''),'weight'=>50,'color'=>'green'],
-                ['label'=>'Weekend tasks','value'=>$weekend_factor*10,'raw'=>$month_weekend.' weekend task'.($month_weekend!==1?'s':''),'weight'=>30,'color'=>'gold'],
-                ['label'=>'Experience','value'=>$exp_factor*10,'raw'=>$driver['experience_years'].' yrs','weight'=>20,'color'=>'teal'],
+                ['label'=>'Tasks this month','pct'=>$max_load['tasks'] > 0 ? ($month_tasks / $max_load['tasks']) * 100 : 0,'raw'=>$month_tasks.' task'.($month_tasks!==1?'s':'').' (trips + internal)','weight'=>getSetting($conn, 'W_TASKS'),'color'=>'green'],
+                ['label'=>'After-hours tasks','pct'=>$max_load['after'] > 0 ? ($month_weekend / $max_load['after']) * 100 : 0,'raw'=>$month_weekend.' after-hours','weight'=>getSetting($conn, 'W_AFTER_HOURS'),'color'=>'gold'],
             ];
             foreach ($metrics as $m):
-            $pct = ($m['value']/10)*100;
+            $pct = $m['pct'];
             ?>
             <div class="mb-3">
               <div class="d-flex justify-content-between align-items-center mb-1">
-                <small class="fw-semibold"><?= $m['label'] ?> <span class="text-muted">(<?= $m['weight'] ?>%)</span></small>
+                <small class="fw-semibold"><?= $m['label'] ?> <span class="text-muted">(weight <?= htmlspecialchars($m['weight']) ?>)</span></small>
                 <small class="text-muted"><?= $m['raw'] ?></small>
               </div>
               <div class="progress" style="height:8px">
@@ -269,8 +285,8 @@ require_once '../includes/sidebar.php';
             <hr>
             <div class="d-flex justify-content-between align-items-center">
               <strong>Allocation Score</strong>
-              <?php $bc = $priority_score>=7?'success':($priority_score>=5?'warning':'danger'); ?>
-              <span class="badge bg-<?= $bc ?> fs-6"><?= $priority_score ?> / 10</span>
+              <?php $bc = $priority_score>=70?'success':($priority_score>=50?'warning':'danger'); ?>
+              <span class="badge bg-<?= $bc ?> fs-6"><?= $priority_score ?> / 100</span>
             </div>
           </div>
         </div>
@@ -315,6 +331,30 @@ require_once '../includes/sidebar.php';
               </li>
               <?php endforeach; ?>
             </ul>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <!-- Other duties: internal tasks + welfare duty -->
+        <div class="card border-0 shadow-sm mt-4">
+          <div class="card-header bg-white border-bottom">
+            <h6 class="mb-0 fw-semibold"><i class="fas fa-screwdriver-wrench text-success me-2"></i>Other Duties (next 30 days)</h6>
+          </div>
+          <div class="card-body">
+            <?php if ($my_welfare): ?>
+            <div class="alert alert-light border small py-2"><i class="fas fa-heart-pulse text-danger me-1"></i>Welfare duty:
+              <strong><?= htmlspecialchars(implode(', ', array_map(fn($d) => date('d M', strtotime($d)), $my_welfare))) ?></strong>. Please stay reachable.</div>
+            <?php endif; ?>
+            <?php if ($my_tasks): ?>
+            <ul class="list-unstyled small mb-0">
+              <?php foreach ($my_tasks as $t): ?>
+              <li class="mb-2"><strong><?= date('d M', strtotime($t['task_date'])) ?> <?= substr($t['start_time'],0,5) ?>-<?= substr($t['end_time'],0,5) ?></strong>
+                <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $t['task_type']))) ?><?= $t['location'] ? ' &middot; ' . htmlspecialchars($t['location']) : '' ?>
+                <?= $t['description'] ? '<div class="text-muted">' . htmlspecialchars($t['description']) . '</div>' : '' ?></li>
+              <?php endforeach; ?>
+            </ul>
+            <?php elseif (!$my_welfare): ?>
+            <p class="text-muted small mb-0">No internal tasks or welfare duty.</p>
             <?php endif; ?>
           </div>
         </div>

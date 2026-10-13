@@ -290,6 +290,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // Raise SCHEMA_VERSION whenever the upgrade function learns something new.
 const SCHEMA_VERSION = 3;
 require_once __DIR__ . '/../includes/workflow.php';
+require_once __DIR__ . '/../includes/recommender.php';
 if (($_SESSION['schema_version'] ?? 0) < SCHEMA_VERSION) {
     upgradeDatabaseSchema($conn);
     $_SESSION['schema_version'] = SCHEMA_VERSION;
@@ -453,82 +454,82 @@ function requestStatusBadgeClass(string $status): string
 }
 
 // ============================================================
-// Task allocation scoring (workload-balancing)
-// Formula:
-//   score = (task_load   × 50%)   fewer tasks this month  → higher
-//         + (weekend_load × 30%)  fewer weekend tasks     → higher
-//         + (experience  × 20%)   more experience         → higher
+// Driver allocation score (weighted scoring) - see includes/recommender.php
 //
-// All components are normalised to 0–1 before the weighted sum,
-// then scaled to a 0–10 score. Drivers with lighter workloads are
-// recommended first so tasks are spread evenly across the team.
+//   score = 100 - ( W_TASKS * normTasks + W_AFTER_HOURS * normAfterHours ) * 100 - welfare penalty
+//
+//   tasks       = trips + internal tasks the driver already has this month
+//   after-hours = how many of those are on Saturday/Sunday, start before 08:00 or end after 17:30
+//   normX       = the driver's number / the largest number among the drivers compared (0 to 1)
+//
+// The driver with the FEWEST jobs scores highest, so the work is shared fairly.
+// W_TASKS (0.6), W_AFTER_HOURS (0.4) and WELFARE_PENALTY (20) are in the settings table.
 // ============================================================
 
 /**
- * Calculates a driver's task-allocation score used to recommend
- * drivers for new assignments.
+ * A driver's workload score (0-100, higher = recommend first), normalised against the busiest
+ * driver of the month that getMonthlyTaskCounts() just loaded. (Welfare duty is added by
+ * recommendDrivers(), which knows the date of the trip.)
  *
- * @param int   $tasks_this_month   Non-cancelled trips assigned this month
- * @param int   $weekend_tasks      Of those, trips falling on Sat/Sun
- * @param float $experience         Years of driving experience
- *
- * @return float Score rounded to 2 decimals (0–10; higher = recommend first)
+ * @param int   $tasks_this_month  trips + internal tasks this month
+ * @param int   $after_hours       of those, the after-hours ones (older code calls this "weekend")
+ * @param float $experience        no longer used (kept so older calls still work)
  */
 function calculateAllocationScore(
     int $tasks_this_month,
-    int $weekend_tasks,
-    float $experience
+    int $after_hours,
+    float $experience = 0.0
 ): float {
-    // Fewer tasks this month → higher factor (cap at 10 tasks)
-    $task_factor    = 1.0 - min($tasks_this_month / 10.0, 1.0);
-
-    // Fewer weekend tasks → higher factor (cap at 4 weekend tasks)
-    $weekend_factor = 1.0 - min($weekend_tasks / 4.0, 1.0);
-
-    // More experience → higher factor (cap at 20 years)
-    $exp_factor     = min($experience / 20.0, 1.0);
-
-    $score = ($task_factor    * 0.50)
-           + ($weekend_factor * 0.30)
-           + ($exp_factor     * 0.20);
-
-    return round($score * 10, 2);
+    global $conn;
+    $max = $GLOBALS['__load_max'] ?? ['tasks' => 0, 'after' => 0];
+    $norm_t = $max['tasks'] > 0 ? min(1.0, $tasks_this_month / $max['tasks']) : 0.0;
+    $norm_a = $max['after'] > 0 ? min(1.0, $after_hours / $max['after']) : 0.0;
+    return recommenderScore(
+        $norm_t, $norm_a, false,
+        (float)getSetting($conn, 'W_TASKS'), (float)getSetting($conn, 'W_AFTER_HOURS'), 0.0
+    );
 }
 
 /**
- * Returns this month's task counts for every driver in one query.
- *
- * @param mysqli      $conn  Active database connection
- * @param string|null $month Month in 'Y-m' format; defaults to current month
+ * Returns this month's workload for every driver in one query.
+ * 'tasks' counts trips (not cancelled) AND internal tasks; 'weekend' counts the after-hours ones
+ * (Saturday/Sunday, before the office opens or after it closes).
+ * The largest values are remembered, because the score is relative to the busiest driver.
  *
  * @return array<int, array{tasks: int, weekend: int}> Keyed by driver_id
  */
 function getMonthlyTaskCounts(mysqli $conn, ?string $month = null): array
 {
     $month = $month ?? date('Y-m');
+    $ws = getSetting($conn, 'WORK_START') . ':00';
+    $we = getSetting($conn, 'WORK_END') . ':00';
 
     $stmt = $conn->prepare(
-        "SELECT driver_id,
-                COUNT(*) AS tasks,
-                COALESCE(SUM(DAYOFWEEK(trip_date) IN (1, 7)), 0) AS weekend
-         FROM schedules
-         WHERE driver_id IS NOT NULL
-           AND status <> 'cancelled'
-           AND DATE_FORMAT(trip_date, '%Y-%m') = ?
-         GROUP BY driver_id"
+        "SELECT driver_id, COUNT(*) AS tasks, COALESCE(SUM(is_after), 0) AS after_hours FROM (
+             SELECT driver_id,
+                    (DAYOFWEEK(trip_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS is_after
+               FROM schedules
+              WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND DATE_FORMAT(trip_date, '%Y-%m') = ?
+             UNION ALL
+             SELECT driver_id,
+                    (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS is_after
+               FROM internal_tasks
+              WHERE DATE_FORMAT(task_date, '%Y-%m') = ?
+         ) x GROUP BY driver_id"
     );
-    $stmt->bind_param('s', $month);
+    $stmt->bind_param('ssssss', $ws, $we, $month, $ws, $we, $month);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $counts = [];
+    $max = ['tasks' => 0, 'after' => 0];
     while ($row = $result->fetch_assoc()) {
-        $counts[(int)$row['driver_id']] = [
-            'tasks'   => (int)$row['tasks'],
-            'weekend' => (int)$row['weekend'],
-        ];
+        $counts[(int)$row['driver_id']] = ['tasks' => (int)$row['tasks'], 'weekend' => (int)$row['after_hours']];
+        $max['tasks'] = max($max['tasks'], (int)$row['tasks']);
+        $max['after'] = max($max['after'], (int)$row['after_hours']);
     }
     $stmt->close();
+    $GLOBALS['__load_max'] = $max;
 
     return $counts;
 }

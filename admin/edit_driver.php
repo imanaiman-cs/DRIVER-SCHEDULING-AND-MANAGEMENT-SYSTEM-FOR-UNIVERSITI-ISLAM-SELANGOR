@@ -395,8 +395,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Page header -->
     <?php
         $headerScoreClass = 'bg-danger bg-opacity-25 text-white';
-        if ($current_priority >= 7)     $headerScoreClass = 'bg-success bg-opacity-25 text-white';
-        elseif ($current_priority >= 4) $headerScoreClass = 'bg-warning  bg-opacity-25 text-dark';
+        if ($current_priority >= 70)     $headerScoreClass = 'bg-success bg-opacity-25 text-white';
+        elseif ($current_priority >= 40) $headerScoreClass = 'bg-warning  bg-opacity-25 text-dark';
     ?>
     <div class="page-header">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -417,14 +417,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div style="font-size:.7rem;opacity:.7;text-align:center;margin-bottom:.2rem;">Current Score</div>
                     <?php
                         $scoreClsEdit = 'priority-low';
-                        if ($current_priority >= 7)     $scoreClsEdit = 'priority-high';
-                        elseif ($current_priority >= 4) $scoreClsEdit = 'priority-medium';
+                        if ($current_priority >= 70)     $scoreClsEdit = 'priority-high';
+                        elseif ($current_priority >= 40) $scoreClsEdit = 'priority-medium';
                     ?>
                     <span class="current-score-badge <?php echo $headerScoreClass; ?>">
                         <i class="fas fa-bolt"></i>
-                        <?php echo number_format($current_priority, 2); ?> / 10
+                        <?php echo number_format($current_priority, 1); ?> / 100
                     </span>
                 </div>
+                <a href="<?php echo SITE_URL; ?>/admin/driver_leaves.php?id=<?php echo (int)$driver_id; ?>" class="btn btn-light fw-semibold">
+                    <i class="fas fa-umbrella-beach me-1" aria-hidden="true"></i> Leave &amp; MC
+                </a>
                 <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="btn btn-light fw-semibold">
                     <i class="fas fa-arrow-left me-1" aria-hidden="true"></i> Back
                 </a>
@@ -785,25 +788,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
 
-                    <div class="text-center mb-3">
-                        <div class="score-display <?php
-                            echo $current_priority >= 7 ? 'score-high' : ($current_priority >= 4 ? 'score-medium' : 'score-low');
-                        ?>" id="previewScore">
-                            <?php echo number_format($current_priority, 2); ?>
-                        </div>
-                        <div class="text-muted" style="font-size:.78rem;">out of 10.00</div>
-                    </div>
-
                     <?php
-                        $barPct   = min($current_priority * 10, 100);
-                        $barColor = $current_priority >= 7 ? '#10b981' : ($current_priority >= 4 ? '#f59e0b' : '#ef4444');
-
-                        // Per-factor contribution (points out of 10) – mirrors calculateAllocationScore()
-                        $expYears      = (float)($form['experience_years'] ?: 0);
-                        $taskContrib   = (1.0 - min($tasks_this_month / 10.0, 1.0)) * 10 * 0.50;
-                        $wkndContrib   = (1.0 - min($weekend_tasks / 4.0, 1.0)) * 10 * 0.30;
-                        $expContrib    = min($expYears / 20.0, 1.0) * 10 * 0.20;
+                        $barPct   = min($current_priority, 100);
+                        $barColor = $current_priority >= 70 ? '#10b981' : ($current_priority >= 40 ? '#f59e0b' : '#ef4444');
+                        $scoreCls = $current_priority >= 70 ? 'score-high' : ($current_priority >= 40 ? 'score-medium' : 'score-low');
                     ?>
+                    <div class="text-center mb-3">
+                        <div class="score-display <?php echo $scoreCls; ?>" id="previewScore">
+                            <?php echo number_format($current_priority, 1); ?>
+                        </div>
+                        <div class="text-muted" style="font-size:.78rem;">out of 100 (higher = fewer jobs this month)</div>
+                    </div>
                     <div class="score-bar mb-3">
                         <div class="score-bar-fill" id="previewBar"
                              style="width:<?php echo $barPct; ?>%;background:<?php echo $barColor; ?>;"></div>
@@ -811,40 +806,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <div class="mb-3">
                         <div class="component-row">
-                            <span class="component-label"><i class="fas fa-list-check fa-xs me-1"></i> Tasks this month (50%)</span>
-                            <span class="component-value">
-                                <?php echo (int)$tasks_this_month; ?> task<?php echo $tasks_this_month === 1 ? '' : 's'; ?>
-                                = <?php echo number_format($taskContrib, 2); ?>
-                            </span>
+                            <span class="component-label"><i class="fas fa-list-check fa-xs me-1"></i> Tasks this month (weight <?php echo htmlspecialchars(getSetting($conn, 'W_TASKS')); ?>)</span>
+                            <span class="component-value"><?php echo (int)$tasks_this_month; ?> task<?php echo $tasks_this_month === 1 ? '' : 's'; ?></span>
                         </div>
                         <div class="component-row">
-                            <span class="component-label"><i class="fas fa-calendar-week fa-xs me-1"></i> Weekend tasks (30%)</span>
-                            <span class="component-value">
-                                <?php echo (int)$weekend_tasks; ?> task<?php echo $weekend_tasks === 1 ? '' : 's'; ?>
-                                = <?php echo number_format($wkndContrib, 2); ?>
-                            </span>
-                        </div>
-                        <div class="component-row">
-                            <span class="component-label"><i class="fas fa-calendar-days fa-xs me-1"></i> Experience (20%)</span>
-                            <span class="component-value" id="prevExp"
-                                  data-task="<?php echo round($taskContrib, 4); ?>"
-                                  data-wknd="<?php echo round($wkndContrib, 4); ?>">
-                                <?php echo number_format($expYears, 1); ?> yrs
-                                = <?php echo number_format($expContrib, 2); ?>
-                            </span>
+                            <span class="component-label"><i class="fas fa-moon fa-xs me-1"></i> After-hours tasks (weight <?php echo htmlspecialchars(getSetting($conn, 'W_AFTER_HOURS')); ?>)</span>
+                            <span class="component-value"><?php echo (int)$weekend_tasks; ?> task<?php echo $weekend_tasks === 1 ? '' : 's'; ?></span>
                         </div>
                     </div>
 
                     <div class="p-2 rounded-2" style="background:rgba(11,93,59,.06);font-size:.72rem;color:#6b7280;line-height:1.6;">
-                        Fewer tasks and fewer weekend tasks this month, and more experience, give a higher score.
-                        Task and weekend counts are read-only and come from this month's schedules.
+                        Score = 100 &minus; (tasks &times; <?php echo htmlspecialchars(getSetting($conn, 'W_TASKS')); ?> + after-hours &times; <?php echo htmlspecialchars(getSetting($conn, 'W_AFTER_HOURS')); ?>) &times; 100,
+                        each compared with the busiest driver. Trips and internal tasks both count; after-hours means Sat/Sun,
+                        before <?php echo htmlspecialchars(getSetting($conn, 'WORK_START')); ?> or after <?php echo htmlspecialchars(getSetting($conn, 'WORK_END')); ?>.
+                        The counts are read-only. The weights are in Settings.
                     </div>
 
                     <div class="mt-3 pt-2 border-top">
                         <div class="d-flex gap-2 flex-wrap" style="font-size:.72rem;">
-                            <span class="badge" style="background:#d1fae5;color:#065f46;">7.0–10.0 High</span>
-                            <span class="badge" style="background:#fef3c7;color:#92400e;">4.0–6.9 Medium</span>
-                            <span class="badge" style="background:#fee2e2;color:#991b1b;">0.0–3.9 Low</span>
+                            <span class="badge" style="background:#d1fae5;color:#065f46;">70&ndash;100 High</span>
+                            <span class="badge" style="background:#fef3c7;color:#92400e;">40&ndash;69 Medium</span>
+                            <span class="badge" style="background:#fee2e2;color:#991b1b;">0&ndash;39 Low</span>
                         </div>
                     </div>
                 </div><!-- /priority-preview -->
@@ -866,39 +848,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 (function () {
     'use strict';
-
-    // Experience is the only editable factor in the allocation score;
-    // task / weekend contributions are fixed for the current month.
-    var expInput     = document.getElementById('experience_years');
-    var previewScore = document.getElementById('previewScore');
-    var previewBar   = document.getElementById('previewBar');
-    var prevExp      = document.getElementById('prevExp');
-
-    function updatePreview() {
-        if (!expInput || !prevExp) { return; }
-        var exp         = parseFloat(expInput.value) || 0;
-        var taskContrib = parseFloat(prevExp.getAttribute('data-task')) || 0;
-        var wkndContrib = parseFloat(prevExp.getAttribute('data-wknd')) || 0;
-        var expContrib  = Math.min(exp / 20.0, 1.0) * 10 * 0.20;
-
-        var total = Math.round((taskContrib + wkndContrib + expContrib) * 100) / 100;
-
-        var colorClass, barColor;
-        if (total >= 7)      { colorClass = 'score-high';   barColor = '#10b981'; }
-        else if (total >= 4) { colorClass = 'score-medium'; barColor = '#f59e0b'; }
-        else                 { colorClass = 'score-low';    barColor = '#ef4444'; }
-
-        previewScore.textContent    = total.toFixed(2);
-        previewScore.className      = 'score-display ' + colorClass;
-        previewBar.style.width      = Math.min(total * 10, 100) + '%';
-        previewBar.style.background = barColor;
-        prevExp.textContent         = exp.toFixed(1) + ' yrs = ' + expContrib.toFixed(2);
-    }
-
-    if (expInput) {
-        expInput.addEventListener('input', updatePreview);
-        expInput.addEventListener('change', updatePreview);
-    }
 
     // ── Photo live preview ───────────────────────────────────
     var photoInput   = document.getElementById('photo');

@@ -361,7 +361,7 @@ foreach ($monthly_raw as $row) {
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Driver allocation scores based on monthly task load, weekend tasks and experience.
+                        Driver allocation scores (0-100) based on this month's tasks and after-hours tasks: fewer = higher.
                     </p>
                     <div class="chart-container">
                         <canvas id="chartDriverPerf"></canvas>
@@ -484,7 +484,7 @@ foreach ($monthly_raw as $row) {
         options: {
             responsive: true, maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, max: 10, grid: { color: '#f0f0f0' } },
+                y: { beginAtZero: true, max: 100, grid: { color: '#f0f0f0' } },
                 x: { grid: { display: false } }
             },
             plugins: { legend: { display: false } }

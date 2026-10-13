@@ -56,7 +56,7 @@ function submenuShow(array $pages, string $current): string
 }
 
 // ── Admin page groups ────────────────────────────────────────────
-$driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'];
+$driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php', 'driver_leaves.php'];
 $vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'];
 $schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php', 'calendar.php'];
 $report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
@@ -351,6 +351,21 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 </ul>
             </li>
 
+            <li class="sidebar-section-label">Operations</li>
+
+            <li class="sidebar-item <?php echo sidebarActive('internal_tasks.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/internal_tasks.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-screwdriver-wrench" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Internal Tasks</span>
+                </a>
+            </li>
+            <li class="sidebar-item <?php echo sidebarActive('welfare.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/welfare.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-heart-pulse" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Welfare Duty</span>
+                </a>
+            </li>
+
             <li class="sidebar-section-label">System</li>
 
             <!-- Audit log -->
@@ -358,6 +373,12 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <a href="<?php echo SITE_URL; ?>/admin/audit_log.php" class="sidebar-link">
                     <span class="sidebar-icon"><i class="fas fa-clipboard-list" aria-hidden="true"></i></span>
                     <span class="sidebar-label">Audit Log</span>
+                </a>
+            </li>
+            <li class="sidebar-item <?php echo sidebarActive('settings.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/settings.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-sliders" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Settings</span>
                 </a>
             </li>
 

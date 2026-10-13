@@ -400,8 +400,8 @@ unset($d);
                     default  => ucfirst($d['status']),
                 };
                 $dType     = ($d['driver_type'] ?? 'regular') === 'top_management' ? 'top_management' : 'regular';
-                $dScore    = max(0, min(10, (float)$d['priority_score']));
-                $dScoreCol = $dScore >= 7 ? '#15803d' : ($dScore >= 5 ? '#b45309' : '#b91c1c');
+                $dScore    = max(0, min(100, (float)$d['priority_score']));
+                $dScoreCol = $dScore >= 70 ? '#15803d' : ($dScore >= 50 ? '#b45309' : '#b91c1c');
                 $dPhotoUrl = driverPhotoUrl($d['photo'] ?? null);
                 $dFallback = driverPhotoUrl(null);
                 $dLicenses = array_values(array_filter(array_map('trim', explode(',', (string)($d['license_class'] ?? '')))));
@@ -467,11 +467,11 @@ unset($d);
                         </div>
 
                         <div class="dscore" style="--sc:<?php echo $dScoreCol; ?>"
-                             title="Higher score = recommended first (fewer tasks and weekend tasks, more experience)">
-                            <div class="top"><span>Allocation score</span><b><?php echo number_format($dScore, 2); ?></b></div>
+                             title="Higher score = recommended first (fewer tasks and after-hours tasks this month)">
+                            <div class="top"><span>Allocation score</span><b><?php echo number_format($dScore, 1); ?></b></div>
                             <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="10"
                                  aria-valuenow="<?php echo number_format($dScore, 2, '.', ''); ?>"
-                                 aria-label="Allocation score"><span style="width:<?php echo round($dScore * 10, 1); ?>%"></span></div>
+                                 aria-label="Allocation score"><span style="width:<?php echo round($dScore, 1); ?>%"></span></div>
                         </div>
                     </div>
 
@@ -484,6 +484,9 @@ unset($d);
                             <a href="<?php echo SITE_URL; ?>/admin/edit_driver.php?id=<?php echo (int)$d['driver_id']; ?>"
                                class="btn btn-outline-primary" title="Edit Driver"
                                aria-label="Edit <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-pen-to-square" aria-hidden="true"></i></a>
+                            <a href="<?php echo SITE_URL; ?>/admin/driver_leaves.php?id=<?php echo (int)$d['driver_id']; ?>"
+                               class="btn btn-outline-warning" title="Leave &amp; MC"
+                               aria-label="Leave and MC of <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-umbrella-beach" aria-hidden="true"></i></a>
                             <button type="button" class="btn btn-outline-danger" title="Delete Driver"
                                     onclick="confirmDelete(<?php echo (int)$d['driver_id']; ?>, '<?php echo $dNameJs; ?>')"
                                     aria-label="Delete <?php echo htmlspecialchars($d['name']); ?>"><i class="fas fa-trash" aria-hidden="true"></i></button>
@@ -531,8 +534,8 @@ unset($d);
                             <?php
                                 $score     = $d['priority_score'];
                                 $scoreClass = 'priority-low';
-                                if ($score >= 7)      $scoreClass = 'priority-high';
-                                elseif ($score >= 4)  $scoreClass = 'priority-medium';
+                                if ($score >= 70)      $scoreClass = 'priority-high';
+                                elseif ($score >= 40)  $scoreClass = 'priority-medium';
 
                                 $statusClass = driverStatusBadgeClass($d['status']);
                                 $statusLabel = match($d['status']) {
@@ -568,7 +571,7 @@ unset($d);
                                 </td>
                                 <td>
                                     <span class="badge-priority <?php echo $scoreClass; ?>">
-                                        <?php echo number_format($score, 2); ?>
+                                        <?php echo number_format($score, 1); ?>
                                     </span>
                                 </td>
                                 <td>
@@ -660,6 +663,7 @@ unset($d);
 
 <!-- ── Embedded driver data (JSON for JS) ── -->
 <script>
+const WEIGHTS = { tasks: <?php echo json_encode((float)getSetting($conn, 'W_TASKS')); ?>, after: <?php echo json_encode((float)getSetting($conn, 'W_AFTER_HOURS')); ?> };
 const DRIVERS_DATA = <?php
     $json_data = [];
     foreach ($drivers as $d) {
@@ -788,13 +792,14 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         const score     = parseFloat(d.priority_score);
         let scoreClass  = 'priority-low';
         let scoreBgBar  = '#ef4444';
-        if (score >= 7)     { scoreClass = 'priority-high';   scoreBgBar = '#10b981'; }
-        else if (score >= 4){ scoreClass = 'priority-medium'; scoreBgBar = '#f59e0b'; }
+        if (score >= 70)     { scoreClass = 'priority-high';   scoreBgBar = '#10b981'; }
+        else if (score >= 40){ scoreClass = 'priority-medium'; scoreBgBar = '#f59e0b'; }
 
-        // Factors for breakdown (same normalisation as calculateAllocationScore, 0-10 scale)
-        const taskFactor    = (1 - Math.min(d.month_tasks / 10, 1)) * 10;
-        const weekendFactor = (1 - Math.min(d.month_weekend / 4, 1)) * 10;
-        const expScore      = Math.min((d.experience_years / 20) * 10, 10);
+        // Share of the busiest driver (0-100) - the same comparison the score uses
+        const maxT = Math.max.apply(null, DRIVERS_DATA.map(function (x) { return Number(x.month_tasks) || 0; }).concat([0]));
+        const maxA = Math.max.apply(null, DRIVERS_DATA.map(function (x) { return Number(x.month_weekend) || 0; }).concat([0]));
+        const taskShare  = maxT > 0 ? (d.month_tasks / maxT) * 100 : 0;
+        const afterShare = maxA > 0 ? (d.month_weekend / maxA) * 100 : 0;
 
         // License class may be a comma list (e.g. "D,E") – render as badges
         const licenseClassHtml = d.license_class
@@ -838,7 +843,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                     </div>
                     <div class="ms-auto">
                         <span class="badge-priority ${scoreClass}" style="font-size:1rem;padding:.4em .9em;">
-                            &#9733; ${score.toFixed(2)}
+                            &#9733; ${score.toFixed(1)}
                         </span>
                     </div>
                 </div>
@@ -910,34 +915,29 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                     <i class="fas fa-chart-bar me-1"></i> Allocation Score Breakdown
                 </h6>
                 <div class="row g-3">
-                    <div class="col-12 col-md-4">
-                        <div class="detail-label">Tasks this month (50%)</div>
-                        <div class="detail-value mb-1">${d.month_tasks} task${d.month_tasks !== 1 ? 's' : ''}</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${taskFactor*10}%;background:#3b82f6;"></div></div>
+                    <div class="col-12 col-md-6">
+                        <div class="detail-label">Tasks this month (weight ${WEIGHTS.tasks})</div>
+                        <div class="detail-value mb-1">${d.month_tasks} task${d.month_tasks !== 1 ? 's' : ''} (trips + internal tasks)</div>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${taskShare}%;background:#3b82f6;"></div></div>
                     </div>
-                    <div class="col-12 col-md-4">
-                        <div class="detail-label">Weekend tasks (30%)</div>
-                        <div class="detail-value mb-1">${d.month_weekend} weekend task${d.month_weekend !== 1 ? 's' : ''}</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${weekendFactor*10}%;background:#06b6d4;"></div></div>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <div class="detail-label">Experience (20%)</div>
-                        <div class="detail-value mb-1">${d.experience_years} year${d.experience_years !== 1 ? 's' : ''}</div>
-                        <div class="score-bar"><div class="score-bar-fill" style="width:${expScore*10}%;background:#8b5cf6;"></div></div>
+                    <div class="col-12 col-md-6">
+                        <div class="detail-label">After-hours tasks (weight ${WEIGHTS.after})</div>
+                        <div class="detail-value mb-1">${d.month_weekend} after-hours task${d.month_weekend !== 1 ? 's' : ''}</div>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${afterShare}%;background:#06b6d4;"></div></div>
                     </div>
                 </div>
                 <div class="mt-3 p-3 rounded-3" style="background:#f8f9fb;">
                     <div class="d-flex align-items-center justify-content-between">
                         <span class="fw-semibold text-secondary">Overall Allocation Score</span>
                         <span class="badge-priority ${scoreClass}" style="font-size:.95rem;padding:.4em 1em;">
-                            ${score.toFixed(2)} / 10
+                            ${score.toFixed(1)} / 100
                         </span>
                     </div>
                     <div class="score-bar mt-2">
-                        <div class="score-bar-fill" style="width:${score*10}%;background:${scoreBgBar};"></div>
+                        <div class="score-bar-fill" style="width:${score}%;background:${scoreBgBar};"></div>
                     </div>
                     <div class="mt-1 small text-muted">
-                        Formula: (Tasks&times;0.50) + (Weekend&times;0.30) + (Exp&times;0.20) &mdash; fewer tasks/weekend tasks = higher score
+                        Score = 100 &minus; (tasks&times;${WEIGHTS.tasks} + after-hours&times;${WEIGHTS.after}) &times; 100, each compared with the busiest driver &mdash; fewer jobs = higher score
                     </div>
                 </div>
             </div>

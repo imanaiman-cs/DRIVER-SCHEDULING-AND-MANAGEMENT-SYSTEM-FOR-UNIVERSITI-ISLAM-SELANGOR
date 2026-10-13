@@ -133,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $officer_name    = trim($_POST['officer_name']     ?? '');
     $officer_phone   = trim($_POST['officer_phone']    ?? '');
     $waiting_place   = trim($_POST['waiting_place']    ?? '');
+    $driver_change_reason = mb_substr(trim($_POST['driver_change_reason'] ?? ''), 0, 500);
 
     // These fields are locked (disabled in the form) while the trip is in progress,
     // so the browser does not send them. Keep the stored values instead.
@@ -155,6 +156,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!empty($start_time) && !empty($end_time) && $end_time <= $start_time) {
         $errors['end_time'] = 'End time must be later than the start time. Choose a later end time, or move the start time earlier.';
+    }
+
+    // R7: replacing a driver that was already assigned needs a reason (it is logged)
+    $previous_driver = (int)($schedule['driver_id'] ?? 0);
+    $driver_changed  = $previous_driver > 0 && $driver_id !== $previous_driver;
+    if ($driver_changed && mb_strlen($driver_change_reason) < 3) {
+        $errors['driver_change_reason'] = 'Please write the reason for changing the driver. It is recorded in the change log.';
+    }
+    // R5: a driver on leave / MC on that date cannot be assigned
+    if (empty($errors) && $driver_id > 0 && $driver_id !== $previous_driver && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$trip_date)) {
+        if ($lv = driverLeaveOn($conn, $driver_id, $trip_date)) {
+            $errors['driver_id'] = 'This driver is on ' . ($lv['leave_type'] === 'mc' ? 'MC' : 'leave') . ' on ' . date('d M Y', strtotime($trip_date)) . '. Choose another driver.';
+        }
     }
     if (!in_array($status, ['pending','approved','in_progress','completed','cancelled'])) {
         $status = 'pending';
@@ -302,6 +316,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($upd->execute()) {
             $upd->close();
             syncHoldsForSchedule($conn, $schedule_id);      // keep the vehicle day hold in step
+
+            // R7: log the change of driver (previous driver, new driver, reason, who, when)
+            if ($driver_changed) {
+                $by = (int)$_SESSION['user_id'];
+                $log = $conn->prepare('INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by) VALUES (?, ?, ?, ?, ?)');
+                $log->bind_param('iiisi', $schedule_id, $previous_driver, $did, $driver_change_reason, $by);
+                $log->execute();
+                $log->close();
+                $linked = requestIdOfSchedule($conn, $schedule_id);
+                auditLog($conn, 'change_driver', $linked ?: null, "Schedule #$schedule_id: driver $previous_driver -> " . ($did ?? 'none') . ": $driver_change_reason");
+                if ($linked) {
+                    $rq = $conn->query('SELECT staff_id FROM vehicle_requests WHERE request_id = ' . $linked)->fetch_assoc();
+                    if ($rq) {
+                        notifyUsers($conn, [(int)$rq['staff_id']], "The driver of your request #{$linked} was changed. Reason: {$driver_change_reason}", 'staff/my_requests.php');
+                    }
+                }
+            }
 
             // Keep the other drivers of the same job in step with the shared details
             $cascade_before = [];
@@ -679,7 +710,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 data-tasks="<?php echo (int)$d['month_tasks']; ?>"
                                 data-weekend="<?php echo (int)$d['month_weekend']; ?>"
                                 <?php echo $selected; ?>>
-                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
+                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 1); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
                                 <?php echo $d['status'] !== 'active' ? ' [' . $d['status'] . ']' : ''; ?>
                             </option>
                             <?php endforeach; ?>
@@ -691,7 +722,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             No driver selected. Will be auto-assigned.
                         </div>
                         <div id="driverScorePanel" class="mt-2 small" style="<?php echo $currentDriverId ? '' : 'display:none;'; ?>"></div>
-                        <div class="form-text" id="driver_help">Allocation score (0–10): fewer tasks this month 50%, fewer weekend tasks 30%, experience 20%.</div>
+                        <div class="mt-2">
+                            <label for="driver_change_reason" class="form-label small mb-1">Reason for changing the driver <span class="text-muted">(required if you replace the assigned driver)</span></label>
+                            <input type="text" class="form-control form-control-sm <?php echo isset($errors['driver_change_reason']) ? 'is-invalid' : ''; ?>"
+                                   id="driver_change_reason" name="driver_change_reason" maxlength="500"
+                                   value="<?php echo htmlspecialchars($_POST['driver_change_reason'] ?? ''); ?>">
+                            <?php if (isset($errors['driver_change_reason'])): ?><div class="invalid-feedback"><?php echo htmlspecialchars($errors['driver_change_reason']); ?></div><?php endif; ?>
+                        </div>
+                        <div class="form-text" id="driver_help">Allocation score (0–100): fewer tasks and fewer after-hours tasks this month = higher.</div>
                     </div>
                 </div>
 
@@ -724,6 +762,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </form>
 
+<?php
+// R7: the change log of this schedule's driver
+$repl_rows = [];
+try {
+    $rq = $conn->query("SELECT r.*, pd.name AS previous_name, nd.name AS new_name, u.full_name AS changed_by_name
+                          FROM driver_replacements r
+                          LEFT JOIN drivers pd ON pd.driver_id = r.previous_driver_id
+                          LEFT JOIN drivers nd ON nd.driver_id = r.new_driver_id
+                          LEFT JOIN users u ON u.user_id = r.changed_by
+                         WHERE r.schedule_id = " . (int)$schedule_id . " ORDER BY r.changed_at DESC");
+    $repl_rows = $rq ? $rq->fetch_all(MYSQLI_ASSOC) : [];
+} catch (Throwable $e) { $repl_rows = []; }
+if ($repl_rows): ?>
+    <div class="card border-0 shadow-sm mt-4"><div class="card-body">
+        <h6 class="fw-bold"><i class="fas fa-right-left text-success me-2"></i>Driver change log</h6>
+        <div class="table-responsive"><table class="table table-sm small mb-0">
+            <thead class="table-light"><tr><th>When</th><th>From</th><th>To</th><th>Reason</th><th>By</th></tr></thead>
+            <tbody><?php foreach ($repl_rows as $r): ?>
+                <tr><td class="text-nowrap"><?php echo date('d M Y, H:i', strtotime($r['changed_at'])); ?></td>
+                    <td><?php echo htmlspecialchars($r['previous_name'] ?? '-'); ?></td><td><?php echo htmlspecialchars($r['new_name'] ?? '-'); ?></td>
+                    <td><?php echo htmlspecialchars($r['reason']); ?></td><td><?php echo htmlspecialchars($r['changed_by_name'] ?? ''); ?></td></tr>
+            <?php endforeach; ?></tbody>
+        </table></div>
+    </div></div>
+<?php endif; ?>
 </main>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -751,10 +814,10 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
             const score   = parseFloat(opt.data('score') || 0);
             const tasks   = parseInt(opt.data('tasks') || 0, 10);
             const weekend = parseInt(opt.data('weekend') || 0, 10);
-            const cls     = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+            const cls     = score >= 70 ? 'priority-high' : (score >= 40 ? 'priority-medium' : 'priority-low');
             $('#driverScorePanel').html(
-                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
-                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' weekend)</div>'
+                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(1) + ' / 10</span>'
+                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' after-hours)</div>'
             ).show();
         } else {
             $('#autoAssignNotice').show();

@@ -703,7 +703,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 data-tasks="<?php echo (int)$d['month_tasks']; ?>"
                                 data-weekend="<?php echo (int)$d['month_weekend']; ?>"
                                 <?php echo ((int)($old['driver_id'] ?? 0) === (int)$d['driver_id']) ? 'selected' : ''; ?>>
-                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 2); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
+                                <?php echo $i === 0 ? '★ Recommended: ' : ''; ?><?php echo htmlspecialchars($d['name']); ?> — Score: <?php echo number_format($d['priority_score'], 1); ?> (<?php echo (int)$d['month_tasks']; ?> tasks this month)
                             </option>
                             <?php endforeach; ?>
                         </select>
@@ -723,7 +723,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $h = '<option value="">-- Choose driver --</option>';
         foreach ($drivers as $i => $d) {
             $h .= '<option value="' . (int)$d['driver_id'] . '"' . ((int)$d['driver_id'] === $selected ? ' selected' : '') . '>'
-                . ($i === 0 ? '★ ' : '') . htmlspecialchars($d['name']) . ' — Score ' . number_format($d['priority_score'], 2)
+                . ($i === 0 ? '★ ' : '') . htmlspecialchars($d['name']) . ' — Score ' . number_format($d['priority_score'], 1)
                 . ' (' . (int)$d['month_tasks'] . ' tasks)</option>';
         }
         return $h;
@@ -799,11 +799,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Drivers are ranked by allocation score when auto-assigning, based on the trip month:
                         </p>
                         <code class="small d-block bg-light rounded p-2">
-                            Score = (Fewer tasks×0.50)<br>
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ (Fewer weekend tasks×0.30)<br>
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ (Experience×0.20)
+                            Score = 100 &minus; (tasks&times;<?php echo htmlspecialchars(getSetting($conn, 'W_TASKS')); ?><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ after-hours&times;<?php echo htmlspecialchars(getSetting($conn, 'W_AFTER_HOURS')); ?>) &times; 100<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&minus; welfare penalty
                         </code>
-                        <div class="small text-muted mt-2">Fewer tasks this month 50%, fewer weekend tasks 30%, experience 20%. Scaled 0–10. Max score = 10.</div>
+                        <div class="small text-muted mt-2">Fewer tasks (trips + internal tasks) and fewer after-hours tasks this month = higher score. Max score = 100. Weights are in Settings.</div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -850,11 +850,11 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
             const score   = parseFloat(opt.data('score') || 0);
             const tasks   = parseInt(opt.data('tasks') || 0, 10);
             const weekend = parseInt(opt.data('weekend') || 0, 10);
-            const cls     = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+            const cls     = score >= 70 ? 'priority-high' : (score >= 40 ? 'priority-medium' : 'priority-low');
             if (IS_ADD_TO) { $('#driverScorePanel').hide(); return; }
             $('#driverScorePanel').html(
-                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(2) + ' / 10</span>'
-                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' weekend)</div>'
+                'Allocation Score: <span class="priority-chip ' + cls + '">' + score.toFixed(1) + ' / 10</span>'
+                + '<div class="text-muted mt-1">' + tasks + ' tasks this month (' + weekend + ' after-hours)</div>'
             ).show();
         } else {
             $('#autoAssignNotice').show();
@@ -1004,10 +1004,10 @@ window.SCHEDULE_BUSY = { url: '<?php echo SITE_URL; ?>/ajax/get_busy_resources.p
                         let html = '<ul class="list-unstyled mb-0">';
                         res.drivers.slice(0, 5).forEach(function (d, idx) {
                             const score = parseFloat(d.priority !== undefined ? d.priority : d.priority_score);
-                            const cls = score >= 7 ? 'priority-high' : (score >= 4 ? 'priority-medium' : 'priority-low');
+                            const cls = score >= 70 ? 'priority-high' : (score >= 40 ? 'priority-medium' : 'priority-low');
                             html += '<li class="mb-1">' + (idx === 0 ? '<span class="fw-semibold">&#9733; Recommended:</span> ' : '') + escHtml(d.name)
-                                + ' <span class="priority-chip ' + cls + '">' + score.toFixed(2) + '</span>'
-                                + ' <span class="text-muted">(' + d.month_tasks + ' tasks this month, ' + d.month_weekend + ' weekend; ' + d.daily_hours + 'h today)</span>'
+                                + ' <span class="priority-chip ' + cls + '">' + score.toFixed(1) + '</span>'
+                                + ' <span class="text-muted">(' + d.month_tasks + ' tasks this month, ' + d.month_weekend + ' after-hours; ' + d.daily_hours + 'h today)</span>'
                                 + '</li>';
                         });
                         html += '</ul>';

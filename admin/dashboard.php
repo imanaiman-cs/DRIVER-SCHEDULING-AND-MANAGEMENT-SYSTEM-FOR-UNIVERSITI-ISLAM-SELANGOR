@@ -393,8 +393,8 @@ require_once '../includes/sidebar.php';
                     foreach ($top_drivers as $rank => $driver):
                         $rank_num   = $rank + 1;
                         $score      = (float) $driver['allocation_score'];
-                        $score_pct  = min(($score / 10) * 100, 100);
-                        $bar_color  = $score >= 7 ? '#059669' : ($score >= 4 ? '#d97706' : '#dc2626');
+                        $score_pct  = min($score, 100);
+                        $bar_color  = $score >= 70 ? '#059669' : ($score >= 40 ? '#d97706' : '#dc2626');
                     ?>
                     <div class="d-flex align-items-center gap-3 mb-3<?php echo $rank_num < count($top_drivers) ? ' pb-3' : ''; ?>"
                          <?php echo $rank_num < count($top_drivers) ? 'style="border-bottom:1px solid #f0f4f8;"' : ''; ?>>
@@ -428,7 +428,7 @@ require_once '../includes/sidebar.php';
                                 </span>
                                 <span class="badge ms-2 flex-shrink-0"
                                       style="background:<?php echo $bar_color; ?>;font-size:0.72rem;">
-                                    <?php echo number_format($score, 1); ?>/10
+                                    <?php echo number_format($score, 1); ?>/100
                                 </span>
                             </div>
                             <div class="progress mb-1" style="height:6px;border-radius:99px;background:#e8edf5;">
@@ -443,7 +443,7 @@ require_once '../includes/sidebar.php';
                             <div style="font-size:0.72rem;color:#6b7280;">
                                 <i class="fas fa-list-check me-1"></i>
                                 <?php echo (int)$driver['tasks_this_month']; ?> tasks this month
-                                &middot; <?php echo number_format((float)$driver['experience_years'], 1); ?> yrs exp
+                                &middot; <?php echo (int)$driver['weekend_tasks']; ?> after-hours
                             </div>
                         </div>
 

@@ -103,6 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         continue;
                     }
 
+                    // On leave / MC that day (R5 hard filter)
+                    if (driverLeaveOn($conn, (int)$did, $trip_date)) continue;
+
                     $conflict = false;
                     if (isset($daily_assigned_slots[$did][$trip_date])) {
                         foreach ($daily_assigned_slots[$did][$trip_date] as $slot) {
@@ -124,16 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     if ($existing_hours + $trip_hours > 8) continue;
 
                     // Workload-balancing score: fewer tasks this month and
-                    // fewer weekend tasks -> higher score; experience breaks ties
+                    // fewer after-hours tasks -> higher score (weighted score, see includes/recommender.php)
                     $mc            = $month_counts[$trip_month][$did] ?? ['tasks' => 0, 'weekend' => 0];
                     $month_tasks   = $mc['tasks'];
                     $month_weekend = $mc['weekend'];
 
-                    $priority = calculateAllocationScore(
-                        $month_tasks,
-                        $month_weekend,
-                        (float)$drv['experience_years']
-                    );
+                    $priority = 0.0;     // worked out below, relative to the other candidates
 
                     $eligible[] = [
                         'driver'        => $drv,
@@ -143,6 +142,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'daily_trips'   => $daily_trips[$did][$trip_date] ?? 0,
                         'daily_hours'   => $existing_hours,
                     ];
+                }
+
+                // Weighted score (includes/recommender.php), relative to the candidates of this trip
+                if ($eligible) {
+                    $welfare_ids = welfareDriverIdsOn($conn, $trip_date);
+                    $cands = [];
+                    foreach ($eligible as $k => $e) {
+                        $cands[] = ['idx' => $k, 'name' => $e['driver']['name'], 'tasks' => $e['month_tasks'], 'after_hours' => $e['month_weekend'],
+                                    'welfare' => isset($welfare_ids[(int)$e['driver']['driver_id']]), 'warnings' => []];
+                    }
+                    foreach (recommenderRank($cands, (float)getSetting($conn, 'W_TASKS'), (float)getSetting($conn, 'W_AFTER_HOURS'), (float)getSetting($conn, 'WELFARE_PENALTY')) as $rk) {
+                        $eligible[$rk['idx']]['priority'] = $rk['score'];
+                    }
                 }
 
                 if (empty($eligible)) {
@@ -177,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $prev = $month_counts[$trip_month][$did] ?? ['tasks' => 0, 'weekend' => 0];
                 $month_counts[$trip_month][$did] = [
                     'tasks'   => $prev['tasks'] + 1,
-                    'weekend' => $prev['weekend'] + ($is_weekend ? 1 : 0),
+                    'weekend' => $prev['weekend'] + (isAfterHoursTrip($conn, $trip_date, $start_time, $end_time) ? 1 : 0),
                 ];
 
                 if ($confirm) {
@@ -339,15 +351,15 @@ require_once '../includes/sidebar.php';
                 </div>
                 <div class="content-card-body">
                     <div class="rounded-3 p-3 mb-3" style="background:#eef5f1;border:1px solid #cde7da;font-family:monospace;font-size:0.82rem;color:#0b5d3b;line-height:1.8;">
-                        Score =<br>
-                        &nbsp;&nbsp;(Task Load &times; 50%) +<br>
-                        &nbsp;&nbsp;(Weekend Load &times; 30%) +<br>
-                        &nbsp;&nbsp;(Experience &times; 20%)
+                        Score = 100<br>
+                        &nbsp;&nbsp;&minus; (<?php echo htmlspecialchars(getSetting($conn, 'W_TASKS')); ?> &times; share of tasks<br>
+                        &nbsp;&nbsp;&nbsp;+ <?php echo htmlspecialchars(getSetting($conn, 'W_AFTER_HOURS')); ?> &times; share of after-hours work) &times; 100<br>
+                        &nbsp;&nbsp;&minus; welfare penalty (<?php echo htmlspecialchars(getSetting($conn, 'WELFARE_PENALTY')); ?>)
                     </div>
                     <ul class="list-unstyled mb-0" style="font-size:0.82rem;color:#374151;">
-                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Task load: fewer tasks this month = higher (cap 10)</li>
-                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Weekend load: fewer Sat/Sun tasks = higher (cap 4)</li>
-                        <li><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Experience normalised to 0–10 (max 20 yrs)</li>
+                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>Tasks = trips + internal tasks this month: fewer = higher</li>
+                        <li class="mb-1"><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>After-hours = Sat/Sun, before <?php echo htmlspecialchars(getSetting($conn, 'WORK_START')); ?> or after <?php echo htmlspecialchars(getSetting($conn, 'WORK_END')); ?></li>
+                        <li><i class="fas fa-circle fa-xs me-2" style="color:var(--uis-primary);"></i>"Share" compares a driver with the busiest candidate (0 to 1). Weights are in <a href="settings.php">Settings</a>.</li>
                     </ul>
                 </div>
             </div>
@@ -364,10 +376,11 @@ require_once '../includes/sidebar.php';
                         <?php
                         $rules = [
                             'Driver must be free at the required time (no clashes)',
-                            'Driver must hold the licence class for the vehicle (B2/D/E)',
-                            'Fewer tasks this month = higher score (weight 50%)',
-                            'Fewer weekend tasks = higher score (weight 30%)',
-                            'More experience = higher score (weight 20%)',
+                            'Driver must hold the licence class for the vehicle',
+                            'Not on leave / MC that day (leave periods)',
+                            'Fewer tasks this month = higher score (weight ' . getSetting($conn, 'W_TASKS') . ')',
+                            'Fewer after-hours tasks = higher score (weight ' . getSetting($conn, 'W_AFTER_HOURS') . ')',
+                            'Driver on welfare duty that day loses ' . getSetting($conn, 'WELFARE_PENALTY') . ' points',
                             'Max 8 working hours per driver per day',
                             'Only active drivers are considered — admin can override',
                         ];
@@ -440,8 +453,8 @@ require_once '../includes/sidebar.php';
                     <?php foreach (array_slice($all_drivers, 0, 5) as $i => $drv): ?>
                     <?php
                         $sc = (float)$drv['priority_score'];
-                        $bar_pct = min(($sc / 10) * 100, 100);
-                        $bar_color = $sc >= 7 ? '#059669' : ($sc >= 5 ? '#d97706' : '#dc2626');
+                        $bar_pct = min($sc, 100);
+                        $bar_color = $sc >= 70 ? '#059669' : ($sc >= 50 ? '#d97706' : '#dc2626');
                         $parts = array_filter(explode(' ', trim($drv['name'])));
                         $di = '';
                         foreach (array_slice($parts, 0, 2) as $p) { $di .= strtoupper($p[0]); }
@@ -461,8 +474,7 @@ require_once '../includes/sidebar.php';
                             </div>
                             <div style="font-size:0.72rem;color:#6b7280;">
                                 <?php echo (int)$drv['month_tasks']; ?> task(s) this month
-                                · <?php echo (int)$drv['month_weekend']; ?> weekend
-                                · <?php echo $drv['experience_years']; ?> yrs
+                                · <?php echo (int)$drv['month_weekend']; ?> after-hours
                             </div>
                             <div class="progress mt-1" style="height:4px;border-radius:99px;background:#e8edf5;">
                                 <div class="progress-bar" style="width:<?php echo number_format($bar_pct, 1); ?>%;background:<?php echo $bar_color; ?>;border-radius:99px;"></div>
@@ -559,7 +571,7 @@ require_once '../includes/sidebar.php';
                                     <td style="padding:0.6rem 0.5rem;">
                                         <?php if ($a['priority'] !== null):
                                             $sc = (float)$a['priority'];
-                                            $bc = $sc >= 7 ? '#059669' : ($sc >= 5 ? '#d97706' : '#dc2626');
+                                            $bc = $sc >= 70 ? '#059669' : ($sc >= 50 ? '#d97706' : '#dc2626');
                                         ?>
                                         <span class="badge rounded-pill" style="background:<?php echo $bc; ?>;">
                                             <?php echo number_format($sc, 1); ?>

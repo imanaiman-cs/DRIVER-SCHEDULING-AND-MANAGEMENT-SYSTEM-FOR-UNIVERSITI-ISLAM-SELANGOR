@@ -128,7 +128,7 @@ foreach ($rows as $r) {
     <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
             <h1><i class="fas fa-trophy me-2"></i>Driver Workload Report</h1>
-            <p>Ranked by workload-balancing allocation score: fewer tasks this month (50%), fewer weekend tasks (30%), more experience (20%).</p>
+            <p>Ranked by allocation score (0-100): fewer tasks and fewer after-hours tasks this month = higher.</p>
         </div>
         <div class="d-flex gap-2 no-print">
             <a href="reports.php" class="btn btn-outline-light btn-sm">
@@ -214,7 +214,7 @@ foreach ($rows as $r) {
                                     default => '<span class="badge-rank rank-other">' . $rank . '</span>',
                                 };
                                 $ps        = $r['allocation_score'];
-                                $psClass   = $ps >= 7 ? 'text-success' : ($ps >= 4 ? 'text-warning' : 'text-danger');
+                                $psClass   = $ps >= 70 ? 'text-success' : ($ps >= 40 ? 'text-warning' : 'text-danger');
                                 $crClass   = $r['completion_rate'] >= 80 ? 'text-success' : ($r['completion_rate'] >= 50 ? 'text-warning' : 'text-danger');
                             ?>
                             <tr <?php echo $rank <= 3 ? 'class="table-active"' : ''; ?>>
@@ -263,8 +263,8 @@ foreach ($rows as $r) {
     const labels = <?php echo json_encode($chart_labels, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
     const scores = <?php echo json_encode($chart_scores, JSON_HEX_TAG); ?>;
     const colors = scores.map(function(s) {
-        if (s >= 7) return 'rgba(40,167,69,0.8)';
-        if (s >= 4) return 'rgba(255,193,7,0.8)';
+        if (s >= 70) return 'rgba(40,167,69,0.8)';
+        if (s >= 40) return 'rgba(255,193,7,0.8)';
         return 'rgba(220,53,69,0.8)';
     });
 
@@ -282,7 +282,7 @@ foreach ($rows as $r) {
         options: {
             responsive: true, maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, max: 10, grid: { color: '#f0f0f0' } },
+                y: { beginAtZero: true, max: 100, grid: { color: '#f0f0f0' } },
                 x: { grid: { display: false } }
             },
             plugins: { legend: { display: false } }
