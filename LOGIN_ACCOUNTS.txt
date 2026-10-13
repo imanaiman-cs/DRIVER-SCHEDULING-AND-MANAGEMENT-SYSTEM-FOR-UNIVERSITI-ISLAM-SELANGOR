@@ -41,6 +41,10 @@ DRIVERS  (password pattern: driver + number + @uis)
 
 NOTES
   - These are demo accounts created by importing database.sql.
-  - If you changed a password in your own database, use the new one.
-  - Accounts you add yourself later are not listed here.
+  - The first successful sign-in upgrades the stored password to a stronger hash.
+  - 5 wrong passwords in a row lock the account. Admin > User Accounts > Unlock,
+    or run:  UPDATE users SET is_locked=0, failed_attempts=0 WHERE username='admin';
+  - Accounts created or reset in Admin > User Accounts get a temporary password that
+    must be changed at first sign-in. Use the new password afterwards.
+  - Sessions end after 15 minutes without activity.
   - Change all passwords before any real use of the system.

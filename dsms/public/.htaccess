@@ -1,5 +1,0 @@
-# Keep directory listings off and block hidden files.
-Options -Indexes
-<FilesMatch "^\.">
-    Require all denied
-</FilesMatch>

@@ -1,8 +1,0 @@
-/vendor/
-/app/config/*.local.php
-/storage/logs/*
-/storage/uploads/*
-!/storage/logs/.gitignore
-!/storage/uploads/.gitignore
-/storage/backups/*
-!/storage/backups/.gitignore
