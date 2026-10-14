@@ -30,6 +30,7 @@ $stmt = $conn->prepare("
 $stmt->bind_param('i', $supervisor_id);
 $stmt->execute();
 $all_requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$legs_map = requestLegsMap($conn, array_column($all_requests, 'request_id'));
 $stmt->close();
 
 
@@ -597,6 +598,7 @@ const REQUEST_DATA = <?php
             'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
             'vehicles'         => $req_vehicle_map[(int)$r['request_id']] ?? [],
             'vehicles_needed'  => (int)($r['vehicles_needed'] ?? 1),
+            'legs'             => $legs_map[(int)$r['request_id']] ?? [],
             'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
             'plate_number'     => $r['plate_number'] ?? '',
             'brand'            => $r['brand'] ?? '',
@@ -643,6 +645,20 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     // ── Supporting documents list (URLs come from the server only) ──
+    // ── Trip legs (only when the trip has more than one) ─────
+    function legsHtml(r) {
+        var legs = r.legs || [];
+        if (legs.length < 2) { return ''; }
+        var rows = legs.map(function (l) {
+            var d = new Date(l.date + 'T00:00:00');
+            return '<tr><td class="text-nowrap">Leg ' + l.leg_no + '</td><td class="text-nowrap">' +
+                   d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) +
+                   '</td><td class="text-nowrap">' + escHtml(l.start) + ' &ndash; ' + escHtml(l.end) + '</td><td>' + escHtml(l.destination) + '</td></tr>';
+        }).join('');
+        return '<div class="col-12"><div class="detail-label">Trip legs</div>' +
+               '<table class="table table-sm mb-0"><tbody>' + rows + '</tbody></table></div>';
+    }
+
     function documentsHtml(docs) {
         if (!docs || !docs.length) {
             return '<div class="small text-muted">No documents attached.</div>';
@@ -865,6 +881,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + vehicleHtml + '</div>'
             + '</div>'
 
+            + legsHtml(r)
             // Supporting documents
             + '<div class="col-12">'
             +   '<div class="detail-label">Supporting Documents</div>'

@@ -441,6 +441,8 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
                                     <?php if ($s['driver_name']): ?>
                                         <div class="fw-medium"><?php echo htmlspecialchars($s['driver_name']); ?></div>
                                         <div class="small text-muted font-monospace"><?php echo htmlspecialchars($s['driver_employee_id']); ?></div>
+                                    <?php elseif (!empty($s['self_drive'])): ?>
+                                        <span class="badge bg-warning text-dark rounded-pill">Self-drive</span>
                                     <?php else: ?>
                                         <span class="badge bg-danger rounded-pill">Unassigned</span>
                                     <?php endif; ?>
@@ -700,7 +702,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                         <div class="detail-value">
                             ${s.driver_name
                                 ? escHtml(s.driver_name) + '<span class="small text-muted ms-2 font-monospace">' + escHtml(s.driver_employee_id) + '</span>'
-                                : '<span class="badge bg-danger rounded-pill">Unassigned</span>'}
+                                : (parseInt(s.self_drive, 10) === 1 ? '<span class="badge bg-warning text-dark rounded-pill">Self-drive</span>' : '<span class="badge bg-danger rounded-pill">Unassigned</span>')}
                         </div>
                     </div>
                     <div class="col-12 mt-1">

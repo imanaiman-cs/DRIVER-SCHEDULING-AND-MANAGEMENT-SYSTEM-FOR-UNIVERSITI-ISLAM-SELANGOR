@@ -19,6 +19,9 @@ $stmt = $conn->prepare("
 $stmt->bind_param('i', $staff_id);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$legs_map = requestLegsMap($conn, array_column($requests, 'request_id'));
+foreach ($requests as &$_lr) { $_lr['legs'] = $legs_map[(int)$_lr['request_id']] ?? []; }
+unset($_lr);
 $stmt->close();
 
 
@@ -618,6 +621,7 @@ var REQUESTS_DATA = <?= json_encode(
                 '</div>' +
                 notesHtml +
                 assignedHtml(r) +
+                legsHtml(r) +
                 '<div class="col-12">' +
                     label('Supporting Documents') +
                     documentsHtml(r.documents) +
@@ -709,6 +713,20 @@ var REQUESTS_DATA = <?= json_encode(
     }
 
     // Supporting documents list (URLs come from the server only; text is escaped)
+    // ── Trip legs (only when the trip has more than one) ─────
+    function legsHtml(r) {
+        var legs = r.legs || [];
+        if (legs.length < 2) { return ''; }
+        var rows = legs.map(function (l) {
+            var d = new Date(l.date + 'T00:00:00');
+            return '<tr><td class="text-nowrap">Leg ' + l.leg_no + '</td><td class="text-nowrap">' +
+                   d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) +
+                   '</td><td class="text-nowrap">' + escHtml(l.start) + ' &ndash; ' + escHtml(l.end) + '</td><td>' + escHtml(l.destination) + '</td></tr>';
+        }).join('');
+        return '<div class="col-12"><div class="detail-label">Trip legs</div>' +
+               '<table class="table table-sm mb-0"><tbody>' + rows + '</tbody></table></div>';
+    }
+
     function documentsHtml(docs) {
         if (!docs || !docs.length) {
             return '<div class="mt-1 small text-muted">No documents attached.</div>';
@@ -749,6 +767,10 @@ var REQUESTS_DATA = <?= json_encode(
     // Assigned driver(s): name, a tap-to-call phone number and the vehicle
     function assignedHtml(r) {
         if (r.status !== 'processed') { return ''; }   // the driver is shown once the trip is Confirmed
+        if (parseInt(r.self_drive, 10) === 1) {
+            return '<div class="col-12">' + label('Driver') +
+                   '<div class="mt-1"><span class="badge bg-warning text-dark">Self-drive</span> You drive the vehicle yourself. No driver is assigned.</div></div>';
+        }
         var list = r.assigned || [];
         if (!list.length) {
             return '<div class="col-12">' + label('Assigned Driver') +

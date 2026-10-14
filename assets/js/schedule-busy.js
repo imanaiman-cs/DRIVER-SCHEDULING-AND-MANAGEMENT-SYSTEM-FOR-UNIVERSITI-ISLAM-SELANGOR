@@ -37,6 +37,13 @@
                 if (opt.value === '') { return; }
                 if (opt.dataset.label === undefined) { opt.dataset.label = opt.textContent; }
                 var busy = busySet.has(opt.value);
+                // With the override box ticked an admin may still pick a busy DRIVER (never a busy vehicle)
+                if (busy && kind === 'driver' && window.UIS_OVERRIDE) {
+                    opt.textContent = opt.dataset.label.trim() + '  (has a task then: override)';
+                    opt.setAttribute('data-busy', '0');
+                    if (!opt.hasAttribute('data-dup')) { opt.disabled = false; }
+                    return;
+                }
                 opt.textContent = busy ? opt.dataset.label.trim() + '  (busy at this time)' : opt.dataset.label;
                 opt.setAttribute('data-busy', busy ? '1' : '0');
                 // Duplicates inside one job are greyed by the page itself; keep that when not busy

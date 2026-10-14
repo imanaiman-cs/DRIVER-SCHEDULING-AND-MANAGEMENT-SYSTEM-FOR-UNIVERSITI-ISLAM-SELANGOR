@@ -157,8 +157,9 @@ function headAdminUserIds(mysqli $conn): array
  * SQL condition (table alias `s` = schedules) that hides a schedule from the driver until the
  * request behind it is Confirmed. A trip that still waits for the Head of Admin is not final.
  */
-const SCHEDULE_CONFIRMED_ONLY_SQL = "NOT EXISTS (SELECT 1 FROM vehicle_requests vr_c JOIN schedules f_c ON f_c.schedule_id = vr_c.schedule_id
-        WHERE vr_c.status = 'assigned' AND (f_c.schedule_id = s.schedule_id OR (f_c.job_group IS NOT NULL AND f_c.job_group = s.job_group)))";
+const SCHEDULE_CONFIRMED_ONLY_SQL = "NOT EXISTS (SELECT 1 FROM vehicle_requests vr_c LEFT JOIN schedules f_c ON f_c.schedule_id = vr_c.schedule_id
+        WHERE vr_c.status = 'assigned' AND (vr_c.request_id = s.request_id OR f_c.schedule_id = s.schedule_id
+              OR (f_c.job_group IS NOT NULL AND f_c.job_group = s.job_group)))";
 
 /** The page a role opens to see its requests. */
 function requestPageForRole(string $role): string
@@ -205,15 +206,57 @@ function canChangeRequestStatus(string $from, string $to): bool
     return in_array($to, REQUEST_TRANSITIONS[$from] ?? [], true);
 }
 
-/** Ids of the schedule rows that belong to a processed request (several when it is a multi-vehicle job). */
+/**
+ * The legs of a request: leg 1 is the request itself, legs 2.. are in request_legs.
+ * A multi-day trip is simply a trip whose legs are on different days.
+ * @return array<int, array{leg_no:int, date:string, start:string, end:string, destination:string}>
+ */
+function requestLegs(mysqli $conn, int $request_id): array
+{
+    return requestLegsMap($conn, [$request_id])[$request_id] ?? [];
+}
+
+/** @return array<int, array> request_id => legs (see requestLegs) */
+function requestLegsMap(mysqli $conn, array $request_ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $request_ids))));
+    $out = [];
+    if (!$ids) { return $out; }
+    $in = implode(',', $ids);
+    $r = $conn->query("SELECT request_id, trip_date, start_time, end_time, destination FROM vehicle_requests WHERE request_id IN ($in)");
+    while ($r && ($row = $r->fetch_assoc())) {
+        $out[(int)$row['request_id']][] = ['leg_no' => 1, 'date' => $row['trip_date'], 'start' => substr($row['start_time'], 0, 5),
+                                           'end' => substr($row['end_time'], 0, 5), 'destination' => $row['destination']];
+    }
+    try {
+        $r = $conn->query("SELECT request_id, leg_no, leg_date, start_time, end_time, destination FROM request_legs WHERE request_id IN ($in) ORDER BY request_id, leg_no");
+        while ($r && ($row = $r->fetch_assoc())) {
+            $out[(int)$row['request_id']][] = ['leg_no' => (int)$row['leg_no'], 'date' => $row['leg_date'], 'start' => substr($row['start_time'], 0, 5),
+                                               'end' => substr($row['end_time'], 0, 5), 'destination' => $row['destination']];
+        }
+    } catch (Throwable $e) { /* table not created yet */ }
+    return $out;
+}
+
+/** Distinct dates of all legs of a request. */
+function requestLegDates(mysqli $conn, int $request_id): array
+{
+    return array_values(array_unique(array_column(requestLegs($conn, $request_id), 'date')));
+}
+
+/** Ids of the schedule rows that belong to a processed request (one per vehicle per leg). */
 function requestScheduleIds(mysqli $conn, int $request_id): array
 {
+    $ids = [];
+    $r = $conn->query('SELECT schedule_id FROM schedules WHERE request_id = ' . $request_id . ' ORDER BY leg_no, schedule_id');
+    while ($r && ($s = $r->fetch_assoc())) { $ids[] = (int)$s['schedule_id']; }
+    if ($ids) { return $ids; }
+    // older data (before schedules.request_id): follow vehicle_requests.schedule_id and its job group
     $row = $conn->query('SELECT schedule_id FROM vehicle_requests WHERE request_id = ' . $request_id)->fetch_assoc();
     if (!$row || empty($row['schedule_id'])) { return []; }
     $first = (int)$row['schedule_id'];
     $g = $conn->query('SELECT job_group FROM schedules WHERE schedule_id = ' . $first)->fetch_assoc();
     if ($g && $g['job_group'] !== null) {
-        $ids = [];
         $r = $conn->query('SELECT schedule_id FROM schedules WHERE job_group = ' . (int)$g['job_group']);
         while ($r && ($s = $r->fetch_assoc())) { $ids[] = (int)$s['schedule_id']; }
         return $ids;
@@ -413,30 +456,47 @@ function vehicleBlockText(string $reason): string
  *
  * @throws RuntimeException with a message that can be shown to the user
  */
-function holdVehiclesForRequest(mysqli $conn, int $request_id, array $vehicle_ids, string $date): void
+function holdVehiclesForRequest(mysqli $conn, int $request_id, array $vehicle_ids, $dates): void
+{
+    $pairs = [];
+    foreach (array_unique(array_map('intval', $vehicle_ids)) as $vid) {
+        foreach ((array)$dates as $d) { $pairs[] = [$vid, (string)$d]; }
+    }
+    holdVehicleDatePairs($conn, $request_id, $pairs);
+}
+
+/** Replace the day holds of a request by exactly these [vehicle_id, date] pairs. */
+function holdVehicleDatePairs(mysqli $conn, int $request_id, array $pairs): void
 {
     $conn->query('DELETE FROM vehicle_day_holds WHERE request_id = ' . $request_id);
-    $stmt = $conn->prepare('INSERT INTO vehicle_day_holds (vehicle_id, hold_date, request_id) VALUES (?, ?, ?)');
-    foreach (array_unique(array_map('intval', $vehicle_ids)) as $vid) {
-        if ($vid <= 0) { continue; }
-        try {
-            $stmt->bind_param('isi', $vid, $date, $request_id);
-            $stmt->execute();
-        } catch (mysqli_sql_exception $e) {
-            $stmt->close();
-            if ((int)$e->getCode() === 1062) {
-                throw new RuntimeException('Sorry, a vehicle was just booked by someone else for that day. Please choose another vehicle.');
+    $stmt = $conn->prepare('INSERT IGNORE INTO vehicle_day_holds (vehicle_id, hold_date, request_id) VALUES (?, ?, ?)');
+    $own = $conn->prepare('SELECT request_id FROM vehicle_day_holds WHERE vehicle_id = ? AND hold_date = ?');
+    foreach ($pairs as [$vid, $date]) {
+        if ((int)$vid <= 0) { continue; }
+        $vid = (int)$vid;
+        $stmt->bind_param('isi', $vid, $date, $request_id);
+        $stmt->execute();
+        if ($stmt->affected_rows === 0) {
+            // the UNIQUE(vehicle, day) key said no: somebody else holds it
+            $own->bind_param('is', $vid, $date);
+            $own->execute();
+            $h = $own->get_result()->fetch_assoc();
+            if ($h && (int)$h['request_id'] !== $request_id) {
+                $stmt->close(); $own->close();
+                throw new RuntimeException('Sorry, a vehicle was just booked by someone else for ' . date('d M Y', strtotime($date)) . '. Please choose another vehicle.');
             }
-            throw $e;
         }
     }
     $stmt->close();
+    $own->close();
 }
 
 /** The vehicle request a schedule was made from (0 if the schedule was created directly by an admin). */
 function requestIdOfSchedule(mysqli $conn, int $schedule_id): int
 {
     try {
+        $row = $conn->query("SELECT request_id FROM schedules WHERE schedule_id = {$schedule_id}")->fetch_assoc();
+        if ($row && !empty($row['request_id'])) { return (int)$row['request_id']; }
         $row = $conn->query("SELECT vr.request_id FROM vehicle_requests vr
                               WHERE vr.schedule_id = {$schedule_id}
                                  OR vr.schedule_id IN (SELECT s2.schedule_id FROM schedules s2
@@ -451,24 +511,21 @@ function requestIdOfSchedule(mysqli $conn, int $schedule_id): int
 
 /**
  * After a schedule of a request was created, changed or removed: make the day holds match
- * the vehicles that schedule(s) really use.
+ * the vehicles (and days) that the schedule rows really use.
  */
 function syncHoldsForSchedule(mysqli $conn, int $schedule_id): void
 {
     try {
-        $row = $conn->query("SELECT vr.request_id, vr.trip_date, vr.status FROM vehicle_requests vr
-                              WHERE vr.schedule_id = {$schedule_id}
-                                 OR vr.schedule_id IN (SELECT s2.schedule_id FROM schedules s2
-                                      WHERE s2.job_group IS NOT NULL
-                                        AND s2.job_group = (SELECT job_group FROM schedules WHERE schedule_id = {$schedule_id}))
-                              LIMIT 1")->fetch_assoc();
+        $rid = requestIdOfSchedule($conn, $schedule_id);
+        if ($rid <= 0) { return; }
+        $row = $conn->query("SELECT status FROM vehicle_requests WHERE request_id = {$rid}")->fetch_assoc();
         if (!$row || !in_array($row['status'], REQUEST_ACTIVE_STATUSES, true)) { return; }
-        $ids = requestScheduleIds($conn, (int)$row['request_id']);
+        $ids = requestScheduleIds($conn, $rid);
         if (!$ids) { return; }
-        $vehicles = [];
-        $r = $conn->query("SELECT vehicle_id FROM schedules WHERE schedule_id IN (" . implode(',', array_map('intval', $ids)) . ") AND vehicle_id IS NOT NULL AND status <> 'cancelled'");
-        while ($r && ($v = $r->fetch_assoc())) { $vehicles[] = (int)$v['vehicle_id']; }
-        holdVehiclesForRequest($conn, (int)$row['request_id'], $vehicles, $row['trip_date']);
+        $pairs = [];
+        $r = $conn->query("SELECT vehicle_id, trip_date FROM schedules WHERE schedule_id IN (" . implode(',', array_map('intval', $ids)) . ") AND vehicle_id IS NOT NULL AND status <> 'cancelled'");
+        while ($r && ($v = $r->fetch_assoc())) { $pairs[] = [(int)$v['vehicle_id'], $v['trip_date']]; }
+        holdVehicleDatePairs($conn, $rid, $pairs);
     } catch (Throwable $e) {
         error_log('syncHoldsForSchedule: ' . $e->getMessage());
     }
@@ -507,8 +564,9 @@ function runRequestJobs(mysqli $conn): array
             'system' => true, 'reason' => 'The driver assignment was not confirmed before the trip time.',
         ]);
     }
-    $r = $conn->query("SELECT request_id FROM vehicle_requests WHERE status = 'processed'
-                         AND TIMESTAMP(trip_date, end_time) < NOW()");
+    $r = $conn->query("SELECT vr.request_id FROM vehicle_requests vr WHERE vr.status = 'processed'
+                         AND GREATEST(TIMESTAMP(vr.trip_date, vr.end_time),
+                                      IFNULL((SELECT MAX(TIMESTAMP(l.leg_date, l.end_time)) FROM request_legs l WHERE l.request_id = vr.request_id), '1970-01-01')) < NOW()");
     while ($r && ($row = $r->fetch_assoc())) {
         if (changeRequestStatus($conn, (int)$row['request_id'], 'completed', ['system' => true])['ok']) { $out['completed']++; }
     }
@@ -604,4 +662,33 @@ function generateTempPassword(int $length = 10): string
         $pw .= $all[random_int(0, strlen($all) - 1)];
     }
     return str_shuffle($pw);
+}
+
+// ------------------------------------------------------------
+// Override of a driver clash (an admin knowingly assigns a driver who already has a task then)
+// ------------------------------------------------------------
+
+/** The override reason posted with the "assign anyway" box, or null. '' means the box is ticked without a valid reason. */
+function postedClashOverride(): ?string
+{
+    if (empty($_POST['override_clash'])) { return null; }
+    $r = mb_substr(trim((string)($_POST['override_reason'] ?? '')), 0, 255);
+    return mb_strlen($r) >= 5 ? $r : '';
+}
+
+/** Store + audit + tell the Head of Admin that a clash was overridden on this schedule. */
+function recordClashOverride(mysqli $conn, array $schedule_ids, string $reason, string $what): void
+{
+    try {
+        $ids = array_values(array_filter(array_map('intval', $schedule_ids)));
+        if (!$ids) { return; }
+        $stmt = $conn->prepare('UPDATE schedules SET override_reason = ? WHERE schedule_id = ?');
+        foreach ($ids as $id) { $stmt->bind_param('si', $reason, $id); $stmt->execute(); }
+        $stmt->close();
+        $rid = requestIdOfSchedule($conn, $ids[0]);
+        auditLog($conn, 'override_conflict', $rid ?: null, "$what (schedule #" . implode(', #', $ids) . "). Reason: $reason");
+        notifyUsers($conn, headAdminUserIds($conn), "A driver with a clashing task was assigned on purpose ($what). Reason: $reason", 'admin/audit_log.php');
+    } catch (Throwable $e) {
+        error_log('recordClashOverride: ' . $e->getMessage());
+    }
 }

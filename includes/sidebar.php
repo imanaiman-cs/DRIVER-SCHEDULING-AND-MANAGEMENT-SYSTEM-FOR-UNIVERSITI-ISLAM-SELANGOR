@@ -71,7 +71,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
     if ($_is_admin_role) {
-        $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND status NOT IN ('cancelled','completed')");
+        $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND self_drive = 0 AND status NOT IN ('cancelled','completed')");
         if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
         $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='assigned'");
         if ($r5) $_assigned_waiting = (int)$r5->fetch_assoc()['cnt'];

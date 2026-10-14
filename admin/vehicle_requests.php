@@ -59,6 +59,7 @@ $req_vehicle_map = getRequestVehicles($conn, array_column($all_requests, 'reques
 
 // ── Driver(s) assigned to processed requests ────────────────
 $assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_id'));
+$legs_map     = requestLegsMap($conn, array_column($all_requests, 'request_id'));
 
 // ── Summary counts ───────────────────────────────────────────
 $total     = count($all_requests);
@@ -525,7 +526,13 @@ $display_requests = array_values($display_requests);
                         <div id="processDriverHint" class="form-text" aria-live="polite"></div>
                     </div>
                 </div>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="processSelfDrive">
+                    <label class="form-check-label fw-semibold" for="processSelfDrive">Mark as Self-Drive</label>
+                    <div class="form-text">The vehicle is available but there is no driver for it: the requester drives it themselves. No driver is assigned and none is needed.</div>
+                </div>
                 <div id="processMulti" class="mt-3" style="display:none;"></div>
+                <div id="processLegs" class="mt-3"></div>
                 <div id="processNote" class="alert alert-info py-2 small mt-3 mb-0">
                     <i class="fas fa-circle-info me-1" aria-hidden="true"></i>
                     <span id="processNoteText"></span>
@@ -576,6 +583,8 @@ const REQUEST_DATA = <?php
             'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
             'vehicles'         => $req_vehicle_map[(int)$r['request_id']] ?? [],
             'vehicles_needed'  => (int)($r['vehicles_needed'] ?? 1),
+            'legs'             => $legs_map[(int)$r['request_id']] ?? [],
+            'self_drive'       => (int)($r['self_drive'] ?? 0),
         ];
     }
     echo json_encode($json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
@@ -611,6 +620,20 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     // ── Supporting documents list (URLs come from the server only) ──
+    // ── Trip legs (only when the trip has more than one) ─────
+    function legsHtml(r) {
+        var legs = r.legs || [];
+        if (legs.length < 2) { return ''; }
+        var rows = legs.map(function (l) {
+            var d = new Date(l.date + 'T00:00:00');
+            return '<tr><td class="text-nowrap">Leg ' + l.leg_no + '</td><td class="text-nowrap">' +
+                   d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) +
+                   '</td><td class="text-nowrap">' + escHtml(l.start) + ' &ndash; ' + escHtml(l.end) + '</td><td>' + escHtml(l.destination) + '</td></tr>';
+        }).join('');
+        return '<div class="col-12"><div class="detail-label">Trip legs</div>' +
+               '<table class="table table-sm mb-0"><tbody>' + rows + '</tbody></table></div>';
+    }
+
     function documentsHtml(docs) {
         if (!docs || !docs.length) {
             return '<div class="small text-muted">No documents attached.</div>';
@@ -651,6 +674,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     // ── Phone number as tel: link ───────────────────────────
     function assignedHtml(r) {
         if (r.status !== 'processed' && r.status !== 'assigned') { return ''; }
+        if (parseInt(r.self_drive, 10) === 1) {
+            return '<div class="col-12"><div class="detail-label">Driver</div><div class="detail-value"><span class="badge bg-warning text-dark">Self-drive</span> The requester drives the vehicle. No driver assigned.</div></div>';
+        }
         var list = r.assigned || [];
         if (!list.length) {
             return '<div class="col-12"><div class="detail-label">Assigned Driver</div>'
@@ -844,6 +870,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             // Driver(s) assigned when the request was processed
             + assignedHtml(r)
 
+            + legsHtml(r)
             // Supporting documents
             + '<div class="col-12">'
             +   '<div class="detail-label">Supporting Documents</div>'
@@ -926,6 +953,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             +   '<div class="detail-value">' + telLink(r.officer_phone) + '</div></div>'
             + '<div class="col-6"><div class="detail-label">Waiting Place</div>'
             +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '&mdash;') + '</div></div>'
+            + legsHtml(r)
             + '<div class="col-12"><div class="detail-label">Requested vehicle</div>'
             +   '<div class="detail-value">' + vehicleLabel(r) + '</div></div>'
             + '<div class="col-12"><div class="detail-label">Supporting Documents</div>'
@@ -944,6 +972,9 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
 
         document.getElementById('processTripType').value = 'regular';
+        document.getElementById('processSelfDrive').checked = false;
+        _legBuiltFor = '';
+        document.getElementById('processLegs').innerHTML = '';
         setupMulti(r);
 
         var modal = new bootstrap.Modal(document.getElementById('processModal'));
@@ -958,6 +989,11 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     }
 
     function updateProcessNote() {
+        refreshLegPanel(); applySelfDrive();
+        if (selfDrive()) {
+            document.getElementById('processNoteText').textContent = 'Self-drive: the vehicle(s) are reserved, no driver is assigned, and the requester drives. Drivers are not e-mailed.';
+            return;
+        }
         if (isMulti()) {
             var withDriver = _multiRows.filter(function (row) { return row.d.value !== '0'; }).length;
             var total = _multiRows.length;
@@ -1068,6 +1104,68 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
     var _freeVehicles = [];       // vehicles free at this time
 
     function isMulti() { return _multiRows.length > 0; }
+
+    // ── Drivers with a clashing task: shown apart, usable only with a reason (override) ──
+    function appendClash(sel, clash) {
+        if (!clash || !clash.length) { return; }
+        var g = document.createElement('optgroup');
+        g.label = '\u26a0 Already has a task then (needs a reason)';
+        clash.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = c.driver_id; o.textContent = c.name + ' \u2014 ' + c.reason; o.setAttribute('data-clash', '1');
+            g.appendChild(o);
+        });
+        sel.appendChild(g);
+    }
+    function selfDrive() { return document.getElementById('processSelfDrive').checked; }
+
+    // ── Legs 2..: one driver select per leg per vehicle (default: same driver as leg 1) ──
+    var _legCache = {};          // leg_no -> { drivers, clash }
+    var _legBuiltFor = '';
+    function refreshLegPanel() {
+        var r = findRequest(_processRequestId), box = document.getElementById('processLegs');
+        if (!r || !box) { return; }
+        var legs = (r.legs || []).slice(1), rows = Math.max(1, _multiRows.length);
+        var key = _processRequestId + ':' + rows;
+        if (!legs.length) { box.innerHTML = ''; return; }
+        if (key === _legBuiltFor) { box.querySelectorAll('.leg-d').forEach(function (e) { e.disabled = selfDrive(); }); return; }
+        _legBuiltFor = key;
+        var html = '<h6 class="fw-bold mb-2" style="color:#0b5d3b;"><i class="fas fa-route me-2"></i>Other legs <span class="fw-normal text-muted small">(same vehicle(s); pick a different driver only if needed)</span></h6>';
+        legs.forEach(function (l) {
+            html += '<div class="border rounded-3 p-2 mb-2"><div class="small fw-semibold mb-1">Leg ' + l.leg_no + ' &middot; ' + fmtDate(l.date) + ' ' + escHtml(l.start) + '&ndash;' + escHtml(l.end) + ' &middot; ' + escHtml(l.destination) + '</div><div class="row g-2">';
+            for (var j = 0; j < rows; j++) {
+                html += '<div class="col-md-6"><label class="form-label small mb-1">Driver' + (rows > 1 ? ' for vehicle ' + (j + 1) : '') + '</label>' +
+                        '<select class="form-select form-select-sm leg-d" data-leg="' + l.leg_no + '" data-row="' + j + '"><option value="same">Same driver as leg 1</option><option value="0">Leave unassigned</option></select></div>';
+            }
+            html += '</div></div>';
+        });
+        box.innerHTML = html;
+        legs.forEach(function (l) {
+            var fill = function (d) {
+                box.querySelectorAll('.leg-d[data-leg="' + l.leg_no + '"]').forEach(function (sel) {
+                    (d.drivers || []).forEach(function (x) {
+                        var o = document.createElement('option'); o.value = x.driver_id; o.textContent = x.name + ' \u2014 score ' + Number(x.priority).toFixed(2); sel.appendChild(o);
+                    });
+                    appendClash(sel, d.clash);
+                    sel.disabled = selfDrive();
+                });
+            };
+            if (_legCache[_processRequestId + ':' + l.leg_no]) { fill(_legCache[_processRequestId + ':' + l.leg_no]); return; }
+            var fd = new FormData();
+            fd.append('trip_date', l.date); fd.append('start_time', l.start); fd.append('end_time', l.end);
+            fd.append('trip_type', document.getElementById('processTripType').value);
+            fetch(SITE_URL + '/ajax/get_available_drivers.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function (res) { return res.json(); })
+                .then(function (data) { var d = { drivers: data.drivers || [], clash: data.clash || [] }; _legCache[_processRequestId + ':' + l.leg_no] = d; fill(d); })
+                .catch(function () {});
+        });
+    }
+    function applySelfDrive() {
+        var on = selfDrive();
+        _multiRows.forEach(function (row) { row.d.disabled = on; });
+        document.querySelectorAll('#processLegs .leg-d').forEach(function (e) { e.disabled = on; });
+    }
+    document.getElementById('processSelfDrive').addEventListener('change', function () { applySelfDrive(); updateProcessNote(); });
 
     function vehicleOptionsHtml() {
         var html = '<option value="0" data-seats="0">&mdash; Decide later &mdash;</option>';
@@ -1229,6 +1327,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
                           + escHtml((k === 0 ? '★ ' : '') + d.name + ' — score ' + Number(d.priority).toFixed(2) + ' (' + d.month_tasks + ' tasks)') + '</option>';
                 });
                 row.d.innerHTML = html;
+                appendClash(row.d, data.clash);
                 row.d.disabled = false;
             })
             .catch(function () {
@@ -1267,8 +1366,38 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             formData.append('driver_id',  document.getElementById('processDriver').value  || '0');
         }
         formData.append('trip_type',  document.getElementById('processTripType').value);
+        if (selfDrive()) { formData.append('self_drive', '1'); }
+        document.querySelectorAll('#processLegs .leg-d').forEach(function (sel) {
+            formData.append('leg_driver_ids[' + sel.getAttribute('data-leg') + '][' + sel.getAttribute('data-row') + ']', sel.value);
+        });
+        return confirmOverride().then(function (reason) {
+            if (reason === false) {                      // admin backed out
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
+                return null;
+            }
+            if (reason) { formData.append('override_reason', reason); }
+            return doProcess(formData, btn);
+        });
+    };
 
-        fetch(SITE_URL + '/ajax/process_request.php', {
+    // A driver with a clashing task was chosen: ask for the reason first (the server checks it again).
+    function confirmOverride() {
+        if (selfDrive()) { return Promise.resolve(''); }
+        var picked = Array.prototype.filter.call(document.querySelectorAll('#processModal select'), function (sel) {
+            var o = sel.options[sel.selectedIndex]; return o && o.getAttribute('data-clash') === '1';
+        });
+        if (!picked.length) { return Promise.resolve(''); }
+        var names = picked.map(function (sel) { return sel.options[sel.selectedIndex].textContent.split(' \u2014 ')[0]; });
+        return UIS.askReason({
+            title: 'Assign a driver who already has a task?',
+            text: names.join(', ') + ' already has a task at that time. This is allowed only on purpose; the reason is written to the audit log and the Head of Admin is told.',
+            label: 'Reason for overriding the clash', confirmText: 'Assign anyway', cancelText: 'Go back', tone: 'warning', icon: 'fa-triangle-exclamation'
+        }).then(function (reason) { return reason ? reason : false; });
+    }
+
+    function doProcess(formData, btn) {
+        return fetch(SITE_URL + '/ajax/process_request.php', {
             method:      'POST',
             body:        formData,
             credentials: 'same-origin'
@@ -1282,21 +1411,24 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             if (res.success) {
                 var num = String(res.schedule_id).padStart(4, '0');
                 var assigned = res.driver_assigned === true;
+                var sd = res.self_drive === true;
                 Swal.fire({
                     icon:               'success',
-                    title:              'Schedule #' + num + (assigned ? ' created and assigned' : ' created'),
-                    text:               assigned
-                                          ? (res.driver_name + ' has been assigned.' + (res.email ? ' ' + res.email : ''))
-                                          : 'The request has been processed. Assign a driver next.',
+                    title:              sd ? 'Self-drive arranged (schedule #' + num + ')' : 'Schedule #' + num + (assigned ? ' created and assigned' : ' created'),
+                    text:               sd ? 'The vehicle is reserved. The requester drives it; no driver is needed.'
+                                          : (assigned
+                                              ? (res.driver_name + ' has been assigned.' + (res.email ? ' ' + res.email : ''))
+                                              : 'The request has been processed. Assign a driver next.')
+                                          + (res.request_status === 'assigned' ? ' It now waits for the Head of Admin to confirm.' : ''),
                     showCancelButton:   true,
-                    confirmButtonText:  assigned
+                    confirmButtonText:  (assigned || sd)
                                           ? '<i class="fas fa-eye me-1"></i> View schedule'
                                           : '<i class="fas fa-wand-magic-sparkles me-1"></i> Go to Auto Assign',
                     cancelButtonText:   'Stay here',
                     confirmButtonColor: '#0b5d3b',
                 }).then(function (result) {
                     if (result.isConfirmed) {
-                        window.location.href = SITE_URL + (assigned
+                        window.location.href = SITE_URL + ((assigned || sd)
                             ? '/admin/view_schedule.php?id=' + res.schedule_id
                             : '/admin/auto_assign.php');
                     } else {
@@ -1321,7 +1453,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
             btn.disabled  = false;
             btn.innerHTML = '<i class="fas fa-calendar-plus me-1" aria-hidden="true"></i> Create Schedule';
         });
-    };
+    }
 
 })();
 </script>

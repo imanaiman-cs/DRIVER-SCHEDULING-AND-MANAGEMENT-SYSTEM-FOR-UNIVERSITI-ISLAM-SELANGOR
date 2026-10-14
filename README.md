@@ -53,6 +53,9 @@ notifies the people concerned (bell + email).
 - **Cancel / reject** need a reason (min. 3 characters). Cancel is possible only before the trip starts.
 - **Driver recommender** — hard filters first (active, regular driver, licence class for the vehicle, not on leave/MC, no overlapping trip, max 8 h per day); then a score `100 − (0.6·tasks + 0.4·after-hours)·100 − welfare penalty` (weights and penalty are settings). Higher = fewer tasks this month = fairer to assign.
 - **Cancel works** for Pending, Approved, Driver Assigned and Confirmed requests, before the trip starts; the vehicle (and the driver's task) is released.
+- **Legs (multi-stop and multi-day trips)** — a request can have more legs, each with its own day, time and destination (up to 7). The same vehicle(s) are held on every leg's day, the Admin chooses the driver per leg (default: the same driver), and the request is Completed only after the last leg.
+- **Mark as Self-Drive** — when a vehicle is free but there is no driver, the admin marks the request as self-drive: the vehicle is reserved, no driver is assigned or e-mailed, and the requester is told they drive.
+- **Override of a clash** — normally a driver (or vehicle) that is already booked in the time slot cannot be chosen. An admin may knowingly assign a **driver** with a clashing task if a reason (min. 5 characters) is given: it is stored on the schedule, written to the audit log and the Head of Admin is told. Leave/MC, licence, inactive drivers and vehicle clashes can never be overridden.
 - **Changing an assigned driver** needs a reason; it is logged and the requester is notified.
 - **Welfare duty** — a driver on welfare duty is penalised in the score; the roster can be auto-filled fairly.
 - **Audit log** — insert-only (database triggers refuse update/delete).
@@ -122,7 +125,7 @@ tests/                              automated tests
 
 ## Known limits
 
-Overlapping trips for the same driver or vehicle are a hard block (no override). A request is assigned as a whole,
-not per leg of a multi-stop trip. "Mark as self-drive" and multi-day trips are not implemented.
+A vehicle can never be double-booked, and a driver clash needs an explicit override with a reason.
+The vehicles are the same on every leg of a request (only the driver can differ per leg).
 An older database has no Head of Admin account: create one in *User Accounts* (role Head of Admin) and
 set the approver of drivers/admins there too, so they can request vehicles.

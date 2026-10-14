@@ -229,6 +229,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── Override of a driver clash (rare, needs a reason) ─────
+    $clash_override = postedClashOverride();
+    $clash_used = false;
+    if ($clash_override === '') { $errors['driver_id'] = 'Please give a reason (at least 5 characters) to assign a driver who already has a task.'; }
+
     // ── Conflict check – driver ──────────────────────────────
     if (empty($errors) && $driver_id > 0) {
         $conflict_sql = "SELECT schedule_id FROM schedules
@@ -249,7 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->execute();
         $cs->store_result();
         if ($cs->num_rows > 0) {
-            $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or leave the driver blank to auto-assign.';
+            if ($clash_override) { $clash_used = true; }
+            else { $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or leave the driver blank to auto-assign.'; }
         }
         $cs->close();
     }
@@ -260,8 +266,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($i === 0) { continue; }          // first pair is checked above
             $who = 'Driver ' . ($i + 1);
             if ($a['driver'] > 0 && findResourceConflict($conn, 'driver_id', $a['driver'], $trip_date, $start_time, $end_time)) {
-                $errors['team'] = $who . ' (' . ($driver_names[$a['driver']] ?? '') . ') already has a schedule that overlaps this time slot. Choose another driver.';
-                break;
+                if ($clash_override) {
+                    $clash_used = true;
+                } else {
+                    $errors['team'] = $who . ' (' . ($driver_names[$a['driver']] ?? '') . ') already has a schedule that overlaps this time slot. Choose another driver.';
+                    break;
+                }
             }
             if ($a['vehicle'] > 0 && findResourceConflict($conn, 'vehicle_id', $a['vehicle'], $trip_date, $start_time, $end_time)) {
                 $errors['team'] = $who . '\'s vehicle already has a schedule that overlaps this time slot. Choose another vehicle.';
@@ -334,6 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conn->query("UPDATE schedules SET job_group = {$group} WHERE schedule_id IN (" . implode(',', $new_ids) . ")");
             }
             $conn->commit();
+            if ($clash_used) { recordClashOverride($conn, $new_ids, $clash_override, 'new schedule'); }
         } catch (Throwable $e) {
             $conn->rollback();
             error_log('add_schedule: ' . $e->getMessage());
@@ -679,6 +690,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <!-- Conflict warning -->
                         <div id="busyNotice" class="alert alert-warning py-2 mb-3 small" style="display:none;" role="status"></div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="override_clash" name="override_clash" value="1" <?php echo !empty($_POST['override_clash']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label small fw-semibold" for="override_clash">Allow a driver who already has a task at this time</label>
+                            <div class="form-text">Rare. The reason is saved, written to the audit log, and the Head of Admin is told.</div>
+                        </div>
+                        <div id="overrideReasonRow" class="mb-3" style="display:none;">
+                            <input type="text" class="form-control form-control-sm" name="override_reason" maxlength="255" placeholder="Reason (at least 5 characters)" value="<?php echo htmlspecialchars($_POST['override_reason'] ?? ''); ?>">
+                        </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            var cb = document.getElementById('override_clash'), row = document.getElementById('overrideReasonRow');
+                            function sync() { window.UIS_OVERRIDE = cb.checked; row.style.display = cb.checked ? '' : 'none'; var d = document.getElementById('trip_date'); if (d) { d.dispatchEvent(new Event('change')); } }
+                            cb.addEventListener('change', sync); sync();
+                        });
+                        </script>
                         <div id="driverConflictAlert" class="alert alert-danger py-2 mb-3" style="display:none;">
                             <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>
                             <strong>Driver Conflict:</strong> <span id="driverConflictMsg"></span>

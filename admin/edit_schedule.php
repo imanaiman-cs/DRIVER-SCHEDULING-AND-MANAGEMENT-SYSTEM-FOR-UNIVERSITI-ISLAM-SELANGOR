@@ -200,6 +200,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── Override of a driver clash (rare, needs a reason) ─────
+    $clash_override = postedClashOverride();
+    $clash_used = false;
+    if ($clash_override === '') { $errors['driver_id'] = 'Please give a reason (at least 5 characters) to assign a driver who already has a task.'; }
+
     // ── Conflict check – driver (exclude this schedule) ─────
     if (empty($errors) && $driver_id > 0) {
         $conflict_sql = "SELECT schedule_id FROM schedules
@@ -221,7 +226,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cs->execute();
         $cs->store_result();
         if ($cs->num_rows > 0) {
-            $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or set the driver to unassigned (auto-assign).';
+            if ($clash_override) { $clash_used = true; }
+            else { $errors['driver_id'] = 'The selected driver already has a schedule that overlaps this time slot. Choose another driver, change the date or times, or set the driver to unassigned (auto-assign).'; }
         }
         $cs->close();
     }
@@ -316,6 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($upd->execute()) {
             $upd->close();
             syncHoldsForSchedule($conn, $schedule_id);      // keep the vehicle day hold in step
+            if ($clash_used && $did) { recordClashOverride($conn, [$schedule_id], $clash_override, 'schedule edit'); }
 
             // R7: log the change of driver (previous driver, new driver, reason, who, when)
             if ($driver_changed) {
@@ -690,6 +697,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="section-title"><i class="fas fa-user me-2" aria-hidden="true"></i>Driver</div>
 
                         <div id="busyNotice" class="alert alert-warning py-2 mb-3 small" style="display:none;" role="status"></div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="override_clash" name="override_clash" value="1" <?php echo !empty($_POST['override_clash']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label small fw-semibold" for="override_clash">Allow a driver who already has a task at this time</label>
+                            <div class="form-text">Rare. The reason is saved, written to the audit log, and the Head of Admin is told.</div>
+                        </div>
+                        <div id="overrideReasonRow" class="mb-3" style="display:none;">
+                            <input type="text" class="form-control form-control-sm" name="override_reason" maxlength="255" placeholder="Reason (at least 5 characters)" value="<?php echo htmlspecialchars($_POST['override_reason'] ?? ''); ?>">
+                        </div>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function () {
+                            var cb = document.getElementById('override_clash'), row = document.getElementById('overrideReasonRow');
+                            function sync() { window.UIS_OVERRIDE = cb.checked; row.style.display = cb.checked ? '' : 'none'; var d = document.getElementById('trip_date'); if (d) { d.dispatchEvent(new Event('change')); } }
+                            cb.addEventListener('change', sync); sync();
+                        });
+                        </script>
                         <div id="driverConflictAlert" class="alert alert-danger py-2 mb-3" style="display:none;">
                             <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i>
                             <strong>Driver Conflict:</strong> <span id="driverConflictMsg"></span>

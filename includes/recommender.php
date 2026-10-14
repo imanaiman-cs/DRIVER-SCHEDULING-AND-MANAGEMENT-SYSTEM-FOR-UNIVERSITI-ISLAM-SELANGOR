@@ -139,7 +139,10 @@ function recommendDrivers(mysqli $conn, array $trip): array
             $why = 'Would exceed 8 hours that day';
         }
         if ($why !== null) {
-            $excluded[] = ['driver_id' => $id, 'name' => $d['name'], 'reason' => $why];
+            // A clash with another task (or too many hours) can be overridden by an admin WITH a reason;
+            // leave, licence, status and trip type can not.
+            $excluded[] = ['driver_id' => $id, 'name' => $d['name'], 'reason' => $why,
+                           'overridable' => isset($busy[$id]) || (($hours[$id] ?? 0) + $trip_hours > 8)];
             continue;
         }
         $c = $counts[$id] ?? ['tasks' => 0, 'weekend' => 0];

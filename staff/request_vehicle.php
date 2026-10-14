@@ -42,6 +42,7 @@ $form   = [
     'officer_name'    => $full_name,
     'officer_phone'   => '',
     'waiting_place'   => '',
+    'legs'            => [],
 ];
 $had_files = false; // true when the failed POST contained chosen files
 
@@ -95,6 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $officer_phone   = trim($_POST['officer_phone']   ?? '');
     $waiting_place   = trim($_POST['waiting_place']   ?? '');
 
+    // Extra legs (a multi-stop or multi-day trip): parallel arrays, blank rows are ignored
+    $extra_legs = [];
+    foreach ((array)($_POST['leg_date'] ?? []) as $i => $ld) {
+        $row = ['date' => trim((string)$ld), 'start' => trim((string)(($_POST['leg_start'] ?? [])[$i] ?? '')),
+                'end' => trim((string)(($_POST['leg_end'] ?? [])[$i] ?? '')), 'dest' => trim((string)(($_POST['leg_dest'] ?? [])[$i] ?? ''))];
+        if ($row['date'] !== '' || $row['start'] !== '' || $row['end'] !== '' || $row['dest'] !== '') { $extra_legs[] = $row; }
+    }
+
     $form = [
         'trip_date'       => $trip_date,
         'start_time'      => $start_time,
@@ -107,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'officer_name'    => $officer_name,
         'officer_phone'   => $officer_phone,
         'waiting_place'   => $waiting_place,
+        'legs'            => $extra_legs,
     ];
 
     if (!$supervisor_id) {
@@ -133,6 +143,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($destination === '') {
         $errors[] = 'Destination is required.';
+    }
+
+    // Legs 2.. : each on or after the first leg, valid times, a destination, and no two legs at the same time
+    if (count($extra_legs) > 6) {
+        $errors[] = 'A request can have at most 7 legs (the first one plus 6 more).';
+    }
+    $all_legs = [['date' => $trip_date, 'start' => $start_time, 'end' => $end_time, 'dest' => $destination]];
+    foreach ($extra_legs as $k => $lg) {
+        $n = $k + 2;
+        $okLeg = true;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $lg['date']) || !strtotime($lg['date'])) { $errors[] = "Leg $n: the date is required."; $okLeg = false; }
+        elseif ($trip_date !== '' && $lg['date'] < $trip_date) { $errors[] = "Leg $n: the date cannot be before the first leg."; $okLeg = false; }
+        elseif ($lg['date'] < $min_date) { $errors[] = "Leg $n: the date must be at least two days ahead."; $okLeg = false; }
+        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lg['start']) || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lg['end'])) { $errors[] = "Leg $n: start and end time are required."; $okLeg = false; }
+        elseif ($lg['end'] <= $lg['start']) { $errors[] = "Leg $n: the end time must be after the start time."; $okLeg = false; }
+        if ($lg['dest'] === '' || mb_strlen($lg['dest']) > 255) { $errors[] = "Leg $n: a destination (max 255 characters) is required."; $okLeg = false; }
+        if ($okLeg) {
+            foreach ($all_legs as $prev) {
+                if ($prev['date'] === $lg['date'] && $prev['start'] !== '' && $prev['end'] !== '' && $lg['start'] < $prev['end'] && $lg['end'] > $prev['start']) {
+                    $errors[] = "Leg $n overlaps another leg on the same day (the same vehicle cannot be in two places).";
+                    break;
+                }
+            }
+            $all_legs[] = $lg;
+        }
     }
     if (strlen($purpose) < 20) {
         $errors[] = 'Purpose must be at least 20 characters long.';
@@ -169,6 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Please attach at least one supporting document.';
     }
 
+    foreach ($all_legs as $leg_i => $lg) {
+    $trip_date = $lg['date']; $start_time = $lg['start']; $end_time = $lg['end'];
     // R3 / R4: a vehicle in maintenance, or already held by another request for that DAY, cannot be chosen
     if (empty($errors) && $vehicle_ids) {
         $blocked = blockedVehicleIds($conn, $trip_date);
@@ -254,6 +291,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
     }
+    }
+    $trip_date = $all_legs[0]['date']; $start_time = $all_legs[0]['start']; $end_time = $all_legs[0]['end'];
 
     if (empty($errors)) {
         $in_transaction = false;
@@ -283,6 +322,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $new_request_id = (int)$stmt->insert_id;
             $stmt->close();
+
+            // Legs 2.. of the trip
+            if (count($all_legs) > 1) {
+                $lgs = $conn->prepare('INSERT INTO request_legs (request_id, leg_no, leg_date, start_time, end_time, destination) VALUES (?, ?, ?, ?, ?, ?)');
+                foreach (array_slice($all_legs, 1) as $k => $lg) {
+                    $no = $k + 2;
+                    $lgs->bind_param('iissss', $new_request_id, $no, $lg['date'], $lg['start'], $lg['end'], $lg['dest']);
+                    $lgs->execute();
+                }
+                $lgs->close();
+            }
 
             // Every vehicle the staff member asked for
             if ($vehicle_ids) {
@@ -324,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // R3: hold the chosen vehicles for the whole day (the database refuses a double booking)
             if ($vehicle_ids) {
-                holdVehiclesForRequest($conn, $new_request_id, $vehicle_ids, $trip_date);
+                holdVehiclesForRequest($conn, $new_request_id, $vehicle_ids, array_column($all_legs, 'date'));
             }
 
             $conn->commit();
@@ -333,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             auditLog($conn, 'submit', $new_request_id, 'Request submitted');
             if ($supervisor_id) {
                 notifyUsers($conn, [$supervisor_id],
-                    'New vehicle request #' . $new_request_id . ' from ' . $full_name . ' to ' . $destination . ' (' . date('d M Y', strtotime($trip_date)) . ') is waiting for your decision.',
+                    'New vehicle request #' . $new_request_id . ' from ' . $full_name . ' to ' . $destination . ' (' . date('d M Y', strtotime($trip_date)) . (count($all_legs) > 1 ? ', ' . count($all_legs) . ' legs' : '') . ') is waiting for your decision.',
                     'supervisor/approvals.php');
             }
 
@@ -687,6 +737,16 @@ $vehicle_icon = static function (string $type): string {
                                 <option value="<?= htmlspecialchars($opt) ?>">
                                 <?php endforeach; ?>
                             </datalist>
+                        </div>
+
+                        <!-- More legs (multi-stop / multi-day) -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-semibold mb-0"><i class="fas fa-route me-1 text-success"></i>More legs of the same trip <span class="text-muted fw-normal">(optional)</span></label>
+                                <button type="button" class="btn btn-outline-success btn-sm" id="addLegBtn"><i class="fas fa-plus me-1"></i>Add a leg</button>
+                            </div>
+                            <div class="form-text mb-2">For a trip with several stops, or one that lasts more than a day. Each leg has its own day, time and destination; the same vehicle(s) are used and are held on every day.</div>
+                            <div id="legRows"></div>
                         </div>
 
                         <!-- Purpose -->
@@ -1235,5 +1295,31 @@ document.querySelectorAll('.rv-chip').forEach(function (chip) {
 })();
 </script>
 <?php endif; ?>
+<script>
+// Extra legs: add / remove rows. Rows are posted as leg_date[], leg_start[], leg_end[], leg_dest[].
+(function () {
+    var box = document.getElementById('legRows'), add = document.getElementById('addLegBtn');
+    if (!box || !add) { return; }
+    var MIN = <?= json_encode($min_date) ?>;
+    function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function addRow(d) {
+        d = d || {};
+        if (box.children.length >= 6) { return; }
+        var row = document.createElement('div');
+        row.className = 'row g-2 align-items-end mb-2 p-2 rounded-3';
+        row.style.background = '#f4f8f6';
+        row.innerHTML =
+            '<div class="col-md-3"><label class="form-label small mb-1">Date</label><input type="date" class="form-control form-control-sm" name="leg_date[]" min="' + esc(MIN) + '" value="' + esc(d.date) + '"></div>' +
+            '<div class="col-6 col-md-2"><label class="form-label small mb-1">Start</label><input type="time" class="form-control form-control-sm" name="leg_start[]" value="' + esc(d.start) + '"></div>' +
+            '<div class="col-6 col-md-2"><label class="form-label small mb-1">End</label><input type="time" class="form-control form-control-sm" name="leg_end[]" value="' + esc(d.end) + '"></div>' +
+            '<div class="col-md-4"><label class="form-label small mb-1">Destination</label><input type="text" class="form-control form-control-sm" name="leg_dest[]" maxlength="255" value="' + esc(d.dest) + '"></div>' +
+            '<div class="col-md-1 text-end"><button type="button" class="btn btn-sm btn-outline-danger" title="Remove this leg" aria-label="Remove this leg"><i class="fas fa-xmark"></i></button></div>';
+        row.querySelector('button').addEventListener('click', function () { row.remove(); });
+        box.appendChild(row);
+    }
+    add.addEventListener('click', function () { addRow(); });
+    (<?= json_encode(array_values($form['legs'] ?? [])) ?>).forEach(addRow);
+})();
+</script>
 </body>
 </html>

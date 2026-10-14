@@ -64,7 +64,7 @@ if ($completed_last_month > 0) {
 // 7. Pending assignments (schedules without a driver)
 $res = $conn->query(
     "SELECT COUNT(*) AS cnt FROM schedules
-     WHERE driver_id IS NULL AND status NOT IN ('completed','cancelled')"
+     WHERE driver_id IS NULL AND self_drive = 0 AND status NOT IN ('completed','cancelled')"
 );
 $pending_assignments = (int) $res->fetch_assoc()['cnt'];
 

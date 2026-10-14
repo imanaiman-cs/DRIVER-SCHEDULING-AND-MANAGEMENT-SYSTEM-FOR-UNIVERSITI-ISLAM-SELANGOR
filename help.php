@@ -99,6 +99,15 @@ if ($role === 'staff') {
         </div>
     ', 'role'];
 
+    $items[] = ['staff-legs', 'route', 'A trip with several stops or several days', '
+        <p>On the request form press <strong>Add a leg</strong> for each extra stop or day. Each leg has its own date, time and destination.</p>
+        <ul>
+            <li>The same vehicle(s) are used and are held on every day of the trip.</li>
+            <li>Every leg must be at least two days ahead and cannot overlap another leg.</li>
+            <li>You can add up to 6 extra legs.</li>
+        </ul>
+    ', 'role'];
+
     $items[] = ['staff-cancel', 'ban', 'How to cancel a request', '
         <p>You can cancel your own request <strong>any time before the trip starts</strong>. A reason is required.</p>
         <ol>
@@ -179,6 +188,14 @@ if ($role === 'admin') {
             <li>Give the trip a driver (see the next topic).</li>
         </ol>
         <p>After an Admin Assistant processes it, the status becomes <strong>Driver Assigned</strong> and it waits for the Head of Admin. When the Head of Admin processes it (or approves it under <strong>Approve Assignments</strong>) it becomes <strong>Confirmed</strong>; only then does the driver see the trip.</p>
+    ', 'role'];
+
+    $items[] = ['admin-special', 'wand-magic-sparkles', 'Self-drive, other legs and clashes', '
+        <ul>
+            <li><strong>Mark as Self-Drive</strong>: tick it in the Process window when the vehicle is free but there is no driver. No driver is assigned and none is e-mailed.</li>
+            <li><strong>Other legs</strong>: a multi-day or multi-stop request shows a driver choice for each extra leg (default: the same driver as leg 1).</li>
+            <li><strong>Clashes</strong>: a driver who already has a task then is listed apart (marked with a warning). You may still pick them, but you must give a reason; it is saved, audited and the Head of Admin is told. Drivers on leave, without the right licence, and vehicle clashes cannot be overridden.</li>
+        </ul>
     ', 'role'];
 
     $items[] = ['admin-multi', 'bus-simple', 'Choosing the vehicles and drivers for a request', '
@@ -305,6 +322,10 @@ $items[] = ['glossary', 'book', 'Glossary', '
         <dd>An approved request that has a vehicle and driver, waiting for the Head of Admin to confirm.</dd>
         <dt>Confirmed</dt>
         <dd>The Head of Admin confirmed the assignment. The driver and the requester are told.</dd>
+        <dt>Leg</dt>
+        <dd>One part of a trip with its own day, time and destination. A multi-stop or multi-day trip has several legs.</dd>
+        <dt>Self-drive</dt>
+        <dd>The vehicle is reserved but the requester drives it, so no driver is assigned.</dd>
         <dt>Every role is also staff</dt>
         <dd>Drivers, Heads of Section and admins can also request a vehicle and follow their own requests (My Vehicle Requests in the menu).</dd>
         <dt>Allocation score</dt>

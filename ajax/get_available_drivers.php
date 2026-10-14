@@ -62,4 +62,6 @@ foreach ($rec['ranked'] as $c) {
 echo json_encode([
     'success' => true, 'drivers' => $drivers, 'count' => count($drivers),
     'excluded' => $rec['excluded'], 'weights' => $rec['weights'],
+    // drivers an admin may still choose on purpose (clashing task) if a reason is given
+    'clash' => array_values(array_filter($rec['excluded'], fn($x) => !empty($x['overridable']))),
 ]);

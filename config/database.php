@@ -85,6 +85,10 @@ function upgradeDatabaseSchema(mysqli $conn): void
             'officer_phone' => "VARCHAR(50) NULL DEFAULT NULL",
             'waiting_place' => "VARCHAR(150) NULL DEFAULT NULL",
             'job_group'     => "INT NULL DEFAULT NULL",
+            'request_id'    => "INT NULL DEFAULT NULL",             // the vehicle request this schedule row was made from
+            'leg_no'        => "TINYINT NULL DEFAULT NULL",         // which leg of that request (1 = first)
+            'self_drive'    => "TINYINT(1) NOT NULL DEFAULT 0",     // the requester drives the vehicle: no driver is needed
+            'override_reason' => "VARCHAR(255) NULL DEFAULT NULL",  // admin knowingly assigned a driver with a clashing task
         ],
         'vehicle_requests' => [
             'officer_name'    => "VARCHAR(255) NULL DEFAULT NULL",
@@ -95,6 +99,7 @@ function upgradeDatabaseSchema(mysqli $conn): void
             'status_reason'   => "VARCHAR(500) NULL DEFAULT NULL",      // why it was rejected / cancelled / lapsed
             'cancelled_by'    => "INT NULL DEFAULT NULL",
             'cancelled_by_role' => "VARCHAR(20) NULL DEFAULT NULL",
+            'self_drive'      => "TINYINT(1) NOT NULL DEFAULT 0",
         ],
     ];
     foreach ($columns as $table => $cols) {
@@ -103,6 +108,20 @@ function upgradeDatabaseSchema(mysqli $conn): void
             if (!$hasColumn($table, $col)) {
                 $run("ALTER TABLE `$table` ADD COLUMN `$col` $def");
             }
+        }
+    }
+
+    // schedules.request_id is new: fill it for the schedules of requests that were already processed
+    if ($hasTable('schedules') && $hasColumn('schedules', 'request_id')) {
+        $r = $conn->query("SELECT COUNT(*) FROM schedules WHERE request_id IS NOT NULL");
+        if ($r && (int)$r->fetch_row()[0] === 0) {
+            $run("UPDATE schedules s JOIN vehicle_requests vr
+                    ON vr.schedule_id = s.schedule_id
+                    OR (s.job_group IS NOT NULL AND s.job_group = (SELECT s0.job_group FROM (SELECT schedule_id, job_group FROM schedules) s0 WHERE s0.schedule_id = vr.schedule_id))
+                  SET s.request_id = vr.request_id, s.leg_no = 1");
+        }
+        if (!$hasIndex('schedules', 'idx_schedules_request')) {
+            $run("ALTER TABLE schedules ADD KEY idx_schedules_request (request_id)");
         }
     }
 
@@ -145,6 +164,15 @@ function upgradeDatabaseSchema(mysqli $conn): void
         // earlier requests asked for one vehicle: keep that choice
         $run("INSERT IGNORE INTO request_vehicles (request_id, vehicle_id)
               SELECT request_id, vehicle_id FROM vehicle_requests WHERE vehicle_id IS NOT NULL");
+    }
+    // Legs 2, 3 ... of a trip (leg 1 is the request itself). A multi-day trip is a trip with legs on several days.
+    if ($hasTable('vehicle_requests') && !$hasTable('request_legs')) {
+        $run("CREATE TABLE request_legs (
+                leg_id INT NOT NULL AUTO_INCREMENT, request_id INT NOT NULL, leg_no TINYINT NOT NULL,
+                leg_date DATE NOT NULL, start_time TIME NOT NULL, end_time TIME NOT NULL, destination VARCHAR(255) NOT NULL,
+                PRIMARY KEY (leg_id), UNIQUE KEY uq_leg (request_id, leg_no),
+                CONSTRAINT fk_leg_request FOREIGN KEY (request_id) REFERENCES vehicle_requests(request_id) ON DELETE CASCADE
+              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
     if ($hasTable('vehicle_requests') && !$hasTable('request_documents')) {
         $run("CREATE TABLE request_documents (
@@ -322,7 +350,7 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 
 // Bring an older database up to date once per session (see upgradeDatabaseSchema above).
 // Raise SCHEMA_VERSION whenever the upgrade function learns something new.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 if (($_SESSION['schema_version'] ?? 0) < SCHEMA_VERSION) {
