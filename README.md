@@ -5,24 +5,41 @@ the Vehicle Section (admin) assigns vehicle and driver, and drivers see their ta
 
 Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5, SweetAlert2. No framework, no build step.
 
-## Roles
+## Roles (five)
 
-| Role | What they do |
-|------|--------------|
-| Staff | Request a **vehicle** (never a driver), track and cancel own requests, see notifications |
-| Head of Section (supervisor) | Approve / reject / cancel requests with a reason, comment, see the history |
-| Admin (Vehicle Section) | Process approved requests, schedules, drivers, vehicles, leave, welfare duty, internal tasks, reports, reminders, settings, user accounts, audit log |
-| Driver | Own task sheet (PDF), workload score, other duties (internal tasks, welfare duty) |
+| Role | Stored as | What they do |
+|------|-----------|--------------|
+| Staff | `staff` | Request a **vehicle** (never a driver), track and cancel own requests, see notifications |
+| Driver | `driver` | Everything staff can do, plus own confirmed task sheet (PDF), workload score, other duties |
+| Head of Section (HoD) | `supervisor` | Everything staff can do, plus approve / reject / cancel requests where they are the approver, comment |
+| Admin Assistant | `admin` | Everything staff can do, plus all admin work: process approved requests (assign vehicle + driver), schedules, drivers, vehicles, leave, welfare duty, internal tasks, reports, reminders, settings, user accounts, audit log |
+| Head of Admin | `head_admin` | Everything an Admin Assistant can do, plus **approve driver assignments** (a request he assigns himself is confirmed at once) |
+
+**Every role is also staff**: all of them can submit a vehicle request and follow / cancel their own
+(*My Vehicle Requests* in the menu). A request goes to the approver of the requester
+(staff -> their Head of Section; a Head of Section -> their own head). The approver is set per account in
+*User Accounts*.
 
 ## Request flow
 
 ```
-pending ──► approved ──► processed ──► completed
-   │            │             │
-   ├─► rejected └─► cancelled └─► cancelled
+pending ──► approved ──► assigned ──► confirmed ──► completed
+   │            │ (Head of Admin assigns himself: straight to confirmed)
+   ├─► rejected └─► cancelled     └─► cancelled
    ├─► lapsed   (48 h without a decision, or the trip time has passed)
    └─► cancelled
 ```
+
+| Status shown | Stored as | Who moves it there |
+|--------------|-----------|--------------------|
+| Pending Approval | `pending` | requester submits |
+| Approved | `approved` | Head of Section |
+| Driver Assigned | `assigned` | Admin Assistant assigns vehicle + driver (the Head of Admin is told) |
+| Confirmed | `processed` | Head of Admin approves the assignment, or assigns it himself |
+| Completed | `completed` | system, after the trip |
+
+The driver sees a trip (and gets the e-mail) only once it is **Confirmed**. An assignment that is still not
+confirmed when the trip time arrives is cancelled by the system with a reason.
 
 Every status change goes through one function (`changeRequestStatus`), is written to the audit log and
 notifies the people concerned (bell + email).
@@ -35,6 +52,7 @@ notifies the people concerned (bell + email).
 - **Lapse** — a pending request lapses after 48 h (`LAPSE_HOURS`) or when the trip time passes; one automatic reminder goes to the Head of Section after 24 h.
 - **Cancel / reject** need a reason (min. 3 characters). Cancel is possible only before the trip starts.
 - **Driver recommender** — hard filters first (active, regular driver, licence class for the vehicle, not on leave/MC, no overlapping trip, max 8 h per day); then a score `100 − (0.6·tasks + 0.4·after-hours)·100 − welfare penalty` (weights and penalty are settings). Higher = fewer tasks this month = fairer to assign.
+- **Cancel works** for Pending, Approved, Driver Assigned and Confirmed requests, before the trip starts; the vehicle (and the driver's task) is released.
 - **Changing an assigned driver** needs a reason; it is logged and the requester is notified.
 - **Welfare duty** — a driver on welfare duty is penalised in the score; the roster can be auto-filled fairly.
 - **Audit log** — insert-only (database triggers refuse update/delete).
@@ -105,4 +123,6 @@ tests/                              automated tests
 ## Known limits
 
 Overlapping trips for the same driver or vehicle are a hard block (no override). A request is assigned as a whole,
-not per leg of a multi-stop trip. There is no extra approval stage above the Head of Section.
+not per leg of a multi-stop trip. "Mark as self-drive" and multi-day trips are not implemented.
+An older database has no Head of Admin account: create one in *User Accounts* (role Head of Admin) and
+set the approver of drivers/admins there too, so they can request vehicles.

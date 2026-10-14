@@ -31,7 +31,7 @@ $stmt = $conn->prepare(
      FROM schedules s
      LEFT JOIN drivers  d ON s.driver_id  = d.driver_id
      LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-     WHERE s.schedule_id = ? AND s.driver_id = ?"
+     WHERE s.schedule_id = ? AND s.driver_id = ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL
 );
 $stmt->bind_param('ii', $schedule_id, $driver_id);
 $stmt->execute();

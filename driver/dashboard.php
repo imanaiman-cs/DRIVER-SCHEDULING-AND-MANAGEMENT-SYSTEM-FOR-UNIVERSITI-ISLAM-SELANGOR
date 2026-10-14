@@ -54,22 +54,22 @@ $month_start = date('Y-m-01');
 $month_end   = date('Y-m-t');
 
 // Stats
-$stat_today = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? AND trip_date=? AND status NOT IN ('cancelled')");
+$stat_today = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? AND s.trip_date=? AND s.status NOT IN ('cancelled') AND ".SCHEDULE_CONFIRMED_ONLY_SQL);
 $stat_today->bind_param("is", $driver_id, $today);
 $stat_today->execute();
 $today_trips = (int)$stat_today->get_result()->fetch_assoc()['cnt'];
 
-$stat_week = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? AND trip_date BETWEEN ? AND ? AND status NOT IN ('cancelled')");
+$stat_week = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? AND s.trip_date BETWEEN ? AND ? AND s.status NOT IN ('cancelled') AND ".SCHEDULE_CONFIRMED_ONLY_SQL);
 $stat_week->bind_param("iss", $driver_id, $week_start, $week_end);
 $stat_week->execute();
 $week_trips = (int)$stat_week->get_result()->fetch_assoc()['cnt'];
 
-$stat_completed = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? AND status='completed'");
+$stat_completed = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? AND s.status='completed' AND ".SCHEDULE_CONFIRMED_ONLY_SQL);
 $stat_completed->bind_param("i", $driver_id);
 $stat_completed->execute();
 $completed_trips = (int)$stat_completed->get_result()->fetch_assoc()['cnt'];
 
-$stat_pending = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? AND status IN ('pending','approved')");
+$stat_pending = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? AND s.status IN ('pending','approved') AND ".SCHEDULE_CONFIRMED_ONLY_SQL);
 $stat_pending->bind_param("i", $driver_id);
 $stat_pending->execute();
 $pending_trips = (int)$stat_pending->get_result()->fetch_assoc()['cnt'];
@@ -79,7 +79,7 @@ $today_stmt = $conn->prepare("
     SELECT s.*, v.plate_number, v.vehicle_type, v.brand, v.model
     FROM schedules s
     LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-    WHERE s.driver_id = ? AND s.trip_date = ? AND s.status NOT IN ('cancelled')
+    WHERE s.driver_id = ? AND s.trip_date = ? AND s.status NOT IN ('cancelled') AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
     ORDER BY s.start_time ASC
 ");
 $today_stmt->bind_param("is", $driver_id, $today);
@@ -92,7 +92,7 @@ $upcoming_stmt = $conn->prepare("
     FROM schedules s
     LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
     WHERE s.driver_id = ? AND s.trip_date > ? AND s.trip_date <= DATE_ADD(?, INTERVAL 7 DAY)
-      AND s.status NOT IN ('cancelled')
+      AND s.status NOT IN ('cancelled') AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
     ORDER BY s.trip_date ASC, s.start_time ASC
     LIMIT 10
 ");
@@ -105,7 +105,7 @@ $recent_stmt = $conn->prepare("
     SELECT s.*, v.plate_number, v.vehicle_type
     FROM schedules s
     LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-    WHERE s.driver_id = ? AND s.status = 'completed'
+    WHERE s.driver_id = ? AND s.status = 'completed' AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
     ORDER BY s.trip_date DESC, s.end_time DESC
     LIMIT 5
 ");

@@ -139,10 +139,26 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
 function adminUserIds(mysqli $conn): array
 {
     $ids = [];
-    $r = $conn->query("SELECT user_id FROM users WHERE role IN ('admin','superadmin')");
+    $r = $conn->query("SELECT user_id FROM users WHERE role IN ('admin','superadmin','head_admin') AND is_active = 1");
     while ($r && ($row = $r->fetch_assoc())) { $ids[] = (int)$row['user_id']; }
     return $ids;
 }
+
+/** Ids of the Head of Admin account(s). */
+function headAdminUserIds(mysqli $conn): array
+{
+    $ids = [];
+    $r = $conn->query("SELECT user_id FROM users WHERE role = 'head_admin' AND is_active = 1");
+    while ($r && ($row = $r->fetch_assoc())) { $ids[] = (int)$row['user_id']; }
+    return $ids;
+}
+
+/**
+ * SQL condition (table alias `s` = schedules) that hides a schedule from the driver until the
+ * request behind it is Confirmed. A trip that still waits for the Head of Admin is not final.
+ */
+const SCHEDULE_CONFIRMED_ONLY_SQL = "NOT EXISTS (SELECT 1 FROM vehicle_requests vr_c JOIN schedules f_c ON f_c.schedule_id = vr_c.schedule_id
+        WHERE vr_c.status = 'assigned' AND (f_c.schedule_id = s.schedule_id OR (f_c.job_group IS NOT NULL AND f_c.job_group = s.job_group)))";
 
 /** The page a role opens to see its requests. */
 function requestPageForRole(string $role): string
@@ -150,7 +166,7 @@ function requestPageForRole(string $role): string
     return match ($role) {
         'staff'      => 'staff/my_requests.php',
         'supervisor' => 'supervisor/approvals.php',
-        'admin', 'superadmin' => 'admin/vehicle_requests.php',
+        'admin', 'superadmin', 'head_admin' => 'admin/vehicle_requests.php',
         default      => 'driver/dashboard.php',
     };
 }
@@ -165,20 +181,24 @@ function notificationUrl(?string $link): string
 // Request status engine
 //
 //   pending   -> approved | rejected | lapsed | cancelled
-//   approved  -> processed (driver + vehicle assigned) | cancelled
+//   approved  -> assigned  (Admin Assistant assigned vehicle + driver; waits for the Head of Admin)
+//             -> processed (Head of Admin assigned it himself: Confirmed at once)
+//   assigned  -> processed (Head of Admin approves the assignment) | cancelled
 //   processed -> completed (system, after the trip) | cancelled
+//   (the stored value 'processed' is shown to people as "Confirmed", 'assigned' as "Driver Assigned")
 //   rejected, lapsed, completed, cancelled: final
 // ------------------------------------------------------------
 
 const REQUEST_TRANSITIONS = [
     'pending'   => ['approved', 'rejected', 'lapsed', 'cancelled'],
-    'approved'  => ['processed', 'cancelled'],
+    'approved'  => ['assigned', 'processed', 'cancelled'],   // assigned: Admin Assistant; processed (Confirmed): Head of Admin directly
+    'assigned'  => ['processed', 'cancelled'],               // Head of Admin approves the assignment
     'processed' => ['completed', 'cancelled'],
     'rejected'  => [], 'lapsed' => [], 'completed' => [], 'cancelled' => [],
 ];
 
 /** Statuses in which the request still needs its vehicle (so it keeps the day holds). */
-const REQUEST_ACTIVE_STATUSES = ['pending', 'approved', 'processed'];
+const REQUEST_ACTIVE_STATUSES = ['pending', 'approved', 'assigned', 'processed'];
 
 function canChangeRequestStatus(string $from, string $to): bool
 {
@@ -257,7 +277,7 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         if (!in_array($to, REQUEST_ACTIVE_STATUSES, true)) {
             releaseVehicleHolds($conn, $request_id);
         }
-        if ($to === 'cancelled' && $req['status'] === 'processed') {
+        if ($to === 'cancelled' && in_array($req['status'], ['assigned', 'processed'], true)) {
             // The drivers' tasks disappear from their lists (cancelled schedules are not shown as work)
             $ids = requestScheduleIds($conn, $request_id);
             if ($ids) {
@@ -273,7 +293,7 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
 
     // Everything below happens after the change is saved, and may never undo it.
     $action = ['approved' => 'approve', 'rejected' => 'reject', 'cancelled' => 'cancel', 'lapsed' => 'lapse',
-               'processed' => 'assign', 'completed' => 'complete'][$to];
+               'assigned' => 'assign', 'processed' => 'confirm', 'completed' => 'complete'][$to];
     $system ? auditLog($conn, $action, $request_id, $reason, null, 'system')
             : auditLog($conn, $action, $request_id, $reason, $actor, $role);
 
@@ -284,6 +304,8 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         'rejected'  => "Your $what was rejected.$why",
         'lapsed'    => "Your $what lapsed because it was not approved within " . lapseWindowText($conn) . '.',
         'cancelled' => "Your $what was cancelled." . ($system ? '' : ' By: ' . requestActorLabel($role)) . $why,
+        'assigned'  => "A vehicle and driver were assigned to your $what. It is waiting for the Head of Admin to confirm.",
+        'processed' => "Your $what is confirmed. The vehicle and driver are ready.",
         'completed' => "Your $what is completed.",
         default     => null,
     };
@@ -291,7 +313,7 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         notifyUsers($conn, [(int)$req['staff_id']], $msg, 'staff/my_requests.php');
     }
     if ($to === 'cancelled' && $req['status'] === 'processed') {
-        // tell the drivers who were on it
+        // tell the drivers who were on it (they only knew about the trip once it was Confirmed)
         $ids = requestScheduleIds($conn, $request_id);
         if ($ids) {
             $r = $conn->query("SELECT DISTINCT u.user_id FROM schedules s JOIN users u ON u.driver_id = s.driver_id WHERE s.schedule_id IN (" . implode(',', array_map('intval', $ids)) . ")");
@@ -303,6 +325,19 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
     if ($to === 'cancelled' && !empty($req['supervisor_id']) && (int)$req['supervisor_id'] !== (int)$actor) {
         notifyUsers($conn, [(int)$req['supervisor_id']], "$what was cancelled." . $why, 'supervisor/approvals.php');
     }
+    if ($to === 'assigned') {
+        notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . ' has a driver assigned and needs your approval.', 'admin/approve_assignments.php');
+    }
+    if ($to === 'processed') {
+        // the drivers learn about the trip only now (before this it was not final)
+        $ids = requestScheduleIds($conn, $request_id);
+        if ($ids) {
+            $r = $conn->query("SELECT DISTINCT u.user_id FROM schedules s JOIN users u ON u.driver_id = s.driver_id WHERE s.schedule_id IN (" . implode(',', array_map('intval', $ids)) . ")");
+            $drv = [];
+            while ($r && ($row = $r->fetch_assoc())) { $drv[] = (int)$row['user_id']; }
+            notifyUsers($conn, $drv, "You have a new trip: $what.", 'driver/schedules.php');
+        }
+    }
     if ($to === 'approved') {
         notifyUsers($conn, adminUserIds($conn), ucfirst($what) . ' is approved and needs a vehicle and driver.', 'admin/vehicle_requests.php');
     }
@@ -313,7 +348,8 @@ function requestActorLabel(string $role): string
 {
     return match ($role) {
         'staff' => 'the requester', 'supervisor' => 'the Head of Section',
-        'admin', 'superadmin' => 'the transport unit', 'system' => 'the system', default => $role,
+        'admin', 'superadmin' => 'the Admin Assistant', 'head_admin' => 'the Head of Admin', 'driver' => 'the requester',
+        'system' => 'the system', default => $role,
     };
 }
 
@@ -463,7 +499,14 @@ function runRequestJobs(mysqli $conn): array
         if ($res['ok']) { $out['lapsed']++; }
     }
 
-    // 2. Trip finished
+    // 2. Trip finished. A trip the Head of Admin never confirmed is cancelled: it was never final.
+    $r = $conn->query("SELECT request_id FROM vehicle_requests WHERE status = 'assigned'
+                         AND TIMESTAMP(trip_date, start_time) <= NOW()");
+    while ($r && ($row = $r->fetch_assoc())) {
+        changeRequestStatus($conn, (int)$row['request_id'], 'cancelled', [
+            'system' => true, 'reason' => 'The driver assignment was not confirmed before the trip time.',
+        ]);
+    }
     $r = $conn->query("SELECT request_id FROM vehicle_requests WHERE status = 'processed'
                          AND TIMESTAMP(trip_date, end_time) < NOW()");
     while ($r && ($row = $r->fetch_assoc())) {
@@ -528,7 +571,7 @@ function requestForCurrentUser(mysqli $conn, int $request_id): ?array
     if (!$req || !isLoggedIn()) { return null; }
     $uid = (int)$_SESSION['user_id'];
     if (isAdmin()) { return $req; }
-    if (isStaff() && (int)$req['staff_id'] === $uid) { return $req; }
+    if ((int)$req['staff_id'] === $uid) { return $req; }   // every role is also staff: its own request
     if (isSupervisor() && ((int)$req['supervisor_id'] === $uid
         || (!empty($_SESSION['department']) && $req['staff_department'] === $_SESSION['department']))) { return $req; }
     return null;

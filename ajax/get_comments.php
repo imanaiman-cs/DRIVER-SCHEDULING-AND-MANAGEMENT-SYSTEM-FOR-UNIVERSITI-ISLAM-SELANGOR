@@ -23,7 +23,7 @@ $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-$labels = ['admin' => 'Transport unit', 'superadmin' => 'Transport unit', 'supervisor' => 'Head of Section', 'staff' => 'Staff'];
+$labels = ['admin' => 'Admin Assistant', 'superadmin' => 'Admin Assistant', 'head_admin' => 'Head of Admin', 'supervisor' => 'Head of Section', 'staff' => 'Staff'];
 foreach ($rows as &$r) {
     $r['role_label'] = $labels[$r['user_role']] ?? $r['user_role'];
 }

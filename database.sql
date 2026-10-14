@@ -16,7 +16,7 @@ CREATE TABLE users (
     password     VARCHAR(255)  NOT NULL,
     email        VARCHAR(100)  NOT NULL,
     full_name    VARCHAR(100)  NOT NULL,
-    role         ENUM('admin','driver','staff','supervisor') NOT NULL DEFAULT 'admin',
+    role         ENUM('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff',
     driver_id    INT           NULL DEFAULT NULL,
     department   VARCHAR(100)  NULL DEFAULT NULL,
     supervisor_id INT          NULL DEFAULT NULL,
@@ -153,7 +153,7 @@ CREATE TABLE vehicle_requests (
     officer_phone   VARCHAR(50)   NULL DEFAULT NULL,
     waiting_place   VARCHAR(150)  NULL DEFAULT NULL,
     vehicles_needed TINYINT       NOT NULL DEFAULT 1 COMMENT 'How many vehicles the trip needs (1-5)',
-    status          ENUM('pending','approved','rejected','processed','cancelled') NOT NULL DEFAULT 'pending',
+    status          ENUM('pending','approved','assigned','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending',
     supervisor_id   INT           NULL DEFAULT NULL,
     supervisor_notes TEXT         NULL DEFAULT NULL,
     reviewed_at     TIMESTAMP     NULL DEFAULT NULL,
@@ -1000,6 +1000,35 @@ INSERT INTO users (username, password, email, full_name, role, driver_id, depart
 SET @stf1 := @sup_id + 1;
 SET @stf2 := @sup_id + 2;
 SET @stf3 := @sup_id + 3;
+
+-- ============================================================
+-- SEED: the rest of the five roles
+--   admin       = Admin Assistant (assigns vehicle + driver -> "Driver Assigned")
+--   head_admin  = Head of Admin   (approves assignments -> "Confirmed"; can do all admin work)
+--   hos002      = the Head of Section above hos001 (approver of a Head of Section's own requests)
+-- Every role is also staff, so each account gets an approver for its own vehicle requests.
+-- Head of Admin login: head001 / head001@uis      Head above hos001: hos002 / hos002@uis
+-- ============================================================
+INSERT INTO users (username, password, email, full_name, role, driver_id, department, supervisor_id) VALUES
+(
+    'hos002',
+    SHA2('hos002@uis', 256),
+    'ketua.pentadbiran@uis.edu.my',
+    'Hajah Rohana binti Ismail',
+    'supervisor', NULL,
+    'Administration Division', NULL
+),
+(
+    'head001',
+    SHA2('head001@uis', 256),
+    'ketua.kenderaan@uis.edu.my',
+    'Haji Zulkifli bin Awang',
+    'head_admin', NULL,
+    'Transport Unit', NULL
+);
+SET @hos2_id := (SELECT user_id FROM users WHERE username = 'hos002');
+UPDATE users SET supervisor_id = @hos2_id WHERE username = 'hos001';
+UPDATE users SET supervisor_id = @sup_id  WHERE role IN ('admin', 'head_admin', 'driver');
 
 -- ============================================================
 -- SEED: vehicle_requests – sample e-Kenderaan requests

@@ -2,7 +2,7 @@
 $page_title   = 'Staff Dashboard';
 $current_page = 'dashboard.php';
 require_once '../config/database.php';
-requireStaff();
+requireRequester();   // every role is also staff
 
 $staff_id   = (int)$_SESSION['user_id'];
 $full_name  = $_SESSION['full_name'] ?? 'Staff';
@@ -14,7 +14,7 @@ $stmt = $conn->prepare("
         COUNT(*)                                                    AS total,
         SUM(status = 'pending')                                     AS pending,
         SUM(status = 'approved')                                    AS approved,
-        SUM(status IN ('rejected','processed'))                     AS done
+        SUM(status IN ('rejected','assigned','processed'))             AS done
     FROM vehicle_requests
     WHERE staff_id = ?
 ");
@@ -46,7 +46,8 @@ $stmt->close();
 $status_hints = [
     'pending'   => 'Waiting for your Head of Section',
     'approved'  => 'Waiting for the transport unit to assign a driver',
-    'processed' => 'Driver and vehicle assigned',
+    'assigned'  => 'Driver assigned, waiting for the Head of Admin to confirm',
+    'processed' => 'Confirmed: driver and vehicle ready',
     'rejected'  => 'See supervisor notes',
     'cancelled' => 'Withdrawn by you',
 ];
@@ -57,7 +58,7 @@ $stmt = $conn->prepare("
     FROM vehicle_requests vr
     LEFT JOIN vehicles v ON vr.vehicle_id = v.vehicle_id
     WHERE vr.staff_id = ?
-      AND vr.status IN ('approved','processed')
+      AND vr.status IN ('approved','assigned','processed')
       AND vr.trip_date >= CURDATE()
     ORDER BY vr.trip_date ASC, vr.start_time ASC
 ");

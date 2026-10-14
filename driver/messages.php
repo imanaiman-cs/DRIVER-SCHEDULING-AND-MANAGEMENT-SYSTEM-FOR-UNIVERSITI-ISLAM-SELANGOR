@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $selected = (int)($_GET['to'] ?? 0);
 
 // ── Get all admin users ───────────────────────────────────────
-$admins_result = $conn->query("SELECT user_id, full_name FROM users WHERE role='admin' ORDER BY full_name ASC");
+$admins_result = $conn->query("SELECT user_id, full_name FROM users WHERE role IN ('admin','head_admin') ORDER BY full_name ASC");
 $admin_list    = $admins_result ? $admins_result->fetch_all(MYSQLI_ASSOC) : [];
 
 // Default to first admin if none selected
@@ -45,7 +45,7 @@ if ($selected > 0) {
 // ── Load selected admin info ──────────────────────────────────
 $selected_admin = null;
 if ($selected > 0) {
-    $s = $conn->prepare("SELECT user_id, full_name FROM users WHERE user_id=? AND role='admin'");
+    $s = $conn->prepare("SELECT user_id, full_name FROM users WHERE user_id=? AND role IN ('admin','head_admin')");
     $s->bind_param('i', $selected);
     $s->execute();
     $selected_admin = $s->get_result()->fetch_assoc();

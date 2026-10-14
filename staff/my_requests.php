@@ -3,7 +3,7 @@ $page_title   = 'My Requests';
 $current_page = 'my_requests.php';
 require_once '../config/database.php';
 require_once '../includes/upload.php';
-requireStaff();
+requireRequester();   // every role is also staff
 
 $staff_id = (int)$_SESSION['user_id'];
 
@@ -163,7 +163,8 @@ foreach ($requests as $r) {
                 <strong>Request status guide:</strong>
                 <span class="badge bg-warning text-dark ms-1">Pending</span> waiting for your Head of Section's decision &nbsp;&bull;&nbsp;
                 <span class="badge bg-success">Approved</span> waiting for the transport unit to assign a driver &nbsp;&bull;&nbsp;
-                <span class="badge bg-primary">Processed</span> driver &amp; vehicle assigned &nbsp;&bull;&nbsp;
+                <span class="badge bg-info text-dark">Driver Assigned</span> waiting for the Head of Admin &nbsp;&bull;&nbsp;
+                <span class="badge bg-primary">Confirmed</span> driver &amp; vehicle ready &nbsp;&bull;&nbsp;
                 <span class="badge bg-danger">Rejected</span> see supervisor notes for the reason &nbsp;&bull;&nbsp;
                 <span class="badge bg-secondary">Cancelled</span> cancelled (the reason is shown) &nbsp;&bull;&nbsp;
                 <span class="badge bg-secondary">Lapsed</span> not approved in time.
@@ -258,7 +259,8 @@ foreach ($requests as $r) {
                             'pending'   => ['warning text-dark', 'clock',         'Pending'],
                             'approved'  => ['success',           'check-circle',  'Approved'],
                             'rejected'  => ['danger',            'times-circle',  'Rejected'],
-                            'processed' => ['primary',           'user-check',    'Processed — driver assigned'],
+                            'assigned'  => ['info text-dark',    'user-clock',    'Driver assigned — waiting for Head of Admin'],
+                            'processed' => ['primary',           'user-check',    'Confirmed — driver assigned'],
                             'cancelled' => ['secondary',         'ban',           'Cancelled'],
                             'lapsed'    => ['secondary',         'hourglass-end', 'Lapsed'],
                             'completed' => ['dark',              'flag-checkered','Completed'],
@@ -413,7 +415,8 @@ var REQUESTS_DATA = <?= json_encode(
         pending:   { color: 'warning text-dark', icon: 'clock',        label: 'Pending' },
         approved:  { color: 'success',           icon: 'check-circle', label: 'Approved' },
         rejected:  { color: 'danger',            icon: 'times-circle', label: 'Rejected' },
-        processed: { color: 'primary',           icon: 'user-check',   label: 'Processed — driver assigned' },
+        assigned:  { color: 'info text-dark',    icon: 'user-clock',   label: 'Driver assigned — waiting for Head of Admin' },
+        processed: { color: 'primary',           icon: 'user-check',   label: 'Confirmed — driver assigned' },
         cancelled: { color: 'secondary',         icon: 'ban',          label: 'Cancelled' },
         lapsed:    { color: 'secondary',         icon: 'hourglass-end', label: 'Lapsed' },
         completed: { color: 'dark',              icon: 'flag-checkered', label: 'Completed' }
@@ -424,10 +427,11 @@ var REQUESTS_DATA = <?= json_encode(
     function requestSteps(status, dates) {
         dates = dates || {};
         var titles = ['Submitted', 'Head of Section review',
-                      'Transport unit processing', 'Driver & vehicle assigned'];
+                      'Transport unit processing', 'Confirmed by Head of Admin'];
         var states;
         switch (status) {
             case 'approved':  states = ['done', 'done',      'current',  'upcoming']; break;
+            case 'assigned':  states = ['done', 'done',      'done',     'current'];  break;
             case 'processed': states = ['done', 'done',      'done',     'done'];     break;
             case 'completed': states = ['done', 'done',      'done',     'done'];     break;
             case 'lapsed':    states = ['done', 'cancelled', 'upcoming', 'upcoming']; break;
@@ -437,7 +441,7 @@ var REQUESTS_DATA = <?= json_encode(
         }
         var stopped = (status === 'rejected' || status === 'cancelled' || status === 'lapsed');
         var stepDates = [dates.created || null, null, null, null];
-        if (status === 'approved' || status === 'processed' || status === 'completed' || status === 'rejected') {
+        if (status === 'approved' || status === 'assigned' || status === 'processed' || status === 'completed' || status === 'rejected') {
             stepDates[1] = dates.reviewed || null;
         } else if (status === 'cancelled' || status === 'lapsed') {
             stepDates[1] = dates.cancelled || dates.updated || null;
@@ -744,7 +748,7 @@ var REQUESTS_DATA = <?= json_encode(
 
     // Assigned driver(s): name, a tap-to-call phone number and the vehicle
     function assignedHtml(r) {
-        if (r.status !== 'processed') { return ''; }
+        if (r.status !== 'processed') { return ''; }   // the driver is shown once the trip is Confirmed
         var list = r.assigned || [];
         if (!list.length) {
             return '<div class="col-12">' + label('Assigned Driver') +

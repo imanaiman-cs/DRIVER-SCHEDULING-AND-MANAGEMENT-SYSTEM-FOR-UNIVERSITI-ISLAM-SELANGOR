@@ -50,10 +50,12 @@ $uid     = (int)$_SESSION['user_id'];
 $allowed = false;
 if (isAdmin()) {
     // Admin only receives requests the Head of Section has approved
-    $allowed = in_array($doc['status'], ['approved', 'processed'], true);
-} elseif (isStaff()) {
-    $allowed = ((int)$doc['staff_id'] === $uid);
-} elseif (isSupervisor()) {
+    $allowed = in_array($doc['status'], ['approved', 'assigned', 'processed'], true);
+}
+if (!$allowed && (int)$doc['staff_id'] === $uid) {   // every role is also staff: its own request
+    $allowed = true;
+}
+if (!$allowed && isSupervisor()) {
     $allowed = ($doc['supervisor_id'] !== null && (int)$doc['supervisor_id'] === $uid);
 }
 if (!$allowed) {

@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($_SESSION['must_change_password']) {
                 header('Location: change_password.php');
-            } elseif ($user['role'] === 'admin' || $user['role'] === 'superadmin') {
+            } elseif (in_array($user['role'], ['admin', 'superadmin', 'head_admin'], true)) {
                 header('Location: admin/dashboard.php');
             } elseif ($user['role'] === 'staff') {
                 header('Location: staff/dashboard.php');

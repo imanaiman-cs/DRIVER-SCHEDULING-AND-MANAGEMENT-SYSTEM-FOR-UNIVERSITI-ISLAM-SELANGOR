@@ -26,7 +26,7 @@ $sql = "
     JOIN users s        ON vr.staff_id      = s.user_id
     LEFT JOIN users sup ON vr.supervisor_id = sup.user_id
     LEFT JOIN vehicles v ON vr.vehicle_id   = v.vehicle_id
-    WHERE vr.status IN ('approved', 'processed')   -- admin only receives requests the Head of Section approved
+    WHERE vr.status IN ('approved', 'assigned', 'processed')   -- admin only receives requests the Head of Section approved
     ORDER BY FIELD(vr.status, 'approved') DESC, vr.created_at DESC
 ";
 $result       = $conn->query($sql);
@@ -63,16 +63,18 @@ $assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_
 // ── Summary counts ───────────────────────────────────────────
 $total     = count($all_requests);
 $approved  = 0;   // supervisor-approved, awaiting admin processing
-$processed = 0;
+$assigned  = 0;   // Driver Assigned: waiting for the Head of Admin
+$processed = 0;   // Confirmed
 
 foreach ($all_requests as $r) {
     if ($r['status'] === 'approved')  { $approved++; }
+    if ($r['status'] === 'assigned')  { $assigned++; }
     if ($r['status'] === 'processed') { $processed++; }
 }
 
 // ── Apply tab filter ─────────────────────────────────────────
 $active_tab = $_GET['status'] ?? 'all';
-$active_tab = in_array($active_tab, ['all', 'approved', 'processed'], true)
+$active_tab = in_array($active_tab, ['all', 'approved', 'assigned', 'processed'], true)
     ? $active_tab
     : 'all';
 
@@ -249,7 +251,7 @@ $display_requests = array_values($display_requests);
                         </div>
                         <div>
                             <div class="stat-value text-primary"><?php echo $processed; ?></div>
-                            <div class="stat-label">Processed</div>
+                            <div class="stat-label">Confirmed</div>
                         </div>
                     </div>
                 </div>
@@ -307,9 +309,18 @@ $display_requests = array_values($display_requests);
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link <?php echo $active_tab === 'assigned' ? 'active' : ''; ?>"
+                           href="?status=assigned">
+                            Driver Assigned
+                            <?php if ($assigned > 0): ?>
+                            <span class="badge ms-1 bg-info text-dark rounded-pill"><?php echo $assigned; ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link <?php echo $active_tab === 'processed' ? 'active' : ''; ?>"
                            href="?status=processed">
-                            Processed
+                            Confirmed
                         </a>
                     </li>
                 </ul>
@@ -341,7 +352,7 @@ $display_requests = array_values($display_requests);
                         <?php foreach ($display_requests as $req): ?>
                             <?php
                                 $status_badge = requestStatusBadgeClass($req['status']);
-                                $status_label = ucfirst($req['status']);
+                                $status_label = requestStatusLabel($req['status']);
                                 $submitted    = date('d M Y', strtotime($req['created_at']));
                                 $doc_count    = count($request_documents[(int)$req['request_id']] ?? []);
                             ?>
@@ -639,7 +650,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
 
     // ── Phone number as tel: link ───────────────────────────
     function assignedHtml(r) {
-        if (r.status !== 'processed') { return ''; }
+        if (r.status !== 'processed' && r.status !== 'assigned') { return ''; }
         var list = r.assigned || [];
         if (!list.length) {
             return '<div class="col-12"><div class="detail-label">Assigned Driver</div>'
@@ -685,6 +696,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         pending:   'bg-warning text-dark',
         approved:  'bg-success',
         rejected:  'bg-danger',
+        assigned:  'bg-info text-dark',
         processed: 'bg-primary',
         cancelled: 'bg-secondary',
     };
@@ -693,7 +705,8 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         pending:   'Pending Supervisor',
         approved:  'Awaiting Processing',
         rejected:  'Rejected',
-        processed: 'Processed',
+        assigned:  'Driver Assigned',
+        processed: 'Confirmed',
         cancelled: 'Cancelled',
     };
 
@@ -869,7 +882,7 @@ const SITE_URL = '<?php echo SITE_URL; ?>';
         }
 
         // Link to the created schedule when processed
-        if (r.status === 'processed' && r.schedule_id) {
+        if ((r.status === 'processed' || r.status === 'assigned') && r.schedule_id) {
             body += '<div class="col-12">'
                   +   '<a href="' + SITE_URL + '/admin/view_schedule.php?id=' + r.schedule_id + '" class="btn btn-uis-primary btn-sm">'
                   +     '<i class="fas fa-calendar-check me-1" aria-hidden="true"></i>'

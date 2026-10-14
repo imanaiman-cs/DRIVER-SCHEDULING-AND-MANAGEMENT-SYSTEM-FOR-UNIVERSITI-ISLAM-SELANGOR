@@ -13,11 +13,7 @@ require_once '../includes/mailer.php';
 header('Content-Type: application/json');
 
 // ── Admin only (JSON response, no redirect) ───────────────────
-if (
-    !isLoggedIn()
-    || !isset($_SESSION['role'])
-    || !in_array($_SESSION['role'], ['admin', 'superadmin'], true)
-) {
+if (!isLoggedIn() || !isAdmin()) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit();
@@ -255,12 +251,15 @@ try {
         $conn->query("UPDATE schedules SET job_group = {$grp} WHERE schedule_id IN (" . implode(',', $schedule_ids) . ")");
     }
 
-    $first_id = $schedule_ids[0];
+    // Admin Assistant -> "Driver Assigned" (waits for the Head of Admin);
+    // Head of Admin assigning it himself -> "Confirmed" (stored as 'processed') at once.
+    $first_id   = $schedule_ids[0];
+    $new_status = isHeadAdmin() ? 'processed' : 'assigned';
     $upd = $conn->prepare(
-        "UPDATE vehicle_requests SET status = 'processed', schedule_id = ?
+        "UPDATE vehicle_requests SET status = ?, schedule_id = ?
          WHERE request_id = ? AND status = 'approved'"
     );
-    $upd->bind_param('ii', $first_id, $request_id);
+    $upd->bind_param('sii', $new_status, $first_id, $request_id);
     $upd->execute();
     $affected = $upd->affected_rows;
     $upd->close();
@@ -289,17 +288,26 @@ $who = [];
 foreach ($plan as $row) {
     if ($row['driver_name']) { $who[] = $row['driver_name']; }
 }
-auditLog($conn, 'assign', $request_id, $who ? 'Drivers: ' . implode(', ', $who) : 'Vehicle set, driver to be assigned');
-notifyUsers($conn, [(int)$request['staff_id']],
-    'Your request #' . $request_id . ' (' . $destination . ', ' . date('d M Y', strtotime($trip_date)) . ') was processed by the transport unit'
-    . ($who ? '. Driver: ' . implode(', ', $who) . '.' : '. A driver will be assigned soon.'),
-    'staff/my_requests.php');
+auditLog($conn, $new_status === 'processed' ? 'confirm' : 'assign', $request_id, $who ? 'Drivers: ' . implode(', ', $who) : 'Vehicle set, driver to be assigned');
+$trip_text = '#' . $request_id . ' (' . $destination . ', ' . date('d M Y', strtotime($trip_date)) . ')';
+if ($new_status === 'processed') {
+    notifyUsers($conn, [(int)$request['staff_id']],
+        "Your request $trip_text is confirmed by the Head of Admin" . ($who ? '. Driver: ' . implode(', ', $who) . '.' : '. A driver will be assigned soon.'),
+        'staff/my_requests.php');
+} else {
+    notifyUsers($conn, [(int)$request['staff_id']],
+        "A vehicle" . ($who ? ' and driver (' . implode(', ', $who) . ')' : '') . " were assigned to your request $trip_text. It is waiting for the Head of Admin to confirm.",
+        'staff/my_requests.php');
+    notifyUsers($conn, headAdminUserIds($conn), "Request $trip_text has a driver assigned and needs your approval.", 'admin/approve_assignments.php');
+}
 
-// ── Tell the drivers (never lets an e-mail problem undo the assignment) ──
+// ── Tell the drivers once the trip is Confirmed (never lets an e-mail problem undo the assignment) ──
 $email_note = '';
 $mail_ids = [];
-foreach ($plan as $k => $row) {
-    if ($row['driver'] !== null) { $mail_ids[] = $schedule_ids[$k]; }
+if ($new_status === 'processed') {
+    foreach ($plan as $k => $row) {
+        if ($row['driver'] !== null) { $mail_ids[] = $schedule_ids[$k]; }
+    }
 }
 if ($mail_ids) {
     try {
@@ -312,7 +320,8 @@ if ($mail_ids) {
 $assigned_names = array_values(array_filter(array_column($plan, 'driver_name')));
 echo json_encode([
     'success'         => true,
-    'message'         => 'Schedule created.',
+    'message'         => $new_status === 'processed' ? 'Schedule created and confirmed.' : 'Schedule created. It now waits for the Head of Admin to confirm.',
+    'request_status'  => $new_status,
     'schedule_id'     => $schedule_ids[0],
     'schedule_ids'    => $schedule_ids,
     'driver_assigned' => count($assigned_names) > 0,

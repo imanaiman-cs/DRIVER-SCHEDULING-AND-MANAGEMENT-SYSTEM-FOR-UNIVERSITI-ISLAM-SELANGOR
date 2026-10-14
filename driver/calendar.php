@@ -21,7 +21,7 @@ $stmt = $conn->prepare(
             v.plate_number
      FROM schedules s
      LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-     WHERE s.driver_id = ?
+     WHERE s.driver_id = ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
      ORDER BY s.trip_date, s.start_time"
 );
 $stmt->bind_param('i', $driver_id);

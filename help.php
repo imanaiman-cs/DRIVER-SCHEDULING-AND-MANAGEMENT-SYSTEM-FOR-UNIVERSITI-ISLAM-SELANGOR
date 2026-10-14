@@ -10,7 +10,8 @@ require_once 'config/database.php';
 requireLogin();
 
 $role = $_SESSION['role'] ?? 'driver';
-if ($role === 'superadmin') {
+$is_head_admin = ($role === 'head_admin');   // the Head of Admin sees the admin help plus the approval topic
+if ($role === 'superadmin' || $is_head_admin) {
     $role = 'admin';
 }
 if (!in_array($role, ['admin', 'driver', 'staff', 'supervisor'], true)) {
@@ -18,7 +19,7 @@ if (!in_array($role, ['admin', 'driver', 'staff', 'supervisor'], true)) {
 }
 
 $role_label = [
-    'admin'      => 'Administrator',
+    'admin'      => $is_head_admin ? 'Head of Admin' : 'Admin Assistant',
     'driver'     => 'Driver',
     'staff'      => 'Staff',
     'supervisor' => 'Head of Section',
@@ -89,7 +90,8 @@ if ($role === 'staff') {
             <tbody>
                 <tr><th scope="row"><span class="badge bg-warning text-dark">Pending</span></th><td>Your Head of Section has not decided yet. Please wait.</td></tr>
                 <tr><th scope="row"><span class="badge bg-success">Approved</span></th><td>Your Head of Section said yes. The Transport Unit will now arrange a driver.</td></tr>
-                <tr><th scope="row"><span class="badge bg-primary">Processed</span></th><td>A driver and vehicle are assigned to your trip. You are all set.</td></tr>
+                <tr><th scope="row"><span class="badge bg-info text-dark">Driver Assigned</span></th><td>A driver and vehicle were chosen. The Head of Admin must still confirm.</td></tr>
+                <tr><th scope="row"><span class="badge bg-primary">Confirmed</span></th><td>The Head of Admin confirmed the driver and vehicle. You are all set.</td></tr>
                 <tr><th scope="row"><span class="badge bg-danger">Rejected</span></th><td>Your request was not accepted. The reason is shown on the request.</td></tr>
                 <tr><th scope="row"><span class="badge bg-secondary">Cancelled</span></th><td>The request was cancelled and will not go ahead.</td></tr>
             </tbody>
@@ -98,13 +100,13 @@ if ($role === 'staff') {
     ', 'role'];
 
     $items[] = ['staff-cancel', 'ban', 'How to cancel a request', '
-        <p>You can cancel a request <strong>only while it is Pending</strong>.</p>
+        <p>You can cancel your own request <strong>any time before the trip starts</strong>. A reason is required.</p>
         <ol>
             <li>Open <strong>My Requests</strong>.</li>
             <li>Find the request and press <strong>Cancel</strong>.</li>
             <li>Confirm in the pop-up.</li>
         </ol>
-        <p>If the request is already Approved or Processed, please contact the Transport Unit.</p>
+        <p>The vehicle is released at once and the people involved are told.</p>
     ', 'role'];
 
     $items[] = ['staff-rejected', 'circle-xmark', 'What to do if your request is rejected', '
@@ -142,7 +144,8 @@ if ($role === 'supervisor') {
             <tbody>
                 <tr><th scope="row"><span class="badge bg-warning text-dark">Pending</span></th><td>Waiting for your decision.</td></tr>
                 <tr><th scope="row"><span class="badge bg-success">Approved</span></th><td>You approved it. The Transport Unit will arrange a driver.</td></tr>
-                <tr><th scope="row"><span class="badge bg-primary">Processed</span></th><td>A driver and vehicle are now assigned. Nothing more for you to do.</td></tr>
+                <tr><th scope="row"><span class="badge bg-info text-dark">Driver Assigned</span></th><td>The Admin Assistant chose a driver. The Head of Admin confirms next.</td></tr>
+                <tr><th scope="row"><span class="badge bg-primary">Confirmed</span></th><td>Confirmed. Nothing more for you to do.</td></tr>
                 <tr><th scope="row"><span class="badge bg-danger">Rejected</span></th><td>You rejected it and gave a reason.</td></tr>
                 <tr><th scope="row"><span class="badge bg-secondary">Cancelled</span></th><td>The staff member cancelled it before a decision.</td></tr>
             </tbody>
@@ -157,6 +160,17 @@ if ($role === 'supervisor') {
 
 // ---------- ADMIN ----------
 if ($role === 'admin') {
+    if ($is_head_admin) {
+        $items[] = ['admin-approve', 'user-check', 'Approving driver assignments (Head of Admin)', '
+            <p>Open <strong>Approve Assignments</strong>. Each request there has a vehicle and driver chosen by an Admin Assistant.</p>
+            <ol>
+                <li>Check the vehicle and the driver.</li>
+                <li>Press <strong>Approve &amp; confirm</strong>. The request becomes <strong>Confirmed</strong>, the driver sees the trip and the requester is told.</li>
+                <li>To change the driver first, open the schedule and edit it.</li>
+            </ol>
+            <p>When you process a request yourself it is confirmed at once.</p>
+        ', 'role'];
+    }
     $items[] = ['admin-process', 'gears', 'Processing approved requests', '
         <p>Open <strong>Vehicle Requests</strong>. A badge shows how many approved requests are waiting.</p>
         <ol>
@@ -164,7 +178,7 @@ if ($role === 'admin') {
             <li>Process it. This creates a schedule for the trip.</li>
             <li>Give the trip a driver (see the next topic).</li>
         </ol>
-        <p>After you process it, the status becomes <strong>Processed</strong> and the staff member can see it.</p>
+        <p>After an Admin Assistant processes it, the status becomes <strong>Driver Assigned</strong> and it waits for the Head of Admin. When the Head of Admin processes it (or approves it under <strong>Approve Assignments</strong>) it becomes <strong>Confirmed</strong>; only then does the driver see the trip.</p>
     ', 'role'];
 
     $items[] = ['admin-multi', 'bus-simple', 'Choosing the vehicles and drivers for a request', '
@@ -287,8 +301,12 @@ $items[] = ['glossary', 'book', 'Glossary', '
         <dd>A request that is waiting for the Head of Section to decide.</dd>
         <dt>Approved</dt>
         <dd>A request that the Head of Section accepted. It still needs a driver.</dd>
-        <dt>Processed</dt>
-        <dd>An approved request that now has a schedule, a driver and a vehicle.</dd>
+        <dt>Driver Assigned</dt>
+        <dd>An approved request that has a vehicle and driver, waiting for the Head of Admin to confirm.</dd>
+        <dt>Confirmed</dt>
+        <dd>The Head of Admin confirmed the assignment. The driver and the requester are told.</dd>
+        <dt>Every role is also staff</dt>
+        <dd>Drivers, Heads of Section and admins can also request a vehicle and follow their own requests (My Vehicle Requests in the menu).</dd>
         <dt>Allocation score</dt>
         <dd>A number that shows how well a driver suits a trip. It looks at workload, weekend work and experience. A higher number is a better match.</dd>
         <dt>Licence class</dt>

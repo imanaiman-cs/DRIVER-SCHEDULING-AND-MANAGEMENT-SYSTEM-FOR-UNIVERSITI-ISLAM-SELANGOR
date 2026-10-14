@@ -34,7 +34,7 @@ switch ($tab) {
 $sql = "SELECT s.*, v.plate_number, v.vehicle_type, v.brand, v.model, v.capacity
         FROM schedules s
         LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-        WHERE $where
+        WHERE $where AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
         ORDER BY s.trip_date DESC, s.start_time DESC";
 
 $stmt = $conn->prepare($sql);
@@ -57,7 +57,7 @@ unset($row);
 
 // Tab counts
 $cnt_query = function($extra_where, $extra_params = [], $extra_types = '') use ($conn, $driver_id) {
-    $s2 = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules WHERE driver_id=? $extra_where");
+    $s2 = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? $extra_where AND " . SCHEDULE_CONFIRMED_ONLY_SQL);
     if ($extra_params) {
         $s2->bind_param("i".$extra_types, $driver_id, ...$extra_params);
     } else {

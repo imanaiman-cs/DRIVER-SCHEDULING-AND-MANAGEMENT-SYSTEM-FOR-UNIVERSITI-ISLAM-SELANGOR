@@ -28,7 +28,7 @@ $actions = [];
 $r = $conn->query('SELECT DISTINCT action FROM audit_log ORDER BY action');
 while ($r && ($x = $r->fetch_assoc())) { $actions[] = $x['action']; }
 
-$role_names = ['admin' => 'Administrator', 'superadmin' => 'Administrator', 'staff' => 'Staff',
+$role_names = ['admin' => 'Admin Assistant', 'superadmin' => 'Admin Assistant', 'head_admin' => 'Head of Admin', 'staff' => 'Staff',
                'supervisor' => 'Head of Section', 'driver' => 'Driver', 'system' => 'System'];
 ?>
 <!DOCTYPE html>

@@ -8,7 +8,7 @@
 require_once '../config/database.php';
 header('Content-Type: application/json');
 
-if (!isStaff() && !isAdmin()) {
+if (!isLoggedIn()) {   // every role is also staff
     echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
     exit();
 }

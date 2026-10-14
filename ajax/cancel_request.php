@@ -23,7 +23,7 @@ function cancelFail(string $message, int $http = 200): void
     exit();
 }
 
-if (!isLoggedIn() || !(isStaff() || isSupervisor() || isAdmin())) {
+if (!isLoggedIn()) {   // every role is also staff, so any signed-in user may cancel their own request
     cancelFail('Unauthorized', 403);
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -55,11 +55,11 @@ if (!$req) {
 // ── Permission: may THIS user cancel THIS request? ──────────────
 $uid = (int)$_SESSION['user_id'];
 $allowed = false;
-if (isAdmin()) {
+if (isAdmin()) {                                   // Admin Assistant and Head of Admin: any request
     $allowed = true;
-} elseif (isStaff()) {
-    $allowed = ((int)$req['staff_id'] === $uid);
-} elseif (isSupervisor()) {
+} elseif ((int)$req['staff_id'] === $uid) {        // everyone: their own request
+    $allowed = true;
+} elseif (isSupervisor()) {                        // Head of Department: where they are the approver / their department
     $allowed = ((int)$req['supervisor_id'] === $uid)
             || (!empty($_SESSION['department']) && $req['department'] === $_SESSION['department']);
 }

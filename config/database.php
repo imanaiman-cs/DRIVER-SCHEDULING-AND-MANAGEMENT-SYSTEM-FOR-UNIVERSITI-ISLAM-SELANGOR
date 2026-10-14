@@ -118,8 +118,19 @@ function upgradeDatabaseSchema(mysqli $conn): void
     if ($hasTable('vehicle_requests')) {
         $r = $conn->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='vehicle_requests' AND COLUMN_NAME='status'");
         $type = $r ? (string)($r->fetch_row()[0] ?? '') : '';
-        if ($type !== '' && (stripos($type, 'cancelled') === false || stripos($type, 'lapsed') === false || stripos($type, 'completed') === false)) {
-            $run("ALTER TABLE vehicle_requests MODIFY status ENUM('pending','approved','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending'");
+        // 'assigned' = Driver Assigned (waiting for the Head of Admin), 'processed' = Confirmed
+        if ($type !== '' && (stripos($type, 'cancelled') === false || stripos($type, 'lapsed') === false
+                             || stripos($type, 'completed') === false || stripos($type, 'assigned') === false)) {
+            $run("ALTER TABLE vehicle_requests MODIFY status ENUM('pending','approved','assigned','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending'");
+        }
+    }
+
+    // users.role: the fifth role (head_admin) must be allowed
+    if ($hasTable('users')) {
+        $r = $conn->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='$db' AND TABLE_NAME='users' AND COLUMN_NAME='role'");
+        $type = $r ? (string)($r->fetch_row()[0] ?? '') : '';
+        if ($type !== '' && stripos($type, 'head_admin') === false) {
+            $run("ALTER TABLE users MODIFY role ENUM('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff'");
         }
     }
 
@@ -311,7 +322,7 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 
 // Bring an older database up to date once per session (see upgradeDatabaseSchema above).
 // Raise SCHEMA_VERSION whenever the upgrade function learns something new.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 if (($_SESSION['schema_version'] ?? 0) < SCHEMA_VERSION) {
@@ -458,7 +469,40 @@ function isLoggedIn(): bool
  */
 function isAdmin(): bool
 {
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+    // admin = Admin Assistant; the Head of Admin can do everything an Admin Assistant can do
+    return isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'head_admin'], true);
+}
+
+/** The Head of Admin: everything an admin can do, plus approving driver assignments. */
+function isHeadAdmin(): bool
+{
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'head_admin';
+}
+
+function requireHeadAdmin(): void
+{
+    requireLogin();
+    if (!isHeadAdmin()) {
+        header('Location: ' . SITE_URL . '/admin/dashboard.php');
+        exit();
+    }
+}
+
+/**
+ * Every role is also Staff: all of them may submit a vehicle request and follow / cancel their own.
+ */
+function requireRequester(): void
+{
+    requireLogin();
+}
+
+/** Display name of a role (same words everywhere). */
+function roleLabel(string $role): string
+{
+    return match ($role) {
+        'staff' => 'Staff', 'driver' => 'Driver', 'supervisor' => 'Head of Section',
+        'admin', 'superadmin' => 'Admin Assistant', 'head_admin' => 'Head of Admin', default => $role,
+    };
 }
 
 /**
@@ -577,11 +621,22 @@ function requestStatusBadgeClass(string $status): string
         'pending'   => 'bg-warning text-dark',
         'approved'  => 'bg-success',
         'rejected'  => 'bg-danger',
+        'assigned'  => 'bg-info text-dark',
         'processed' => 'bg-primary',
         'cancelled' => 'bg-secondary',
         'lapsed'    => 'bg-secondary',
         'completed' => 'bg-dark',
         default     => 'bg-secondary',
+    };
+}
+
+/** The words people see for a stored status ('assigned' = Driver Assigned, 'processed' = Confirmed). */
+function requestStatusLabel(string $status): string
+{
+    return match ($status) {
+        'pending' => 'Pending Approval', 'approved' => 'Approved', 'assigned' => 'Driver Assigned',
+        'processed' => 'Confirmed', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
+        'lapsed' => 'Lapsed', 'completed' => 'Completed', default => ucfirst($status),
     };
 }
 

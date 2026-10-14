@@ -8,16 +8,22 @@ $page_title   = 'Request Vehicle';
 $current_page = 'request_vehicle.php';
 require_once '../config/database.php';
 require_once '../includes/upload.php';
-requireStaff();
+requireRequester();   // every role is also staff
 
 $doc_types = documentTypes();
 
 $staff_id      = (int)$_SESSION['user_id'];
 $full_name     = $_SESSION['full_name']  ?? '';
 $department    = $_SESSION['department'] ?? '';
-$supervisor_id = isset($_SESSION['supervisor_id']) && !empty($_SESSION['supervisor_id'])
-    ? (int)$_SESSION['supervisor_id']
-    : null;
+// The request goes to the approver of THIS account (read fresh: the admin may change it).
+// Staff -> their Head of Department; a Head of Department -> their own head.
+$q = $conn->prepare('SELECT u.supervisor_id FROM users u JOIN users a ON a.user_id = u.supervisor_id
+                      WHERE u.user_id = ? AND a.role = \'supervisor\' AND a.is_active = 1');
+$q->bind_param('i', $staff_id);
+$q->execute();
+$approver_row = $q->get_result()->fetch_assoc();
+$q->close();
+$supervisor_id = $approver_row ? (int)$approver_row['supervisor_id'] : null;
 
 // R1 two-day rule (the number of days is a setting)
 $min_days = max(0, getSettingInt($conn, 'MIN_DAYS_AHEAD'));
@@ -102,6 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'officer_phone'   => $officer_phone,
         'waiting_place'   => $waiting_place,
     ];
+
+    if (!$supervisor_id) {
+        $errors[] = 'No approver is set for your account. Please ask the Admin to assign your Head of Department in User Accounts.';
+    }
 
     // Trip date: required, valid, at least 2 days ahead (R1)
     if ($trip_date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) || !strtotime($trip_date)) {

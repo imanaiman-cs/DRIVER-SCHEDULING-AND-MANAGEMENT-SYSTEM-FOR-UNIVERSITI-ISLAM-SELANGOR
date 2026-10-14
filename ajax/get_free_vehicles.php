@@ -3,7 +3,7 @@ require_once '../config/database.php';
 header('Content-Type: application/json');
 
 // Allow staff OR admin users
-if (!isStaff() && !isAdmin()) {
+if (!isLoggedIn()) {   // every role is also staff
     echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Unauthorized.']);
     exit();
 }

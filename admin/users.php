@@ -12,7 +12,9 @@ require_once '../config/database.php';
 require_once '../includes/admin_page.php';
 requireAdmin();
 
-const USER_ROLES = ['staff' => 'Staff', 'supervisor' => 'Head of Section', 'driver' => 'Driver', 'admin' => 'Admin (Vehicle Section)'];
+// The five roles. Every role is also staff (can request a vehicle); the extra rights come with the role.
+const USER_ROLES = ['staff' => 'Staff', 'driver' => 'Driver', 'supervisor' => 'Head of Section',
+                    'admin' => 'Admin Assistant', 'head_admin' => 'Head of Admin'];
 
 $me     = (int)$_SESSION['user_id'];
 $errors = [];
@@ -62,14 +64,17 @@ function validateUserForm(mysqli $conn, array $in, int $id): array
     } else {
         $v['driver_id'] = 0;
     }
-    if ($v['role'] === 'staff' && $v['supervisor_id'] > 0) {
+    // Approver rule: a request goes to the approver of the requester (every role can request).
+    // A Head of Section's approver is their own head, never themselves.
+    if ($v['supervisor_id'] > 0 && $v['supervisor_id'] === $id) {
+        $e[] = 'A person cannot be their own approver.';
+    } elseif ($v['supervisor_id'] > 0) {
         $q = $conn->prepare("SELECT 1 FROM users WHERE user_id = ? AND role = 'supervisor' AND is_active = 1");
         $q->bind_param('i', $v['supervisor_id']);
         $q->execute();
-        if (!$q->get_result()->fetch_assoc()) { $e[] = 'The chosen Head of Section is not an active supervisor.'; }
+        if (!$q->get_result()->fetch_assoc()) { $e[] = 'The chosen approver is not an active Head of Section.'; }
         $q->close();
     }
-    if ($v['role'] !== 'staff') { $v['supervisor_id'] = 0; }
     return [$v, $e];
 }
 
@@ -80,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'create' || $act === 'update') {
         [$v, $errors] = validateUserForm($conn, $_POST, $act === 'update' ? $uid : 0);
         $form = $v;
-        if ($act === 'update' && $uid === $me && $v['role'] !== 'admin') {
+        if ($act === 'update' && $uid === $me && $v['role'] !== $_SESSION['role']) {
             $errors[] = 'You cannot change your own role.';
         }
         if (!$errors) {
@@ -227,7 +232,7 @@ adminPageStart('User Accounts');
                         </select></div>
                     <div class="col-12"><label class="form-label small" for="department">Department / unit</label>
                         <input class="form-control form-control-sm" id="department" name="department" value="<?= htmlspecialchars($form['department']) ?>" maxlength="100"></div>
-                    <div class="col-12" id="rowSupervisor"><label class="form-label small" for="supervisor_id">Head of Section (for staff)</label>
+                    <div class="col-12" id="rowSupervisor"><label class="form-label small" for="supervisor_id">Approver (Head of Section)</label>
                         <select class="form-select form-select-sm" id="supervisor_id" name="supervisor_id">
                             <option value="">&mdash; none &mdash;</option>
                             <?php foreach ($supervisors as $s): ?><option value="<?= (int)$s['user_id'] ?>" <?= (int)$form['supervisor_id'] === (int)$s['user_id'] ? 'selected' : '' ?>><?= htmlspecialchars($s['full_name'] . ($s['department'] ? ' — ' . $s['department'] : '')) ?></option><?php endforeach; ?>
@@ -262,7 +267,7 @@ adminPageStart('User Accounts');
                     <?php foreach ($users as $u): ?>
                         <tr class="<?= (int)$u['is_active'] ? '' : 'text-muted' ?>">
                             <td><strong><?= htmlspecialchars($u['username']) ?></strong><br><span class="small"><?= htmlspecialchars($u['full_name']) ?></span>
-                                <?php if ($u['role'] === 'staff' && $u['supervisor_name']): ?><br><span class="small text-muted">Head: <?= htmlspecialchars($u['supervisor_name']) ?></span><?php endif; ?>
+                                <?php if ($u['supervisor_name']): ?><br><span class="small text-muted">Approver: <?= htmlspecialchars($u['supervisor_name']) ?></span><?php endif; ?>
                                 <?php if ($u['role'] === 'driver' && $u['driver_name']): ?><br><span class="small text-muted">Driver: <?= htmlspecialchars($u['driver_name']) ?></span><?php endif; ?></td>
                             <td class="small"><?= htmlspecialchars(USER_ROLES[$u['role']] ?? $u['role']) ?></td>
                             <td class="small">
@@ -297,7 +302,6 @@ adminPageStart('User Accounts');
     (function () {
         var role = document.getElementById('role');
         function sync() {
-            document.getElementById('rowSupervisor').style.display = role.value === 'staff' ? '' : 'none';
             document.getElementById('rowDriver').style.display = role.value === 'driver' ? '' : 'none';
         }
         role.addEventListener('change', sync); sync();

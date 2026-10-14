@@ -25,18 +25,14 @@ foreach (array_slice($name_parts, 0, 2) as $part) {
 $initials = $initials ?: 'U';
 
 // Role label displayed under the avatar
-$role_label = match ($role) {
-    'admin',
-    'superadmin' => 'Administrator',
-    'driver'     => 'Driver',
-    'staff'      => 'Staff',
-    'supervisor' => 'Head of Section',
-    default      => ucfirst($role),
-};
+$role_label = roleLabel($role);
+
+// Admin Assistant and Head of Admin share the admin menu (the Head of Admin has one extra item)
+$_is_admin_role = in_array($role, ['admin', 'superadmin', 'head_admin'], true);
 
 // Home URL for the current role (used by header breadcrumb)
 $_role_home = match ($role) {
-    'admin', 'superadmin' => 'admin/dashboard.php',
+    'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
     'staff'               => 'staff/dashboard.php',
     'supervisor'          => 'supervisor/approvals.php',
     default               => 'driver/dashboard.php',
@@ -67,15 +63,18 @@ $_unread_msgs        = 0;
 $_pending_assignments = 0;
 $_failed_emails      = 0;   // admin: e-mails that failed in the last 7 days
 $_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
+$_assigned_waiting   = 0;   // head of admin: driver assignments waiting for approval
 $_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
 $_app_unread         = 0;   // unread in-app notifications (bell)
 $_app_notifs         = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
     $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
     if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
-    if ($role === 'admin' || $role === 'superadmin') {
+    if ($_is_admin_role) {
         $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND status NOT IN ('cancelled','completed')");
         if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
+        $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='assigned'");
+        if ($r5) $_assigned_waiting = (int)$r5->fetch_assoc()['cnt'];
         $r4 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='approved'");
         if ($r4) $_approved_requests = (int)$r4->fetch_assoc()['cnt'];
         try {   // the table may not exist yet on a database that has not been re-imported
@@ -141,7 +140,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                 <?php echo htmlspecialchars($full_name); ?>
             </div>
             <span class="sidebar-role-badge">
-                <?php if ($role === 'admin' || $role === 'superadmin'): ?>
+                <?php if ($_is_admin_role): ?>
                     <i class="fas fa-shield-halved fa-xs" aria-hidden="true"></i>
                 <?php else: ?>
                     <i class="fas fa-id-card fa-xs" aria-hidden="true"></i>
@@ -155,7 +154,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <div class="sidebar-menu-wrapper">
         <ul class="sidebar-nav" id="sidebarNav">
 
-            <?php if ($role === 'admin' || $role === 'superadmin'): ?>
+            <?php if ($_is_admin_role): ?>
             <!-- ====================================================
                  ADMIN MENU
                  ==================================================== -->
@@ -273,6 +272,19 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     <?php endif; ?>
                 </a>
             </li>
+
+            <?php if ($role === 'head_admin'): ?>
+            <!-- Approve driver assignments (Head of Admin only) -->
+            <li class="sidebar-item <?php echo sidebarActive('approve_assignments.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/admin/approve_assignments.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-user-check" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Approve Assignments</span>
+                    <?php if ($_assigned_waiting > 0): ?>
+                    <span class="ms-auto badge rounded-pill" style="background:#0ea5e9;font-size:0.65rem;min-width:18px;"><?php echo $_assigned_waiting; ?></span>
+                    <?php endif; ?>
+                </a>
+            </li>
+            <?php endif; ?>
 
             <!-- Reminders to the Head of Section -->
             <li class="sidebar-item <?php echo sidebarActive('reminders.php', $current_page); ?>">
@@ -493,6 +505,23 @@ if ($_sidebar_uid > 0 && isset($conn)) {
 
             <?php endif; ?>
 
+            <?php if ($role !== 'staff'): ?>
+            <!-- Every role is also staff: request a vehicle and follow own requests -->
+            <li class="sidebar-section-label">My Vehicle Requests</li>
+            <li class="sidebar-item <?php echo sidebarActive('request_vehicle.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/staff/request_vehicle.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-car-side" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">Request a Vehicle</span>
+                </a>
+            </li>
+            <li class="sidebar-item <?php echo sidebarActive('my_requests.php', $current_page); ?>">
+                <a href="<?php echo SITE_URL; ?>/staff/my_requests.php" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-list-check" aria-hidden="true"></i></span>
+                    <span class="sidebar-label">My Requests</span>
+                </a>
+            </li>
+            <?php endif; ?>
+
         </ul><!-- /.sidebar-nav -->
     </div><!-- /.sidebar-menu-wrapper -->
 
@@ -568,7 +597,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         </div>
 
         <?php
-            $_is_admin_role = ($role === 'admin' || $role === 'superadmin');
             $_dh_total = $_app_unread + ($_is_admin_role ? $_pending_assignments : 0);
         ?>
         <!-- Notification bell (all roles) -->

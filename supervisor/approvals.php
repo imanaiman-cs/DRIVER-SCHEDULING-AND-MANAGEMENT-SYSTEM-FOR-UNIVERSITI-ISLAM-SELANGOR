@@ -73,7 +73,8 @@ foreach ($all_requests as $r) {
         case 'pending':   $pending++;   break;
         case 'approved':  $approved++;  break;
         case 'rejected':  $rejected++;  break;
-        case 'processed': $processed++; break;
+        case 'assigned':
+        case 'processed': $processed++; break;     // driver assigned / confirmed
         case 'cancelled':
         case 'lapsed':    $cancelled++; break;     // lapsed = not approved in time
     }
@@ -87,7 +88,7 @@ $active_tab = in_array($active_tab, ['all', 'pending', 'approved', 'rejected', '
 
 $display_requests = $active_tab === 'all'
     ? $all_requests
-    : array_filter($all_requests, fn($r) => $r['status'] === $active_tab || ($active_tab === 'cancelled' && $r['status'] === 'lapsed'));
+    : array_filter($all_requests, fn($r) => $r['status'] === $active_tab || ($active_tab === 'cancelled' && $r['status'] === 'lapsed') || ($active_tab === 'processed' && $r['status'] === 'assigned'));
 $display_requests = array_values($display_requests);
 ?>
 <!DOCTYPE html>
@@ -344,7 +345,7 @@ $display_requests = array_values($display_requests);
                     <li class="nav-item">
                         <a class="nav-link <?php echo $active_tab === 'processed' ? 'active' : ''; ?>"
                            href="?status=processed">
-                            Processed
+                            Vehicle assigned
                         </a>
                     </li>
                     <li class="nav-item">
@@ -382,7 +383,7 @@ $display_requests = array_values($display_requests);
                         <?php foreach ($display_requests as $i => $req): ?>
                             <?php
                                 $status_badge = requestStatusBadgeClass($req['status']);
-                                $status_label = ucfirst($req['status']);
+                                $status_label = requestStatusLabel($req['status']);
 
                                 // Vehicle label (a request may ask for several vehicles)
                                 $rv_list = $req_vehicle_map[(int)$req['request_id']] ?? [];
@@ -478,7 +479,7 @@ $display_requests = array_values($display_requests);
                                             <i class="fas fa-xmark" aria-hidden="true"></i>
                                         </button>
                                         <?php endif; ?>
-                                        <?php if (in_array($req['status'], ['approved', 'processed'], true)
+                                        <?php if (in_array($req['status'], ['approved', 'assigned', 'processed'], true)
                                                   && strtotime($req['trip_date'] . ' ' . $req['start_time']) > time()): ?>
                                         <!-- Cancel (reason required) -->
                                         <button type="button"

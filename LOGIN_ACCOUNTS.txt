@@ -1,25 +1,39 @@
 UIS DRIVER SCHEDULING & MANAGEMENT SYSTEM
 DEMO LOGIN ACCOUNTS  (from database.sql - for testing only)
-Last updated: 2026-10-14
+Last updated: 2026-10-14   (five roles: Staff, Driver, Head of Section, Admin Assistant, Head of Admin)
 =============================================================
 
 Login page:
   http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php
 
 
-ADMIN  (Vehicle Section)
+ADMIN ASSISTANT  (Vehicle Section)
   Username : admin
   Password : admin123
   Name     : Rozaimi bin Kamaruzzaman
-  Can do   : process requests, schedules, drivers, vehicles, leave, welfare duty,
-             internal tasks, reminders, reports, settings, user accounts, audit log
+  Can do   : process approved requests (-> "Driver Assigned"), schedules, drivers, vehicles, leave,
+             welfare duty, internal tasks, reminders, reports, settings, user accounts, audit log
 
 
-HEAD OF SECTION (SUPERVISOR)
+HEAD OF ADMIN
+  Username : head001
+  Password : head001@uis
+  Name     : Haji Zulkifli bin Awang       (Transport Unit)
+  Can do   : everything the Admin Assistant can do, plus Approve Assignments
+             ("Driver Assigned" -> "Confirmed"); what he assigns himself is confirmed at once
+
+
+HEAD OF SECTION (HoD)
   Username : hos001
   Password : hos001@uis
   Name     : Mohd Hafizi bin Harun        (Transport Unit)
   Can do   : approve / reject / cancel requests (reason needed), add comments
+             (approver of stf001-stf003, the drivers, admin and head001)
+
+  Username : hos002
+  Password : hos002@uis
+  Name     : Hajah Rohana binti Ismail    (Administration Division)
+  Can do   : same as hos001; approver of the vehicle requests of hos001 (a Head's own head)
 
 
 STAFF  (all three report to hos001)
@@ -29,6 +43,9 @@ STAFF  (all three report to hos001)
   stf002     staff002@uis   Muhammad Syafiq bin Zainal    Registrar Office
   stf003     staff003@uis   Siti Aishah binti Mohd Yusof  Student Affairs Division
   Can do   : request a vehicle (at least 2 days ahead), track / cancel own requests
+
+EVERY ROLE IS ALSO STAFF: drivers, Heads of Section, the Admin Assistant and the Head of Admin can
+also request a vehicle (menu: My Vehicle Requests). Their request goes to the approver set on the account.
 
 
 DRIVERS  (password pattern: driver + number + @uis)
@@ -46,7 +63,7 @@ DRIVERS  (password pattern: driver + number + @uis)
   drv010     driver010@uis  Nurul Ain binti Saharuddin         Regular         Active
   drv011     driver011@uis  Hairul Nizam bin Kamaruddin        Regular         Inactive
   drv012     driver012@uis  Azhari bin Mahmud                  Top Management  Active
-  Can do   : see own task sheet, workload score, other duties
+  Can do   : see own confirmed task sheet, workload score, other duties; request a vehicle (approver: hos001)
 
 
 NOTES
