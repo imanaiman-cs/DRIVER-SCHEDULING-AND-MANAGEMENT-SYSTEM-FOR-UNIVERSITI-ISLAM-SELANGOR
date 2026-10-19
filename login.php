@@ -50,7 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$user) {
             $error = $generic;
         } elseif ((int)($user['is_locked'] ?? 0) === 1) {
-            $error = 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.';
+            // only someone who knows the password learns that the account is locked (no username probing)
+            $error = verifyPassword($password, $user['password'])
+                ? 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.'
+                : $generic;
         } elseif (!verifyPassword($password, $user['password'])) {
             $uid = (int)$user['user_id'];
             $conn->query("UPDATE users SET failed_attempts = failed_attempts + 1 WHERE user_id = $uid");

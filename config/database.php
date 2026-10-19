@@ -432,13 +432,16 @@ function runSecurityChecks(mysqli $conn): void
     // 2 + 3. the account itself
     try {
         $uid = (int)$_SESSION['user_id'];
-        $u = $conn->query("SELECT is_active, is_locked, must_change_password FROM users WHERE user_id = $uid")->fetch_assoc();
+        $u = $conn->query("SELECT is_active, is_locked, must_change_password, role FROM users WHERE user_id = $uid")->fetch_assoc();
         if (!$u || !(int)$u['is_active'] || (int)$u['is_locked']) {
             session_unset();
             $_SESSION['login_notice'] = 'Your account is not available. Please contact the transport unit.';
             securityStop(401, 'Your account is not available.', SITE_URL . '/login.php');
         }
         $_SESSION['must_change_password'] = (bool)$u['must_change_password'];
+        if ($u['role'] !== ($_SESSION['role'] ?? null)) {
+            $_SESSION['role'] = $u['role'];      // a role changed by the admin applies at once, not at the next sign-in
+        }
         if ($_SESSION['must_change_password'] && !in_array($script, ['change_password.php', 'logout.php'], true)) {
             securityStop(403, 'Please change your temporary password first.', SITE_URL . '/change_password.php');
         }
@@ -464,6 +467,11 @@ function runSecurityChecks(mysqli $conn): void
                 return $m[0] . $field;
             }, $html);
         });
+    }
+
+    // A POST bigger than post_max_size arrives empty: say so, instead of 'page expired'
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        securityStop(413, 'The form was too large and was not received. Each document must be 5 MB or smaller. Please go back and try again.');
     }
 
     // 4. CSRF on every state-changing request

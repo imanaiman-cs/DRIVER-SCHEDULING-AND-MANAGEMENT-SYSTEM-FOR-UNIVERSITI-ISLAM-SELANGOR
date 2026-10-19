@@ -16,8 +16,16 @@ requireHeadAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'approve') {
     $rid = (int)($_POST['request_id'] ?? 0);
     $row = $conn->query("SELECT trip_date, start_time, status FROM vehicle_requests WHERE request_id = $rid")->fetch_assoc();
+    $legRows = $conn->query("SELECT driver_id, self_drive FROM schedules WHERE request_id = $rid AND status <> 'cancelled'")->fetch_all(MYSQLI_ASSOC);
+    $noDriver = array_filter($legRows, fn($l) => $l['driver_id'] === null && !(int)$l['self_drive']);
     if (!$row) {
         setFlash('danger', 'Request not found.');
+    } elseif ($row['status'] !== 'assigned') {
+        setFlash('danger', "Request #$rid is not waiting for approval any more (it is now " . requestStatusLabel($row['status']) . ').');
+    } elseif (!$legRows) {
+        setFlash('danger', "Request #$rid has no schedule yet, so it cannot be confirmed.");
+    } elseif ($noDriver) {
+        setFlash('danger', "Request #$rid still has a vehicle without a driver. Edit the schedule and choose a driver (or mark the request as self-drive) first.");
     } elseif (strtotime($row['trip_date'] . ' ' . $row['start_time']) <= time()) {
         setFlash('danger', 'The trip time has already passed, so it can no longer be confirmed.');
     } else {

@@ -557,6 +557,13 @@ function runRequestJobs(mysqli $conn): array
     }
 
     // 2. Trip finished. A trip the Head of Admin never confirmed is cancelled: it was never final.
+    $r = $conn->query("SELECT request_id FROM vehicle_requests WHERE status = 'approved'
+                         AND TIMESTAMP(trip_date, start_time) <= NOW()");
+    while ($r && ($row = $r->fetch_assoc())) {
+        changeRequestStatus($conn, (int)$row['request_id'], 'cancelled', [
+            'system' => true, 'reason' => 'The request was not processed by the transport unit before the trip time.',
+        ]);
+    }
     $r = $conn->query("SELECT request_id FROM vehicle_requests WHERE status = 'assigned'
                          AND TIMESTAMP(trip_date, start_time) <= NOW()");
     while ($r && ($row = $r->fetch_assoc())) {
@@ -691,4 +698,18 @@ function recordClashOverride(mysqli $conn, array $schedule_ids, string $reason, 
     } catch (Throwable $e) {
         error_log('recordClashOverride: ' . $e->getMessage());
     }
+}
+
+// ------------------------------------------------------------
+// Strict date / time checks (2026-02-31 and 25:61 are NOT valid)
+// ------------------------------------------------------------
+function isValidDate(string $d): bool
+{
+    $t = DateTime::createFromFormat('Y-m-d', $d);
+    return $t !== false && $t->format('Y-m-d') === $d;
+}
+
+function isValidTime(string $t): bool
+{
+    return (bool)preg_match('/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/', $t);
 }

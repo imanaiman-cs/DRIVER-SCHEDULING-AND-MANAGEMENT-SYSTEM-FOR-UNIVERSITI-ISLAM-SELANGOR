@@ -124,17 +124,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Trip date: required, valid, at least 2 days ahead (R1)
-    if ($trip_date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) || !strtotime($trip_date)) {
+    if ($trip_date === '' || !isValidDate($trip_date)) {
         $errors[] = 'Trip date is required and must be a valid date.';
     } elseif ($trip_date < $min_date) {
         $errors[] = 'Requests must be made at least two days before the trip (earliest date: ' . date('d M Y', strtotime($min_date)) . '). For last-minute requests, use the paper form BPTK/BPI/2025/PIN.5.';
     }
 
     // Times: required, valid, end after start
-    if ($start_time === '' || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $start_time)) {
+    if ($start_time === '' || !isValidTime($start_time)) {
         $errors[] = 'Start time is required.';
     }
-    if ($end_time === '' || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $end_time)) {
+    if ($end_time === '' || !isValidTime($end_time)) {
         $errors[] = 'End time is required.';
     }
     if ($start_time !== '' && $end_time !== '' && $end_time <= $start_time) {
@@ -153,10 +153,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($extra_legs as $k => $lg) {
         $n = $k + 2;
         $okLeg = true;
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $lg['date']) || !strtotime($lg['date'])) { $errors[] = "Leg $n: the date is required."; $okLeg = false; }
+        if (!isValidDate($lg['date'])) { $errors[] = "Leg $n: the date is required."; $okLeg = false; }
         elseif ($trip_date !== '' && $lg['date'] < $trip_date) { $errors[] = "Leg $n: the date cannot be before the first leg."; $okLeg = false; }
         elseif ($lg['date'] < $min_date) { $errors[] = "Leg $n: the date must be at least two days ahead."; $okLeg = false; }
-        if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lg['start']) || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lg['end'])) { $errors[] = "Leg $n: start and end time are required."; $okLeg = false; }
+        if (!isValidTime($lg['start']) || !isValidTime($lg['end'])) { $errors[] = "Leg $n: start and end time are required."; $okLeg = false; }
         elseif ($lg['end'] <= $lg['start']) { $errors[] = "Leg $n: the end time must be after the start time."; $okLeg = false; }
         if ($lg['dest'] === '' || mb_strlen($lg['dest']) > 255) { $errors[] = "Leg $n: a destination (max 255 characters) is required."; $okLeg = false; }
         if ($okLeg) {
@@ -258,6 +258,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    }
+    $trip_date = $all_legs[0]['date']; $start_time = $all_legs[0]['start']; $end_time = $all_legs[0]['end'];
+
     // Store the uploaded documents (only once everything else is valid)
     $saved_docs = [];
     if (empty($errors) && !empty($files)) {
@@ -291,8 +294,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
     }
-    }
-    $trip_date = $all_legs[0]['date']; $start_time = $all_legs[0]['start']; $end_time = $all_legs[0]['end'];
 
     if (empty($errors)) {
         $in_transaction = false;

@@ -38,6 +38,12 @@ function validateUserForm(mysqli $conn, array $in, int $id): array
     if ($v['full_name'] === '' || mb_strlen($v['full_name']) > 100) { $e[] = 'Full name is required (max 100 characters).'; }
     if (!filter_var($v['email'], FILTER_VALIDATE_EMAIL) || strlen($v['email']) > 100) { $e[] = 'Please enter a valid email address.'; }
     if (!isset(USER_ROLES[$v['role']])) { $e[] = 'Please choose a role.'; }
+    // Only the Head of Admin manages Head of Admin accounts (otherwise an Admin Assistant could confirm his own assignments)
+    if ($v['role'] === 'head_admin' && !isHeadAdmin()) { $e[] = 'Only the Head of Admin can create or assign the Head of Admin role.'; }
+    if ($id > 0 && !isHeadAdmin()) {
+        $cur = $conn->query('SELECT role FROM users WHERE user_id = ' . $id)->fetch_row();
+        if ($cur && $cur[0] === 'head_admin') { $e[] = 'Only the Head of Admin can change a Head of Admin account.'; }
+    }
     if (mb_strlen($v['department']) > 100 || mb_strlen($v['phone']) > 30) { $e[] = 'Department or phone is too long.'; }
     if (!$e) {
         $q = $conn->prepare('SELECT user_id FROM users WHERE (username = ? OR email = ?) AND user_id <> ? LIMIT 1');
@@ -117,13 +123,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit();
         }
     } else {
-        $t = $conn->prepare('SELECT user_id, username, is_active FROM users WHERE user_id = ?');
+        $t = $conn->prepare('SELECT user_id, username, is_active, role FROM users WHERE user_id = ?');
         $t->bind_param('i', $uid);
         $t->execute();
         $target = $t->get_result()->fetch_assoc();
         $t->close();
         if (!$target) {
             setFlash('danger', 'Account not found.');
+        } elseif ($target['role'] === 'head_admin' && !isHeadAdmin() && $uid !== $me) {
+            setFlash('danger', 'Only the Head of Admin can manage a Head of Admin account.');
         } elseif ($act === 'reset_password') {
             $temp = generateTempPassword();
             $hash = password_hash($temp, PASSWORD_DEFAULT);

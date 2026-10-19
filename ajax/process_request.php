@@ -91,6 +91,9 @@ $legs = requestLegs($conn, $request_id);
 if (!$legs) {
     failJson('Request not found or not ready for processing.');
 }
+if (strtotime($legs[0]['date'] . ' ' . $legs[0]['start']) <= time()) {
+    failJson('The trip time has already passed, so this request can no longer be processed.');
+}
 
 // ── Who drives what, for leg 1 ─────────────────────────────────
 // A trip that needs several vehicles is processed as one job with one schedule per vehicle
@@ -264,6 +267,24 @@ $new_status   = isHeadAdmin() ? 'processed' : 'assigned';
 try {
     $conn->begin_transaction();
 
+    // Drivers are not protected by a unique key like vehicles are: lock each chosen driver and check the
+    // clash again inside the transaction, so two admins cannot book the same driver for the same slot.
+    $lockD = $conn->prepare('SELECT driver_id FROM drivers WHERE driver_id = ? FOR UPDATE');
+    $clashD = $conn->prepare("SELECT 1 FROM schedules WHERE driver_id = ? AND trip_date = ? AND status NOT IN ('cancelled')
+                                AND start_time < ? AND end_time > ? LIMIT 1");
+    foreach ($plan as $row) {
+        if ($row['driver'] === null) { continue; }
+        $did = (int)$row['driver'];
+        $lockD->bind_param('i', $did); $lockD->execute(); $lockD->get_result();
+        $clashD->bind_param('isss', $did, $row['date'], $row['end'], $row['start']);
+        $clashD->execute();
+        if ($clashD->get_result()->fetch_row() && $row['override'] === null) {
+            $conn->rollback();
+            failJson($row['driver_name'] . ' was just booked for that time by someone else. Please choose another driver.');
+        }
+    }
+    $lockD->close(); $clashD->close();
+
     $ins = $conn->prepare(
         "INSERT INTO schedules
              (driver_id, vehicle_id, trip_date, start_time, end_time,
@@ -360,6 +381,11 @@ $trip_text = '#' . $request_id . ' (' . $request['destination'] . ', ' . date('d
 $driverText = $self_drive ? ' You will drive the vehicle yourself (self-drive).' : ($who ? ' Driver: ' . implode(', ', $who) . '.' : ' A driver will be assigned soon.');
 if ($new_status === 'processed') {
     notifyUsers($conn, [(int)$request['staff_id']], "Your request $trip_text is confirmed by the Head of Admin." . $driverText, 'staff/my_requests.php');
+    // the drivers learn about the trip now (same as when a Driver Assigned request is approved)
+    $drvUsers = [];
+    $dr = $conn->query("SELECT DISTINCT u.user_id FROM schedules s JOIN users u ON u.driver_id = s.driver_id WHERE s.request_id = " . (int)$request_id);
+    while ($dr && ($x = $dr->fetch_assoc())) { $drvUsers[] = (int)$x['user_id']; }
+    notifyUsers($conn, $drvUsers, "You have a new trip: $trip_text.", 'driver/schedules.php');
 } else {
     notifyUsers($conn, [(int)$request['staff_id']], "A vehicle was assigned to your request $trip_text." . $driverText . ' It is waiting for the Head of Admin to confirm.', 'staff/my_requests.php');
     notifyUsers($conn, headAdminUserIds($conn), "Request $trip_text has a driver assigned and needs your approval.", 'admin/approve_assignments.php');
