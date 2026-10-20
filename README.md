@@ -1,131 +1,119 @@
 # Driver Scheduling & Management System — Universiti Islam Selangor (UIS)
 
-A web system for the UIS Vehicle Section: staff request a vehicle (e-Kenderaan), the Head of Section approves,
-the Vehicle Section (admin) assigns vehicle and driver, and drivers see their task sheet.
+A web system for the UIS Vehicle Section: staff request a vehicle, the Head of Department approves, the
+Administrative Assistant assigns a driver (with a recommendation), the Head of Admin confirms, and drivers see
+their tasks. Aligned with the final SRS.
 
-Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5, SweetAlert2. No framework, no build step.
+Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5. No framework, no build step.
 
 ## Roles (five)
 
 | Role | Stored as | What they do |
 |------|-----------|--------------|
-| Staff | `staff` | Request a **vehicle** (never a driver), track and cancel own requests, see notifications |
-| Driver | `driver` | Everything staff can do, plus own confirmed task sheet (PDF), workload score, other duties |
-| Head of Section (HoD) | `supervisor` | Everything staff can do, plus approve / reject / cancel requests where they are the approver, comment |
-| Admin Assistant | `admin` | Everything staff can do, plus all admin work: process approved requests (assign vehicle + driver), schedules, drivers, vehicles, leave, welfare duty, internal tasks, reports, reminders, settings, user accounts, audit log |
-| Head of Admin | `head_admin` | Everything an Admin Assistant can do, plus **approve driver assignments** (a request he assigns himself is confirmed at once) |
+| Staff | `staff` | Request a vehicle (never a driver), see status, cancel own requests, notifications |
+| Driver | `driver` | View-only task page (only **Confirmed** tasks), plus everything Staff can do |
+| Head of Department (HoD) | `supervisor` | Approve / reject (reason required) / cancel requests of **their own PTJ**, add comments |
+| Administrative Assistant | `admin` | Process Approved requests (recommended driver), Replace Driver, vehicles + maintenance, drivers, internal tasks, welfare duty, calendar, manual reminders, reports, settings |
+| Head of Admin | `head_admin` | Everything the Assistant can do, plus **approve / reject every driver assignment** |
 
-**Every role is also staff**: all of them can submit a vehicle request and follow / cancel their own
-(*My Vehicle Requests* in the menu). A request goes to the approver of the requester
-(staff -> their Head of Section; a Head of Section -> their own head). The approver is set per account in
-*User Accounts*.
+Every role is also Staff and can request a vehicle. Accounts are synchronised from the UIS staff system
+(`tools/import_staff.php`); there is no user management, temporary password or manual unlock.
+Demo accounts: `LOGIN_ACCOUNTS.txt`.
 
 ## Request flow
 
 ```
-pending ──► approved ──► assigned ──► confirmed ──► completed
-   │            │ (Head of Admin assigns himself: straight to confirmed)
-   ├─► rejected └─► cancelled     └─► cancelled
-   ├─► lapsed   (48 h without a decision, or the trip time has passed)
-   └─► cancelled
+Pending ──HoD──► Approved ──Assistant──► Driver Assigned ──Head of Admin──► Confirmed ──► Completed
+   │                │                          │ (rejected assignment: back to Approved)
+   ├─► Rejected     └─► Cancelled              └─► Cancelled
+   ├─► Lapsed  (no HoD decision within 2 days, checked hourly)
+   └─► Cancelled
 ```
 
-| Status shown | Stored as | Who moves it there |
-|--------------|-----------|--------------------|
-| Pending Approval | `pending` | requester submits |
-| Approved | `approved` | Head of Section |
-| Driver Assigned | `assigned` | Admin Assistant assigns vehicle + driver (the Head of Admin is told) |
-| Confirmed | `processed` | Head of Admin approves the assignment, or assigns it himself |
-| Completed | `completed` | system, after the trip |
+Status labels shown: Pending, Approved, Driver Assigned, Confirmed (`processed`), Rejected, Cancelled, Lapsed, Completed.
+The requester sees the driver and vehicle only after **Confirmed**; a driver sees a task only after Confirmed.
 
-The driver sees a trip (and gets the e-mail) only once it is **Confirmed**. An assignment that is still not
-confirmed when the trip time arrives is cancelled by the system with a reason.
+## Business rules (summary)
 
-Every status change goes through one function (`changeRequestStatus`), is written to the audit log and
-notifies the people concerned (bell + email).
-
-## Business rules
-
-- **Two-day rule** — a request must be made at least 2 days before the trip (setting `MIN_DAYS_AHEAD`). Urgent trips use the paper form BPTK/BPI/2025/PIN.5.
-- **Vehicle day holds** — a requested vehicle is held for that day; two active requests cannot hold the same vehicle on the same day. Released on reject / cancel / lapse.
-- **Maintenance** — a vehicle under maintenance cannot be requested or scheduled.
-- **Lapse** — a pending request lapses after 48 h (`LAPSE_HOURS`) or when the trip time passes; one automatic reminder goes to the Head of Section after 24 h.
-- **Cancel / reject** need a reason (min. 3 characters). Cancel is possible only before the trip starts.
-- **Driver recommender** — hard filters first (active, regular driver, licence class for the vehicle, not on leave/MC, no overlapping trip, max 8 h per day); then a score `100 − (0.6·tasks + 0.4·after-hours)·100 − welfare penalty` (weights and penalty are settings). Higher = fewer tasks this month = fairer to assign.
-- **Cancel works** for Pending, Approved, Driver Assigned and Confirmed requests, before the trip starts; the vehicle (and the driver's task) is released.
-- **Legs (multi-stop and multi-day trips)** — a request can have more legs, each with its own day, time and destination (up to 7). The same vehicle(s) are held on every leg's day, the Admin chooses the driver per leg (default: the same driver), and the request is Completed only after the last leg.
-- **Mark as Self-Drive** — when a vehicle is free but there is no driver, the admin marks the request as self-drive: the vehicle is reserved, no driver is assigned or e-mailed, and the requester is told they drive.
-- **Override of a clash** — normally a driver (or vehicle) that is already booked in the time slot cannot be chosen. An admin may knowingly assign a **driver** with a clashing task if a reason (min. 5 characters) is given: it is stored on the schedule, written to the audit log and the Head of Admin is told. Leave/MC, licence, inactive drivers and vehicle clashes can never be overridden.
-- **Changing an assigned driver** needs a reason; it is logged and the requester is notified.
-- **Welfare duty** — a driver on welfare duty is penalised in the score; the roster can be auto-filled fairly.
-- **Audit log** — insert-only (database triggers refuse update/delete).
+- **Dates and times** — departure and return are both date + time. Less than 1 day ahead is rejected (use the paper form BPTK/BPI/2025/PIN.5); less than 2 days ahead shows a warning.
+- **Vehicle lock per time period** — a vehicle is locked from departure to return. Overlap rule: `start < other_end AND end > other_start`. The lock is taken atomically (transaction + `SELECT … FOR UPDATE`).
+- **Request form** — destination, purpose, passengers, optional supporting document (PDF/JPG/PNG, max 5 MB), one vehicle per request.
+- **Tasks** — each request creates an outbound task (at departure) and a return task (at return), each lasting `TASK_DURATION_HOURS` (default 2 h). Drivers are scheduled on tasks, not for the whole trip.
+- **Recommender** — only drivers holding the licence class for the vehicle (D car/van, GDL lorry, PSV bus), without an overlapping task or internal task; ranked by tasks this month and tasks outside working hours (weights `W_TASKS` 0.6 / `W_AFTER_HOURS` 0.4). Drivers on welfare duty are flagged. No auto-assign and no override: the Assistant picks, the Head of Admin always approves.
+- **Cancel** — staff may give a reason; HoD and administrators must. Never after the trip has started.
+- **Reminder** — manual only (Assistant → HoD); there is no automatic reminder.
+- **Vehicles** — statuses Available / In Use (computed) / Under Maintenance / Inactive. Maintenance asks for the workshop and the expected return date. Vehicles and drivers are deactivated, never deleted.
+- **Notifications** — always saved in the system **and** sent by e-mail; a failed e-mail is written to `email_log` and the in-system notification is kept.
+- **Reports** — four monthly reports (PDF, Excel, print).
+- **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
 ## Security
 
-- Passwords are stored with bcrypt. The SHA-256 demo hashes in `database.sql` are upgraded at first sign-in.
-- Account lock after 5 failed sign-ins (`MAX_FAILED_ATTEMPTS`); an admin unlocks it in **User Accounts**.
-- Idle session timeout (`SESSION_TIMEOUT_MIN`, default 15 minutes).
-- New accounts and reset passwords get a random temporary password, shown once; the user must change it at first sign-in.
-- CSRF token on every POST (added automatically to forms, `fetch` and XHR by `assets/js/ui.js`).
-- Prepared statements everywhere; output escaped; session cookie `HttpOnly` + `SameSite=Lax`; clickjacking / sniffing headers.
-- `.htaccess` denies web access to `config/`, `includes/`, `cron/`, `tests/` and `*.sql`.
-- Accounts are deactivated, never deleted, so old records keep their names.
+- bcrypt passwords (old SHA-256 demo hashes are upgraded at first sign-in).
+- 5 failed sign-ins block the account for 15 minutes (`MAX_FAILED_ATTEMPTS`, `LOCKOUT_MINUTES`); it unblocks by itself.
+- Idle logout after 15 minutes (`SESSION_TIMEOUT_MIN`).
+- Role check on every page and endpoint, CSRF token on every POST, prepared statements for every query, upload type/size checks.
+- `.htaccess` denies web access to `config/`, `includes/`, `cron/`, `tests/`, `migrations/` and `*.sql`.
 
 ## Install (XAMPP)
 
 1. Copy the folder to `C:\xampp\htdocs\DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR`.
-2. Start **Apache** and **MySQL** in XAMPP.
-3. Import `database.sql` (phpMyAdmin → Import). It creates the database `uis_driver_db` with demo data.
+2. Start **Apache** and **MySQL**.
+3. Import `database.sql` (phpMyAdmin → Import). It creates `uis_driver_db` with the final schema and demo data.
 4. Check `config/database.php` (host, user, password, `SITE_URL`).
-5. Open `http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php`.
+5. Open `…/login.php`.
 
-Demo accounts are in `LOGIN_ACCOUNTS.txt`. If you already have an older database, just open any page: the schema
-is upgraded automatically (new tables and columns are added; nothing is dropped).
+**Existing database from the previous release:** import `migrations/2026_10_align_srs.sql` (or just open any page: it is applied once automatically and recorded in `schema_migrations`). Back up first; the migration also drops tables of removed features.
 
-Email (optional): copy `config/mail.sample.php` to `config/mail.php` and fill in your SMTP details. Without it the
-system still works; emails are only logged.
+E-mail: copy `config/mail.sample.php` to `config/mail.php` and fill in the SMTP details (PHPMailer). Without it, e-mails fail into `email_log` and notifications still work in the system.
 
-## Background jobs
-
-Lapsing, completing and reminding run by themselves on page load (at most every 5 minutes). For exact timing also
-run the job from the OS scheduler every 15 minutes:
+## Importing staff
 
 ```
-php cron/run_jobs.php            (Windows Task Scheduler: C:\xampp\php\php.exe  cron\run_jobs.php)
+php tools/import_staff.php path/to/staff.csv       # see tools/staff_sample.csv for the columns
 ```
+
+Add Driver (Admin → Drivers) picks an existing user with the Driver role and records the licence classes D / GDL / PSV.
+
+## Background job (hourly)
+
+```
+php cron/run_jobs.php        # Windows Task Scheduler: C:\xampp\php\php.exe cron\run_jobs.php, every hour
+```
+
+It lapses unhandled Pending requests after 2 days, cancels unconfirmed assignments when the trip starts, and completes finished trips.
+It also runs opportunistically on page load.
 
 ## Settings (Admin → Settings)
 
-`W_TASKS` 0.6, `W_AFTER_HOURS` 0.4, `WELFARE_PENALTY` 20, `MIN_DAYS_AHEAD` 2, `LAPSE_HOURS` 48,
-`REMINDER_AFTER_HOURS` 24, `WORK_START` / `WORK_END`, `SESSION_TIMEOUT_MIN` 15, `MAX_FAILED_ATTEMPTS` 5.
-The two weights must add up to 1.
-
-## Locked yourself out?
-
-```sql
-UPDATE users SET is_locked = 0, failed_attempts = 0 WHERE username = 'admin';
-```
+`W_TASKS`, `W_AFTER_HOURS` (must add up to 1), `WORK_START` 08:00, `WORK_END` 17:30, `TASK_DURATION_HOURS` 2,
+`LAPSE_HOURS` 48, `SESSION_TIMEOUT_MIN` 15, `MAX_FAILED_ATTEMPTS` 5, `LOCKOUT_MINUTES` 15.
 
 ## Tests
 
 ```
-php tests/run.php        # rules + recommender, each test runs in a rolled-back transaction (needs the database)
+php tests/run.php            # rules + recommender; each test is rolled back (needs the database)
+tests/http/                  # end-to-end suites over HTTP, see tests/http/README.md
 ```
 
 ## Folders
 
 ```
 admin/ staff/ supervisor/ driver/   role pages
-ajax/                               JSON endpoints used by the pages
-includes/                           workflow.php (status engine, holds, audit, jobs), recommender.php, sidebar, mailer
-config/                             database connection, schema upgrader, security checks
+ajax/                               JSON / action endpoints
+includes/                           workflow.php (status engine, locks, notifications, jobs), recommender.php, mailer, sidebar, exports
+config/                             database connection, session + security
 cron/run_jobs.php                   command-line job runner
-tests/                              automated tests
+migrations/                         SQL for existing databases
+tools/                              staff importer
+tests/                              unit tests (php) and HTTP suites
 ```
 
-## Known limits
+## Assumptions and limits
 
-A vehicle can never be double-booked, and a driver clash needs an explicit override with a reason.
-The vehicles are the same on every leg of a request (only the driver can differ per leg).
-An older database has no Head of Admin account: create one in *User Accounts* (role Head of Admin) and
-set the approver of drivers/admins there too, so they can request vehicles.
+- The SRS both asks to remove drivers on welfare duty and to flag them; welfare duty lasts all day, so they are **flagged**, not removed.
+- Outside working hours = starts before 08:00, ends after 17:30, or Saturday/Sunday.
+- A vehicle under maintenance can be requested for periods starting after its expected return date.
+- Task length is a setting (the SRS gives none); one vehicle per request.
+- Manual schedule add/edit and auto-assign were removed: trips come from requests only.
+- Details of the design decisions: `docs/SRS_ALIGNMENT_PLAN.md`.
