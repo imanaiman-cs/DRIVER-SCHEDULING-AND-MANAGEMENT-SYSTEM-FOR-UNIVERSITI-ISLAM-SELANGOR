@@ -1,70 +1,28 @@
 <?php
 // ============================================================
-// UIS Driver Scheduling and Management System
-// ajax/request_action.php  –  AJAX endpoint: approve or reject
-//                             a staff vehicle request
-//                             (supervisor / head of section)
-// Universiti Islam Selangor (UIS)
+// ajax/request_action.php  -  UC013 Approve Request / UC014 Reject Request (Head of Department)
+//
+// POST request_id, action = approve | reject [, reason] [, comment] [, return_to]
+//   The Head of Department only acts on requests of his own PTJ (he is the approver).
+//   Reject needs a reason: the vehicle lock is released and the staff member is told the reason.
+//   Approve: the staff member and the Administrative Assistant are notified.
+//   A comment is optional with either (UC015).
 // ============================================================
-
 require_once '../config/database.php';
+if (!isLoggedIn() || !isSupervisor()) { http_response_code(403); header('Content-Type: application/json'); echo json_encode(['success' => false, 'message' => 'Unauthorized']); exit(); }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { actionResponse(['ok' => false, 'message' => 'Invalid request method.'], 405); }
 
-header('Content-Type: application/json');
+$rid = (int)($_POST['request_id'] ?? 0);
+$action = (string)($_POST['action'] ?? '');
+$reason = trim((string)($_POST['reason'] ?? ''));
+$req = $rid > 0 ? requestForCurrentUser($conn, $rid) : null;
+if (!$req || !hodOwnsRequest($req)) { actionResponse(['ok' => false, 'message' => 'This request is not one of yours.'], 403); }
+if (!in_array($action, ['approve', 'reject'], true)) { actionResponse(['ok' => false, 'message' => 'Unknown action.'], 422); }
+if ($action === 'reject' && mb_strlen($reason) < 3) { actionResponse(['ok' => false, 'message' => 'Please give a reason for rejecting (at least 3 characters).'], 422); }
+if (strtotime(requestDepartDT($req)) <= time()) { actionResponse(['ok' => false, 'message' => 'The trip time has already passed.'], 422); }
 
-// ── Auth guard: supervisor only (JSON 403, no redirect) ───────
-if (!isLoggedIn() || !isSupervisor()) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit();
-}
-
-// ── Only accept POST requests ─────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
-    exit();
-}
-
-// ── Read and validate inputs ──────────────────────────────────
-$request_id = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
-$action     = isset($_POST['action'])     ? trim($_POST['action'])    : '';
-$notes      = isset($_POST['notes'])      ? trim($_POST['notes'])     : '';
-
-// request_id must be a positive integer
-if ($request_id <= 0) {
-    echo json_encode(['success' => false, 'message' => 'Invalid request ID.']);
-    exit();
-}
-
-// action must be exactly 'approve' or 'reject'
-if (!in_array($action, ['approve', 'reject'], true)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid action. Must be "approve" or "reject".']);
-    exit();
-}
-
-// notes are required when rejecting
-if ($action === 'reject' && $notes === '') {
-    echo json_encode(['success' => false, 'message' => 'Supervisor notes are required when rejecting a request.']);
-    exit();
-}
-
-// ── Do it through the status engine ───────────────────────────
-// It checks the supervisor owns the request and that it is still pending,
-// releases the vehicle on a rejection, writes the audit log and tells the
-// requester (with the reason).
-$result = changeRequestStatus($conn, $request_id, $action === 'approve' ? 'approved' : 'rejected', [
-    'reason'             => $action === 'reject' ? $notes : null,
-    'only_if_supervisor' => (int)$_SESSION['user_id'],
+$res = changeRequestStatus($conn, $rid, $action === 'approve' ? 'approved' : 'rejected', [
+    'reason' => $action === 'reject' ? $reason : null, 'only_if_supervisor' => (int)$_SESSION['user_id'],
 ]);
-
-if ($action === 'approve' && $result['ok'] && $notes !== '') {
-    // an optional note on approval is kept as before
-    $upd = $conn->prepare('UPDATE vehicle_requests SET supervisor_notes = ? WHERE request_id = ?');
-    $upd->bind_param('si', $notes, $request_id);
-    $upd->execute();
-    $upd->close();
-}
-
-echo json_encode([
-    'success' => $result['ok'],
-    'message' => $result['ok'] ? ($action === 'approve' ? 'Request approved.' : 'Request rejected.') : $result['message'],
-]);
+if ($res['ok'] && trim((string)($_POST['comment'] ?? '')) !== '') { addRequestComment($conn, $req, (string)$_POST['comment']); }
+actionResponse(['ok' => $res['ok'], 'message' => $res['ok'] ? ($action === 'approve' ? 'Request approved.' : 'Request rejected.') : $res['message']]);

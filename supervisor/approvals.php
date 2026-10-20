@@ -1,1034 +1,112 @@
 <?php
 // ============================================================
 // UIS Driver Scheduling and Management System
-// supervisor/approvals.php  –  Vehicle Request Approvals
-//                              (Head of Section / Supervisor)
-// Universiti Islam Selangor (UIS)
+// supervisor/approvals.php  -  Head of Department: UC013 Approve, UC014 Reject, UC015 Add Comment, cancel (UC012)
+//
+// The Head of Department sees and acts ONLY on requests of his own PTJ (he is the approver of the requester).
+//   Reject needs a reason. Cancel needs a reason. A comment is optional with every action.
 // ============================================================
-
+$current_page = 'approvals.php';
 require_once '../config/database.php';
-require_once '../includes/upload.php';
+require_once '../includes/admin_page.php';
 requireSupervisor();
 
-$page_title   = 'Vehicle Approvals';
-$current_page = 'approvals.php';
+$uid  = (int)$_SESSION['user_id'];
+$dept = $_SESSION['department'] ?? null;
+$tab  = (string)($_GET['tab'] ?? 'pending');
+if (!in_array($tab, ['pending', 'active', 'history'], true)) { $tab = 'pending'; }
 
-$supervisor_id = (int)$_SESSION['user_id'];
-
-// ── Fetch vehicle requests assigned to this supervisor ───────
-$stmt = $conn->prepare("
-    SELECT vr.*,
-           s.full_name  AS staff_name,
-           s.department AS staff_department,
-           v.plate_number, v.brand, v.model, v.vehicle_type, v.capacity
-    FROM vehicle_requests vr
-    JOIN users s        ON vr.staff_id   = s.user_id
-    LEFT JOIN vehicles v ON vr.vehicle_id = v.vehicle_id
-    WHERE vr.supervisor_id = ?
-    ORDER BY FIELD(vr.status, 'pending') DESC, vr.created_at DESC
-");
-$stmt->bind_param('i', $supervisor_id);
+$where = match ($tab) {
+    'pending' => "vr.status = 'pending'",
+    'active'  => "vr.status IN ('approved', 'assigned', 'processed')",
+    default   => "vr.status IN ('rejected', 'cancelled', 'lapsed', 'completed')",
+};
+// own PTJ: requests of people in his department, or of the Heads of Department he heads
+$stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) AND $where
+                        ORDER BY vr.depart_at, vr.request_id");
+$stmt->bind_param('is', $uid, $dept);
 $stmt->execute();
-$all_requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$legs_map = requestLegsMap($conn, array_column($all_requests, 'request_id'));
+$requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
+$n = [];
+$cs = $conn->prepare("SELECT CASE WHEN status = 'pending' THEN 'pending' WHEN status IN ('approved','assigned','processed') THEN 'active' ELSE 'history' END AS grp, COUNT(*) AS c
+                        FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
+                       WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) GROUP BY grp");
+$cs->bind_param('is', $uid, $dept);
+$cs->execute();
+foreach ($cs->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $n[$r['grp']] = (int)$r['c']; }
+$cs->close();
 
-// Vehicles asked for on each request (a trip may need several)
-$req_vehicle_map = getRequestVehicles($conn, array_column($all_requests, 'request_id'));
-
-// ── Driver(s) assigned to processed requests ────────────────
-$assigned_map = getAssignedDrivers($conn, array_column($all_requests, 'schedule_id'));
-
-// ── Supporting documents (one query for all requests) ────────
-$request_documents = [];
-if ($all_requests) {
-    $raw_docs = getRequestDocuments($conn, array_map('intval', array_column($all_requests, 'request_id')));
-    foreach ($raw_docs as $rid => $docs) {
-        foreach ($docs as $d) {
-            $request_documents[(int)$rid][] = [
-                'doc_id'         => (int)$d['doc_id'],
-                'doc_type'       => $d['doc_type'],
-                'doc_type_label' => $d['doc_type_label'],
-                'original_name'  => $d['original_name'],
-                'mime_type'      => $d['mime_type'],
-                'file_size'      => (int)$d['file_size'],
-                'size_label'     => formatFileSize((int)$d['file_size']),
-                'uploaded_at'    => $d['uploaded_at'],
-                'url'            => $d['url'],
-            ];
-        }
-    }
-}
-
-// ── Summary counts ───────────────────────────────────────────
-$total     = count($all_requests);
-$pending   = 0;
-$approved  = 0;
-$rejected  = 0;
-$processed = 0;
-$cancelled = 0;   // withdrawn by staff – never counted as pending
-
-foreach ($all_requests as $r) {
-    switch ($r['status']) {
-        case 'pending':   $pending++;   break;
-        case 'approved':  $approved++;  break;
-        case 'rejected':  $rejected++;  break;
-        case 'assigned':
-        case 'processed': $processed++; break;     // driver assigned / confirmed
-        case 'cancelled':
-        case 'lapsed':    $cancelled++; break;     // lapsed = not approved in time
-    }
-}
-
-// ── Apply tab filter ─────────────────────────────────────────
-$active_tab = $_GET['status'] ?? 'all';
-$active_tab = in_array($active_tab, ['all', 'pending', 'approved', 'rejected', 'processed', 'cancelled'], true)
-    ? $active_tab
-    : 'all';
-
-$display_requests = $active_tab === 'all'
-    ? $all_requests
-    : array_filter($all_requests, fn($r) => $r['status'] === $active_tab || ($active_tab === 'cancelled' && $r['status'] === 'lapsed') || ($active_tab === 'processed' && $r['status'] === 'assigned'));
-$display_requests = array_values($display_requests);
+$open = (int)($_GET['open'] ?? 0);
+adminPageStart('Vehicle Approvals');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($page_title); ?> | UIS Driver Management</title>
-    <link rel="icon" type="image/png" href="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png">
+    <h4 class="fw-bold mb-3"><i class="fas fa-stamp text-success me-2"></i>Vehicle Approvals <small class="text-muted fs-6"><?= htmlspecialchars((string)$dept) ?></small></h4>
+    <ul class="nav nav-pills mb-3 gap-1">
+        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'pending' ? 'active' : '' ?>" href="?tab=pending">Waiting for me <span class="badge bg-light text-dark"><?= $n['pending'] ?? 0 ?></span></a></li>
+        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'active' ? 'active' : '' ?>" href="?tab=active">Approved <span class="badge bg-light text-dark"><?= $n['active'] ?? 0 ?></span></a></li>
+        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'history' ? 'active' : '' ?>" href="?tab=history">History <span class="badge bg-light text-dark"><?= $n['history'] ?? 0 ?></span></a></li>
+    </ul>
 
-    <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- DataTables Bootstrap 5 -->
-    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link href="<?php echo SITE_URL; ?>/assets/css/style.css" rel="stylesheet">
+    <?php if (!$requests): ?>
+        <div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">Nothing here.</div></div>
+    <?php endif; ?>
 
-    <style>
-        /* ── Page header ── */
-        .page-header {
-            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
-            border-radius: 14px;
-            color: #fff;
-            padding: 1.6rem 2rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(11,93,59,.20);
-        }
-        .page-header h1 { font-size: 1.55rem; font-weight: 700; margin: 0; }
-        .page-header p  { margin: .3rem 0 0; opacity: .8; font-size: .88rem; }
-
-        /* ── Summary cards ── */
-        .stat-card {
-            border: none;
-            border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(11,93,59,.10);
-            transition: transform .2s, box-shadow .2s;
-        }
-        .stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(11,93,59,.16);
-        }
-        .stat-icon {
-            width: 52px; height: 52px;
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.35rem;
-        }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1;
-        }
-        .stat-label {
-            font-size: .8rem;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            color: #6c757d;
-        }
-
-        /* ── Table card ── */
-        .table-card {
-            border: none;
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 2px 12px rgba(11,93,59,.10);
-        }
-        .table thead th {
-            background: #f8f9fb;
-            font-size: .78rem;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            color: #4b5563;
-            border-bottom: 2px solid #e5e7eb;
-            white-space: nowrap;
-        }
-        .table tbody tr:hover { background: #f0f6f2; }
-
-        /* ── Action buttons ── */
-        .btn-action {
-            padding: .28rem .6rem;
-            font-size: .78rem;
-            border-radius: 7px;
-        }
-
-        /* ── Status tabs ── */
-        .status-tabs .nav-link {
-            border-radius: 8px;
-            font-size: .84rem;
-            font-weight: 500;
-            color: #6c757d;
-            padding: .45rem 1rem;
-        }
-        .status-tabs .nav-link.active {
-            background: #0b5d3b;
-            color: #fff;
-        }
-        .status-tabs .nav-link:not(.active):hover {
-            background: #f0f6f2;
-            color: #0b5d3b;
-        }
-
-        /* ── Detail modal ── */
-        .detail-label {
-            font-size: .75rem;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            color: #6c757d;
-            margin-bottom: .15rem;
-        }
-        .detail-value {
-            font-weight: 600;
-            color: #1a2035;
-            word-break: break-word;
-        }
-    </style>
-</head>
-<body>
-
-<?php include '../includes/sidebar.php'; ?>
-
-<!-- ── Main Content ─────────────────────────────────────────── -->
-<main class="main-content p-4">
-
-    <!-- Page header -->
-    <div class="page-header">
-        <h1><i class="fas fa-clipboard-check me-2" aria-hidden="true"></i>Vehicle Approvals</h1>
-        <p>Review and approve vehicle requests submitted by staff in your section.</p>
-    </div>
-
-    <!-- Flash message -->
-    <?php showFlash(); ?>
-
-    <!-- ── Summary Cards ──────────────────────────────────────── -->
-    <div class="row g-3 mb-4">
-
-        <!-- Pending -->
-        <div class="col-6 col-md-3">
-            <a href="?status=pending" class="text-decoration-none">
-                <div class="card stat-card h-100 p-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-warning bg-opacity-10 text-warning">
-                            <i class="fas fa-clock" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="stat-value text-warning"><?php echo $pending; ?></div>
-                            <div class="stat-label">Pending</div>
-                        </div>
-                    </div>
+    <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $rules = cancelRulesFor($r); $ret = 'supervisor/approvals.php?tab=' . $tab . '&open=' . $rid; ?>
+    <details class="card border-0 shadow-sm mb-2" <?= $rid === $open || $tab === 'pending' && count($requests) === 1 ? 'open' : '' ?>>
+        <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
+                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax
+                        <?php if ($r['status'] === 'pending'): ?> &middot; submitted <?= max(0, (int)floor((time() - strtotime($r['created_at'])) / 86400)) ?> day(s) ago<?php endif; ?></div>
                 </div>
-            </a>
-        </div>
+                <div><?= requestStatusBadge($r['status']) ?></div>
+            </div>
+        </summary>
+        <div class="card-body border-top pt-3">
+            <?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?>
 
-        <!-- Approved -->
-        <div class="col-6 col-md-3">
-            <a href="?status=approved" class="text-decoration-none">
-                <div class="card stat-card h-100 p-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-success bg-opacity-10 text-success">
-                            <i class="fas fa-circle-check" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="stat-value text-success"><?php echo $approved; ?></div>
-                            <div class="stat-label">Approved</div>
-                        </div>
-                    </div>
+            <?php if ($r['status'] === 'pending'): ?>
+            <div class="row g-3 mt-2 border-top pt-3">
+                <form method="post" action="<?= SITE_URL ?>/ajax/request_action.php" class="col-md-6">
+                    <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="approve"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
+                    <label class="form-label small fw-semibold" for="ac<?= $rid ?>">Approve <span class="text-muted fw-normal">(comment optional)</span></label>
+                    <textarea class="form-control form-control-sm mb-2" id="ac<?= $rid ?>" name="comment" rows="2" maxlength="1000"></textarea>
+                    <button class="btn btn-success btn-sm" data-confirm="The staff member and the Administrative Assistant will be told." data-confirm-title="Approve request #<?= $rid ?>?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve</button>
+                </form>
+                <form method="post" action="<?= SITE_URL ?>/ajax/request_action.php" class="col-md-6">
+                    <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="reject"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
+                    <label class="form-label small fw-semibold" for="rr<?= $rid ?>">Reject <span class="text-danger">(reason required)</span></label>
+                    <input class="form-control form-control-sm mb-2" id="rr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <textarea class="form-control form-control-sm mb-2" name="comment" rows="1" maxlength="1000" placeholder="Comment (optional)"></textarea>
+                    <button class="btn btn-outline-danger btn-sm"><i class="fas fa-xmark me-1"></i>Reject</button>
+                </form>
+            </div>
+            <?php endif; ?>
+
+            <?php if ($rules['allowed']): ?>
+            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">
+                <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
+                <label class="form-label small fw-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-danger">(reason required)</span></label>
+                <div class="input-group input-group-sm">
+                    <input class="form-control" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline-danger" data-confirm="The request is cancelled, the vehicle is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
-            </a>
-        </div>
+            </form>
+            <?php endif; ?>
 
-        <!-- Rejected -->
-        <div class="col-6 col-md-3">
-            <a href="?status=rejected" class="text-decoration-none">
-                <div class="card stat-card h-100 p-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-danger bg-opacity-10 text-danger">
-                            <i class="fas fa-circle-xmark" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="stat-value text-danger"><?php echo $rejected; ?></div>
-                            <div class="stat-label">Rejected</div>
-                        </div>
-                    </div>
+            <?php if (!in_array($r['status'], ['rejected', 'lapsed'], true)): ?>
+            <form method="post" action="<?= SITE_URL ?>/ajax/add_comment.php" class="mt-3 border-top pt-3">
+                <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
+                <label class="form-label small fw-semibold" for="cm<?= $rid ?>">Add a comment <span class="text-muted fw-normal">(the staff member is told)</span></label>
+                <div class="input-group input-group-sm">
+                    <input class="form-control" id="cm<?= $rid ?>" name="comment" maxlength="1000" required>
+                    <button class="btn btn-outline-secondary">Add comment</button>
                 </div>
-            </a>
+            </form>
+            <?php endif; ?>
         </div>
-
-        <!-- Total -->
-        <div class="col-6 col-md-3">
-            <a href="?status=all" class="text-decoration-none">
-                <div class="card stat-card h-100 p-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="stat-icon bg-primary bg-opacity-10 text-primary">
-                            <i class="fas fa-file-lines" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="stat-value text-primary"><?php echo $total; ?></div>
-                            <div class="stat-label">Total</div>
-                        </div>
-                    </div>
-                </div>
-            </a>
-        </div>
-
-    </div><!-- /.row summary cards -->
-
-    <!-- ── Table Card ────────────────────────────────────────── -->
-    <div class="card table-card">
-        <div class="card-body p-0">
-
-            <!-- Card header with tabs -->
-            <div class="p-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-3">
-                <h6 class="mb-0 fw-semibold text-primary">
-                    <i class="fas fa-table me-1" aria-hidden="true"></i> Vehicle Requests
-                </h6>
-                <!-- Status Tabs -->
-                <ul class="nav status-tabs gap-1 mb-0">
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'all'       ? 'active' : ''; ?>"
-                           href="?status=all">
-                            All
-                            <span class="badge ms-1 <?php echo $active_tab === 'all' ? 'bg-white text-primary' : 'bg-primary'; ?> rounded-pill">
-                                <?php echo $total; ?>
-                            </span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'pending'   ? 'active' : ''; ?>"
-                           href="?status=pending">
-                            Pending
-                            <?php if ($pending > 0): ?>
-                            <span class="badge ms-1 <?php echo $active_tab === 'pending' ? 'bg-white text-warning' : 'bg-warning text-dark'; ?> rounded-pill">
-                                <?php echo $pending; ?>
-                            </span>
-                            <?php endif; ?>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'approved'  ? 'active' : ''; ?>"
-                           href="?status=approved">
-                            Approved
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'rejected'  ? 'active' : ''; ?>"
-                           href="?status=rejected">
-                            Rejected
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'processed' ? 'active' : ''; ?>"
-                           href="?status=processed">
-                            Vehicle assigned
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link <?php echo $active_tab === 'cancelled' ? 'active' : ''; ?>"
-                           href="?status=cancelled">
-                            Cancelled
-                            <?php if ($cancelled > 0): ?>
-                            <span class="badge ms-1 <?php echo $active_tab === 'cancelled' ? 'bg-white text-secondary' : 'bg-secondary'; ?> rounded-pill">
-                                <?php echo $cancelled; ?>
-                            </span>
-                            <?php endif; ?>
-                        </a>
-                    </li>
-                </ul>
-            </div>
-
-            <!-- Table -->
-            <div class="p-3">
-                <div class="table-responsive">
-                    <table id="approvalsTable" class="table table-hover align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">#</th>
-                                <th scope="col">Staff</th>
-                                <th scope="col">Trip Date</th>
-                                <th scope="col">Destination</th>
-                                <th scope="col">Vehicle</th>
-                                <th scope="col">Passengers</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Submitted</th>
-                                <th scope="col" class="text-center">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($display_requests as $i => $req): ?>
-                            <?php
-                                $status_badge = requestStatusBadgeClass($req['status']);
-                                $status_label = requestStatusLabel($req['status']);
-
-                                // Vehicle label (a request may ask for several vehicles)
-                                $rv_list = $req_vehicle_map[(int)$req['request_id']] ?? [];
-                                $need    = (int)($req['vehicles_needed'] ?? 1);
-                                if ($rv_list) {
-                                    $vehicle_label = $rv_list[0]['plate_number'];
-                                    $vehicle_sub   = count($rv_list) > 1
-                                        ? '+' . (count($rv_list) - 1) . ' more vehicle' . (count($rv_list) > 2 ? 's' : '')
-                                        : trim(($rv_list[0]['brand'] ?? '') . ' ' . ($rv_list[0]['model'] ?? ''));
-                                } else {
-                                    $vehicle_label = 'Any';
-                                    $vehicle_sub   = $need > 1 ? '× ' . $need . ' vehicles' : '';
-                                }
-
-                                // Supporting documents count
-                                $doc_count = count($request_documents[(int)$req['request_id']] ?? []);
-
-                                // Submitted date
-                                $submitted = date('d M Y', strtotime($req['created_at']));
-                            ?>
-                            <tr>
-                                <td class="text-muted small"><?php echo $i + 1; ?></td>
-                                <td>
-                                    <div class="fw-semibold">
-                                        <?php echo htmlspecialchars($req['staff_name']); ?>
-                                        <?php if ($doc_count > 0): ?>
-                                        <span class="badge rounded-pill ms-1 align-middle"
-                                              style="background:#e8f5ee;color:#0b5d3b;font-weight:600;"
-                                              title="<?php echo $doc_count; ?> supporting document(s) attached">
-                                            <i class="fas fa-paperclip me-1" aria-hidden="true"></i><?php echo $doc_count; ?>
-                                        </span>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="small text-muted"><?php echo htmlspecialchars($req['staff_department'] ?? ''); ?></div>
-                                </td>
-                                <td class="small">
-                                    <div class="fw-medium"><?php echo formatDate($req['trip_date']); ?></div>
-                                    <div class="text-muted">
-                                        <?php echo formatTime($req['start_time']); ?>
-                                        &ndash;
-                                        <?php echo formatTime($req['end_time']); ?>
-                                    </div>
-                                </td>
-                                <td class="small"><?php echo htmlspecialchars($req['destination']); ?></td>
-                                <td class="small">
-                                    <?php if ($vehicle_label === 'Any'): ?>
-                                        <span class="text-muted fst-italic">Any</span>
-                                        <?php if ($vehicle_sub !== ''): ?><div class="text-muted"><?php echo htmlspecialchars($vehicle_sub); ?></div><?php endif; ?>
-                                    <?php else: ?>
-                                        <div class="fw-medium font-monospace"><?php echo htmlspecialchars($vehicle_label); ?></div>
-                                        <?php if ($vehicle_sub !== ''): ?>
-                                        <div class="text-muted"><?php echo htmlspecialchars($vehicle_sub); ?></div>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="small text-center">
-                                    <i class="fas fa-users text-muted me-1" aria-hidden="true"></i><?php echo (int)$req['passenger_count']; ?>
-                                </td>
-                                <td>
-                                    <span class="badge <?php echo $status_badge; ?> rounded-pill">
-                                        <?php echo htmlspecialchars($status_label); ?>
-                                    </span>
-                                </td>
-                                <td class="small text-muted"
-                                    data-order="<?php echo htmlspecialchars($req['created_at']); ?>">
-                                    <?php echo $submitted; ?>
-                                </td>
-                                <td class="text-center">
-                                    <div class="d-flex justify-content-center gap-1 flex-nowrap">
-                                        <!-- View Details -->
-                                        <button type="button"
-                                                class="btn btn-outline-info btn-action"
-                                                title="View Details"
-                                                onclick="viewRequest(<?php echo (int)$req['request_id']; ?>)"
-                                                aria-label="View vehicle request details">
-                                            <i class="fas fa-eye" aria-hidden="true"></i>
-                                        </button>
-                                        <?php if ($req['status'] === 'pending'): ?>
-                                        <!-- Approve -->
-                                        <button type="button"
-                                                class="btn btn-outline-success btn-action"
-                                                title="Approve"
-                                                onclick="openAction(<?php echo (int)$req['request_id']; ?>, 'approve', '<?php echo htmlspecialchars(addslashes($req['staff_name'])); ?>')"
-                                                aria-label="Approve vehicle request">
-                                            <i class="fas fa-check" aria-hidden="true"></i>
-                                        </button>
-                                        <!-- Reject -->
-                                        <button type="button"
-                                                class="btn btn-outline-danger btn-action"
-                                                title="Reject"
-                                                onclick="openAction(<?php echo (int)$req['request_id']; ?>, 'reject', '<?php echo htmlspecialchars(addslashes($req['staff_name'])); ?>')"
-                                                aria-label="Reject vehicle request">
-                                            <i class="fas fa-xmark" aria-hidden="true"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                        <?php if (in_array($req['status'], ['approved', 'assigned', 'processed'], true)
-                                                  && strtotime($req['trip_date'] . ' ' . $req['start_time']) > time()): ?>
-                                        <!-- Cancel (reason required) -->
-                                        <button type="button"
-                                                class="btn btn-outline-secondary btn-action"
-                                                title="Cancel this request"
-                                                onclick="cancelApproved(<?php echo (int)$req['request_id']; ?>)"
-                                                aria-label="Cancel vehicle request">
-                                            <i class="fas fa-ban" aria-hidden="true"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div><!-- /.table-responsive -->
-
-                <?php if (empty($display_requests)): ?>
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-clipboard-check fa-3x mb-3 opacity-25"></i>
-                    <p class="mb-0">No <?php echo $active_tab !== 'all' ? htmlspecialchars($active_tab) . ' ' : ''; ?>vehicle requests found.</p>
-                </div>
-                <?php endif; ?>
-
-            </div><!-- /p-3 -->
-        </div><!-- /.card-body -->
-    </div><!-- /.table-card -->
-
-</main><!-- /.main-content -->
-
-
-<!-- ================================================================
-     VIEW DETAILS MODAL
-     ================================================================ -->
-<div class="modal fade" id="viewRequestModal" tabindex="-1" aria-labelledby="viewRequestModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content rounded-3">
-            <div class="modal-header text-white"
-                 style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
-                <h5 class="modal-title fw-bold" id="viewRequestModalLabel">
-                    <i class="fas fa-clipboard-check me-2" aria-hidden="true"></i>
-                    Vehicle Request Details
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4" id="viewRequestBody">
-                <!-- Populated by JS -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<!-- ================================================================
-     APPROVE / REJECT ACTION MODAL
-     ================================================================ -->
-<div class="modal fade" id="actionModal" tabindex="-1" aria-labelledby="actionModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content rounded-3">
-            <div class="modal-header text-white" id="actionModalHeader"
-                 style="background: linear-gradient(135deg,#0b5d3b 0%,#15804f 100%);">
-                <h5 class="modal-title fw-bold" id="actionModalLabel">Confirm Action</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <p id="actionModalDesc" class="mb-3"></p>
-                <div class="mb-3">
-                    <label for="supervisorNotes" class="form-label fw-semibold">
-                        Supervisor Notes
-                        <span id="notesRequired" class="text-danger ms-1">*</span>
-                    </label>
-                    <textarea id="supervisorNotes"
-                              class="form-control"
-                              rows="3"
-                              placeholder="Enter notes for the staff member…"
-                              style="border-radius: 10px; border: 1.5px solid #e5e9f0;"></textarea>
-                    <div class="invalid-feedback" id="supervisorNotesError">
-                        Supervisor notes are required when rejecting a request.
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer gap-2">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn" id="actionConfirmBtn" onclick="submitAction()">
-                    Confirm
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-
-<!-- ── Embedded request data (JSON for JS) ── -->
-<script>
-const REQUEST_DATA = <?php
-    $json_data = [];
-    foreach ($all_requests as $r) {
-        $json_data[] = [
-            'request_id'       => (int)$r['request_id'],
-            'staff_name'       => $r['staff_name'],
-            'staff_department' => $r['staff_department'] ?? '',
-            'trip_date'        => $r['trip_date'],
-            'start_time'       => $r['start_time'],
-            'end_time'         => $r['end_time'],
-            'destination'      => $r['destination'],
-            'purpose'          => $r['purpose'],
-            'passenger_count'  => (int)$r['passenger_count'],
-            'officer_name'     => $r['officer_name']  ?? '',
-            'officer_phone'    => $r['officer_phone'] ?? '',
-            'waiting_place'    => $r['waiting_place'] ?? '',
-            'assigned'         => $assigned_map[(int)($r['schedule_id'] ?? 0)] ?? [],
-            'vehicles'         => $req_vehicle_map[(int)$r['request_id']] ?? [],
-            'vehicles_needed'  => (int)($r['vehicles_needed'] ?? 1),
-            'legs'             => $legs_map[(int)$r['request_id']] ?? [],
-            'vehicle_id'      => $r['vehicle_id'] !== null ? (int)$r['vehicle_id'] : null,
-            'plate_number'     => $r['plate_number'] ?? '',
-            'brand'            => $r['brand'] ?? '',
-            'model'            => $r['model'] ?? '',
-            'vehicle_type'     => $r['vehicle_type'] ?? '',
-            'capacity'         => $r['capacity'] !== null ? (int)$r['capacity'] : null,
-            'status'           => $r['status'],
-            'supervisor_notes' => $r['supervisor_notes'] ?? '',
-            'reviewed_at'      => $r['reviewed_at'] ?? '',
-            'created_at'       => $r['created_at'],
-            'documents'        => $request_documents[(int)$r['request_id']] ?? [],
-        ];
-    }
-    echo json_encode($json_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-?>;
-const SITE_URL = '<?php echo SITE_URL; ?>';
-</script>
-
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<!-- Bootstrap 5 JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- DataTables -->
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<!-- SweetAlert2 -->
-<!-- Custom JS -->
-<script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
-<script src="<?php echo SITE_URL; ?>/assets/js/comments.js"></script>
-
-<script>
-(function () {
-    'use strict';
-
-    // ── HTML escape helper ──────────────────────────────────
-    function escHtml(str) {
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    // ── Supporting documents list (URLs come from the server only) ──
-    // ── Trip legs (only when the trip has more than one) ─────
-    function legsHtml(r) {
-        var legs = r.legs || [];
-        if (legs.length < 2) { return ''; }
-        var rows = legs.map(function (l) {
-            var d = new Date(l.date + 'T00:00:00');
-            return '<tr><td class="text-nowrap">Leg ' + l.leg_no + '</td><td class="text-nowrap">' +
-                   d.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) +
-                   '</td><td class="text-nowrap">' + escHtml(l.start) + ' &ndash; ' + escHtml(l.end) + '</td><td>' + escHtml(l.destination) + '</td></tr>';
-        }).join('');
-        return '<div class="col-12"><div class="detail-label">Trip legs</div>' +
-               '<table class="table table-sm mb-0"><tbody>' + rows + '</tbody></table></div>';
-    }
-
-    function documentsHtml(docs) {
-        if (!docs || !docs.length) {
-            return '<div class="small text-muted">No documents attached.</div>';
-        }
-        var html = '<ul class="list-unstyled mb-0">';
-        docs.forEach(function (d) {
-            var isPdf = d.mime_type === 'application/pdf';
-            var icon  = isPdf
-                ? '<i class="fas fa-file-pdf fa-lg" style="color:#b91c1c;"></i>'
-                : '<i class="fas fa-file-image fa-lg" style="color:#0b5d3b;"></i>';
-            var url = String(d.url || '');
-            var dl  = url + (url.indexOf('?') === -1 ? '?download=1' : '&download=1');
-            html +=
-                '<li class="d-flex align-items-center gap-2 p-2 mb-2 border rounded bg-white">'
-              +   '<span class="flex-shrink-0 text-center" style="width:1.6rem;">' + icon + '</span>'
-              +   '<div class="flex-grow-1" style="min-width:0;">'
-              +     '<div class="text-truncate fw-semibold small" title="' + escHtml(d.original_name) + '">'
-              +       escHtml(d.original_name)
-              +     '</div>'
-              +     '<div class="d-flex align-items-center gap-2 flex-wrap">'
-              +       '<span class="badge rounded-pill" style="background:#e8f5ee;color:#0b5d3b;font-weight:600;">'
-              +         escHtml(d.doc_type_label)
-              +       '</span>'
-              +       '<span class="text-muted" style="font-size:0.75rem;">' + escHtml(d.size_label) + '</span>'
-              +     '</div>'
-              +   '</div>'
-              +   '<div class="flex-shrink-0 d-flex gap-1">'
-              +     '<a href="' + escHtml(url) + '" target="_blank" rel="noopener" '
-              +        'class="btn btn-sm btn-outline-success py-0 px-2"><i class="fas fa-eye me-1"></i>View</a>'
-              +     '<a href="' + escHtml(dl) + '" rel="noopener" '
-              +        'class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="fas fa-download me-1"></i>Download</a>'
-              +   '</div>'
-              + '</li>';
-        });
-        return html + '</ul>';
-    }
-
-    // ── Phone number as tel: link ───────────────────────────
-    function assignedBlock(r) {
-        if (r.status !== 'processed') { return ''; }
-        var list = r.assigned || [];
-        if (!list.length) {
-            return '<div class="col-12"><div class="detail-label">Assigned Driver</div>'
-                 + '<div class="detail-value text-muted fst-italic">Not assigned yet. The transport unit will assign one.</div></div>';
-        }
-        return '<div class="col-12"><div class="detail-label">' + (list.length > 1 ? 'Assigned Drivers' : 'Assigned Driver') + '</div>'
-             + list.map(function (d) {
-                 return '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 rounded-3 mt-1" style="background:#eef5f1;border:1px solid #cfe3d8;">'
-                      + '<div><div class="fw-semibold"><i class="fas fa-id-card-clip me-2 text-success"></i>' + escHtml(d.driver_name) + '</div>'
-                      + (d.plate_number ? '<div class="small text-muted mt-1"><i class="fas fa-car me-1"></i>' + escHtml(d.plate_number) + (d.vehicle ? ' &middot; ' + escHtml(d.vehicle) : '') + '</div>' : '')
-                      + '</div><div class="fw-semibold">' + telLink(d.driver_phone) + '</div></div>';
-               }).join('')
-             + '</div>';
-    }
-
-    function telLink(phone) {
-        if (!phone) return '<span class="text-muted fst-italic">&mdash;</span>';
-        return '<a href="tel:' + escHtml(String(phone).replace(/[^0-9+]/g, '')) + '" class="text-decoration-none">'
-             + escHtml(phone) + '</a>';
-    }
-
-    // ── Format date string (YYYY-MM-DD) to readable form ──
-    function fmtDate(str) {
-        if (!str) return '&mdash;';
-        var d = new Date(str);
-        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
-    }
-
-    // ── Format time string (HH:MM:SS) to 12-hour form ─────
-    function fmtTime(str) {
-        if (!str) return '&mdash;';
-        var parts = str.split(':');
-        var h = parseInt(parts[0], 10);
-        var m = parts[1] || '00';
-        var suffix = h >= 12 ? 'pm' : 'am';
-        h = h % 12;
-        if (h === 0) h = 12;
-        return h + ':' + m + ' ' + suffix;
-    }
-
-    // ── Status badge map ────────────────────────────────────
-    var statusBadgeMap = {
-        pending:   'bg-warning text-dark',
-        approved:  'bg-success',
-        rejected:  'bg-danger',
-        processed: 'bg-primary',
-        cancelled: 'bg-secondary',
-        lapsed:    'bg-secondary',
-        completed: 'bg-dark',
-    };
-
-    // The Head of Section may cancel an approved request before the trip starts (reason required)
-    window.cancelApproved = function (requestId) {
-        UIS.askReason({
-            title:       'Cancel request #' + requestId + '?',
-            text:        'The vehicle is released, and the requester and the transport unit are told.',
-            label:       'Reason for cancelling',
-            confirmText: 'Cancel request',
-            cancelText:  'Keep request',
-            tone:        'danger',
-            icon:        'fa-ban'
-        }).then(function (reason) {
-            if (!reason) return;
-            var body = new URLSearchParams();
-            body.append('request_id', String(requestId));
-            body.append('reason', reason);
-            fetch('../ajax/cancel_request.php', {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString()
-            }).then(function (res) { return res.json(); }).then(function (data) {
-                UIS.alert(data.message, { title: data.success ? 'Request cancelled' : 'Could not cancel', tone: data.success ? 'primary' : 'danger' })
-                   .then(function () { if (data.success) { window.location.reload(); } });
-            }).catch(function () {
-                UIS.alert('Network error. Please try again.', { title: 'Could not cancel', tone: 'danger' });
-            });
-        });
-    };
-
-    // ── DataTable initialisation ─────────────────────────────
-    $('#approvalsTable').DataTable({
-        order:      [[7, 'desc']],   // sort by Submitted desc
-        pageLength: 25,
-        responsive: true,
-        columnDefs: [
-            { orderable: false, targets: 8 },
-            { searchable: false, targets: [0, 8] }
-        ],
-        language: {
-            search:         'Search:',
-            lengthMenu:     'Show _MENU_ entries per page',
-            info:           'Showing _START_ to _END_ of _TOTAL_ requests',
-            infoEmpty:      'No requests found',
-            emptyTable:     'No vehicle requests found',
-            zeroRecords:    'No requests match the search'
-        }
-    });
-
-    // ── View Details Modal ────────────────────────────────────
-    window.viewRequest = function (requestId) {
-        var r = REQUEST_DATA.find(function (row) { return row.request_id === requestId; });
-        if (!r) return;
-
-        var statusBadge = statusBadgeMap[r.status] || 'bg-secondary';
-
-        var vehicleHtml;
-        var vlist = r.vehicles || [];
-        if (vlist.length) {
-            vehicleHtml = vlist.map(function (v) {
-                return '<div><span class="font-monospace fw-semibold">' + escHtml(v.plate_number) + '</span>'
-                     + ' &middot; ' + escHtml(((v.brand || '') + ' ' + (v.model || '')).trim())
-                     + ' <span class="text-muted">(' + escHtml(v.vehicle_type) + ', ' + v.capacity + ' seats)</span></div>';
-            }).join('');
-        } else {
-            var need = parseInt(r.vehicles_needed, 10) || 1;
-            vehicleHtml = '<span class="text-muted fst-italic">Any available vehicle' + (need > 1 ? ' &times; ' + need : '') + '</span>';
-        }
-
-        var body = '<div class="row g-3">'
-
-            // Staff & status header
-            + '<div class="col-12">'
-            +   '<div class="d-flex align-items-center gap-3 flex-wrap">'
-            +     '<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#0b5d3b,#15804f);'
-            +          'display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.1rem;">'
-            +       escHtml(r.staff_name.charAt(0).toUpperCase())
-            +     '</div>'
-            +     '<div>'
-            +       '<div class="fw-bold fs-5">' + escHtml(r.staff_name) + '</div>'
-            +       '<div class="small text-muted">' + escHtml(r.staff_department) + '</div>'
-            +     '</div>'
-            +     '<div class="ms-auto d-flex gap-2 flex-wrap">'
-            +       '<span class="badge ' + statusBadge + ' rounded-pill">' + escHtml(r.status.charAt(0).toUpperCase() + r.status.slice(1)) + '</span>'
-            +     '</div>'
-            +   '</div>'
-            +   '<hr class="mt-3 mb-0">'
-            + '</div>'
-
-            // Trip date & time
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Trip Date</div>'
-            +   '<div class="detail-value">' + fmtDate(r.trip_date) + '</div>'
-            +   '<div class="small text-muted">' + fmtTime(r.start_time) + ' &ndash; ' + fmtTime(r.end_time) + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Date Submitted</div>'
-            +   '<div class="detail-value">' + fmtDate(r.created_at ? r.created_at.substring(0, 10) : '') + '</div>'
-            + '</div>'
-
-            // Destination & passengers
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Destination</div>'
-            +   '<div class="detail-value">' + escHtml(r.destination) + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Passengers</div>'
-            +   '<div class="detail-value">' + r.passenger_count + '</div>'
-            + '</div>'
-
-            // Officer details
-            + '<div class="col-12">'
-            +   '<div class="detail-label">Officer Name(s)</div>'
-            +   '<div class="detail-value">' + (r.officer_name ? escHtml(r.officer_name) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Officer Phone No.</div>'
-            +   '<div class="detail-value">' + telLink(r.officer_phone) + '</div>'
-            + '</div>'
-            + '<div class="col-md-6">'
-            +   '<div class="detail-label">Waiting Place</div>'
-            +   '<div class="detail-value">' + (r.waiting_place ? escHtml(r.waiting_place) : '<span class="text-muted fst-italic">&mdash;</span>') + '</div>'
-            + '</div>'
-
-            // Assigned driver(s) once the transport unit has processed the request
-            + assignedBlock(r)
-
-            // Requested vehicle
-            + '<div class="col-12">'
-            +   '<div class="detail-label">Requested Vehicle(s)</div>'
-            +   '<div class="detail-value">' + vehicleHtml + '</div>'
-            + '</div>'
-
-            + legsHtml(r)
-            // Supporting documents
-            + '<div class="col-12">'
-            +   '<div class="detail-label">Supporting Documents</div>'
-            +   documentsHtml(r.documents)
-            + '</div>'
-
-            // Purpose
-            + '<div class="col-12">'
-            +   '<div class="detail-label">Purpose</div>'
-            +   '<div class="p-3 rounded-3" style="background:#f8f9fb;font-size:.9rem;line-height:1.6;">'
-            +     (r.purpose ? escHtml(r.purpose) : '<span class="text-muted fst-italic">No purpose provided.</span>')
-            +   '</div>'
-            + '</div>';
-
-        // Supervisor notes & review date (only when reviewed; a request
-        // cancelled by staff while pending was never reviewed)
-        if (r.status !== 'pending' && r.status !== 'cancelled') {
-            body += '<div class="col-12">'
-                  +   '<hr class="mb-2">'
-                  +   '<div class="detail-label">Supervisor Notes</div>'
-                  +   '<div class="p-3 rounded-3" style="background:#f8f9fb;font-size:.9rem;line-height:1.6;">'
-                  +     (r.supervisor_notes ? escHtml(r.supervisor_notes) : '<span class="text-muted fst-italic">No notes added.</span>')
-                  +   '</div>'
-                  + '</div>'
-                  + '<div class="col-12">'
-                  +   '<div class="detail-label">Reviewed At</div>'
-                  +   '<div class="detail-value">' + (r.reviewed_at ? fmtDate(r.reviewed_at.substring(0, 10)) : '&mdash;') + '</div>'
-                  + '</div>';
-        }
-
-        body += '</div>';
-
-        document.getElementById('viewRequestBody').innerHTML = body;
-        if (window.UISComments) { UISComments.mount('viewRequestBody', requestId); }
-        var modal = new bootstrap.Modal(document.getElementById('viewRequestModal'));
-        modal.show();
-    };
-
-
-    // ── Action modal state ───────────────────────────────────
-    var _actionRequestId = 0;
-    var _actionType      = '';
-
-    window.openAction = function (requestId, action, staffName) {
-        _actionRequestId = requestId;
-        _actionType      = action;
-
-        var isReject = (action === 'reject');
-
-        var header = document.getElementById('actionModalHeader');
-        var label  = document.getElementById('actionModalLabel');
-        var desc   = document.getElementById('actionModalDesc');
-        var btn    = document.getElementById('actionConfirmBtn');
-        var req    = document.getElementById('notesRequired');
-        var notes  = document.getElementById('supervisorNotes');
-
-        if (isReject) {
-            header.style.background = 'linear-gradient(135deg,#991b1b,#dc2626)';
-            label.textContent  = 'Reject Vehicle Request';
-            desc.innerHTML     = 'You are rejecting the vehicle request from <strong>' + escHtml(staffName) + '</strong>. Please provide a reason below.';
-            btn.className      = 'btn btn-danger';
-            btn.innerHTML      = '<i class="fas fa-xmark me-1"></i> Reject Request';
-            req.style.display  = 'inline';
-        } else {
-            header.style.background = 'linear-gradient(135deg,#065f46,#059669)';
-            label.textContent  = 'Approve Vehicle Request';
-            desc.innerHTML     = 'You are approving the vehicle request from <strong>' + escHtml(staffName) + '</strong>. You may optionally add a note below.';
-            btn.className      = 'btn btn-success';
-            btn.innerHTML      = '<i class="fas fa-check me-1"></i> Approve Request';
-            req.style.display  = 'none';
-        }
-
-        // Remind the Head of Section when the request carries documents
-        var reqData = REQUEST_DATA.find(function (row) { return row.request_id === requestId; });
-        var docCount = reqData && reqData.documents ? reqData.documents.length : 0;
-        if (docCount > 0) {
-            desc.innerHTML += '<div class="small mt-2 p-2 rounded" style="background:#e8f5ee;color:#0b5d3b;">'
-                            + '<i class="fas fa-paperclip me-1"></i>' + docCount + ' document(s) attached &mdash; '
-                            + 'review them in View before approving</div>';
-        }
-
-        // Reset notes field
-        notes.value = '';
-        notes.classList.remove('is-invalid');
-
-        var modal = new bootstrap.Modal(document.getElementById('actionModal'));
-        modal.show();
-    };
-
-    window.submitAction = function () {
-        var notes = document.getElementById('supervisorNotes').value.trim();
-
-        // Reject requires notes
-        if (_actionType === 'reject' && notes === '') {
-            document.getElementById('supervisorNotes').classList.add('is-invalid');
-            return;
-        }
-
-        document.getElementById('supervisorNotes').classList.remove('is-invalid');
-
-        var btn = document.getElementById('actionConfirmBtn');
-        btn.disabled    = true;
-        btn.innerHTML   = '<span class="spinner-border spinner-border-sm me-1"></span> Processing…';
-
-        fetch(SITE_URL + '/ajax/request_action.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                request_id: _actionRequestId,
-                action:     _actionType,
-                notes:      notes
-            })
-        })
-        .then(function (response) { return response.json(); })
-        .then(function (res) {
-            bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
-
-            if (res.success) {
-                Swal.fire({
-                    icon:              'success',
-                    title:             _actionType === 'approve' ? 'Approved!' : 'Rejected!',
-                    text:              res.message,
-                    timer:             1800,
-                    showConfirmButton: false
-                }).then(function () {
-                    // Reload keeps the current URL, so the active ?status tab is preserved
-                    location.reload();
-                });
-            } else {
-                Swal.fire({
-                    icon:  'error',
-                    title: 'Failed',
-                    text:  res.message || 'Something went wrong. Please try again.'
-                });
-            }
-        })
-        .catch(function () {
-            bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
-            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not reach the server. Please try again.' });
-        })
-        .finally(function () {
-            btn.disabled = false;
-        });
-    };
-
-})();
-</script>
-
-</body>
-</html>
+    </details>
+    <?php endforeach; ?>
+<?php adminPageEnd(); ?>
