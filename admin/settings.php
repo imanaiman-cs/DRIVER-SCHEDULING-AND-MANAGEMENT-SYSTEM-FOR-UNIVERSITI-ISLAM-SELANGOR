@@ -12,14 +12,15 @@ requireAdmin();
 
 // key => [label, kind, min, max, help]
 $FIELDS = [
-    'W_TASKS'              => ['Weight: tasks this month',   'float', 0, 1,   'Share of the driver score that depends on how many tasks (trips + internal tasks) the driver already has this month.'],
-    'W_AFTER_HOURS'        => ['Weight: after-hours work',   'float', 0, 1,   'Share that depends on after-hours work (Sat/Sun, early start, late finish). Must add up to 1 with the weight above.'],
-    'WELFARE_PENALTY'      => ['Welfare penalty (points)',   'int',   0, 100, 'Points taken off the score of a driver who is on welfare duty that day.'],
-    'MIN_DAYS_AHEAD'       => ['Minimum days ahead',         'int',   0, 30,  'Two-day rule: a request must be made at least this many days before the trip (paper form BPTK/BPI/2025/PIN.5 for urgent trips).'],
-    'REMINDER_AFTER_HOURS' => ['Auto reminder after (hours)','int',   1, 720, 'The Head of Section gets one automatic reminder when a request has waited this long. Use a value below the lapse time.'],
-    'LAPSE_HOURS'          => ['Lapse after (hours)',        'int',   1, 720, 'A request still pending after this many hours becomes Lapsed.'],
-    'WORK_START'           => ['Office hours start',         'time',  0, 0,   'A trip starting before this time counts as after-hours.'],
-    'WORK_END'             => ['Office hours end',           'time',  0, 0,   'A trip ending after this time counts as after-hours.'],
+    'W_TASKS'              => ['Weight: tasks this month',         'float', 0, 1,   'Share of the driver score that depends on how many tasks (request trips + internal tasks + welfare duty days) the driver already has this month. Fewer tasks = better rank.'],
+    'W_AFTER_HOURS'        => ['Weight: outside working hours',    'float', 0, 1,   'Share that depends on tasks outside working hours (Saturday/Sunday, before the start or after the end of working hours). Must add up to 1 with the weight above.'],
+    'LAPSE_HOURS'          => ['Lapse after (hours)',              'int',   1, 720, 'A request still Pending after this many hours (48 = two days) becomes Lapsed and its vehicle is released.'],
+    'WORK_START'           => ['Working hours start',              'time',  0, 0,   'A task starting before this time is outside working hours (08:00).'],
+    'WORK_END'             => ['Working hours end',                'time',  0, 0,   'A task ending after this time is outside working hours (17:30).'],
+    'TASK_DURATION_HOURS'  => ['Length of a trip task (hours)',    'int',   1, 12,  'The outbound and the return task of a trip each last this long (the vehicle stays locked for the whole departure-to-return period).'],
+    'SESSION_TIMEOUT_MIN'  => ['Idle sign-out (minutes)',          'int',   1, 240, 'A user is signed out after this many minutes without activity (15).'],
+    'MAX_FAILED_ATTEMPTS'  => ['Failed logins before blocking',    'int',   1, 20,  'After this many wrong passwords in a row the login is blocked (5).'],
+    'LOCKOUT_MINUTES'      => ['Login block (minutes)',            'int',   1, 240, 'How long the login stays blocked after too many failed attempts (15).'],
 ];
 
 $errors = [];
@@ -41,9 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!isset($errors['W_TASKS'], $errors['W_AFTER_HOURS']) && abs((float)$new['W_TASKS'] + (float)$new['W_AFTER_HOURS'] - 1.0) > 0.0001) {
         $errors['W_AFTER_HOURS'] = 'The two weights must add up to exactly 1.';
-    }
-    if (!isset($errors['REMINDER_AFTER_HOURS'], $errors['LAPSE_HOURS']) && (int)$new['REMINDER_AFTER_HOURS'] >= (int)$new['LAPSE_HOURS']) {
-        $errors['REMINDER_AFTER_HOURS'] = 'The reminder must come before the request lapses.';
     }
     if (!isset($errors['WORK_START'], $errors['WORK_END']) && $new['WORK_END'] <= $new['WORK_START']) {
         $errors['WORK_END'] = 'Office hours must end after they start.';
