@@ -20,6 +20,159 @@ SET time_zone = '+08:00';
 -- TABLES
 -- ============================================================
 
+CREATE TABLE `drivers` (
+  `driver_id` int(11) NOT NULL AUTO_INCREMENT,
+  `employee_id` varchar(20) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `experience_years` decimal(4,1) NOT NULL DEFAULT 0.0,
+  `license_number` varchar(50) DEFAULT NULL,
+  `license_class` varchar(10) DEFAULT NULL COMMENT 'comma list: B2,D,E',
+  `license_expiry` date DEFAULT NULL,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/drivers/',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`driver_id`),
+  UNIQUE KEY `uq_drivers_employee_id` (`employee_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `users` (
+  `user_id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `full_name` varchar(100) NOT NULL,
+  `role` enum('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff',
+  `driver_id` int(11) DEFAULT NULL,
+  `department` varchar(100) DEFAULT NULL,
+  `supervisor_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `phone` varchar(30) DEFAULT NULL,
+  `failed_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `last_login_at` datetime DEFAULT NULL,
+  `locked_until` datetime DEFAULT NULL,
+  PRIMARY KEY (`user_id`),
+  UNIQUE KEY `uq_users_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Synced from the UIS staff system (tools/import_staff.php). The Vehicle Section does not create, edit or delete users.';
+
+CREATE TABLE `vehicles` (
+  `vehicle_id` int(11) NOT NULL AUTO_INCREMENT,
+  `plate_number` varchar(20) NOT NULL,
+  `vehicle_type` enum('Bus','Van','Car','Minibus','Lorry','Motorcycle') NOT NULL,
+  `brand` varchar(50) DEFAULT NULL,
+  `model` varchar(50) DEFAULT NULL,
+  `year` int(11) DEFAULT NULL,
+  `capacity` int(11) NOT NULL DEFAULT 4,
+  `fuel_type` enum('Petrol','Diesel','Electric','Hybrid') NOT NULL DEFAULT 'Petrol',
+  `status` enum('available','in_use','maintenance','inactive') NOT NULL DEFAULT 'available',
+  `last_maintenance` date DEFAULT NULL,
+  `next_maintenance` date DEFAULT NULL,
+  `mileage` int(11) NOT NULL DEFAULT 0,
+  `notes` text DEFAULT NULL,
+  `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/vehicles/',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `license_required` enum('D','GDL','PSV') NOT NULL DEFAULT 'D',
+  PRIMARY KEY (`vehicle_id`),
+  UNIQUE KEY `uq_vehicles_plate_number` (`plate_number`),
+  UNIQUE KEY `uq_vehicles_plate` (`plate_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `settings` (
+  `setting_key` varchar(60) NOT NULL,
+  `setting_value` varchar(255) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `schema_migrations` (
+  `name` varchar(100) NOT NULL,
+  `applied_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `schedules` (
+  `schedule_id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` int(11) DEFAULT NULL,
+  `vehicle_id` int(11) DEFAULT NULL,
+  `trip_date` date NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `destination` varchar(255) NOT NULL,
+  `purpose` varchar(255) DEFAULT NULL,
+  `passenger_count` int(11) NOT NULL DEFAULT 1,
+  `officer_name` varchar(255) DEFAULT NULL COMMENT 'Officer(s) the driver serves',
+  `officer_phone` varchar(50) DEFAULT NULL COMMENT 'Officer contact number',
+  `waiting_place` varchar(150) DEFAULT NULL COMMENT 'Where the driver waits (tempat menunggu)',
+  `status` enum('pending','approved','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
+  `created_by` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `request_id` int(11) DEFAULT NULL,
+  `leg_no` tinyint(4) DEFAULT NULL,
+  `start_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
+  `end_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`end_time`)) STORED,
+  PRIMARY KEY (`schedule_id`),
+  KEY `fk_schedules_created_by` (`created_by`),
+  KEY `idx_schedules_request` (`request_id`),
+  KEY `idx_sched_driver_time` (`driver_id`,`start_dt`,`end_dt`),
+  KEY `idx_sched_vehicle_time` (`vehicle_id`,`start_dt`,`end_dt`),
+  KEY `idx_sched_request` (`request_id`),
+  CONSTRAINT `fk_schedules_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_schedules_driver_id` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_schedules_vehicle_id` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `vehicle_requests` (
+  `request_id` int(11) NOT NULL AUTO_INCREMENT,
+  `staff_id` int(11) NOT NULL,
+  `vehicle_id` int(11) DEFAULT NULL,
+  `trip_date` date NOT NULL,
+  `start_time` time NOT NULL,
+  `end_time` time NOT NULL,
+  `destination` varchar(255) NOT NULL,
+  `purpose` text NOT NULL,
+  `passenger_count` int(11) NOT NULL DEFAULT 1,
+  `officer_name` varchar(255) DEFAULT NULL,
+  `officer_phone` varchar(50) DEFAULT NULL,
+  `waiting_place` varchar(150) DEFAULT NULL,
+  `status` enum('pending','approved','assigned','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending',
+  `supervisor_id` int(11) DEFAULT NULL,
+  `supervisor_notes` text DEFAULT NULL,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `cancelled_at` timestamp NULL DEFAULT NULL,
+  `schedule_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `status_reason` varchar(500) DEFAULT NULL,
+  `cancelled_by` int(11) DEFAULT NULL,
+  `cancelled_by_role` varchar(20) DEFAULT NULL,
+  `return_date` date NOT NULL,
+  `destination_address` varchar(500) DEFAULT NULL,
+  `passenger_names` text DEFAULT NULL,
+  `waiting_address` varchar(255) DEFAULT NULL,
+  `depart_at` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
+  `return_at` datetime GENERATED ALWAYS AS (timestamp(`return_date`,`end_time`)) STORED,
+  `lapsed_notified` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`request_id`),
+  KEY `fk_vr_staff` (`staff_id`),
+  KEY `fk_vr_vehicle` (`vehicle_id`),
+  KEY `fk_vr_supervisor` (`supervisor_id`),
+  KEY `fk_vr_schedule` (`schedule_id`),
+  KEY `idx_vr_period` (`depart_at`,`return_at`),
+  KEY `idx_vr_status` (`status`,`created_at`),
+  CONSTRAINT `fk_vr_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vr_staff` FOREIGN KEY (`staff_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_vr_supervisor` FOREIGN KEY (`supervisor_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vr_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `audit_log` (
   `log_id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
@@ -44,25 +197,6 @@ CREATE TABLE `driver_replacements` (
   PRIMARY KEY (`replacement_id`),
   KEY `idx_repl_schedule` (`schedule_id`),
   CONSTRAINT `fk_repl_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `drivers` (
-  `driver_id` int(11) NOT NULL AUTO_INCREMENT,
-  `employee_id` varchar(20) NOT NULL,
-  `name` varchar(100) NOT NULL,
-  `phone` varchar(20) DEFAULT NULL,
-  `email` varchar(100) DEFAULT NULL,
-  `address` text DEFAULT NULL,
-  `experience_years` decimal(4,1) NOT NULL DEFAULT 0.0,
-  `license_number` varchar(50) DEFAULT NULL,
-  `license_class` varchar(10) DEFAULT NULL COMMENT 'comma list: B2,D,E',
-  `license_expiry` date DEFAULT NULL,
-  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
-  `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/drivers/',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`driver_id`),
-  UNIQUE KEY `uq_drivers_employee_id` (`employee_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `email_log` (
@@ -174,73 +308,6 @@ CREATE TABLE `request_documents` (
   CONSTRAINT `fk_rd_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `schedules` (
-  `schedule_id` int(11) NOT NULL AUTO_INCREMENT,
-  `driver_id` int(11) DEFAULT NULL,
-  `vehicle_id` int(11) DEFAULT NULL,
-  `trip_date` date NOT NULL,
-  `start_time` time NOT NULL,
-  `end_time` time NOT NULL,
-  `destination` varchar(255) NOT NULL,
-  `purpose` varchar(255) DEFAULT NULL,
-  `passenger_count` int(11) NOT NULL DEFAULT 1,
-  `officer_name` varchar(255) DEFAULT NULL COMMENT 'Officer(s) the driver serves',
-  `officer_phone` varchar(50) DEFAULT NULL COMMENT 'Officer contact number',
-  `waiting_place` varchar(150) DEFAULT NULL COMMENT 'Where the driver waits (tempat menunggu)',
-  `status` enum('pending','approved','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
-  `created_by` int(11) DEFAULT NULL,
-  `notes` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `request_id` int(11) DEFAULT NULL,
-  `leg_no` tinyint(4) DEFAULT NULL,
-  `start_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
-  `end_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`end_time`)) STORED,
-  PRIMARY KEY (`schedule_id`),
-  KEY `fk_schedules_created_by` (`created_by`),
-  KEY `idx_schedules_request` (`request_id`),
-  KEY `idx_sched_driver_time` (`driver_id`,`start_dt`,`end_dt`),
-  KEY `idx_sched_vehicle_time` (`vehicle_id`,`start_dt`,`end_dt`),
-  KEY `idx_sched_request` (`request_id`),
-  CONSTRAINT `fk_schedules_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_schedules_driver_id` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_schedules_vehicle_id` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `schema_migrations` (
-  `name` varchar(100) NOT NULL,
-  `applied_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `settings` (
-  `setting_key` varchar(60) NOT NULL,
-  `setting_value` varchar(255) NOT NULL,
-  `description` varchar(255) DEFAULT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`setting_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `users` (
-  `user_id` int(11) NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `email` varchar(100) NOT NULL,
-  `full_name` varchar(100) NOT NULL,
-  `role` enum('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff',
-  `driver_id` int(11) DEFAULT NULL,
-  `department` varchar(100) DEFAULT NULL,
-  `supervisor_id` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `phone` varchar(30) DEFAULT NULL,
-  `failed_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `last_login_at` datetime DEFAULT NULL,
-  `locked_until` datetime DEFAULT NULL,
-  PRIMARY KEY (`user_id`),
-  UNIQUE KEY `uq_users_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Synced from the UIS staff system (tools/import_staff.php). The Vehicle Section does not create, edit or delete users.';
-
 CREATE TABLE `vehicle_locks` (
   `lock_id` int(11) NOT NULL AUTO_INCREMENT,
   `request_id` int(11) NOT NULL,
@@ -266,73 +333,6 @@ CREATE TABLE `vehicle_maintenance` (
   PRIMARY KEY (`maintenance_id`),
   KEY `idx_maint_dates` (`vehicle_id`,`start_date`,`end_date`),
   CONSTRAINT `fk_maint_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `vehicle_requests` (
-  `request_id` int(11) NOT NULL AUTO_INCREMENT,
-  `staff_id` int(11) NOT NULL,
-  `vehicle_id` int(11) DEFAULT NULL,
-  `trip_date` date NOT NULL,
-  `start_time` time NOT NULL,
-  `end_time` time NOT NULL,
-  `destination` varchar(255) NOT NULL,
-  `purpose` text NOT NULL,
-  `passenger_count` int(11) NOT NULL DEFAULT 1,
-  `officer_name` varchar(255) DEFAULT NULL,
-  `officer_phone` varchar(50) DEFAULT NULL,
-  `waiting_place` varchar(150) DEFAULT NULL,
-  `status` enum('pending','approved','assigned','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending',
-  `supervisor_id` int(11) DEFAULT NULL,
-  `supervisor_notes` text DEFAULT NULL,
-  `reviewed_at` timestamp NULL DEFAULT NULL,
-  `cancelled_at` timestamp NULL DEFAULT NULL,
-  `schedule_id` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `status_reason` varchar(500) DEFAULT NULL,
-  `cancelled_by` int(11) DEFAULT NULL,
-  `cancelled_by_role` varchar(20) DEFAULT NULL,
-  `return_date` date NOT NULL,
-  `destination_address` varchar(500) DEFAULT NULL,
-  `passenger_names` text DEFAULT NULL,
-  `waiting_address` varchar(255) DEFAULT NULL,
-  `depart_at` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
-  `return_at` datetime GENERATED ALWAYS AS (timestamp(`return_date`,`end_time`)) STORED,
-  `lapsed_notified` tinyint(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`request_id`),
-  KEY `fk_vr_staff` (`staff_id`),
-  KEY `fk_vr_vehicle` (`vehicle_id`),
-  KEY `fk_vr_supervisor` (`supervisor_id`),
-  KEY `fk_vr_schedule` (`schedule_id`),
-  KEY `idx_vr_period` (`depart_at`,`return_at`),
-  KEY `idx_vr_status` (`status`,`created_at`),
-  CONSTRAINT `fk_vr_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vr_staff` FOREIGN KEY (`staff_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_vr_supervisor` FOREIGN KEY (`supervisor_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_vr_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `vehicles` (
-  `vehicle_id` int(11) NOT NULL AUTO_INCREMENT,
-  `plate_number` varchar(20) NOT NULL,
-  `vehicle_type` enum('Bus','Van','Car','Minibus','Lorry','Motorcycle') NOT NULL,
-  `brand` varchar(50) DEFAULT NULL,
-  `model` varchar(50) DEFAULT NULL,
-  `year` int(11) DEFAULT NULL,
-  `capacity` int(11) NOT NULL DEFAULT 4,
-  `fuel_type` enum('Petrol','Diesel','Electric','Hybrid') NOT NULL DEFAULT 'Petrol',
-  `status` enum('available','in_use','maintenance','inactive') NOT NULL DEFAULT 'available',
-  `last_maintenance` date DEFAULT NULL,
-  `next_maintenance` date DEFAULT NULL,
-  `mileage` int(11) NOT NULL DEFAULT 0,
-  `notes` text DEFAULT NULL,
-  `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/vehicles/',
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `license_required` enum('D','GDL','PSV') NOT NULL DEFAULT 'D',
-  PRIMARY KEY (`vehicle_id`),
-  UNIQUE KEY `uq_vehicles_plate_number` (`plate_number`),
-  UNIQUE KEY `uq_vehicles_plate` (`plate_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `welfare_roster` (
