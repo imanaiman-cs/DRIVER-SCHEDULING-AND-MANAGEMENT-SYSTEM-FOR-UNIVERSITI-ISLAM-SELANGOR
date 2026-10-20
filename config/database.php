@@ -459,7 +459,23 @@ function sanitize(string $data): string
  */
 function verifyPassword(string $plain, string $stored): bool
 {
-    return password_verify($plain, $stored);
+    if (password_verify($plain, $stored)) {
+        return true;
+    }
+    // A database upgraded from the first demo release may still hold SHA-256 hex hashes: accepted once,
+    // and replaced by a bcrypt hash at the first successful sign-in (see login.php).
+    return strlen($stored) === 64 && ctype_xdigit($stored) && hash_equals($stored, hash('sha256', $plain));
+}
+
+/** Replaces a legacy SHA-256 hash by a bcrypt hash after a successful sign-in. */
+function upgradeLegacyPassword(mysqli $conn, int $user_id, string $plain, string $stored): void
+{
+    if (strlen($stored) !== 64 || !ctype_xdigit($stored)) { return; }
+    $hash = password_hash($plain, PASSWORD_DEFAULT);
+    $stmt = $conn->prepare('UPDATE users SET password = ? WHERE user_id = ?');
+    $stmt->bind_param('si', $hash, $user_id);
+    $stmt->execute();
+    $stmt->close();
 }
 
 // ============================================================
@@ -600,7 +616,7 @@ function statusBadgeClass(string $status): string
 /**
  * Returns a Bootstrap badge class string for a driver status value.
  *
- * @param string $status One of: active, inactive, on_leave
+ * @param string $status One of: active, inactive
  *
  * @return string Bootstrap badge colour class
  */
@@ -609,7 +625,6 @@ function driverStatusBadgeClass(string $status): string
     return match ($status) {
         'active'   => 'bg-success',
         'inactive' => 'bg-danger',
-        'on_leave' => 'bg-warning text-dark',
         default    => 'bg-secondary',
     };
 }
@@ -617,7 +632,7 @@ function driverStatusBadgeClass(string $status): string
 /**
  * Returns a Bootstrap badge class string for a vehicle status value.
  *
- * @param string $status One of: available, in_use, maintenance, retired
+ * @param string $status One of: available, in_use, maintenance, inactive
  *
  * @return string Bootstrap badge colour class
  */

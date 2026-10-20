@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st->bind_param('i', $uid);
             $st->execute();
             $st->close();
+            upgradeLegacyPassword($conn, $uid, $password, (string)$user['password']);
 
             // new session id after authentication (prevents session fixation)
             session_regenerate_id(true);
