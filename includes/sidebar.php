@@ -337,6 +337,11 @@ if ($_is_admin_role) {
                 </li>
                 <li><hr class="dropdown-divider my-1"></li>
                 <li>
+                    <a class="dropdown-item" href="<?php echo SITE_URL; ?>/help.php" style="font-size:.84rem;">
+                        <i class="fas fa-circle-question me-2"></i>Help
+                    </a>
+                </li>
+                <li>
                     <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
                        style="font-size:.84rem;color:#dc2626;">

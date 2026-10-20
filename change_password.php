@@ -17,7 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm = (string)($_POST['confirm_password'] ?? '');
     $uid     = (int)$_SESSION['user_id'];
 
-    $row = $conn->query("SELECT password FROM users WHERE user_id = $uid")->fetch_assoc();
+    $q = $conn->prepare('SELECT password FROM users WHERE user_id = ?');
+    $q->bind_param('i', $uid);
+    $q->execute();
+    $row = $q->get_result()->fetch_assoc();
+    $q->close();
     if (!$row || !verifyPassword($current, $row['password'])) {
         $error = 'Your current password is not correct.';
     } elseif ($new !== $confirm) {

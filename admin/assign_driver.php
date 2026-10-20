@@ -45,7 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $win = requestTaskWindows($conn, $req);
-$licence = $conn->query('SELECT license_required FROM vehicles WHERE vehicle_id = ' . (int)$req['vehicle_id'])->fetch_row()[0] ?? 'D';
+$lq = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
+$vid = (int)$req['vehicle_id'];
+$lq->bind_param('i', $vid);
+$lq->execute();
+$licence = $lq->get_result()->fetch_row()[0] ?? 'D';
+$lq->close();
 $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $win['out']['end_dt'], 'licence' => $licence]);
 
 adminPageStart('Assign Driver');

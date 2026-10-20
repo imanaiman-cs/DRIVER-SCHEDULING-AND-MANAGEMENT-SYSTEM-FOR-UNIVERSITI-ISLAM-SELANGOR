@@ -1,164 +1,88 @@
 <?php
 /**
- * The weighted driver score (the part to explain to the examiner) and its hard filters.
- * The first group needs no database; the second uses the demo data in a rolled-back transaction.
+ * DriverRecommender (SRS UC018): the formula (pure), the ranking, and the filters on the demo data.
+ * Database tests run in a transaction that is rolled back.
  */
-$cand = fn(string $name, int $tasks, int $after, bool $welfare = false, array $warnings = []) =>
-    ['driver_id' => crc32($name), 'name' => $name, 'tasks' => $tasks, 'after_hours' => $after, 'welfare' => $welfare, 'warnings' => $warnings];
-$q = fn(string $sql) => $GLOBALS['conn']->query($sql);
-
 return [
-    // ---------------------------------------------------------------- the formula
-    'score: a driver with no work scores 100' => function () {
-        assert_near(100.0, recommenderScore(0, 0, false, 0.6, 0.4, 20));
+    'score: 100 - (0.6 * tasks + 0.4 * outside-hours) * 100, between 0 and 100' => function () {
+        assert_near(100.0, recommenderScore(0, 0, 0.6, 0.4));
+        assert_near(0.0, recommenderScore(1, 1, 0.6, 0.4));
+        assert_near(40.0, recommenderScore(1, 0, 0.6, 0.4));
+        assert_near(60.0, recommenderScore(0, 1, 0.6, 0.4));
+        assert_near(60.0, recommenderScore(0.5, 0.25, 0.6, 0.4));
+        assert_near(0.0, recommenderScore(2, 2, 0.6, 0.4), 0.01, 'never below 0');
     },
-    'score: the busiest driver on both factors scores 0' => function () {
-        assert_near(0.0, recommenderScore(1, 1, false, 0.6, 0.4, 20));
+    'the score has no experience and no welfare-penalty parameter' => function () {
+        assert_same(4, (new ReflectionFunction('recommenderScore'))->getNumberOfParameters());
+        assert_same(3, (new ReflectionFunction('recommenderRank'))->getNumberOfParameters());
     },
-    'score: worked example, norm 0.5 and 0.25 -> 60' => function () {
-        // 100 - (0.6*0.5 + 0.4*0.25) * 100 = 100 - (0.30 + 0.10) * 100 = 60
-        assert_near(60.0, recommenderScore(0.5, 0.25, false, 0.6, 0.4, 20));
+    'ranking: fewer tasks first, counts normalised by the largest among the candidates' => function () {
+        $r = recommenderRank([
+            ['driver_id' => 1, 'name' => 'Busy',   'tasks' => 10, 'outside' => 4],
+            ['driver_id' => 2, 'name' => 'Free',   'tasks' => 0,  'outside' => 0],
+            ['driver_id' => 3, 'name' => 'Middle', 'tasks' => 5,  'outside' => 2],
+        ], 0.6, 0.4);
+        assert_same([2, 3, 1], array_column($r, 'driver_id'));
+        assert_same([1, 2, 3], array_column($r, 'rank'));
+        assert_near(100.0, $r[0]['score']); assert_near(50.0, $r[1]['score']); assert_near(0.0, $r[2]['score']);
     },
-    'score: welfare duty takes 20 points off' => function () {
-        assert_near(40.0, recommenderScore(0.5, 0.25, true, 0.6, 0.4, 20));
+    'ranking: a tie is broken by fewer tasks, then by name; nobody has work -> everybody 100' => function () {
+        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 3, 'outside' => 0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 3, 'outside' => 0]], 0.6, 0.4);
+        assert_same([2, 1], array_column($r, 'driver_id'));
+        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 0, 'outside' => 0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 0, 'outside' => 0]], 0.6, 0.4);
+        assert_near(100.0, $r[0]['score']); assert_near(100.0, $r[1]['score']);
     },
-    'score: stays between 0 and 100' => function () {
-        assert_near(0.0, recommenderScore(1, 1, true, 0.6, 0.4, 20));
-        assert_near(100.0, recommenderScore(0, 0, false, 0.6, 0.4, 0));
-    },
-    // ---------------------------------------------------------------- ranking
-    'rank: normalises against the busiest candidate' => function () use ($cand) {
-        $r = recommenderRank([$cand('A', 4, 2), $cand('B', 2, 0), $cand('C', 0, 0)], 0.6, 0.4, 20);
-        $by = array_column($r, null, 'name');
-        assert_near(0.0, $by['A']['score'], 0.01, 'A is busiest in both');
-        assert_near(70.0, $by['B']['score'], 0.01, 'B: 100 - 0.6*0.5*100');
-        assert_near(100.0, $by['C']['score'], 0.01, 'C has no work');
-        assert_same(['C', 'B', 'A'], array_column($r, 'name'));
-    },
-    'rank: nobody busy -> everyone 100, ordered by name' => function () use ($cand) {
-        $r = recommenderRank([$cand('Zed', 0, 0), $cand('Amir', 0, 0)], 0.6, 0.4, 20);
-        assert_same(['Amir', 'Zed'], array_column($r, 'name'));
-        assert_near(100.0, $r[0]['score']);
-    },
-    'rank: changing the weights changes the winner' => function () use ($cand) {
-        $list = [$cand('A', 4, 0), $cand('B', 2, 2)];
-        assert_same('A', recommenderRank($list, 0.6, 0.4, 20)[0]['name'], 'default weights');
-        assert_same('B', recommenderRank($list, 0.9, 0.1, 20)[0]['name'], 'tasks matter more');
-    },
-    'rank: after-hours work is weighted extra' => function () use ($cand) {
-        $r = recommenderRank([$cand('Evening', 3, 3), $cand('Daytime', 3, 0)], 0.6, 0.4, 20);
-        assert_same('Daytime', $r[0]['name']);
-    },
-    'rank: a warning does not change the score, but listed after free drivers' => function () use ($cand) {
-        $r = recommenderRank([$cand('Busy', 0, 0, false, ['Internal task']), $cand('Free', 5, 5)], 0.6, 0.4, 20);
-        assert_same('Free', $r[0]['name']);
-        assert_near(100.0, $r[1]['score'], 0.01, 'the driver with a warning still has a score');
-    },
-    // ---------------------------------------------------------------- hard filters (database)
-    'R8: Top Management drivers are not offered for a normal trip' => function () {
+    'outside-hours work weighs less than the total (weights 0.6 / 0.4 come from the settings)' => function () {
         global $conn;
-        $rec = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car']);
-        $tm = array_column($conn->query("SELECT driver_id FROM drivers WHERE driver_type = 'top_management'")->fetch_all(MYSQLI_ASSOC), 'driver_id');
-        assert_true($tm !== [], 'demo data has Top Management drivers');
-        assert_same([], array_values(array_intersect(array_column($rec['ranked'], 'driver_id'), array_map('intval', $tm))));
+        $rec = recommendDrivers($conn, ['start' => '2034-07-04 09:00:00', 'end' => '2034-07-04 11:00:00', 'licence' => 'D']);
+        assert_same(0.6, $rec['weights']['tasks']); assert_same(0.4, $rec['weights']['outside']);
     },
-    'R8: a Top Management trip offers only Top Management drivers' => function () {
+    'licence filter: car D, lorry GDL, bus PSV; inactive drivers are left out with a reason' => function () {
         global $conn;
-        $rec = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car', 'trip_type' => 'top_management']);
-        assert_true($rec['ranked'] !== []);
-        $ids = implode(',', array_map('intval', array_column($rec['ranked'], 'driver_id')));
-        assert_same('0', (string)$conn->query("SELECT COUNT(*) FROM drivers WHERE driver_id IN ($ids) AND driver_type <> 'top_management'")->fetch_row()[0]);
+        $ids = fn($rec) => array_map('intval', array_column($rec['ranked'], 'driver_id'));
+        $d = recommendDrivers($conn, ['start' => '2034-07-04 09:00:00', 'end' => '2034-07-04 11:00:00', 'licence' => 'D']);
+        assert_true(!in_array(11, $ids($d), true), 'driver 11 is inactive');
+        assert_true(in_array(11, array_map('intval', array_column($d['excluded'], 'driver_id')), true));
+        $psv = recommendDrivers($conn, ['start' => '2034-07-04 09:00:00', 'end' => '2034-07-04 11:00:00', 'licence' => 'PSV']);
+        foreach ($psv['ranked'] as $x) { assert_true(driverHoldsLicence($x['license_class'], 'PSV'), $x['name'] . ' has PSV'); }
+        assert_true(!in_array(5, $ids($psv), true), 'driver 5 holds only D');
+        $gdl = recommendDrivers($conn, ['start' => '2034-07-04 09:00:00', 'end' => '2034-07-04 11:00:00', 'licence' => 'GDL']);
+        foreach ($gdl['ranked'] as $x) { assert_true(driverHoldsLicence($x['license_class'], 'GDL'), $x['name'] . ' has GDL'); }
     },
-    'R5: the licence class of the vehicle is required' => function () {
+    'a driver with an overlapping task or internal task is removed, an adjacent one is not' => function () {
         global $conn;
-        $rec = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Bus']);
-        foreach ($rec['ranked'] as $c) {
-            assert_true(driverHasLicense($c['license_class'], requiredLicenseClasses('Bus')), $c['name'] . ' needs a bus licence');
-        }
+        $ids = fn($rec) => array_map('intval', array_column($rec['ranked'], 'driver_id'));
+        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (1, 5, '2034-07-05', '09:00', '11:00', 'T', 'approved')");
+        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description) VALUES ('refuel', '2034-07-05', '10:00', '12:00', 6, 2, 'x')");
+        $t = ['start' => '2034-07-05 10:00:00', 'end' => '2034-07-05 12:00:00', 'licence' => 'D'];
+        $rec = recommendDrivers($conn, $t);
+        assert_true(!in_array(1, $ids($rec), true), 'overlapping request task');
+        assert_true(!in_array(2, $ids($rec), true), 'overlapping internal task');
+        $rec = recommendDrivers($conn, ['start' => '2034-07-05 11:00:00', 'end' => '2034-07-05 13:00:00', 'licence' => 'D']);
+        assert_true(in_array(1, $ids($rec), true), 'adjacent is fine (11:00 = the end of the other task)');
     },
-    'a driver on leave that day is excluded with the reason' => function () {
+    'month counts: request tasks + internal tasks + welfare days; cancelled ones never count; outside hours counted apart' => function () {
         global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO driver_leaves (driver_id, start_date, end_date, leave_type) VALUES ($id, '2033-03-08', '2033-03-10', 'mc')");
-        $rec = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car']);
-        assert_true(!in_array($id, array_column($rec['ranked'], 'driver_id')), 'not ranked');
-        $why = array_column($rec['excluded'], 'reason', 'driver_id');
-        assert_true(isset($why[$id]) && str_contains($why[$id], 'MC'), 'reason mentions MC');
+        $base = driverMonthCounts($conn, '2034-08')[9] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
+        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES
+            (9, 5, '2034-08-02', '09:00', '11:00', 'T', 'approved'),
+            (9, 5, '2034-08-03', '06:30', '08:30', 'early', 'approved'),
+            (9, 5, '2034-08-05', '10:00', '12:00', 'saturday', 'approved'),
+            (9, 5, '2034-08-07', '10:00', '12:00', 'cancelled', 'cancelled')");
+        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES
+            ('refuel', '2034-08-08', '18:00', '19:00', 6, 9, 'late', 'active'), ('refuel', '2034-08-09', '10:00', '11:00', 6, 9, 'gone', 'cancelled')");
+        $conn->query("INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('2034-08-12', 9)");
+        $c = driverMonthCounts($conn, '2034-08')[9];
+        assert_same($base['tasks'] + 5, $c['tasks'], '3 request tasks + 1 internal task + 1 welfare day');
+        assert_same($base['outside'] + 3, $c['outside'], 'early start, Saturday and the evening internal task; welfare is not outside hours');
+        assert_same($base['welfare'] + 1, $c['welfare']);
     },
-    'a driver already on a trip in that time slot is excluded' => function () {
+    'welfare duty on the trip date is FLAGGED, not removed' => function () {
         global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO schedules (driver_id, trip_date, start_time, end_time, destination, status) VALUES ($id, '2033-03-09', '10:00:00', '12:00:00', 'T', 'approved')");
-        $rec = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '11:00:00', 'end' => '13:00:00', 'vehicle_type' => 'Car']);
-        assert_true(!in_array($id, array_column($rec['ranked'], 'driver_id')));
-        $rec2 = recommendDrivers($conn, ['date' => '2033-03-09', 'start' => '12:00:00', 'end' => '14:00:00', 'vehicle_type' => 'Car']);
-        assert_true(in_array($id, array_column($rec2['ranked'], 'driver_id')), 'a slot that only touches is fine');
-    },
-    // ---------------------------------------------------------------- workload counting
-    'tasks count trips (not cancelled) and internal tasks' => function () {
-        global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO schedules (driver_id, trip_date, start_time, end_time, destination, status) VALUES
-                      ($id, '2033-05-02', '09:00:00', '11:00:00', 'T', 'approved'),
-                      ($id, '2033-05-03', '09:00:00', '11:00:00', 'T', 'completed'),
-                      ($id, '2033-05-04', '09:00:00', '11:00:00', 'T', 'cancelled'),
-                      ($id, '2033-06-02', '09:00:00', '11:00:00', 'T', 'approved')");
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, driver_id) VALUES ('refuel', '2033-05-05', '10:00:00', '11:00:00', $id)");
-        $c = getMonthlyTaskCounts($conn, '2033-05');
-        assert_same(3, $c[$id]['tasks'], '2 trips + 1 internal task; cancelled and other months not counted');
-    },
-    'after-hours counts weekends, early starts and late finishes' => function () {
-        global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO schedules (driver_id, trip_date, start_time, end_time, destination, status) VALUES
-                      ($id, '2033-05-14', '09:00:00', '11:00:00', 'T', 'approved'),
-                      ($id, '2033-05-16', '06:30:00', '08:30:00', 'T', 'approved'),
-                      ($id, '2033-05-17', '16:00:00', '19:00:00', 'T', 'approved'),
-                      ($id, '2033-05-18', '09:00:00', '11:00:00', 'T', 'approved')");
-        $c = getMonthlyTaskCounts($conn, '2033-05');
-        assert_same(4, $c[$id]['tasks']);
-        assert_same(3, $c[$id]['weekend'], 'Saturday + early start + late finish');
-    },
-    'the least busy driver is recommended first' => function () {
-        global $conn;
-        $ids = array_map('intval', array_column($conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 3")->fetch_all(MYSQLI_ASSOC), 'driver_id'));
-        foreach ([2, 3, 4, 5] as $d) {
-            $conn->query("INSERT INTO schedules (driver_id, trip_date, start_time, end_time, destination, status) VALUES ({$ids[0]}, '2033-07-0$d', '09:00:00', '11:00:00', 'T', 'approved')");
-        }
-        $rec = recommendDrivers($conn, ['date' => '2033-07-20', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car']);
-        $order = array_column($rec['ranked'], 'driver_id');
-        assert_true($order[0] !== $ids[0], 'the busy driver is not first');
-        assert_same($ids[0], (int)end($order), 'the busy driver is last');
-    },
-    'welfare duty that day lowers the score by the penalty' => function () {
-        global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $trip = ['date' => '2033-08-09', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car'];
-        $before = array_column(recommendDrivers($conn, $trip)['ranked'], null, 'driver_id')[$id]['score'];
-        $conn->query("INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('2033-08-09', $id)");
-        $after = array_column(recommendDrivers($conn, $trip)['ranked'], null, 'driver_id')[$id];
-        assert_true($after['welfare']);
-        assert_near($before - 20, $after['score'], 0.11);
-    },
-    'an internal task in the slot is a warning, not a block' => function () {
-        global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, driver_id) VALUES ('refuel', '2033-09-09', '10:00:00', '11:00:00', $id)");
-        $rec = recommendDrivers($conn, ['date' => '2033-09-09', 'start' => '10:30:00', 'end' => '12:00:00', 'vehicle_type' => 'Car']);
-        $c = array_column($rec['ranked'], null, 'driver_id')[$id] ?? null;
-        assert_true($c !== null, 'still selectable');
-        assert_same(1, count($c['warnings']));
-    },
-    'the weights come from the settings table' => function () {
-        global $conn;
-        $id = (int)$conn->query("SELECT driver_id FROM drivers WHERE status='active' AND driver_type='regular' LIMIT 1")->fetch_row()[0];
-        $conn->query("INSERT INTO schedules (driver_id, trip_date, start_time, end_time, destination, status) VALUES ($id, '2033-10-02', '09:00:00', '11:00:00', 'T', 'approved')");
-        $trip = ['date' => '2033-10-20', 'start' => '09:00:00', 'end' => '11:00:00', 'vehicle_type' => 'Car'];
-        $default = array_column(recommendDrivers($conn, $trip)['ranked'], null, 'driver_id');
-        $conn->query("INSERT INTO settings (setting_key, setting_value) VALUES ('W_TASKS','0.2') ON DUPLICATE KEY UPDATE setting_value='0.2'");
-        $GLOBALS['__settings_dirty'] = true;
-        $changed = array_column(recommendDrivers($conn, $trip)['ranked'], null, 'driver_id');
-        assert_true($changed[$id]['score'] > $default[$id]['score'] || count($default) === 1, 'a lower weight on tasks gives a higher score');
-        $GLOBALS['__settings_dirty'] = true;
+        $conn->query("INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('2034-09-12', 3) ON DUPLICATE KEY UPDATE driver_id = 3");
+        $rec = recommendDrivers($conn, ['start' => '2034-09-12 09:00:00', 'end' => '2034-09-12 11:00:00', 'licence' => 'D']);
+        $d3 = array_values(array_filter($rec['ranked'], fn($x) => (int)$x['driver_id'] === 3));
+        assert_true(count($d3) === 1 && $d3[0]['welfare'] === true, 'driver 3 is listed with the welfare flag');
+        foreach ($rec['ranked'] as $x) { assert_true(array_key_exists('tasks', $x) && array_key_exists('outside', $x), 'task count and outside-hours count are shown'); }
     },
 ];

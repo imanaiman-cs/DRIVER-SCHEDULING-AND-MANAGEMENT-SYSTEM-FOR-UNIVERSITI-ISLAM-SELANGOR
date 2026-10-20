@@ -598,7 +598,10 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
             $del->bind_param('ii', $request_id, $mainVehicle);
             $del->execute();
             $del->close();
-            $conn->query('UPDATE vehicle_requests SET schedule_id = NULL WHERE request_id = ' . (int)$request_id);
+            $clr = $conn->prepare('UPDATE vehicle_requests SET schedule_id = NULL WHERE request_id = ?');
+            $clr->bind_param('i', $request_id);
+            $clr->execute();
+            $clr->close();
         }
         $conn->commit();
     } catch (Throwable $e) {
@@ -904,7 +907,10 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $log->execute();
         $log->close();
         $rid = (int)$t['request_id'];
-        $conn->query("UPDATE vehicle_requests SET status = 'assigned' WHERE request_id = $rid AND status = 'processed'");
+        $back = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned' WHERE request_id = ? AND status = 'processed'");
+        $back->bind_param('i', $rid);
+        $back->execute();
+        $back->close();
         $conn->commit();
     } catch (Throwable $e) {
         $conn->rollback();
@@ -913,7 +919,11 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
     }
 
     $rid  = (int)$t['request_id'];
-    $oldN = (string)($conn->query('SELECT name FROM drivers WHERE driver_id = ' . $old)->fetch_row()[0] ?? '');
+    $on = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
+    $on->bind_param('i', $old);
+    $on->execute();
+    $oldN = (string)($on->get_result()->fetch_row()[0] ?? '');
+    $on->close();
     auditLog($conn, 'replace_driver', $rid, "Task #$schedule_id: $oldN -> {$nd['name']}. Reason: $reason");
     $what = "request #$rid ({$t['req_dest']}, " . date('d M Y H:i', strtotime($t['start_dt'])) . ')';
     notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$old]), "You were replaced on $what. Reason: $reason", 'driver/schedules.php');
