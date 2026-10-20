@@ -13,7 +13,7 @@ if (isLoggedIn()) {
     } elseif (isSupervisor()) {
         header('Location: supervisor/approvals.php');
     } else {
-        header('Location: driver/dashboard.php');
+        header('Location: driver/schedules.php');
     }
     exit();
 }
@@ -46,33 +46,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         $maxAttempts = max(1, getSettingInt($conn, 'MAX_FAILED_ATTEMPTS'));
+        $lockMinutes = max(1, getSettingInt($conn, 'LOCKOUT_MINUTES'));
 
         if (!$user) {
             $error = $generic;
-        } elseif ((int)($user['is_locked'] ?? 0) === 1) {
-            // only someone who knows the password learns that the account is locked (no username probing)
-            $error = verifyPassword($password, $user['password'])
-                ? 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.'
-                : $generic;
+        } elseif (!empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
+            // login is blocked for LOCKOUT_MINUTES (15) after MAX_FAILED_ATTEMPTS (5) wrong passwords; it opens by itself
+            $left = max(1, (int)ceil((strtotime($user['locked_until']) - time()) / 60));
+            $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes. Please try again in $left minute" . ($left > 1 ? 's' : '') . '.';
         } elseif (!verifyPassword($password, $user['password'])) {
             $uid = (int)$user['user_id'];
-            $conn->query("UPDATE users SET failed_attempts = failed_attempts + 1 WHERE user_id = $uid");
-            $n = (int)$conn->query("SELECT failed_attempts FROM users WHERE user_id = $uid")->fetch_row()[0];
+            // an old block that has already expired starts the count again
+            $n = (int)$user['failed_attempts'] + 1;
             if ($n >= $maxAttempts) {
-                $conn->query("UPDATE users SET is_locked = 1 WHERE user_id = $uid");
-                auditLog($conn, 'account_locked', null, "User #$uid locked after $n failed sign-ins", $uid, 'system');
-                $error = 'This account is locked after too many failed attempts. Please contact the transport unit to unlock it.';
+                $st = $conn->prepare('UPDATE users SET failed_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE user_id = ?');
+                $st->bind_param('ii', $lockMinutes, $uid);
+                $st->execute();
+                $st->close();
+                $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes.";
             } else {
+                $st = $conn->prepare('UPDATE users SET failed_attempts = ? WHERE user_id = ?');
+                $st->bind_param('ii', $n, $uid);
+                $st->execute();
+                $st->close();
                 $error = $generic;
             }
         } elseif ((int)($user['is_active'] ?? 1) === 0) {
-            $error = 'This account has been deactivated. Please contact the transport unit.';
+            $error = 'This account is not active. Please contact the Vehicle Section.';
         } else {
             $uid = (int)$user['user_id'];
-            $conn->query("UPDATE users SET failed_attempts = 0, last_login_at = NOW() WHERE user_id = $uid");
-            if (!password_get_info($user['password'])['algo']) {
-                upgradeLegacyPassword($conn, $uid, $password);   // seed SHA-256 -> bcrypt
-            }
+            $st = $conn->prepare('UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = ?');
+            $st->bind_param('i', $uid);
+            $st->execute();
+            $st->close();
 
             // new session id after authentication (prevents session fixation)
             session_regenerate_id(true);
@@ -84,20 +90,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
             $_SESSION['driver_id'] = $driver_id;
             $_SESSION['department']    = $user['department']    ?? null;
-            $_SESSION['supervisor_id'] = isset($user['supervisor_id']) ? (int)$user['supervisor_id'] : null;
             $_SESSION['last_activity'] = time();
-            $_SESSION['must_change_password'] = (bool)($user['must_change_password'] ?? 0);
 
-            if ($_SESSION['must_change_password']) {
-                header('Location: change_password.php');
-            } elseif (in_array($user['role'], ['admin', 'superadmin', 'head_admin'], true)) {
+            if (in_array($user['role'], ['admin', 'head_admin'], true)) {
                 header('Location: admin/dashboard.php');
             } elseif ($user['role'] === 'staff') {
                 header('Location: staff/dashboard.php');
             } elseif ($user['role'] === 'supervisor') {
                 header('Location: supervisor/approvals.php');
             } else {
-                header('Location: driver/dashboard.php');
+                header('Location: driver/schedules.php');
             }
             exit();
         }

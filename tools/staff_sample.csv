@@ -1,0 +1,8 @@
+staff_id,name,email,phone,department,role,status,password_hash,approver_staff_id
+hos005,"Prof. Dr. Ahmad Zaki bin Mansor",zaki.mansor@uis.edu.my,03-5543 0001,Rectory,head_of_department,active,,
+hos001,"Mohd Hafizi bin Harun",hafizi@uis.edu.my,03-5543 0002,Transport Unit,head_of_department,active,,hos005
+admin,"Rozaimi bin Kamaruzzaman",rozaimi@uis.edu.my,03-5543 0010,Transport Unit,administrative_assistant,active,,hos001
+head001,"Haji Zulkifli bin Awang",zulkifli@uis.edu.my,03-5543 0011,Transport Unit,head_of_admin,active,,hos001
+stf001,"Norliza binti Abdul Rahman",norliza@uis.edu.my,012-300 0001,Faculty of Education,staff,active,,
+drv001,"Ahmad Faizal bin Mohd Rashid",faizal.rashid@uis.edu.my,012-3456789,Transport Unit,driver,active,,hos001
+stf099,"Example Staff (new)",example.staff@uis.edu.my,012-300 0099,Faculty of Education,staff,active,$2y$12$8Pp/.vQZojFupcm.9JtecebafoLWiIBARldUVeoOMeNYA/FFRyoUm,

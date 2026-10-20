@@ -250,11 +250,24 @@ function isHeadAdmin(): bool
     return isset($_SESSION['role']) && $_SESSION['role'] === 'head_admin';
 }
 
+/** Where each role lands (also where someone is sent when they open a page that is not theirs). */
+function roleHomeUrl(?string $role = null): string
+{
+    $role = $role ?? ($_SESSION['role'] ?? '');
+    return SITE_URL . '/' . match ($role) {
+        'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
+        'staff'      => 'staff/dashboard.php',
+        'supervisor' => 'supervisor/approvals.php',
+        'driver'     => 'driver/schedules.php',
+        default      => 'login.php',
+    };
+}
+
 function requireHeadAdmin(): void
 {
     requireLogin();
     if (!isHeadAdmin()) {
-        header('Location: ' . SITE_URL . '/admin/dashboard.php');
+        header('Location: ' . roleHomeUrl());
         exit();
     }
 }
@@ -310,7 +323,7 @@ function requireAdmin(): void
 {
     requireLogin();
     if (!isAdmin()) {
-        header('Location: ' . SITE_URL . '/driver/dashboard.php');
+        header('Location: ' . roleHomeUrl());
         exit();
     }
 }
@@ -325,7 +338,7 @@ function requireDriver(): void
 {
     requireLogin();
     if (!isDriver()) {
-        header('Location: ' . SITE_URL . '/admin/dashboard.php');
+        header('Location: ' . roleHomeUrl());
         exit();
     }
 }
@@ -360,13 +373,13 @@ function requireStaff(): void
 {
     requireLogin();
     if (!isStaff()) {
-        header('Location: ' . SITE_URL . '/login.php');
+        header('Location: ' . roleHomeUrl());
         exit();
     }
 }
 
 /**
- * Ensures the current user is a supervisor (head of section).
+ * Ensures the current user is a Head of Department (role key 'supervisor').
  *
  * @return void
  */
@@ -374,7 +387,7 @@ function requireSupervisor(): void
 {
     requireLogin();
     if (!isSupervisor()) {
-        header('Location: ' . SITE_URL . '/login.php');
+        header('Location: ' . roleHomeUrl());
         exit();
     }
 }

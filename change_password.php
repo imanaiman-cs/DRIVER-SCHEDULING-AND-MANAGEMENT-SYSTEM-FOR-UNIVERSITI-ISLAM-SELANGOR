@@ -7,7 +7,7 @@
 require_once 'config/database.php';
 requireLogin();
 
-$forced = !empty($_SESSION['must_change_password']);
+$forced = false;   // there is no temporary password any more; this page is only kept for the demo and is not in the menu
 $error  = '';
 $done   = false;
 
@@ -28,11 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $problem;
     } else {
         $hash = password_hash($new, PASSWORD_DEFAULT);
-        $stmt = $conn->prepare('UPDATE users SET password = ?, must_change_password = 0 WHERE user_id = ?');
+        $stmt = $conn->prepare('UPDATE users SET password = ? WHERE user_id = ?');
         $stmt->bind_param('si', $hash, $uid);
         $stmt->execute();
         $stmt->close();
-        $_SESSION['must_change_password'] = false;
         auditLog($conn, 'password_changed', null, 'Own password changed');
         $done = true;
     }
@@ -42,7 +41,7 @@ $home = match ($_SESSION['role'] ?? '') {
     'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
     'staff'               => 'staff/dashboard.php',
     'supervisor'          => 'supervisor/approvals.php',
-    default               => 'driver/dashboard.php',
+    default               => 'driver/schedules.php',
 };
 ?>
 <!DOCTYPE html>
