@@ -1,812 +1,89 @@
 <?php
 // ============================================================
-// UIS Driver Scheduling and Management System
-// admin/add_driver.php  –  Add New Driver
-// Universiti Islam Selangor (UIS)
+// admin/add_driver.php  -  UC001 Add Driver
+// User accounts come from the UIS staff system. The administrator picks an EXISTING account with the Driver role
+// that is not linked to a driver record yet, and ticks the licence classes.
 // ============================================================
-
+$current_page = 'add_driver.php';
 require_once '../config/database.php';
+require_once '../includes/admin_page.php';
 require_once '../includes/upload.php';
+require_once 'fleet_helpers.php';
 requireAdmin();
 
-$page_title   = 'Add New Driver';
-$current_page = 'add_driver.php';
-
-// ── Form field defaults ──────────────────────────────────────
-$form = [
-    'employee_id'         => '',
-    'name'                => '',
-    'phone'               => '',
-    'email'               => '',
-    'address'             => '',
-    'experience_years'    => '',
-    'license_number'      => '',
-    'license_class'       => [],
-    'license_expiry'      => '',
-    'status'              => 'active',
-    'driver_type'         => 'regular',
-    'assigned_to'         => '',
-];
-
+$sel = (int)($_POST['user_id'] ?? $_GET['user_id'] ?? 0);
+$v = ['license_class' => '', 'license_number' => '', 'license_expiry' => '', 'address' => '', 'phone' => ''];
 $errors = [];
 
-// ── POST handler ─────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // Collect & sanitise
-    $form['employee_id']         = trim($_POST['employee_id']         ?? '');
-    $form['name']                = trim($_POST['name']                ?? '');
-    $form['phone']               = trim($_POST['phone']               ?? '');
-    $form['email']               = trim($_POST['email']               ?? '');
-    $form['address']             = trim($_POST['address']             ?? '');
-    $form['experience_years']    = trim($_POST['experience_years']    ?? '');
-    $form['license_number']      = trim($_POST['license_number']      ?? '');
-    $posted_classes              = $_POST['license_class'] ?? [];
-    $form['license_class']       = is_array($posted_classes)
-        ? array_values(array_filter(array_map('trim', array_map('strval', $posted_classes)), 'strlen'))
-        : [];
-    $form['license_expiry']      = trim($_POST['license_expiry']      ?? '');
-    $form['status']              = trim($_POST['status']              ?? 'active');
-    $form['driver_type']         = trim($_POST['driver_type']         ?? 'regular');
-    $form['assigned_to']         = trim($_POST['assigned_to']         ?? '');
-
-    // ── Validation ───────────────────────────────────────────
-    if ($form['employee_id'] === '') {
-        $errors['employee_id'] = 'Enter the employee ID, for example EMP-0001.';
-    } else {
-        // Unique check
-        $chk = $conn->prepare("SELECT driver_id FROM drivers WHERE employee_id = ?");
-        $chk->bind_param('s', $form['employee_id']);
-        $chk->execute();
-        $chk->store_result();
-        if ($chk->num_rows > 0) {
-            $errors['employee_id'] = 'This Employee ID is already registered. Check the ID, or edit the existing driver from the Drivers list.';
-        }
-        $chk->close();
-    }
-
-    if ($form['name'] === '') {
-        $errors['name'] = 'Enter the full name of the driver, for example Ahmad bin Ali.';
-    }
-
-    if ($form['phone'] === '') {
-        $errors['phone'] = 'Enter a phone number the driver can be reached on, for example 0123456789.';
-    }
-
-    if ($form['email'] !== '' && !filter_var($form['email'], FILTER_VALIDATE_EMAIL)) {
-        $errors['email'] = 'Enter a valid email address in the form name@example.com, or leave this field empty.';
-    }
-
-    if ($form['experience_years'] === '') {
-        $errors['experience_years'] = 'Enter the years of driving experience, for example 5 (enter 0 if none).';
-    } elseif (!is_numeric($form['experience_years']) || (float)$form['experience_years'] < 0 || (float)$form['experience_years'] > 50) {
-        $errors['experience_years'] = 'Experience must be a number between 0 and 50 years, for example 5 or 2.5.';
-    }
-
-    $allowed_statuses = ['active', 'inactive', 'on_leave'];
-    if (!in_array($form['status'], $allowed_statuses, true)) {
-        $form['status'] = 'active';
-    }
-
-    if (!in_array($form['driver_type'], ['regular', 'top_management'], true)) {
-        $form['driver_type'] = 'regular';
-    }
-
-    // A Top Management driver serves exactly one Top Management officer, and
-    // one officer has exactly one driver.
-    if ($form['driver_type'] !== 'top_management') {
-        $form['assigned_to'] = '';
-    } elseif ($form['assigned_to'] === '') {
-        $errors['assigned_to'] = 'Enter the Top Management officer this driver serves, for example Vice-Chancellor.';
-    } elseif (mb_strlen($form['assigned_to']) > 150) {
-        $errors['assigned_to'] = 'Keep the name or title to 150 characters or fewer.';
-    } else {
-        $own = 0;
-        $chk = $conn->prepare("SELECT name FROM drivers WHERE assigned_to = ? AND driver_id <> ? LIMIT 1");
-        $chk->bind_param('si', $form['assigned_to'], $own);
-        $chk->execute();
-        $taken = $chk->get_result()->fetch_assoc();
-        $chk->close();
-        if ($taken) {
-            $errors['assigned_to'] = $taken['name'] . ' already serves ' . $form['assigned_to'] . '. One Top Management officer has one driver; choose another officer or change that driver first.';
-        }
-    }
-
-    // License class: one or more of B2, D, E (stored as comma list in stable order)
-    $allowed_classes = ['B2', 'D', 'E'];
-    if (empty($form['license_class'])) {
-        $errors['license_class'] = 'Select at least one license class: B2, D or E.';
-    } elseif (array_diff($form['license_class'], $allowed_classes)) {
-        $errors['license_class'] = 'One of the selected license classes is not recognised. Select only B2, D or E.';
-        $form['license_class']   = array_values(array_intersect($allowed_classes, $form['license_class']));
-    } else {
-        $form['license_class'] = array_values(array_intersect($allowed_classes, $form['license_class']));
-    }
-
-    // Photo (optional) – stored only after all other validation passes
-    $photo_path = null;
-    if (empty($errors)) {
+    [$v, $errors] = driverInput($_POST, false);
+    if ($sel <= 0) { $errors['user_id'] = 'Select the driver account.'; }
+    $photo = null;
+    if (!$errors) {
         $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'drivers');
-        if (!$up['ok']) {
-            $errors['photo'] = $up['error'];
-        } else {
-            $photo_path = $up['path'];
-        }
+        if (!$up['ok']) { $errors['photo'] = $up['error']; } else { $photo = $up['path']; }
     }
-
-    // ── Insert if no errors ──────────────────────────────────
-    if (empty($errors)) {
-        $exp   = (float)$form['experience_years'];
-        $license_class_csv = implode(',', $form['license_class']);
-
-        $stmt = $conn->prepare(
-            "INSERT INTO drivers
-                (employee_id, name, phone, email, address,
-                 experience_years,
-                 license_number, license_class, license_expiry, status, driver_type, assigned_to, photo, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())"
-        );
-
-        $expiry = $form['license_expiry'] !== '' ? $form['license_expiry'] : null;
-        $assigned_db = $form['assigned_to'] !== '' ? $form['assigned_to'] : null;
-
-        $stmt->bind_param(
-            'sssssdsssssss',
-            $form['employee_id'],
-            $form['name'],
-            $form['phone'],
-            $form['email'],
-            $form['address'],
-            $exp,
-            $form['license_number'],
-            $license_class_csv,
-            $expiry,
-            $form['status'],
-            $form['driver_type'],
-            $assigned_db,
-            $photo_path
-        );
-
-        if ($stmt->execute()) {
+    if (!$errors) {
+        $conn->begin_transaction();
+        try {
+            $stmt = $conn->prepare("SELECT username, full_name, email, phone, driver_id FROM users WHERE user_id = ? AND role = 'driver' AND is_active = 1 FOR UPDATE");
+            $stmt->bind_param('i', $sel);
+            $stmt->execute();
+            $u = $stmt->get_result()->fetch_assoc();
             $stmt->close();
-            setFlash('success', 'Driver <strong>' . htmlspecialchars($form['name']) . '</strong> has been added successfully.');
-            header('Location: ' . SITE_URL . '/admin/drivers.php');
-            exit();
-        } else {
-            error_log('add_driver: ' . $stmt->error);
-            $stmt->close();
-            $errors['db'] = 'The driver could not be saved because of a system error. Your entries are still on this page, so please try again. If it keeps happening, contact the system administrator.';
-            // Insert failed – do not leave an orphaned upload behind
-            deleteUploadedImage($photo_path);
+            if (!$u) {
+                $errors['user_id'] = 'This account does not exist, is not active or does not have the Driver role.';
+            } elseif ($u['driver_id'] !== null) {
+                $errors['user_id'] = $u['full_name'] . ' is already linked to a driver record.';
+            }
+            if (!$errors) {
+                $emp = strtoupper($u['username']);
+                $phone = $u['phone'] !== null ? mb_substr($u['phone'], 0, 20) : null;
+                $num = $v['license_number'] === '' ? null : $v['license_number'];
+                $exp = $v['license_expiry'] === '' ? null : $v['license_expiry'];
+                $addr = $v['address'] === '' ? null : $v['address'];
+                $stmt = $conn->prepare("INSERT INTO drivers (employee_id, name, phone, email, address, license_number, license_class, license_expiry, status, photo)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)");
+                $stmt->bind_param('sssssssss', $emp, $u['full_name'], $phone, $u['email'], $addr, $num, $v['license_class'], $exp, $photo);
+                $stmt->execute();
+                $new = (int)$conn->insert_id;
+                $stmt->close();
+                $stmt = $conn->prepare('UPDATE users SET driver_id = ? WHERE user_id = ? AND driver_id IS NULL');
+                $stmt->bind_param('ii', $new, $sel);
+                $stmt->execute();
+                $linked = $stmt->affected_rows === 1;
+                $stmt->close();
+                if (!$linked) { throw new RuntimeException('link'); }
+                $conn->commit();
+                auditLog($conn, 'driver_add', null, $u['full_name'] . ' (' . $v['license_class'] . ')');
+                setFlash('success', $u['full_name'] . ' was added as a driver.');
+                header('Location: view_driver.php?id=' . $new);
+                exit();
+            }
+            $conn->rollback();
+        } catch (Throwable $e) {
+            $conn->rollback();
+            if ($e instanceof mysqli_sql_exception && (int)$e->getCode() === 1062) { $errors['user_id'] = 'A driver record with staff no. ' . strtoupper($u['username'] ?? '') . ' already exists.'; }
+            else { error_log('add_driver: ' . $e->getMessage()); $errors['_'] = 'Database error. Please try again.'; }
         }
+        if ($errors) { deleteUploadedImage($photo); }
     }
 }
+
+$cands = $conn->query("SELECT user_id, username, full_name, email FROM users WHERE role = 'driver' AND is_active = 1 AND driver_id IS NULL ORDER BY full_name")->fetch_all(MYSQLI_ASSOC);
+adminPageStart('Add Driver');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($page_title); ?> | UIS Driver Management</title>
-    <link rel="icon" type="image/png" href="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png">
-
-    <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- DataTables Bootstrap 5 (CSS only needed for sidebar) -->
-    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link href="<?php echo SITE_URL; ?>/assets/css/style.css" rel="stylesheet">
-
-    <style>
-        .page-header {
-            background: linear-gradient(135deg, #0b5d3b 0%, #15804f 100%);
-            border-radius: 14px;
-            color: #fff;
-            padding: 1.4rem 2rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 4px 16px rgba(11,93,59,.20);
-        }
-        .page-header h1 { font-size: 1.45rem; font-weight: 700; margin: 0; }
-        .page-header p  { margin: .25rem 0 0; opacity: .8; font-size: .86rem; }
-
-        .form-card {
-            border: none;
-            border-radius: 14px;
-            box-shadow: 0 2px 12px rgba(11,93,59,.10);
-        }
-        .section-title {
-            font-size: .78rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .08em;
-            color: #0b5d3b;
-            border-bottom: 2px solid #e8f0fe;
-            padding-bottom: .5rem;
-            margin-bottom: 1.2rem;
-        }
-        .form-label {
-            font-size: .82rem;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: .3rem;
-        }
-        .form-control, .form-select {
-            border-radius: 8px;
-            border: 1.5px solid #e5e7eb;
-            font-size: .88rem;
-            padding: .5rem .85rem;
-            transition: border-color .2s, box-shadow .2s;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #15804f;
-            box-shadow: 0 0 0 3px rgba(0,86,179,.12);
-        }
-        .form-control.is-invalid, .form-select.is-invalid {
-            border-color: #dc3545;
-        }
-        .input-group-text {
-            border-radius: 8px 0 0 8px;
-            background: #f3f4f6;
-            border: 1.5px solid #e5e7eb;
-            color: #6b7280;
-            font-size: .85rem;
-        }
-        .input-group .form-control {
-            border-radius: 0 8px 8px 0;
-        }
-
-        /* Priority preview box */
-        .priority-preview {
-            border-radius: 12px;
-            border: 2px dashed #c7d8f5;
-            background: #f0f6f2;
-            padding: 1.2rem 1.5rem;
-            position: sticky;
-            top: 1.5rem;
-        }
-        .priority-preview .score-display {
-            font-size: 2.8rem;
-            font-weight: 800;
-            line-height: 1;
-        }
-        .priority-preview .score-bar {
-            height: 10px;
-            border-radius: 5px;
-            background: #dce8fb;
-            overflow: hidden;
-        }
-        .priority-preview .score-bar-fill {
-            height: 100%;
-            border-radius: 5px;
-            transition: width .4s ease, background .4s ease;
-        }
-        .component-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: .82rem;
-            padding: .25rem 0;
-            border-bottom: 1px solid rgba(11,93,59,.06);
-        }
-        .component-row:last-child { border-bottom: none; }
-        .component-label { color: #6b7280; }
-        .component-value { font-weight: 600; color: #1a2035; }
-
-        /* Score badge colors */
-        .score-high   { color: #065f46; }
-        .score-medium { color: #92400e; }
-        .score-low    { color: #991b1b; }
-
-        .required-star { color: #dc3545; }
-
-        .photo-preview-circle {
-            width: 96px;
-            height: 96px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #e5e7eb;
-            background: #f8f9fb;
-        }
-    </style>
-</head>
-<body>
-
-<?php include '../includes/sidebar.php'; ?>
-
-<main class="main-content p-4">
-
-    <!-- Page header -->
-    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div>
-            <h1><i class="fas fa-user-plus me-2" aria-hidden="true"></i>Add New Driver</h1>
-            <p>Fill in the form below to register a new driver at UIS.</p>
-        </div>
-        <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="btn btn-light fw-semibold">
-            <i class="fas fa-arrow-left me-1" aria-hidden="true"></i> Back to Drivers
-        </a>
-    </div>
-
-    <!-- Flash / validation errors -->
-    <?php if (isset($errors['db'])): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
-        <?php echo htmlspecialchars($errors['db']); ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <?php endif; ?>
-    <?php
-    // Field => [plain-language name, id of the control the summary link jumps to]
-    $error_fields = [
-        'photo'               => ['Photo',               'photo'],
-        'employee_id'         => ['Employee ID',         'employee_id'],
-        'name'                => ['Full name',           'name'],
-        'phone'               => ['Phone number',        'phone'],
-        'email'               => ['Email address',       'email'],
-        'experience_years'    => ['Experience years',    'experience_years'],
-                'license_class'       => ['License class',       'license_class_group'],
-        'assigned_to'         => ['Serves',              'assigned_to'],
-    ];
-    $summary_errors = array_intersect_key($error_fields, $errors);
-    ?>
-    <?php if (!empty($summary_errors)): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorSummary">
-        <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
-        <strong>Nothing was saved. Please fix <?php echo count($summary_errors) === 1 ? 'this problem' : 'these ' . count($summary_errors) . ' problems'; ?> and submit again:</strong>
-        <ul class="mb-0 mt-1">
-            <?php foreach ($summary_errors as $key => [$field_name, $field_id]): ?>
-                <li><a href="#<?php echo $field_id; ?>" class="alert-link"><?php echo htmlspecialchars($field_name); ?></a>: <?php echo htmlspecialchars($errors[$key]); ?></li>
-            <?php endforeach; ?>
-        </ul>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <?php endif; ?>
-
-    <form method="POST" action="add_driver.php" id="addDriverForm" enctype="multipart/form-data" novalidate>
-
-        <div class="row g-4">
-
-            <!-- ── Left: Form fields ─────────────────────────── -->
-            <div class="col-lg-8">
-
-                <!-- Personal Information -->
-                <div class="card form-card mb-4">
-                    <div class="card-body p-4">
-                        <div class="section-title">
-                            <i class="fas fa-user me-1"></i> Personal Information
-                        </div>
-                        <p class="required-legend"><span class="req">*</span> Required field</p>
-                        <div class="row g-3">
-
-                            <div class="col-12">
-                                <label for="photo" class="form-label">Photo</label>
-                                <div class="d-flex align-items-center gap-3 flex-wrap">
-                                    <img alt="Preview of the selected photo" id="photoPreview"
-                                         class="photo-preview-circle"
-                                         src="<?php echo htmlspecialchars(driverPhotoUrl(null)); ?>">
-                                    <div class="flex-grow-1" style="min-width:220px;">
-                                        <input type="file"
-                                               id="photo"
-                                               name="photo"
-                                               class="form-control <?php echo isset($errors['photo']) ? 'is-invalid' : ''; ?>"
-                                               accept="image/jpeg,image/png,image/webp"
-                                               <?php echo isset($errors['photo']) ? 'aria-invalid="true" aria-describedby="photo_error photo_help"' : 'aria-describedby="photo_help"'; ?>>
-                                        <?php if (isset($errors['photo'])): ?>
-                                            <div class="invalid-feedback" id="photo_error"><?php echo htmlspecialchars($errors['photo']); ?></div>
-                                        <?php endif; ?>
-                                        <div class="form-text" id="photo_help">Optional &middot; JPG, PNG or WebP &middot; max 2 MB &middot; landscape works best</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="employee_id" class="form-label">
-                                    Employee ID <span class="req" aria-hidden="true">*</span>
-                                </label>
-                                <input type="text"
-                                       id="employee_id"
-                                       name="employee_id"
-                                       class="form-control <?php echo isset($errors['employee_id']) ? 'is-invalid' : ''; ?>"
-                                       value="<?php echo htmlspecialchars($form['employee_id']); ?>"
-                                       placeholder="e.g. EMP-0001"
-                                       maxlength="50"
-                                       required
-                                       aria-required="true"
-                                       autocomplete="off"
-                                       spellcheck="false"
-                                       <?php echo isset($errors['employee_id']) ? 'aria-invalid="true" aria-describedby="employee_id_error employee_id_help"' : 'aria-describedby="employee_id_help"'; ?>>
-                                <?php if (isset($errors['employee_id'])): ?>
-                                    <div class="invalid-feedback" id="employee_id_error"><?php echo htmlspecialchars($errors['employee_id']); ?></div>
-                                <?php endif; ?>
-                                <div class="form-text" id="employee_id_help">Must be unique, for example EMP-0001.</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="name" class="form-label">
-                                    Full Name <span class="req" aria-hidden="true">*</span>
-                                </label>
-                                <input type="text"
-                                       id="name"
-                                       name="name"
-                                       class="form-control <?php echo isset($errors['name']) ? 'is-invalid' : ''; ?>"
-                                       value="<?php echo htmlspecialchars($form['name']); ?>"
-                                       placeholder="e.g. Ahmad bin Ali"
-                                       maxlength="150"
-                                       required
-                                       aria-required="true"
-                                       autocomplete="off"
-                                       <?php echo isset($errors['name']) ? 'aria-invalid="true" aria-describedby="name_error"' : ''; ?>>
-                                <?php if (isset($errors['name'])): ?>
-                                    <div class="invalid-feedback" id="name_error"><?php echo htmlspecialchars($errors['name']); ?></div>
-                                <?php endif; ?>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="phone" class="form-label">
-                                    Phone Number <span class="req" aria-hidden="true">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                                    <input type="tel"
-                                           id="phone"
-                                           name="phone"
-                                           class="form-control <?php echo isset($errors['phone']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['phone']); ?>"
-                                           placeholder="e.g. 0123456789"
-                                           maxlength="20"
-                                           required
-                                           aria-required="true"
-                                           inputmode="tel"
-                                           autocomplete="off"
-                                           <?php echo isset($errors['phone']) ? 'aria-invalid="true" aria-describedby="phone_error phone_help"' : 'aria-describedby="phone_help"'; ?>>
-                                    <?php if (isset($errors['phone'])): ?>
-                                        <div class="invalid-feedback" id="phone_error"><?php echo htmlspecialchars($errors['phone']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-text" id="phone_help">Example: 0123456789 or 011-2835 4792.</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="email" class="form-label">Email Address</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                                    <input type="email"
-                                           id="email"
-                                           name="email"
-                                           class="form-control <?php echo isset($errors['email']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['email']); ?>"
-                                           placeholder="e.g. ahmad@example.com"
-                                           maxlength="150"
-                                           autocomplete="off"
-                                           <?php echo isset($errors['email']) ? 'aria-invalid="true" aria-describedby="email_error"' : ''; ?>>
-                                    <?php if (isset($errors['email'])): ?>
-                                        <div class="invalid-feedback" id="email_error"><?php echo htmlspecialchars($errors['email']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <div class="col-12">
-                                <label for="address" class="form-label">Address</label>
-                                <textarea id="address"
-                                          name="address"
-                                          class="form-control"
-                                          rows="2"
-                                          placeholder="Full postal address"
-                                          maxlength="500"><?php echo htmlspecialchars($form['address']); ?></textarea>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="status" class="form-label">Status</label>
-                                <select id="status" name="status" class="form-select">
-                                    <option value="active"   <?php echo $form['status'] === 'active'   ? 'selected' : ''; ?>>Active</option>
-                                    <option value="inactive" <?php echo $form['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-                                    <option value="on_leave" <?php echo $form['status'] === 'on_leave' ? 'selected' : ''; ?>>On Leave</option>
-                                </select>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="driver_type" class="form-label">Driver Type</label>
-                                <select id="driver_type" name="driver_type" class="form-select" aria-describedby="driver_type_help">
-                                    <option value="regular"        <?php echo $form['driver_type'] === 'regular'        ? 'selected' : ''; ?>>Regular</option>
-                                    <option value="top_management" <?php echo $form['driver_type'] === 'top_management' ? 'selected' : ''; ?>>Top Management</option>
-                                </select>
-                                <div class="form-text" id="driver_type_help">A Top Management driver is the dedicated driver of one Top Management officer.</div>
-                            </div>
-
-                            <div class="col-12" id="assignedToGroup" style="<?php echo $form['driver_type'] === 'top_management' ? '' : 'display:none;'; ?>">
-                                <label for="assigned_to" class="form-label">Serves (Top Management officer) <span class="req" aria-hidden="true">*</span></label>
-                                <input type="text" id="assigned_to" name="assigned_to" maxlength="150"
-                                       class="form-control <?php echo isset($errors['assigned_to']) ? 'is-invalid' : ''; ?>"
-                                       placeholder="e.g. Vice-Chancellor"
-                                       value="<?php echo htmlspecialchars($form['assigned_to']); ?>"
-                                       autocomplete="off" aria-describedby="assigned_to_help">
-                                <?php if (isset($errors['assigned_to'])): ?><div class="invalid-feedback d-block" id="assigned_to_error"><?php echo htmlspecialchars($errors['assigned_to']); ?></div><?php endif; ?>
-                                <div class="form-text" id="assigned_to_help">One Top Management officer has one driver, and one driver serves one officer.</div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div><!-- /Personal Info -->
-
-                <!-- Experience -->
-                <div class="card form-card mb-4">
-                    <div class="card-body p-4">
-                        <div class="section-title">
-                            <i class="fas fa-chart-bar me-1"></i> Experience
-                        </div>
-                        <div class="row g-3">
-
-                            <div class="col-md-6">
-                                <label for="experience_years" class="form-label">
-                                    Experience Years <span class="req" aria-hidden="true">*</span>
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar-days"></i></span>
-                                    <input type="number"
-                                           id="experience_years"
-                                           name="experience_years"
-                                           class="form-control <?php echo isset($errors['experience_years']) ? 'is-invalid' : ''; ?>"
-                                           value="<?php echo htmlspecialchars($form['experience_years']); ?>"
-                                           placeholder="0.0"
-                                           min="0" max="50" step="0.5"
-                                           required
-                                           aria-required="true"
-                                           inputmode="decimal"
-                                           <?php echo isset($errors['experience_years']) ? 'aria-invalid="true" aria-describedby="experience_years_error experience_years_help"' : 'aria-describedby="experience_years_help"'; ?>>
-                                    <span class="input-group-text">yrs</span>
-                                    <?php if (isset($errors['experience_years'])): ?>
-                                        <div class="invalid-feedback" id="experience_years_error"><?php echo htmlspecialchars($errors['experience_years']); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="form-text" id="experience_years_help">Years of driving experience (0–50, half years allowed). Capped at 20 yrs for workload-balancing score.</div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div><!-- /Scoring -->
-
-                <!-- License Information -->
-                <div class="card form-card mb-4">
-                    <div class="card-body p-4">
-                        <div class="section-title">
-                            <i class="fas fa-id-card me-1"></i> License Information
-                        </div>
-                        <div class="row g-3">
-
-                            <div class="col-md-5">
-                                <label for="license_number" class="form-label">License Number</label>
-                                <input type="text"
-                                       id="license_number"
-                                       name="license_number"
-                                       class="form-control"
-                                       value="<?php echo htmlspecialchars($form['license_number']); ?>"
-                                       placeholder="e.g. D1234567"
-                                       maxlength="30"
-                                       autocomplete="off"
-                                       spellcheck="false">
-                            </div>
-
-                            <div class="col-md-3">
-                                <div id="license_class_label" class="form-label">License Class <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required, select at least one)</span></div>
-                                <div id="license_class_group" class="<?php echo isset($errors['license_class']) ? 'is-invalid' : ''; ?>"
-                                     role="group" tabindex="-1" aria-labelledby="license_class_label"
-                                     <?php echo isset($errors['license_class']) ? 'aria-invalid="true" aria-describedby="license_class_error license_class_help"' : 'aria-describedby="license_class_help"'; ?>>
-                                    <?php foreach (['B2' => 'B2 (Motorcycle)', 'D' => 'D (Car/Van/Minibus)', 'E' => 'E (Bus/Lorry)'] as $lc => $lcLabel): ?>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox"
-                                               name="license_class[]"
-                                               id="license_class_<?php echo $lc; ?>"
-                                               value="<?php echo $lc; ?>"
-                                               <?php echo in_array($lc, $form['license_class'], true) ? 'checked' : ''; ?>>
-                                        <label class="form-check-label" for="license_class_<?php echo $lc; ?>" style="font-size:.85rem;">
-                                            <?php echo htmlspecialchars($lcLabel); ?>
-                                        </label>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
-                                <?php if (isset($errors['license_class'])): ?>
-                                    <div class="invalid-feedback d-block" id="license_class_error"><?php echo htmlspecialchars($errors['license_class']); ?></div>
-                                <?php endif; ?>
-                                <div class="form-text" id="license_class_help">B2 = motorcycle, D = car/van/minibus, E = bus/lorry. Select all that apply.</div>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label for="license_expiry" class="form-label">License Expiry Date</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-calendar"></i></span>
-                                    <input type="date"
-                                           id="license_expiry"
-                                           name="license_expiry"
-                                           class="form-control"
-                                           value="<?php echo htmlspecialchars($form['license_expiry']); ?>">
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-                </div><!-- /License -->
-
-                <!-- Action buttons -->
-                <div class="d-flex gap-2 justify-content-end">
-                    <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="btn btn-outline-secondary px-4">
-                        <i class="fas fa-xmark me-1" aria-hidden="true"></i> Cancel
-                    </a>
-                    <button type="submit" class="btn btn-primary px-5 fw-semibold">
-                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i> Save Driver
-                    </button>
-                </div>
-
-            </div><!-- /left col -->
-
-            <!-- ── Right: Allocation info ────────────────────── -->
-            <div class="col-lg-4">
-                <div class="priority-preview">
-                    <div class="mb-3 d-flex align-items-center gap-2">
-                        <div style="width:36px;height:36px;border-radius:10px;background:#0b5d3b;
-                                    display:flex;align-items:center;justify-content:center;color:#fff;">
-                            <i class="fas fa-scale-balanced" aria-hidden="true"></i>
-                        </div>
-                        <div class="fw-bold text-primary" style="font-size:.95rem;">How Drivers Are Recommended</div>
-                    </div>
-
-                    <p class="mb-0" style="font-size:.84rem;color:#4b5563;line-height:1.6;">
-                        Drivers are recommended automatically using workload balancing:
-                        fewer tasks this month (50%), fewer weekend tasks (30%), more experience (20%).
-                    </p>
-                </div><!-- /priority-preview -->
-            </div><!-- /right col -->
-
-        </div><!-- /.row -->
-
-    </form>
-
-</main><!-- /.main-content -->
-
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<!-- Bootstrap 5 JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Custom JS -->
-<script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
-
-<script>
-(function () {
-    'use strict';
-
-    // ── Photo live preview ───────────────────────────────────
-    var photoInput   = document.getElementById('photo');
-    var photoPreview = document.getElementById('photoPreview');
-    if (photoInput && photoPreview) {
-        var defaultSrc = photoPreview.getAttribute('src');
-        photoInput.addEventListener('change', function () {
-            var f = this.files && this.files[0];
-            if (f && f.type.indexOf('image/') === 0) {
-                var reader = new FileReader();
-                reader.onload = function (ev) { photoPreview.src = ev.target.result; };
-                reader.readAsDataURL(f);
-            } else {
-                photoPreview.src = defaultSrc;
-            }
-        });
-    }
-
-    // ── Accessible inline errors (used by client-side validation) ──
-    function helpIdFor(el) {
-        return document.getElementById(el.id + '_help') ? el.id + '_help' : '';
-    }
-    function setFieldError(el, msg) {
-        var errId = el.id + '_error';
-        var msgEl = document.getElementById(errId);
-        if (!msgEl) {
-            msgEl = document.createElement('div');
-            msgEl.className = 'invalid-feedback';
-            msgEl.id = errId;
-            msgEl.setAttribute('data-client', '1');
-            // Same place the server-side message uses: end of the input group,
-            // or straight after the input when it is not in a group
-            var grp = el.closest('.input-group');
-            if (grp) { grp.appendChild(msgEl); } else { el.insertAdjacentElement('afterend', msgEl); }
-        }
-        msgEl.textContent = msg;
-        el.classList.add('is-invalid');
-        el.setAttribute('aria-invalid', 'true');
-        el.setAttribute('aria-describedby', (errId + ' ' + helpIdFor(el)).trim());
-    }
-    function clearFieldError(el) {
-        el.classList.remove('is-invalid');
-        el.removeAttribute('aria-invalid');
-        var msgEl = document.getElementById(el.id + '_error');
-        if (msgEl && msgEl.getAttribute('data-client') === '1') { msgEl.remove(); }
-        var help = helpIdFor(el);
-        if (help) { el.setAttribute('aria-describedby', help); } else { el.removeAttribute('aria-describedby'); }
-    }
-    function setGroupError(group, msg) {
-        var msgEl = document.getElementById('license_class_error');
-        if (!msgEl) {
-            msgEl = document.createElement('div');
-            msgEl.className = 'invalid-feedback d-block';
-            msgEl.id = 'license_class_error';
-            msgEl.setAttribute('data-client', '1');
-            group.insertAdjacentElement('afterend', msgEl);
-        }
-        msgEl.textContent = msg;
-        group.classList.add('is-invalid');
-        group.setAttribute('aria-invalid', 'true');
-        group.setAttribute('aria-describedby', 'license_class_error license_class_help');
-    }
-    function clearGroupError(group) {
-        group.classList.remove('is-invalid');
-        group.removeAttribute('aria-invalid');
-        group.setAttribute('aria-describedby', 'license_class_help');
-        var msgEl = document.getElementById('license_class_error');
-        if (msgEl && msgEl.getAttribute('data-client') === '1') { msgEl.remove(); }
-    }
-
-    // ── Client-side validation ───────────────────────────────
-    var form = document.getElementById('addDriverForm');
-    if (form) {
-        form.addEventListener('submit', function (e) {
-            var valid = true;
-
-            // Required fields – each failure shows an actionable message and is
-            // linked to the field for screen readers (aria-invalid / aria-describedby).
-            var requiredMessages = {
-                employee_id:         'Enter the employee ID, for example EMP-0001.',
-                name:                'Enter the full name of the driver, for example Ahmad bin Ali.',
-                phone:               'Enter a phone number the driver can be reached on, for example 0123456789.',
-                experience_years:    'Enter the years of driving experience, for example 5 (enter 0 if none).'
-            };
-
-            Object.keys(requiredMessages).forEach(function (fieldId) {
-                var el = document.getElementById(fieldId);
-                if (!el) { return; }
-                if (el.value.trim() === '') {
-                    setFieldError(el, requiredMessages[fieldId]);
-                    valid = false;
-                } else {
-                    clearFieldError(el);
-                }
-            });
-
-            // At least one license class
-            var lcGroup = document.getElementById('license_class_group');
-            if (lcGroup) {
-                if (!form.querySelector('input[name="license_class[]"]:checked')) {
-                    setGroupError(lcGroup, 'Select at least one license class: B2, D or E.');
-                    valid = false;
-                } else {
-                    clearGroupError(lcGroup);
-                }
-            }
-
-            if (!valid) {
-                e.preventDefault();
-                document.querySelector('.is-invalid').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        });
-    }
-
-})();
-</script>
-
-<script>
-(function () {
-    var type = document.getElementById('driver_type');
-    var box  = document.getElementById('assignedToGroup');
-    if (!type || !box) { return; }
-    function sync() {
-        var top = type.value === 'top_management';
-        box.style.display = top ? '' : 'none';
-        var input = document.getElementById('assigned_to');
-        if (input) { input.required = top; }
-    }
-    type.addEventListener('change', sync);
-    sync();
-})();
-</script>
-</body>
-</html>
+    <h4 class="fw-bold mb-1"><i class="fas fa-plus text-success me-2"></i>Add Driver</h4>
+    <p class="text-muted small">Choose an existing account that has the Driver role in the UIS staff system. The name and e-mail are taken from that account.</p>
+    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
+        <div class="mb-3"><label class="form-label" for="user_id">Driver account <span class="text-danger">*</span></label>
+            <select class="form-select" id="user_id" name="user_id" required><option value="">Choose...</option>
+                <?php foreach ($cands as $c): ?><option value="<?= (int)$c['user_id'] ?>" <?= $sel === (int)$c['user_id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['full_name'] . ' (' . $c['username'] . ', ' . $c['email'] . ')') ?></option><?php endforeach; ?>
+            </select>
+            <?php if (isset($errors['user_id'])): ?><div class="invalid-feedback d-block"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
+            <?php if (!$cands): ?><div class="form-text text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
+        <?php driverFormFields($v, $errors, false); ?>
+        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline-secondary" href="drivers.php">Cancel</a></div>
+    </div></form>
+<?php adminPageEnd(); ?>
