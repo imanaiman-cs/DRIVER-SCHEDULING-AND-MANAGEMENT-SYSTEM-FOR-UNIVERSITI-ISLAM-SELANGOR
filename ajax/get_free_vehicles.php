@@ -1,76 +1,54 @@
 <?php
+// ============================================================
+// ajax/get_free_vehicles.php  -  UC010 step 2: the vehicles a requester may choose
+//
+// GET depart_date, depart_time, return_date, return_time, passengers [, request_id]
+// Returns ONLY vehicles that are
+//   - not locked (or used) in that TIME PERIOD  (overlap rule: start < other_end AND end > other_start),
+//   - not Under Maintenance or Inactive,
+//   - big enough for the passengers.
+// Also says how the timing rule applies: 'ok', 'warn' (less than 2 days: confirm) or 'reject' (less than 1 day).
+// ============================================================
 require_once '../config/database.php';
 header('Content-Type: application/json');
 
-// Allow staff OR admin users
-if (!isLoggedIn()) {   // every role is also staff
-    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Unauthorized.']);
+if (!isLoggedIn()) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized.']);
     exit();
 }
 
-$trip_date  = trim($_GET['trip_date']  ?? '');
-$start_time = trim($_GET['start_time'] ?? '');
-$end_time   = trim($_GET['end_time']   ?? '');
-$passengers = max(1, (int)($_GET['passengers'] ?? 1));
+$dd = trim((string)($_GET['depart_date'] ?? ''));
+$dt = trim((string)($_GET['depart_time'] ?? ''));
+$rd = trim((string)($_GET['return_date'] ?? ''));
+$rt = trim((string)($_GET['return_time'] ?? ''));
+$pax = (int)($_GET['passengers'] ?? 0);
 
-// Validate presence and format
-if ($trip_date === '' || $start_time === '' || $end_time === '') {
-    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Missing parameters.']);
+if (!isValidDate($dd) || !isValidTime($dt) || !isValidDate($rd) || !isValidTime($rt)) {
+    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Please enter the departure and return date and time.']);
+    exit();
+}
+if ($pax < 1) {
+    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Please enter the number of passengers.']);
+    exit();
+}
+$start = $dd . ' ' . timeWithSeconds($dt);
+$end   = $rd . ' ' . timeWithSeconds($rt);
+if (strtotime($end) <= strtotime($start)) {
+    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'The return must be after the departure.']);
     exit();
 }
 
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $trip_date) || !strtotime($trip_date)) {
-    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Invalid trip date.']);
-    exit();
-}
+// the timing rule is for requesters; the Vehicle Section choosing a RETURN vehicle (for_assignment=1) is not bound by it
+$timing = (isAdmin() && !empty($_GET['for_assignment'])) ? ['level' => 'ok', 'message' => null] : requestTimingRule($start);
+$vehicles = $timing['level'] === 'reject' ? [] : availableVehicles($conn, $start, $end, $pax, (int)($_GET['request_id'] ?? 0));
 
-if (!preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $start_time) || !preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $end_time)) {
-    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'Invalid time format.']);
-    exit();
-}
-
-if ($end_time <= $start_time) {
-    echo json_encode(['success' => false, 'vehicles' => [], 'message' => 'End time must be after start time.']);
-    exit();
-}
-
-// Vehicles that are available, big enough for the passenger count,
-// and NOT booked on an overlapping schedule.
-// Overlap test: existing.start_time < new_end AND existing.end_time > new_start
-$sql = "SELECT vehicle_id, plate_number, vehicle_type, brand, model, capacity
-        FROM vehicles
-        WHERE status = 'available'
-          AND capacity >= ?
-          AND vehicle_id NOT IN (
-                SELECT vehicle_id FROM schedules
-                WHERE trip_date = ?
-                  AND status NOT IN ('cancelled','completed')
-                  AND vehicle_id IS NOT NULL
-                  AND (start_time < ? AND end_time > ?)
-          )
-        ORDER BY vehicle_type ASC, plate_number ASC";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('isss', $passengers, $trip_date, $end_time, $start_time);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$vehicles = [];
-// maintenance periods and day holds of other requests (R3 / R4); the request being processed keeps its own
-$blocked = blockedVehicleIds($conn, $trip_date, (int)($_GET['request_id'] ?? 0));
-while ($row = $result->fetch_assoc()) {
-    if (isset($blocked[(int)$row['vehicle_id']])) {
-        continue;
-    }
-    $vehicles[] = [
-        'vehicle_id'   => (int)$row['vehicle_id'],
-        'plate_number' => $row['plate_number'],
-        'vehicle_type' => $row['vehicle_type'],
-        'brand'        => $row['brand'],
-        'model'        => $row['model'],
-        'capacity'     => (int)$row['capacity'],
-    ];
-}
-$stmt->close();
-
-echo json_encode(['success' => true, 'vehicles' => $vehicles, 'count' => count($vehicles)]);
+echo json_encode([
+    'success'  => true,
+    'timing'   => $timing['level'],
+    'notice'   => $timing['message'],
+    'vehicles' => array_map(fn($v) => [
+        'vehicle_id' => (int)$v['vehicle_id'], 'plate_number' => $v['plate_number'], 'vehicle_type' => $v['vehicle_type'],
+        'model' => $v['model'], 'capacity' => (int)$v['capacity'], 'license_required' => $v['license_required'],
+    ], $vehicles),
+]);

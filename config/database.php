@@ -90,6 +90,8 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
+require_once __DIR__ . '/../includes/request_view.php';
+require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
 // Apply new migrations once per session (cheap: one SELECT when nothing is pending)
 if (empty($_SESSION['migrations_checked'])) {
     applyPendingMigrations($conn);

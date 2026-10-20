@@ -1,81 +1,28 @@
 <?php
 // ============================================================
-// UIS Driver Scheduling and Management System
-// ajax/cancel_request.php  –  AJAX endpoint: cancel a vehicle request
-// Universiti Islam Selangor (UIS)
+// ajax/cancel_request.php  -  UC012 Cancel Request
 //
-// Who may cancel (a reason is ALWAYS required):
-//   staff       their own requests
-//   supervisor  requests where they are the approver, or from their department
-//   admin       any request
-// Only while the request is still active (pending / approved / processed)
-// and the trip has not started yet.
+// POST request_id [, reason] [, comment] [, return_to]
+//   Staff (any role, own request): the reason is optional.
+//   Head of Department (his requests) and Administrative Assistant / Head of Admin (any): the reason is REQUIRED.
+//   Not after the trip has started. The request is never deleted: the status becomes Cancelled, the vehicle lock is
+//   released, any assigned driver is removed, and the staff member, the Head of Department, the Administrative
+//   Assistant and the driver are notified.
 // ============================================================
-
 require_once '../config/database.php';
+if (!isLoggedIn()) { http_response_code(403); header('Content-Type: application/json'); echo json_encode(['success' => false, 'message' => 'Unauthorized']); exit(); }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { actionResponse(['ok' => false, 'message' => 'Invalid request method.'], 405); }
 
-header('Content-Type: application/json');
+$rid = (int)($_POST['request_id'] ?? 0);
+$reason = trim((string)($_POST['reason'] ?? ''));
+$req = $rid > 0 ? requestForCurrentUser($conn, $rid) : null;
+if (!$req) { actionResponse(['ok' => false, 'message' => 'Request not found.'], 404); }
 
-function cancelFail(string $message, int $http = 200): void
-{
-    http_response_code($http);
-    echo json_encode(['success' => false, 'message' => $message]);
-    exit();
+$rules = cancelRulesFor($req);
+if (!$rules['allowed']) { actionResponse(['ok' => false, 'message' => $rules['message']], 403); }
+if ($rules['reason_required'] && mb_strlen($reason) < 3) {
+    actionResponse(['ok' => false, 'message' => 'Please give a reason for cancelling (at least 3 characters).'], 422);
 }
-
-if (!isLoggedIn()) {   // every role is also staff, so any signed-in user may cancel their own request
-    cancelFail('Unauthorized', 403);
-}
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    cancelFail('Invalid request method.');
-}
-
-$request_id = isset($_POST['request_id']) ? (int)$_POST['request_id'] : 0;
-$reason     = trim((string)($_POST['reason'] ?? ''));
-if ($request_id <= 0) {
-    cancelFail('Invalid request ID.');
-}
-if (mb_strlen($reason) < 3) {
-    cancelFail('Please write the reason for cancelling.');
-}
-
-$stmt = $conn->prepare(
-    "SELECT vr.request_id, vr.staff_id, vr.supervisor_id, vr.status, vr.trip_date, vr.start_time, s.department
-       FROM vehicle_requests vr JOIN users s ON s.user_id = vr.staff_id
-      WHERE vr.request_id = ? LIMIT 1"
-);
-$stmt->bind_param('i', $request_id);
-$stmt->execute();
-$req = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if (!$req) {
-    cancelFail('Request not found.');
-}
-
-// ── Permission: may THIS user cancel THIS request? ──────────────
-$uid = (int)$_SESSION['user_id'];
-$allowed = false;
-if (isAdmin()) {                                   // Admin Assistant and Head of Admin: any request
-    $allowed = true;
-} elseif ((int)$req['staff_id'] === $uid) {        // everyone: their own request
-    $allowed = true;
-} elseif (isSupervisor()) {                        // Head of Department: where they are the approver / their department
-    $allowed = ((int)$req['supervisor_id'] === $uid)
-            || (!empty($_SESSION['department']) && $req['department'] === $_SESSION['department']);
-}
-if (!$allowed) {
-    cancelFail('You are not allowed to cancel this request.', 403);
-}
-if (!in_array($req['status'], REQUEST_ACTIVE_STATUSES, true)) {
-    cancelFail('This request is already ' . $req['status'] . ' and cannot be cancelled.');
-}
-if (strtotime($req['trip_date'] . ' ' . $req['start_time']) <= time()) {
-    cancelFail('The trip has already started, so the request can no longer be cancelled.');
-}
-
-$result = changeRequestStatus($conn, $request_id, 'cancelled', ['reason' => $reason]);
-
-echo json_encode([
-    'success' => $result['ok'],
-    'message' => $result['ok'] ? 'The request has been cancelled and the vehicle is free again.' : $result['message'],
-]);
+$res = changeRequestStatus($conn, $rid, 'cancelled', ['reason' => $reason]);
+if ($res['ok'] && trim((string)($_POST['comment'] ?? '')) !== '') { addRequestComment($conn, $req, (string)$_POST['comment']); }
+actionResponse(['ok' => $res['ok'], 'message' => $res['ok'] ? 'The request has been cancelled and the vehicle is free again.' : $res['message']]);

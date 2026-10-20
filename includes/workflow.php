@@ -73,6 +73,13 @@ function saveSetting(mysqli $conn, string $key, string $value): void
     $GLOBALS['__settings_dirty'] = true;
 }
 
+/** Fixed list of waiting locations; 'Other' asks for a free-text address. */
+const WAITING_LOCATIONS = ['Main entrance', 'Library', 'Administration building', 'Faculty entrance', 'Student Affairs lobby', 'Mosque', 'Other'];
+
+/** Supporting documents: PDF, JPG or PNG, at most 5 MB each (checked on the server in includes/upload.php). */
+const MAX_DOCUMENT_BYTES       = 5242880;
+const MAX_SUPPORTING_DOCUMENTS = 5;
+
 // ------------------------------------------------------------
 // Strict date / time checks (2026-02-31 and 25:61 are NOT valid)
 // ------------------------------------------------------------
@@ -289,6 +296,25 @@ function requestTaskWindows(mysqli $conn, array $req): array
     return ['out' => $win($dep, $outEnd), 'ret' => $win($ret, $retEnd)];
 }
 
+/**
+ * The timing rule (SRS B.4) for a departure 'Y-m-d H:i:s':
+ *   less than 1 day away -> 'reject' (use the paper form, nothing is saved)
+ *   less than 2 days away -> 'warn'   (the requester must confirm)
+ *   otherwise             -> 'ok'
+ * @return array{level:string, message:?string}
+ */
+function requestTimingRule(string $departure): array
+{
+    $hours = (strtotime($departure) - time()) / 3600;
+    if ($hours < 24) {
+        return ['level' => 'reject', 'message' => 'Please use the paper form BPTK/BPI/2025/PIN.5'];
+    }
+    if ($hours < 48) {
+        return ['level' => 'warn', 'message' => 'This trip is less than 2 days away. The request may not be approved in time. Please confirm that you want to continue.'];
+    }
+    return ['level' => 'ok', 'message' => null];
+}
+
 /** Hours until the trip departs (negative = already started). */
 function hoursUntilDeparture(array $req): float
 {
@@ -369,7 +395,7 @@ function availableVehicles(mysqli $conn, string $start, string $end, int $passen
             AND NOT EXISTS (SELECT 1 FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status = 'active' AND t.start_dt < ? AND t.end_dt > ?)
           ORDER BY v.capacity, v.plate_number"
     );
-    $stmt->bind_param('isissississ', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start);
+    $stmt->bind_param('isississss', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();

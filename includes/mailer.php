@@ -93,17 +93,18 @@ function logEmail(mysqli $conn, array $row): void
     $status       = (string)$row['status'];
     $error        = isset($row['error_message']) ? mb_substr((string)$row['error_message'], 0, 500) : null;
     $body         = $row['body_html']    ?? null;
+    $user_id      = isset($row['user_id']) ? (int)$row['user_id'] : null;
 
     $stmt = $conn->prepare(
         "INSERT INTO email_log
-            (driver_id, to_email, delivered_to, subject, kind, ref_date, schedule_ids, status, error_message, body_html)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            (driver_id, to_email, delivered_to, subject, kind, ref_date, schedule_ids, status, error_message, body_html, user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     if (!$stmt) {
         error_log('email_log insert failed: ' . $conn->error);
         return;
     }
-    $stmt->bind_param('isssssssss', $driver_id, $to_email, $delivered_to, $subject, $kind, $ref_date, $schedule_ids, $status, $error, $body);
+    $stmt->bind_param('isssssssssi', $driver_id, $to_email, $delivered_to, $subject, $kind, $ref_date, $schedule_ids, $status, $error, $body, $user_id);
     $stmt->execute();
     $stmt->close();
 }
@@ -120,6 +121,7 @@ function sendMail(mysqli $conn, ?string $to, string $subject, string $html, stri
     $to = $to !== null ? trim($to) : null;
     $log = [
         'driver_id'    => $meta['driver_id'] ?? null,
+        'user_id'      => $meta['user_id'] ?? null,
         'to_email'     => $to,
         'subject'      => $subject,
         'kind'         => $meta['kind'] ?? 'notice',

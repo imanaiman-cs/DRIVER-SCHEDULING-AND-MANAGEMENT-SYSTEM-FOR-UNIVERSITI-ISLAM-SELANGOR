@@ -263,10 +263,9 @@ function validateDocumentFile(string $tmpPath, int $size, int $maxBytes = 524288
         'application/pdf' => 'pdf',
         'image/jpeg'      => 'jpg',
         'image/png'       => 'png',
-        'image/webp'      => 'webp',
     ];
     if (!is_string($mime) || !isset($extensions[$mime])) {
-        return $fail('Only PDF, JPG, PNG or WebP files are allowed.');
+        return $fail('Only PDF, JPG or PNG files are allowed.');
     }
 
     if ($mime === 'application/pdf') {
