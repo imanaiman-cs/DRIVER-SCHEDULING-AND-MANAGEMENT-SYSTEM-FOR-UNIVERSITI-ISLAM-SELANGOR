@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// includes/admin_page.php  –  the shared top and bottom of the newer admin pages
+// includes/admin_page.php  –  the shared top and bottom of a page (any role: the sidebar adapts to the signed-in role)
 // (settings, leaves, welfare, internal tasks ...) so each page only holds its own content.
 //
 //   adminPageStart('Title');   ...page content...   adminPageEnd();
@@ -44,22 +44,14 @@ function adminPageEnd(): void
 <?php
 }
 
-/** A valid Y-m-d date? */
+/** A valid Y-m-d date? (kept for older pages; see isValidDate in workflow.php) */
 function validDateStr(string $d): bool
 {
-    $t = DateTime::createFromFormat('Y-m-d', $d);
-    return $t && $t->format('Y-m-d') === $d;
+    return isValidDate($d);
 }
 
-/** Active regular drivers (Top Management drivers are not used for normal duties; R8). */
-function regularActiveDrivers(mysqli $conn): array
+/** Active drivers (carpool drivers), for lists and pickers. */
+function activeDrivers(mysqli $conn): array
 {
-    return $conn->query("SELECT driver_id, name FROM drivers WHERE status = 'active' AND driver_type = 'regular' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
-}
-
-/** user_id of the login account of a driver (to notify them), or null. */
-function userIdOfDriver(mysqli $conn, int $driver_id): ?int
-{
-    $r = $conn->query('SELECT user_id FROM users WHERE driver_id = ' . $driver_id . ' LIMIT 1')->fetch_assoc();
-    return $r ? (int)$r['user_id'] : null;
+    return $conn->query("SELECT driver_id, name, employee_id, license_class FROM drivers WHERE status = 'active' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
 }

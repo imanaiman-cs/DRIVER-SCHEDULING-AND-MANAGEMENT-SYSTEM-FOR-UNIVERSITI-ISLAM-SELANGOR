@@ -51,53 +51,72 @@ function submenuShow(array $pages, string $current): string
     return in_array($current, $pages, true) ? 'show' : '';
 }
 
-// ── Admin page groups ────────────────────────────────────────────
-$driver_pages   = ['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php', 'driver_leaves.php'];
-$vehicle_pages  = ['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'];
-$schedule_pages = ['schedules.php', 'add_schedule.php', 'edit_schedule.php', 'view_schedule.php', 'auto_assign.php', 'calendar.php'];
-$report_pages   = ['report_driver.php', 'report_workload.php', 'report_vehicle.php', 'report_monthly.php'];
-
-// ── Unread message count + pending alerts ────────────────────────
-$_sidebar_uid        = (int)($_SESSION['user_id'] ?? 0);
-$_unread_msgs        = 0;
-$_pending_assignments = 0;
-$_failed_emails      = 0;   // admin: e-mails that failed in the last 7 days
-$_approved_requests  = 0;   // admin: approved vehicle requests awaiting processing
-$_assigned_waiting   = 0;   // head of admin: driver assignments waiting for approval
-$_pending_approvals  = 0;   // supervisor: staff requests awaiting their decision
-$_app_unread         = 0;   // unread in-app notifications (bell)
-$_app_notifs         = [];  // the latest few
+// ── Counts shown as small badges ─────────────────────────────────
+$_sidebar_uid     = (int)($_SESSION['user_id'] ?? 0);
+$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0];
+$_app_unread      = 0;   // unread notifications (the bell)
+$_app_notifs      = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
-    $r = $conn->query("SELECT COUNT(*) AS cnt FROM messages WHERE receiver_id=$_sidebar_uid AND is_read=0");
-    if ($r) $_unread_msgs = (int)$r->fetch_assoc()['cnt'];
-    if ($_is_admin_role) {
-        $r3 = $conn->query("SELECT COUNT(*) AS cnt FROM schedules WHERE driver_id IS NULL AND self_drive = 0 AND status NOT IN ('cancelled','completed')");
-        if ($r3) $_pending_assignments = (int)$r3->fetch_assoc()['cnt'];
-        $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='assigned'");
-        if ($r5) $_assigned_waiting = (int)$r5->fetch_assoc()['cnt'];
-        $r4 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE status='approved'");
-        if ($r4) $_approved_requests = (int)$r4->fetch_assoc()['cnt'];
-        try {   // the table may not exist yet on a database that has not been re-imported
-            $r6 = $conn->query("SELECT COUNT(*) AS cnt FROM email_log WHERE status='failed' AND created_at >= (NOW() - INTERVAL 7 DAY)");
-            if ($r6) $_failed_emails = (int)$r6->fetch_assoc()['cnt'];
-        } catch (Throwable $e) {
-            $_failed_emails = 0;
-        }
-    }
-    // In-app notifications (the bell) for every role
     try {
-        $rn = $conn->query("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id=$_sidebar_uid AND is_read=0");
-        if ($rn) $_app_unread = (int)$rn->fetch_assoc()['cnt'];
-        $rl = $conn->query("SELECT notification_id, message, link, is_read, created_at FROM notifications
-                             WHERE user_id=$_sidebar_uid ORDER BY created_at DESC, notification_id DESC LIMIT 6");
-        while ($rl && ($nrow = $rl->fetch_assoc())) { $_app_notifs[] = $nrow; }
+        if ($_is_admin_role) {
+            $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
+            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
+            $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
+        }
+        if ($role === 'supervisor') {
+            $st = $conn->prepare("SELECT COUNT(*) FROM vehicle_requests WHERE supervisor_id = ? AND status = 'pending'");
+            $st->bind_param('i', $_sidebar_uid);
+            $st->execute();
+            $_badge['approvals'] = (int)$st->get_result()->fetch_row()[0];
+            $st->close();
+        }
+        $st = $conn->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0');
+        $st->bind_param('i', $_sidebar_uid);
+        $st->execute();
+        $_app_unread = (int)$st->get_result()->fetch_row()[0];
+        $st->close();
+        $st = $conn->prepare('SELECT notification_id, message, link, is_read, created_at FROM notifications
+                               WHERE user_id = ? ORDER BY is_read ASC, created_at DESC, notification_id DESC LIMIT 6');
+        $st->bind_param('i', $_sidebar_uid);
+        $st->execute();
+        $_app_notifs = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+        $st->close();
     } catch (Throwable $e) {
-        // table not created yet
+        // tables not ready yet
     }
-    if ($role === 'supervisor') {
-        $r5 = $conn->query("SELECT COUNT(*) AS cnt FROM vehicle_requests WHERE supervisor_id=$_sidebar_uid AND status='pending'");
-        if ($r5) $_pending_approvals = (int)$r5->fetch_assoc()['cnt'];
-    }
+}
+
+// ── The menu of each role: section => [ [pages that highlight it, url, icon, label, badge key], ... ] ──
+$_my_requests = ['My Vehicle Requests' => [
+    [['request_vehicle.php'], 'staff/request_vehicle.php', 'car-side', 'Request a Vehicle', null],
+    [['my_requests.php'],     'staff/my_requests.php',     'list-check', 'My Requests', null],
+]];
+if ($_is_admin_role) {
+    $_menu = [
+        'Main' => [[['dashboard.php'], 'admin/dashboard.php', 'gauge-high', 'Dashboard', null]],
+        'Requests' => array_merge(
+            [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
+            $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
+            [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
+        ),
+        'Schedule' => [
+            [['calendar.php'],       'admin/calendar.php',       'calendar-days', 'Schedule Calendar', null],
+            [['internal_tasks.php'], 'admin/internal_tasks.php', 'wrench',        'Internal Tasks', null],
+            [['welfare.php'],        'admin/welfare.php',        'moon',          'Welfare Duty', null],
+        ],
+        'Fleet' => [
+            [['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'],          'admin/drivers.php',  'id-card', 'Drivers', null],
+            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
+        ],
+        'Reports' => [[['reports.php'], 'admin/reports.php', 'chart-column', 'Reports', null]],
+        'System'  => [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]],
+    ] + $_my_requests;
+} elseif ($role === 'supervisor') {
+    $_menu = ['Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
+} elseif ($role === 'staff') {
+    $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
+} else {
+    $_menu = ['My Tasks' => [[['schedules.php', 'dashboard.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
 }
 ?>
 
@@ -153,374 +172,20 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     <!-- ── Navigation Menu ───────────────────────────────────────── -->
     <div class="sidebar-menu-wrapper">
         <ul class="sidebar-nav" id="sidebarNav">
-
-            <?php if ($_is_admin_role): ?>
-            <!-- ====================================================
-                 ADMIN MENU
-                 ==================================================== -->
-
-            <li class="sidebar-section-label">Main</li>
-
-            <!-- Dashboard -->
-            <li class="sidebar-item <?php echo sidebarActive('dashboard.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/dashboard.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Dashboard</span>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">Management</li>
-
-            <!-- Drivers ── with submenu -->
-            <li class="sidebar-item sidebar-item-has-children <?php echo sidebarActive($driver_pages, $current_page); ?>">
-                <a href="#driversSubmenu"
-                   class="sidebar-link sidebar-link-toggle <?php echo sidebarActive($driver_pages, $current_page); ?>"
-                   data-bs-toggle="collapse"
-                   aria-expanded="<?php echo in_array($current_page, $driver_pages) ? 'true' : 'false'; ?>"
-                   aria-controls="driversSubmenu">
-                    <span class="sidebar-icon"><i class="fas fa-users" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Drivers</span>
-                    <span class="sidebar-arrow"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-                </a>
-                <ul class="sidebar-submenu collapse <?php echo submenuShow($driver_pages, $current_page); ?>"
-                    id="driversSubmenu">
-                    <li class="sidebar-subitem <?php echo sidebarActive('drivers.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/drivers.php" class="sidebar-sublink">
-                            <i class="fas fa-list fa-xs" aria-hidden="true"></i> All Drivers
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('add_driver.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/add_driver.php" class="sidebar-sublink">
-                            <i class="fas fa-user-plus fa-xs" aria-hidden="true"></i> Add Driver
-                        </a>
-                    </li>
-                </ul>
-            </li>
-
-            <!-- Vehicles ── with submenu -->
-            <li class="sidebar-item sidebar-item-has-children <?php echo sidebarActive($vehicle_pages, $current_page); ?>">
-                <a href="#vehiclesSubmenu"
-                   class="sidebar-link sidebar-link-toggle <?php echo sidebarActive($vehicle_pages, $current_page); ?>"
-                   data-bs-toggle="collapse"
-                   aria-expanded="<?php echo in_array($current_page, $vehicle_pages) ? 'true' : 'false'; ?>"
-                   aria-controls="vehiclesSubmenu">
-                    <span class="sidebar-icon"><i class="fas fa-car" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Vehicles</span>
-                    <span class="sidebar-arrow"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-                </a>
-                <ul class="sidebar-submenu collapse <?php echo submenuShow($vehicle_pages, $current_page); ?>"
-                    id="vehiclesSubmenu">
-                    <li class="sidebar-subitem <?php echo sidebarActive('vehicles.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/vehicles.php" class="sidebar-sublink">
-                            <i class="fas fa-list fa-xs" aria-hidden="true"></i> All Vehicles
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('add_vehicle.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/add_vehicle.php" class="sidebar-sublink">
-                            <i class="fas fa-circle-plus fa-xs" aria-hidden="true"></i> Add Vehicle
-                        </a>
-                    </li>
-                </ul>
-            </li>
-
-            <!-- Schedules ── with submenu -->
-            <li class="sidebar-item sidebar-item-has-children <?php echo sidebarActive($schedule_pages, $current_page); ?>">
-                <a href="#schedulesSubmenu"
-                   class="sidebar-link sidebar-link-toggle <?php echo sidebarActive($schedule_pages, $current_page); ?>"
-                   data-bs-toggle="collapse"
-                   aria-expanded="<?php echo in_array($current_page, $schedule_pages) ? 'true' : 'false'; ?>"
-                   aria-controls="schedulesSubmenu">
-                    <span class="sidebar-icon"><i class="fas fa-calendar-days" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Schedules</span>
-                    <span class="sidebar-arrow"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-                </a>
-                <ul class="sidebar-submenu collapse <?php echo submenuShow($schedule_pages, $current_page); ?>"
-                    id="schedulesSubmenu">
-                    <li class="sidebar-subitem <?php echo sidebarActive('schedules.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/schedules.php" class="sidebar-sublink">
-                            <i class="fas fa-list fa-xs" aria-hidden="true"></i> All Schedules
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('add_schedule.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/add_schedule.php" class="sidebar-sublink">
-                            <i class="fas fa-calendar-plus fa-xs" aria-hidden="true"></i> Create Schedule
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('auto_assign.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/auto_assign.php" class="sidebar-sublink">
-                            <i class="fas fa-wand-magic-sparkles fa-xs" aria-hidden="true"></i> Auto Assign
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('calendar.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/calendar.php" class="sidebar-sublink">
-                            <i class="fas fa-calendar-week fa-xs" aria-hidden="true"></i> Calendar View
-                        </a>
-                    </li>
-                </ul>
-            </li>
-
-            <!-- Vehicle Requests (e-Kenderaan) -->
-            <li class="sidebar-item <?php echo sidebarActive('vehicle_requests.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/vehicle_requests.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-file-signature" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Vehicle Requests</span>
-                    <?php if ($_approved_requests > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#15803d;font-size:0.65rem;min-width:18px;">
-                        <?php echo $_approved_requests; ?>
-                    </span>
+            <?php foreach ($_menu as $_section => $_items): ?>
+            <li class="sidebar-section-label"><?php echo htmlspecialchars($_section); ?></li>
+                <?php foreach ($_items as [$_pages, $_url, $_icon, $_label, $_bk]): ?>
+            <li class="sidebar-item <?php echo sidebarActive($_pages, $current_page); ?>">
+                <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="sidebar-link">
+                    <span class="sidebar-icon"><i class="fas fa-<?php echo $_icon; ?>" aria-hidden="true"></i></span>
+                    <span class="sidebar-label"><?php echo htmlspecialchars($_label); ?></span>
+                    <?php if ($_bk !== null && $_badge[$_bk] > 0): ?>
+                    <span class="ms-auto badge rounded-pill" style="background:#15803d;font-size:0.65rem;min-width:18px;"><?php echo (int)$_badge[$_bk]; ?></span>
                     <?php endif; ?>
                 </a>
             </li>
-
-            <?php if ($role === 'head_admin'): ?>
-            <!-- Approve driver assignments (Head of Admin only) -->
-            <li class="sidebar-item <?php echo sidebarActive('approve_assignments.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/approve_assignments.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-user-check" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Approve Assignments</span>
-                    <?php if ($_assigned_waiting > 0): ?>
-                    <span class="ms-auto badge rounded-pill" style="background:#0ea5e9;font-size:0.65rem;min-width:18px;"><?php echo $_assigned_waiting; ?></span>
-                    <?php endif; ?>
-                </a>
-            </li>
-            <?php endif; ?>
-
-            <!-- Reminders to the Head of Section -->
-            <li class="sidebar-item <?php echo sidebarActive('reminders.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/reminders.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-bell-concierge" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Reminders</span>
-                </a>
-            </li>
-
-            <!-- Notifications (driver e-mails) -->
-            <li class="sidebar-item <?php echo sidebarActive('notifications.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/notifications.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-envelope-circle-check" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Notifications</span>
-                    <?php if ($_failed_emails > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#dc2626;font-size:0.65rem;min-width:18px;"
-                          title="E-mails that failed in the last 7 days">
-                        <?php echo $_failed_emails; ?>
-                    </span>
-                    <?php endif; ?>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">Communication</li>
-
-            <!-- Messages -->
-            <li class="sidebar-item <?php echo sidebarActive('messages.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/messages.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Messages</span>
-                    <?php if ($_unread_msgs > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#dc2626;font-size:0.65rem;min-width:18px;">
-                        <?php echo $_unread_msgs; ?>
-                    </span>
-                    <?php endif; ?>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">Analytics</li>
-
-            <!-- Reports ── with submenu -->
-            <li class="sidebar-item sidebar-item-has-children <?php echo sidebarActive($report_pages, $current_page); ?>">
-                <a href="#reportsSubmenu"
-                   class="sidebar-link sidebar-link-toggle <?php echo sidebarActive($report_pages, $current_page); ?>"
-                   data-bs-toggle="collapse"
-                   aria-expanded="<?php echo in_array($current_page, $report_pages) ? 'true' : 'false'; ?>"
-                   aria-controls="reportsSubmenu">
-                    <span class="sidebar-icon"><i class="fas fa-chart-bar" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Reports</span>
-                    <span class="sidebar-arrow"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-                </a>
-                <ul class="sidebar-submenu collapse <?php echo submenuShow($report_pages, $current_page); ?>"
-                    id="reportsSubmenu">
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_driver.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_driver.php" class="sidebar-sublink">
-                            <i class="fas fa-trophy fa-xs" aria-hidden="true"></i> Driver Workload
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_workload.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_workload.php" class="sidebar-sublink">
-                            <i class="fas fa-chart-pie fa-xs" aria-hidden="true"></i> Workload
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_vehicle.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_vehicle.php" class="sidebar-sublink">
-                            <i class="fas fa-car-side fa-xs" aria-hidden="true"></i> Vehicle Usage
-                        </a>
-                    </li>
-                    <li class="sidebar-subitem <?php echo sidebarActive('report_monthly.php', $current_page); ?>">
-                        <a href="<?php echo SITE_URL; ?>/admin/report_monthly.php" class="sidebar-sublink">
-                            <i class="fas fa-calendar-check fa-xs" aria-hidden="true"></i> Monthly
-                        </a>
-                    </li>
-                </ul>
-            </li>
-
-            <li class="sidebar-section-label">Operations</li>
-
-            <li class="sidebar-item <?php echo sidebarActive('internal_tasks.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/internal_tasks.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-screwdriver-wrench" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Internal Tasks</span>
-                </a>
-            </li>
-            <li class="sidebar-item <?php echo sidebarActive('welfare.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/welfare.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-heart-pulse" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Welfare Duty</span>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">System</li>
-
-            <!-- Audit log -->
-            <li class="sidebar-item <?php echo sidebarActive('audit_log.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/audit_log.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-clipboard-list" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Audit Log</span>
-                </a>
-            </li>
-            <li class="sidebar-item <?php echo sidebarActive('users.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/users.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-users-gear" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">User Accounts</span>
-                </a>
-            </li>
-            <li class="sidebar-item <?php echo sidebarActive('settings.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/admin/settings.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-sliders" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Settings</span>
-                </a>
-            </li>
-
-            <?php elseif ($role === 'staff'): ?>
-            <!-- ====================================================
-                 STAFF MENU (e-Kenderaan)
-                 ==================================================== -->
-
-            <li class="sidebar-section-label">Main</li>
-
-            <!-- Dashboard -->
-            <li class="sidebar-item <?php echo sidebarActive('dashboard.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/staff/dashboard.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Dashboard</span>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">e-Kenderaan</li>
-
-            <!-- Request Vehicle -->
-            <li class="sidebar-item <?php echo sidebarActive('request_vehicle.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/staff/request_vehicle.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-file-circle-plus" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Request Vehicle</span>
-                </a>
-            </li>
-
-            <!-- My Requests -->
-            <li class="sidebar-item <?php echo sidebarActive('my_requests.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/staff/my_requests.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">My Requests</span>
-                </a>
-            </li>
-
-            <?php elseif ($role === 'supervisor'): ?>
-            <!-- ====================================================
-                 SUPERVISOR MENU (Head of Section)
-                 ==================================================== -->
-
-            <li class="sidebar-section-label">Approvals</li>
-
-            <!-- Pending Approvals -->
-            <li class="sidebar-item <?php echo sidebarActive('approvals.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/supervisor/approvals.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-stamp" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Vehicle Approvals</span>
-                    <?php if ($_pending_approvals > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#f59e0b;font-size:0.65rem;min-width:18px;">
-                        <?php echo $_pending_approvals; ?>
-                    </span>
-                    <?php endif; ?>
-                </a>
-            </li>
-
-            <?php else: ?>
-            <!-- ====================================================
-                 DRIVER MENU
-                 ==================================================== -->
-
-            <li class="sidebar-section-label">Main</li>
-
-            <!-- Dashboard -->
-            <li class="sidebar-item <?php echo sidebarActive('dashboard.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/dashboard.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-gauge-high" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Dashboard</span>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">My Work</li>
-
-            <!-- My Schedules -->
-            <li class="sidebar-item <?php echo sidebarActive(['schedules.php', 'view_schedule.php'], $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-calendar-days" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">My Schedules</span>
-                </a>
-            </li>
-
-            <!-- Calendar View -->
-            <li class="sidebar-item <?php echo sidebarActive('calendar.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/calendar.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-calendar-week" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Calendar</span>
-                </a>
-            </li>
-
-            <li class="sidebar-section-label">Communication</li>
-
-            <!-- Messages -->
-            <li class="sidebar-item <?php echo sidebarActive('messages.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/driver/messages.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Messages</span>
-                    <?php if ($_unread_msgs > 0): ?>
-                    <span class="ms-auto badge rounded-pill"
-                          style="background:#dc2626;font-size:0.65rem;min-width:18px;">
-                        <?php echo $_unread_msgs; ?>
-                    </span>
-                    <?php endif; ?>
-                </a>
-            </li>
-
-            <?php endif; ?>
-
-            <?php if ($role !== 'staff'): ?>
-            <!-- Every role is also staff: request a vehicle and follow own requests -->
-            <li class="sidebar-section-label">My Vehicle Requests</li>
-            <li class="sidebar-item <?php echo sidebarActive('request_vehicle.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/staff/request_vehicle.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-car-side" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">Request a Vehicle</span>
-                </a>
-            </li>
-            <li class="sidebar-item <?php echo sidebarActive('my_requests.php', $current_page); ?>">
-                <a href="<?php echo SITE_URL; ?>/staff/my_requests.php" class="sidebar-link">
-                    <span class="sidebar-icon"><i class="fas fa-list-check" aria-hidden="true"></i></span>
-                    <span class="sidebar-label">My Requests</span>
-                </a>
-            </li>
-            <?php endif; ?>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
 
         </ul><!-- /.sidebar-nav -->
     </div><!-- /.sidebar-menu-wrapper -->
@@ -597,7 +262,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         </div>
 
         <?php
-            $_dh_total = $_app_unread + ($_is_admin_role ? $_pending_assignments : 0);
+            $_dh_total = $_app_unread;
         ?>
         <!-- Notification bell (all roles) -->
         <div class="dropdown">
@@ -617,22 +282,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                         Notifications
                     </h6>
                 </li>
-                <?php if ($_is_admin_role && $_pending_assignments > 0): ?>
-                <li>
-                    <a class="dropdown-item py-2" href="<?php echo SITE_URL; ?>/admin/schedules.php">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center flex-shrink-0"
-                                 style="width:28px;height:28px;">
-                                <i class="fas fa-calendar-xmark" style="color:#fff;font-size:.65rem;"></i>
-                            </div>
-                            <div style="font-size:.81rem;">
-                                <div class="fw-semibold"><?php echo $_pending_assignments; ?> unassigned schedule<?php echo $_pending_assignments > 1 ? 's' : ''; ?></div>
-                                <div class="text-muted" style="font-size:.72rem;">Drivers not yet assigned</div>
-                            </div>
-                        </div>
-                    </a>
-                </li>
-                <?php endif; ?>
                 <?php foreach ($_app_notifs as $_n): ?>
                 <li>
                     <a class="dropdown-item py-2 <?php echo $_n['is_read'] ? '' : 'fw-semibold'; ?>"
@@ -687,11 +336,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
                     </span>
                 </li>
                 <li><hr class="dropdown-divider my-1"></li>
-                <li>
-                    <a class="dropdown-item" href="<?php echo SITE_URL; ?>/change_password.php" style="font-size:.84rem;">
-                        <i class="fas fa-key me-2"></i>Change Password
-                    </a>
-                </li>
                 <li>
                     <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
