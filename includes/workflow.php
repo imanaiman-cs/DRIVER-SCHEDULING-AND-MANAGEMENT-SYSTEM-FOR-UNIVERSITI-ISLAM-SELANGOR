@@ -259,6 +259,20 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
             $out['errors'][] = $e->getMessage();
             error_log('notifyUsers (e-mail): ' . $e->getMessage());
         }
+        // WhatsApp (OpenWA): drivers only; a failure is logged and never stops the other channels
+        try {
+            $q = $conn->prepare("SELECT COALESCE(NULLIF(u.phone, ''), d.phone) AS phone FROM users u LEFT JOIN drivers d ON d.driver_id = u.driver_id WHERE u.user_id = ? AND u.role = 'driver'");
+            $q->bind_param('i', $uid);
+            $q->execute();
+            $w = $q->get_result()->fetch_assoc();
+            $q->close();
+            if ($w) {
+                $url = $link ? rtrim(SITE_URL, '/') . '/' . ltrim($link, '/') : SITE_URL;
+                sendWhatsApp($conn, $uid, $w['phone'], "[UIS Vehicle Section] $msg\n$url");
+            }
+        } catch (Throwable $e) {
+            error_log('notifyUsers (WhatsApp): ' . $e->getMessage());
+        }
     }
     return $out;
 }

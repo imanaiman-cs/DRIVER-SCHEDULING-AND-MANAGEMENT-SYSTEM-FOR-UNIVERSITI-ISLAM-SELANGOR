@@ -85,6 +85,19 @@ CREATE TABLE `email_log` (
   CONSTRAINT `fk_email_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `whatsapp_log` (
+  `log_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `to_number` varchar(20) DEFAULT NULL,
+  `message` text NOT NULL,
+  `status` enum('sent','failed','skipped') NOT NULL,
+  `error_message` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`log_id`),
+  KEY `idx_wa_created` (`created_at`),
+  KEY `idx_wa_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `internal_tasks` (
   `task_id` int(11) NOT NULL AUTO_INCREMENT,
   `task_type` enum('workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','other') NOT NULL,

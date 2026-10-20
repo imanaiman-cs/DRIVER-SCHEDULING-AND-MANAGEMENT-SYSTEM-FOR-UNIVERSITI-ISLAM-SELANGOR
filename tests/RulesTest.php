@@ -194,4 +194,12 @@ return [
         assert_true(driverHoldsLicence('D,PSV', 'PSV')); assert_true(!driverHoldsLicence('D,PSV', 'GDL')); assert_true(!driverHoldsLicence(null, 'D'));
         assert_same('D,GDL,PSV', normaliseLicenceList(['psv', 'D', 'gdl', 'X'])); assert_same('', normaliseLicenceList(['X']));
     },
+    'WhatsApp numbers are normalised and a missing number is skipped, not an error' => function () {
+        global $conn;
+        assert_same('60123456789', whatsappNumber('012-345 6789'));
+        assert_same('60123456789', whatsappNumber('+60 12-345 6789'));
+        assert_same(null, whatsappNumber('123'));
+        $res = sendWhatsApp($conn, null, '', 'x');
+        assert_same('skipped', $res['status']);
+    },
 ];
