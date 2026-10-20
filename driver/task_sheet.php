@@ -7,6 +7,7 @@
 
 require_once '../config/database.php';
 require_once '../includes/task_sheet.php';
+require_once '../includes/schedule_view.php';
 requireDriver();
 
 $driver_id   = (int)($_SESSION['driver_id'] ?? 0);
@@ -19,24 +20,7 @@ if ($schedule_id <= 0 || $driver_id <= 0) {
 }
 
 // Ownership enforced in the query: drivers may only open their own tasks.
-$stmt = $conn->prepare(
-    "SELECT s.schedule_id, s.trip_date, s.start_time, s.end_time,
-            s.destination, s.purpose, s.officer_name, s.officer_phone,
-            s.waiting_place,
-            d.name         AS driver_name,
-            v.plate_number AS vehicle_plate,
-            v.brand        AS vehicle_brand,
-            v.model        AS vehicle_model,
-            v.vehicle_type AS vehicle_type
-     FROM schedules s
-     LEFT JOIN drivers  d ON s.driver_id  = d.driver_id
-     LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-     WHERE s.schedule_id = ? AND s.driver_id = ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL
-);
-$stmt->bind_param('ii', $schedule_id, $driver_id);
-$stmt->execute();
-$schedule = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+$schedule = taskSheetRow($conn, $schedule_id, $driver_id);
 
 if (!$schedule) {
     setFlash('danger', 'Schedule not found.');

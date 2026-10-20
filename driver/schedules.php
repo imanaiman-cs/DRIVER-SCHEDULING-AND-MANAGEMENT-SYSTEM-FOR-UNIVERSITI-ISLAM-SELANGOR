@@ -1,284 +1,122 @@
 <?php
-$page_title = 'My Schedules';
-$current_page = 'driver_schedules';
+// ============================================================
+// driver/schedules.php  -  Driver "View Task" (SRS UC029). VIEW ONLY.
+// Shows only the signed-in driver's own tasks:
+//   * request tasks (outbound / return) once the request is Confirmed or Completed
+//   * active internal tasks
+//   * welfare duty days
+// Upcoming tasks in date order; "Past Tasks" tab for the rest.
+// ============================================================
+$current_page = 'schedules.php';
 require_once '../config/database.php';
+require_once '../includes/admin_page.php';
+require_once '../includes/schedule_view.php';
 requireDriver();
 
-$driver_id = (int)$_SESSION['driver_id'];
+$driver_id = (int)($_SESSION['driver_id'] ?? 0);
+$h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$tab = ($_GET['tab'] ?? 'upcoming') === 'past' ? 'past' : 'upcoming';
+$now = date('Y-m-d H:i:s');
 $today = date('Y-m-d');
+$op = $tab === 'past' ? '<' : '>=';           // compared with the end of the task
+$dir = $tab === 'past' ? 'DESC' : 'ASC';
+$limit = $tab === 'past' ? 100 : 200;
 
-// Active tab
-$tab = $_GET['tab'] ?? 'upcoming';
-$allowed_tabs = ['today','upcoming','completed','all'];
-if (!in_array($tab, $allowed_tabs)) $tab = 'upcoming';
-
-// Build query based on tab
-$where = "s.driver_id = ?";
-$params = [$driver_id];
-$types  = "i";
-
-switch ($tab) {
-    case 'today':
-        $where .= " AND s.trip_date = ?";
-        $params[] = $today; $types .= "s";
-        break;
-    case 'upcoming':
-        $where .= " AND s.trip_date >= ? AND s.status NOT IN ('cancelled','completed')";
-        $params[] = $today; $types .= "s";
-        break;
-    case 'completed':
-        $where .= " AND s.status = 'completed'";
-        break;
-}
-
-$sql = "SELECT s.*, v.plate_number, v.vehicle_type, v.brand, v.model, v.capacity
-        FROM schedules s
-        LEFT JOIN vehicles v ON s.vehicle_id = v.vehicle_id
-        WHERE $where AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
-        ORDER BY s.trip_date DESC, s.start_time DESC";
-
-$stmt = $conn->prepare($sql);
-if (count($params) > 1) {
-    $stmt->bind_param($types, ...$params);
-} else {
-    $stmt->bind_param($types, $driver_id);
-}
-$stmt->execute();
-$schedules = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-// Other drivers on team jobs
-$teams = getJobTeams($conn, array_column($schedules, 'schedule_id'));
-foreach ($schedules as &$row) {
-    $row['team'] = array_map(static function ($m) {
-        return ['driver_name' => $m['driver_name'], 'plate_number' => $m['plate_number']];
-    }, $teams[(int)$row['schedule_id']] ?? []);
-}
-unset($row);
-
-// Tab counts
-$cnt_query = function($extra_where, $extra_params = [], $extra_types = '') use ($conn, $driver_id) {
-    $s2 = $conn->prepare("SELECT COUNT(*) as cnt FROM schedules s WHERE s.driver_id=? $extra_where AND " . SCHEDULE_CONFIRMED_ONLY_SQL);
-    if ($extra_params) {
-        $s2->bind_param("i".$extra_types, $driver_id, ...$extra_params);
-    } else {
-        $s2->bind_param("i", $driver_id);
+$tasks = [];
+if ($driver_id > 0) {
+    // request tasks (Confirmed / Completed requests only)
+    $stmt = $conn->prepare(
+        "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt,
+                COALESCE(vr.destination, s.destination) AS destination, vr.destination_address,
+                COALESCE(vr.purpose, s.purpose) AS purpose, COALESCE(vr.officer_name, s.officer_name) AS officer_name,
+                COALESCE(vr.officer_phone, s.officer_phone) AS officer_phone,
+                COALESCE(vr.waiting_place, s.waiting_place) AS waiting_place, vr.waiting_address,
+                v.plate_number, v.brand, v.model
+           FROM schedules s
+           JOIN vehicle_requests vr ON vr.request_id = s.request_id
+           LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+          WHERE s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt $op ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL . "
+          ORDER BY s.start_dt $dir LIMIT $limit");
+    $stmt->bind_param('is', $driver_id, $now);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $tasks[] = ['kind' => 'trip', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => legLabel($r['leg_no'] !== null ? (int)$r['leg_no'] : null),
+                    'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
+                    'destination' => destinationText($r['destination'], $r['destination_address']), 'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
+                    'purpose' => (string)$r['purpose'], 'officer' => (string)$r['officer_name'], 'phone' => (string)$r['officer_phone'], 'sheet' => (int)$r['schedule_id']];
     }
-    $s2->execute();
-    return (int)$s2->get_result()->fetch_assoc()['cnt'];
-};
+    $stmt->close();
 
-$cnt_today     = $cnt_query("AND trip_date=? AND status NOT IN ('cancelled')", [$today], "s");
-$cnt_upcoming  = $cnt_query("AND trip_date>=? AND status NOT IN ('cancelled','completed')", [$today], "s");
-$cnt_completed = $cnt_query("AND status='completed'");
-$cnt_all       = $cnt_query("");
+    // internal tasks
+    $stmt = $conn->prepare(
+        "SELECT t.*, v.plate_number, v.brand, v.model FROM internal_tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+          WHERE t.driver_id = ? AND t.status = 'active' AND t.end_dt $op ? ORDER BY t.start_dt $dir LIMIT $limit");
+    $stmt->bind_param('is', $driver_id, $now);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $tasks[] = ['kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
+                    'ref' => '', 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
+                    'purpose' => (string)$r['description'], 'officer' => '', 'phone' => '', 'sheet' => 0];
+    }
+    $stmt->close();
 
-require_once '../includes/header.php';
-require_once '../includes/sidebar.php';
+    // welfare duty days (a day is "past" once it is over)
+    $stmt = $conn->prepare("SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date " . ($tab === 'past' ? '<' : '>=') . " ? ORDER BY duty_date $dir LIMIT $limit");
+    $stmt->bind_param('is', $driver_id, $today);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $tasks[] = ['kind' => 'welfare', 'start' => $r['duty_date'] . ' 00:00:00', 'end' => date('Y-m-d H:i:s', strtotime($r['duty_date'] . ' +1 day')), 'type' => 'Welfare duty',
+                    'ref' => '', 'vehicle' => '', 'destination' => '', 'waiting' => '', 'purpose' => 'On duty for 24 hours (12 am to 12 am), ready for emergencies.',
+                    'officer' => '', 'phone' => '', 'sheet' => 0];
+    }
+    $stmt->close();
+    usort($tasks, fn($a, $b) => $tab === 'past' ? strcmp($b['start'], $a['start']) : strcmp($a['start'], $b['start']));
+    $tasks = array_slice($tasks, 0, $limit);
+}
+
+adminPageStart('My Tasks');
 ?>
-
-<main class="main-content">
-    <?php showFlash(); ?>
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h1 class="h4 fw-bold text-primary mb-1"><i class="fas fa-calendar-alt me-2"></i>My Schedules</h1>
-        <p class="text-muted mb-0">View and manage your assigned trips.</p>
-      </div>
-    </div>
-
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4">
-      <?php
-      $tabs = [
-        'today'     => ['label'=>'Today',     'count'=>$cnt_today,     'icon'=>'calendar-day',   'color'=>'info'],
-        'upcoming'  => ['label'=>'Upcoming',   'count'=>$cnt_upcoming,  'icon'=>'calendar-check', 'color'=>'primary'],
-        'completed' => ['label'=>'Completed',  'count'=>$cnt_completed, 'icon'=>'check-circle',   'color'=>'success'],
-        'all'       => ['label'=>'All Trips',  'count'=>$cnt_all,       'icon'=>'list',           'color'=>'secondary'],
-      ];
-      foreach ($tabs as $key => $t):
-      ?>
-      <li class="nav-item">
-        <a class="nav-link <?= $tab===$key?'active':'' ?>" href="?tab=<?= $key ?>">
-          <i class="fas fa-<?= $t['icon'] ?> me-1 text-<?= $t['color'] ?>"></i>
-          <?= $t['label'] ?>
-          <span class="badge bg-<?= $t['color'] ?> ms-1 rounded-pill"><?= $t['count'] ?></span>
-        </a>
-      </li>
-      <?php endforeach; ?>
+<style>
+    .task-card { border: 0; border-left: 6px solid #198754; border-radius: .75rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .task-card.internal { border-left-color: #0d6efd; } .task-card.welfare { border-left-color: #6f42c1; }
+    .task-card .when { font-size: 1.15rem; font-weight: 700; }
+    .task-card dt { font-weight: 600; color: #555; }
+    .task-card dd { margin-bottom: .4rem; font-size: 1.02rem; overflow-wrap: anywhere; }
+</style>
+    <h4 class="fw-bold mb-1"><i class="fas fa-route text-success me-2"></i>My Tasks</h4>
+    <p class="text-muted small mb-3">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item"><a class="nav-link <?= $tab === 'upcoming' ? 'active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a></li>
+        <li class="nav-item"><a class="nav-link <?= $tab === 'past' ? 'active' : '' ?>" href="?tab=past">Past Tasks</a></li>
     </ul>
-
-    <!-- Schedule Table -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-body p-0">
-        <?php if (empty($schedules)): ?>
-        <div class="text-center py-5">
-          <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-          <h5 class="text-muted">No schedules found</h5>
-          <p class="text-muted small">
-            <?php if ($tab==='today'): ?>No trips assigned for today.
-            <?php elseif ($tab==='upcoming'): ?>No upcoming trips.
-            <?php elseif ($tab==='completed'): ?>No completed trips yet.
-            <?php else: ?>No trip records found.<?php endif; ?>
-          </p>
-        </div>
-        <?php else: ?>
-        <div class="table-responsive">
-          <table class="table table-hover data-table mb-0" id="schedulesTable">
-            <thead class="table-primary">
-              <tr>
-                <th scope="col">#</th>
-                <th scope="col">Date</th>
-                <th scope="col">Time</th>
-                <th scope="col">Destination</th>
-                <th scope="col">Purpose</th>
-                <th scope="col">Vehicle</th>
-                <th scope="col">Pax</th>
-                <th scope="col">Status</th>
-                <th scope="col">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($schedules as $i => $s): ?>
-              <?php
-              $smap = [
-                'pending'     => ['warning text-dark', 'clock'],
-                'approved'    => ['primary', 'thumbs-up'],
-                'in_progress' => ['info', 'car'],
-                'completed'   => ['success', 'check-circle'],
-                'cancelled'   => ['secondary', 'times-circle'],
-              ];
-              [$bc,$ic] = $smap[$s['status']] ?? ['secondary','circle'];
-              $is_today = ($s['trip_date'] === $today);
-              ?>
-              <tr class="<?= $is_today?'table-active':'' ?>">
-                <td><?= $s['schedule_id'] ?></td>
-                <td>
-                  <?= date('d M Y', strtotime($s['trip_date'])) ?>
-                  <?php if ($is_today): ?><span class="badge bg-danger ms-1">Today</span><?php endif; ?>
-                </td>
-                <td>
-                  <i class="fas fa-play text-success" style="font-size:10px"></i> <?= substr($s['start_time'],0,5) ?><br>
-                  <i class="fas fa-stop text-danger" style="font-size:10px"></i> <?= substr($s['end_time'],0,5) ?>
-                </td>
-                <td>
-                  <strong><?= htmlspecialchars($s['destination']) ?></strong>
-                  <?php if (!empty($s['team'])): ?>
-                  <div class="small text-muted mt-1"><i class="fas fa-users me-1"></i>Team job with
-                    <?= htmlspecialchars(implode(', ', array_map(static function ($m) { return $m['driver_name'] ?? 'Unassigned'; }, $s['team']))) ?></div>
-                  <?php endif; ?>
-                </td>
-                <td><?= htmlspecialchars($s['purpose'] ?? '—') ?></td>
-                <td>
-                  <?php if ($s['plate_number']): ?>
-                  <span class="badge bg-secondary"><?= htmlspecialchars($s['plate_number']) ?></span><br>
-                  <small class="text-muted"><?= $s['vehicle_type'] ?></small>
-                  <?php else: ?>
-                  <span class="text-muted">—</span>
-                  <?php endif; ?>
-                </td>
-                <td><i class="fas fa-users text-muted me-1"></i><?= (int)$s['passenger_count'] ?></td>
-                <td><span class="badge bg-<?= $bc ?>"><i class="fas fa-<?= $ic ?> me-1"></i><?= ucfirst(str_replace('_',' ',$s['status'])) ?></span></td>
-                <td>
-                  <div class="d-flex gap-1">
-                    <button class="btn btn-sm btn-outline-info" onclick="viewDetails(<?= htmlspecialchars(json_encode($s), ENT_QUOTES) ?>)" title="View Details">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                    <?php if (!empty($s['driver_id'])): ?>
-                    <a href="<?php echo SITE_URL; ?>/driver/task_sheet.php?id=<?= (int)$s['schedule_id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Task Sheet">
-                      <i class="fas fa-print"></i>
-                    </a>
-                    <?php endif; ?>
-                    <?php if ($s['status']==='approved'): ?>
-                    <button class="btn btn-sm btn-info" onclick="updateStatus(<?= $s['schedule_id'] ?>,'in_progress',this)" title="Start Trip">
-                      <i class="fas fa-play"></i>
-                    </button>
-                    <?php elseif ($s['status']==='in_progress'): ?>
-                    <button class="btn btn-sm btn-success" onclick="updateStatus(<?= $s['schedule_id'] ?>,'completed',this)" title="Complete Trip">
-                      <i class="fas fa-flag-checkered"></i>
-                    </button>
-                    <?php endif; ?>
-                  </div>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-        <?php endif; ?>
-      </div>
-    </div>
-</main>
-
-<!-- View Details Modal -->
-<div class="modal fade" id="viewModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Trip Details</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body" id="viewModalBody">Loading...</div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<?php
-$extra_js = '<script>
-function esc(v){
-  return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-function viewDetails(s){
-  const statMap={pending:"warning",approved:"primary",in_progress:"info",completed:"success",cancelled:"secondary"};
-  const sc=statMap[s.status]||"secondary";
-  document.getElementById("viewModalBody").innerHTML=`
+    <?php if (!$tasks): ?>
+        <div class="alert alert-light border text-center py-4"><i class="fas fa-mug-hot fa-2x text-muted mb-2 d-block"></i>
+            <?= $tab === 'past' ? 'You have no past tasks.' : 'You have no upcoming tasks.' ?></div>
+    <?php endif; ?>
     <div class="row g-3">
-      <div class="col-md-6"><label class="text-muted small">Destination</label><div class="fw-semibold">${esc(s.destination)}</div></div>
-      <div class="col-md-6"><label class="text-muted small">Purpose</label><div class="fw-semibold">${esc(s.purpose)||"—"}</div></div>
-      <div class="col-md-4"><label class="text-muted small">Date</label><div class="fw-semibold">${s.trip_date}</div></div>
-      <div class="col-md-4"><label class="text-muted small">Start Time</label><div class="fw-semibold">${s.start_time}</div></div>
-      <div class="col-md-4"><label class="text-muted small">End Time</label><div class="fw-semibold">${s.end_time}</div></div>
-      <div class="col-md-4"><label class="text-muted small">Vehicle</label><div class="fw-semibold">${s.plate_number||"Not assigned"}</div></div>
-      <div class="col-md-4"><label class="text-muted small">Passengers</label><div class="fw-semibold">${s.passenger_count}</div></div>
-      <div class="col-md-4"><label class="text-muted small">Status</label><div><span class="badge bg-${sc}">${s.status.replace("_"," ")}</span></div></div>
-      ${(s.team&&s.team.length)?`<div class="col-12"><label class="text-muted small">Team job: also on this job</label><div class="fw-semibold">${s.team.map(m=>esc(m.driver_name||"Unassigned")+(m.plate_number?" ("+esc(m.plate_number)+")":"")).join(", ")}</div></div>`:""}
-      <div class="col-md-6"><label class="text-muted small">Officer(s)</label><div class="fw-semibold">${esc(s.officer_name)||"—"}</div></div>
-      <div class="col-md-6"><label class="text-muted small">Waiting Place</label><div class="fw-semibold">${esc(s.waiting_place)||"—"}</div></div>
-      <div class="col-12"><label class="text-muted small">Officer Phone</label>
-        <div class="fw-semibold">${s.officer_phone?`<a href="tel:${esc(String(s.officer_phone).split(" ").join(""))}"><i class="fas fa-phone me-1"></i>${esc(s.officer_phone)}</a>`:"—"}</div>
-        <div class="text-muted small">If the officer is late past the scheduled time, contact the officer for further action.</div>
-      </div>
-      ${s.driver_id?`<div class="col-12"><a href="'.SITE_URL.'/driver/task_sheet.php?id=${parseInt(s.schedule_id,10)}" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="fas fa-print me-1"></i>Print Task Sheet</a></div>`:""}
-      ${s.notes?`<div class="col-12"><label class="text-muted small">Notes</label><div>${esc(s.notes)}</div></div>`:""}
+    <?php foreach ($tasks as $t):
+        $s = strtotime($t['start']); $e = strtotime($t['end']); ?>
+        <div class="col-12 col-lg-6">
+            <div class="card task-card <?= $h($t['kind']) ?>"><div class="card-body">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                    <div>
+                        <div class="when"><?= $h(date('D, d M Y', $s)) ?></div>
+                        <div class="fs-5"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . ' - ' . date('H:i', $e)) ?></div>
+                    </div>
+                    <span class="badge fs-6 <?= $t['kind'] === 'trip' ? 'bg-success' : ($t['kind'] === 'internal' ? 'bg-primary' : '') ?>" <?= $t['kind'] === 'welfare' ? 'style="background:#6f42c1"' : '' ?>><?= $h($t['type']) ?></span>
+                </div>
+                <dl class="mb-0">
+                    <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
+                    <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $h($t['vehicle']) ?></dd><?php endif; ?>
+                    <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?></dd><?php endif; ?>
+                    <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?></dd><?php endif; ?>
+                    <?php if ($t['purpose']): ?><dt><?= $t['kind'] === 'trip' ? 'Purpose' : 'Details' ?></dt><dd><?= $h($t['purpose']) ?></dd><?php endif; ?>
+                    <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
+                        <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
+                </dl>
+                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
+            </div></div>
+        </div>
+    <?php endforeach; ?>
     </div>
-  `;
-  new bootstrap.Modal(document.getElementById("viewModal")).show();
-}
-
-function updateStatus(scheduleId, newStatus, btn){
-  const dialogs={
-    in_progress:{title:"Start this trip?",text:"The trip will be marked as In Progress.",confirmText:"Start Trip"},
-    completed:{title:"Complete this trip?",text:"The trip will be marked as completed. This cannot be undone.",confirmText:"Mark Completed"}
-  };
-  const d=dialogs[newStatus]||{title:"Update status?",text:"",confirmText:"Update"};
-  UIS.confirm({title:d.title,text:d.text,confirmText:d.confirmText,tone:"primary",icon:newStatus==="completed"?"fa-circle-check":"fa-play"}).then(function(ok){
-    if(!ok) return;
-    btn.disabled=true;
-    fetch("../ajax/update_schedule_status.php",{
-      method:"POST",
-      headers:{"Content-Type":"application/x-www-form-urlencoded"},
-      body:"schedule_id="+scheduleId+"&status="+newStatus
-    })
-    .then(r=>r.json())
-    .then(data=>{
-      if(data.success){ location.reload(); }
-      else{ UIS.alert(data.message||"The status could not be updated.",{title:"Update failed",tone:"danger"}); btn.disabled=false; }
-    })
-    .catch(()=>{ UIS.alert("Please check your connection and try again.",{title:"Network error",tone:"danger"}); btn.disabled=false; });
-  });
-}
-</script>';
-require_once '../includes/footer.php';
-?>
+<?php adminPageEnd(); ?>
