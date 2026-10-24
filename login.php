@@ -11,9 +11,9 @@ if (isLoggedIn()) {
     } elseif (isStaff()) {
         header('Location: staff/dashboard.php');
     } elseif (isSupervisor()) {
-        header('Location: supervisor/approvals.php');
+        header('Location: supervisor/dashboard.php');
     } else {
-        header('Location: driver/schedules.php');
+        header('Location: driver/dashboard.php');
     }
     exit();
 }
@@ -98,9 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($user['role'] === 'staff') {
                 header('Location: staff/dashboard.php');
             } elseif ($user['role'] === 'supervisor') {
-                header('Location: supervisor/approvals.php');
+                header('Location: supervisor/dashboard.php');
             } else {
-                header('Location: driver/schedules.php');
+                header('Location: driver/dashboard.php');
             }
             exit();
         }

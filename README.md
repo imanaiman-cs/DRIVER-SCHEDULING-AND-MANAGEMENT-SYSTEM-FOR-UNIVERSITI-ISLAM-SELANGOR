@@ -48,6 +48,10 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Reports** — four monthly reports (PDF, Excel, print).
 - **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
+## Dashboards
+
+Every role has its own start page: Administrative Assistant / Head of Admin (KPI cards with month-on-month trend, action queue, alerts, status / monthly / driver-workload / vehicle-hours charts, today's timeline, fleet), Head of Department (requests to approve for their own PTJ + their own requests), Staff (next trip, progress of each request, recent activity) and Driver (today, next 7 days, month counts; view only). Charts use Chart.js from a CDN; without internet the same numbers are shown as small tables.
+
 ## Security
 
 - bcrypt passwords (old SHA-256 demo hashes are upgraded at first sign-in).

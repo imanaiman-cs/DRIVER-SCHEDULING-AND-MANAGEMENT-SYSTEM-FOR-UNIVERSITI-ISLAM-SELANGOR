@@ -260,8 +260,8 @@ function roleHomeUrl(?string $role = null): string
     return SITE_URL . '/' . match ($role) {
         'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
         'staff'      => 'staff/dashboard.php',
-        'supervisor' => 'supervisor/approvals.php',
-        'driver'     => 'driver/schedules.php',
+        'supervisor' => 'supervisor/dashboard.php',
+        'driver'     => 'driver/dashboard.php',
         default      => 'login.php',
     };
 }

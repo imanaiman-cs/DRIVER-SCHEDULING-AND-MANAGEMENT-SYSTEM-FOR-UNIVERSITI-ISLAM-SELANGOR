@@ -1582,3 +1582,44 @@ main:focus { outline: none; }
 .progress-bar.bar-green { background: #0b5d3b; }
 .progress-bar.bar-gold  { background: #c69214; }
 .progress-bar.bar-teal  { background: #0f766e; }
+
+/* ============================================================
+   Dashboards (admin, staff, head of department, driver)
+   ============================================================ */
+.dash-hero { background: linear-gradient(120deg, #0f5132 0%, #198754 60%, #20c997 100%); color: #fff; border-radius: 16px; padding: 1.25rem 1.5rem; }
+.dash-hero .text-muted { color: rgba(255,255,255,.8) !important; }
+.dash-hero .btn-light { font-weight: 600; }
+.dash-kpi { display: flex; gap: .85rem; align-items: center; background: #fff; border-radius: 14px; padding: .9rem 1rem; height: 100%;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: transform .15s, box-shadow .15s; color: #212529; }
+a:hover > .dash-kpi { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+.dash-kpi-icon { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-size: 1.2rem; flex: 0 0 46px; }
+.dash-kpi-value { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+.dash-kpi-label { font-size: .8rem; color: #6c757d; }
+.dash-kpi-hint { font-size: .72rem; color: #adb5bd; }
+.dash-trend { font-size: .72rem; font-weight: 600; margin-left: .25rem; }
+.dash-kpi-success .dash-kpi-icon { background: #d1e7dd; color: #0f5132; }
+.dash-kpi-info .dash-kpi-icon { background: #cff4fc; color: #055160; }
+.dash-kpi-warning .dash-kpi-icon { background: #fff3cd; color: #997404; }
+.dash-kpi-primary .dash-kpi-icon { background: #cfe2ff; color: #084298; }
+.dash-kpi-danger .dash-kpi-icon { background: #f8d7da; color: #842029; }
+.dash-kpi-secondary .dash-kpi-icon { background: #e2e3e5; color: #41464b; }
+.dash-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 1rem 1.1rem; height: 100%; }
+.dash-card h6 { font-weight: 700; margin-bottom: .6rem; display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.dash-chart { position: relative; width: 100%; }
+.dash-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem; padding: .5rem 0; border-top: 1px solid #eef0f2; font-size: .88rem; }
+.dash-row:first-of-type { border-top: 0; }
+.dash-alert { display: flex; gap: .6rem; align-items: flex-start; padding: .5rem .7rem; border-radius: 10px; margin-bottom: .4rem; font-size: .85rem; text-decoration: none; color: inherit; }
+.dash-alert-danger { background: #f8d7da; } .dash-alert-warning { background: #fff3cd; } .dash-alert-info { background: #cff4fc; }
+.dash-time { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 92px; display: inline-block; }
+.dash-steps { list-style: none; display: flex; gap: 0; padding: 0; margin: .4rem 0 0; }
+.dash-steps li { flex: 1; text-align: center; position: relative; font-size: .7rem; color: #adb5bd; }
+.dash-steps li::before { content: ''; position: absolute; top: 7px; left: -50%; width: 100%; height: 3px; background: #dee2e6; z-index: 0; }
+.dash-steps li:first-child::before { display: none; }
+.dash-steps .dot { display: block; width: 15px; height: 15px; border-radius: 50%; background: #dee2e6; margin: 0 auto .2rem; position: relative; z-index: 1; }
+.dash-steps li.done, .dash-steps li.now { color: #198754; font-weight: 600; }
+.dash-steps li.done .dot, .dash-steps li.now .dot { background: #198754; }
+.dash-steps li.done::before, .dash-steps li.now::before { background: #198754; }
+.dash-steps li.now .dot { box-shadow: 0 0 0 4px rgba(25,135,84,.25); }
+.dash-bar { height: 8px; border-radius: 6px; background: #e9ecef; overflow: hidden; }
+.dash-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #198754, #20c997); }
+@media (max-width: 575.98px) { .dash-kpi-value { font-size: 1.4rem; } .dash-hero { padding: 1rem; } }

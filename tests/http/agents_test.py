@@ -162,7 +162,7 @@ ok('past tab shows completed request #8 tasks for driver 8', 'Past Tasks' in hp 
 ok('past tab hides upcoming', 'Request #4' not in main_html(drv[1].get('driver/schedules.php', tab='past')))
 ok('past tab shows past internal task (workshop send, driver 2)', 'Workshop - send vehicle' in main_html(drv[2].get('driver/schedules.php', tab='past')))
 ok('legacy schedules without a request are hidden', 'Request #' not in main_html(drv[6].get('driver/schedules.php', tab='past')))
-r = drv[1].get('driver/dashboard.php'); ok('dashboard redirects to schedules', r.status_code == 302 and r.headers['Location'].endswith('driver/schedules.php'))
+r = drv[1].get('driver/dashboard.php'); ok('driver dashboard is its own page (today, next 7 days) and links to My Tasks', r.status_code == 200 and 'dash-hero' in r.text and 'driver/schedules.php' not in r.url and 'schedules.php' in r.text)
 dates = re.findall(r'class="when">[A-Za-z]{3}, (\d\d [A-Za-z]{3} \d{4})', main_html(drv[1].get('driver/schedules.php')))
 ds = [datetime.datetime.strptime(d, '%d %b %Y') for d in dates]; ok('upcoming sorted by date', ds == sorted(ds) and len(ds) >= 3)
 # task sheet

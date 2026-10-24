@@ -44,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $home = match ($_SESSION['role'] ?? '') {
     'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
     'staff'               => 'staff/dashboard.php',
-    'supervisor'          => 'supervisor/approvals.php',
-    default               => 'driver/schedules.php',
+    'supervisor'          => 'supervisor/dashboard.php',
+    default               => 'driver/dashboard.php',
 };
 ?>
 <!DOCTYPE html>

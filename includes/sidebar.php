@@ -34,7 +34,7 @@ $_is_admin_role = in_array($role, ['admin', 'superadmin', 'head_admin'], true);
 $_role_home = match ($role) {
     'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
     'staff'               => 'staff/dashboard.php',
-    'supervisor'          => 'supervisor/approvals.php',
+    'supervisor'          => 'supervisor/dashboard.php',
     default               => 'driver/dashboard.php',
 };
 
@@ -112,11 +112,13 @@ if ($_is_admin_role) {
         'System'  => [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]],
     ] + $_my_requests;
 } elseif ($role === 'supervisor') {
-    $_menu = ['Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
+    $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],
+              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
 } elseif ($role === 'staff') {
     $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 } else {
-    $_menu = ['My Tasks' => [[['schedules.php', 'dashboard.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
+    $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
+              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
 }
 ?>
 
