@@ -47,7 +47,7 @@ GRANT ALL PRIVILEGES ON uis_driver_db.* TO 'dsms'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
-`database.sql` creates the database itself; import it as root, then the `dsms` user has access to it:
+`database.sql` creates the database itself; import it as root, then the `dsms` user has access to it. **Warning: the file starts with `DROP DATABASE IF EXISTS uis_driver_db`, so importing it again later erases all data. Use it once on a fresh server; later upgrades only need `git pull` (migrations run by themselves).**
 ```
 sudo mysql < /var/www/dsms/database.sql
 ```
