@@ -12,3 +12,6 @@ uploads/documents/*
 # Local e-mail settings (contain the SMTP password)
 config/mail.php
 config/whatsapp.php
+
+# Server settings (database password)
+config/local.php

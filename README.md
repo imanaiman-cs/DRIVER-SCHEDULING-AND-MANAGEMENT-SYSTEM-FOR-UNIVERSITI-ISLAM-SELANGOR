@@ -70,6 +70,8 @@ Every role has its own start page: Administrative Assistant / Head of Admin (KPI
 
 **Existing database from the previous release:** import `migrations/2026_10_align_srs.sql` (or just open any page: it is applied once automatically and recorded in `schema_migrations`). Back up first; the migration also drops tables of removed features.
 
+**Real server (VPS):** see `docs/VPS_SETUP.md` (Apache, PHP, MariaDB, HTTPS, cron, OpenWA). Server settings go in `config/local.php` (copy `config/local.sample.php`; not uploaded to GitHub).
+
 E-mail: copy `config/mail.sample.php` to `config/mail.php` and fill in the SMTP details (PHPMailer). Without it, e-mails fail into `email_log` and notifications still work in the system.
 
 ## Importing staff

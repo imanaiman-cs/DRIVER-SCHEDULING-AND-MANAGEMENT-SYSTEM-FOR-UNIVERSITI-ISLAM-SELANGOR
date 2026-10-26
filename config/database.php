@@ -5,11 +5,13 @@
 // Universiti Islam Selangor (UIS)
 // ============================================================
 
-define('DB_HOST',   'localhost');
-define('DB_USER',   'root');
-define('DB_PASS',   '');
-define('DB_NAME',   getenv('DSMS_DB') ?: 'uis_driver_db');   // DSMS_DB: only used to run tests against another database
-define('SITE_URL',  'http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR');
+// Optional config/local.php (not uploaded to GitHub) overrides these for a real server; see config/local.sample.php
+$_local = is_file(__DIR__ . '/local.php') ? (array)(include __DIR__ . '/local.php') : [];
+define('DB_HOST',   $_local['db_host'] ?? 'localhost');
+define('DB_USER',   $_local['db_user'] ?? 'root');
+define('DB_PASS',   $_local['db_pass'] ?? '');
+define('DB_NAME',   getenv('DSMS_DB') ?: ($_local['db_name'] ?? 'uis_driver_db'));   // DSMS_DB: only used to run tests against another database
+define('SITE_URL',  rtrim($_local['site_url'] ?? 'http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR', '/'));
 define('SITE_NAME', 'UIS Driver Management System');
 
 // ============================================================
