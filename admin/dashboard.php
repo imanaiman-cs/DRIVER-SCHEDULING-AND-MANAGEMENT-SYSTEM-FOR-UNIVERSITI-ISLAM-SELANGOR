@@ -41,8 +41,8 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-            <h4 class="fw-bold mb-1">Welcome, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
-            <div class="text-muted"><?= dh(roleLabel($_SESSION['role'])) ?> &middot; <?= date('l, d F Y') ?></div>
+            <h4 class="fw-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <div><?= dashChips([['user-shield', roleLabel($_SESSION['role'])], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-light btn-sm" href="vehicle_requests.php?tab=approved"><i class="fas fa-user-check me-1"></i>Assign drivers (<?= count($needDriver) ?>)</a>
@@ -66,9 +66,9 @@ adminPageStart('Dashboard');
         <div class="col-lg-7">
             <div class="dash-card">
                 <h6><span><i class="fas fa-bolt text-warning me-1"></i>Needs your action</span></h6>
-                <?php if (!$needDriver && !$waitingHead && !$stalePending): ?><div class="text-muted small py-3 text-center"><i class="fas fa-circle-check text-success me-1"></i>Nothing is waiting. Well done.</div><?php endif; ?>
+                <?php if (!$needDriver && !$waitingHead && !$stalePending): ?><?= dashEmpty('Nothing is waiting. Well done.', 'circle-check') ?><?php endif; ?>
                 <?php foreach ([['Assign a driver', $needDriver, 'vehicle_requests.php?tab=approved', 'success'], ['Waiting for the Head of Admin', $waitingHead, $queueLink, 'info'], ['Pending over 24 hours (send a reminder)', $stalePending, 'reminders.php', 'warning']] as [$title, $list, $href, $tone]): if (!$list) { continue; } ?>
-                    <div class="small fw-semibold text-<?= $tone === 'warning' ? 'warning-emphasis' : $tone ?> mt-2"><?= dh($title) ?></div>
+                    <div class="dash-group <?= $tone === 'warning' ? 'warn' : ($tone === 'info' ? 'info' : '') ?>"><?= dh($title) ?></div>
                     <?php foreach ($list as $r): ?>
                         <a class="dash-row text-decoration-none text-dark" href="<?= dh($href) ?>">
                             <span><strong>#<?= (int)$r['request_id'] ?></strong> <?= dh($r['destination']) ?> <span class="text-muted">&middot; <?= dh($r['staff_name']) ?></span></span>
@@ -81,7 +81,7 @@ adminPageStart('Dashboard');
         <div class="col-lg-5">
             <div class="dash-card">
                 <h6><span><i class="fas fa-triangle-exclamation text-danger me-1"></i>Alerts</span></h6>
-                <?php if (!$alerts): ?><div class="text-muted small py-3 text-center">No alerts.</div><?php endif; ?>
+                <?php if (!$alerts): ?><?= dashEmpty('All clear. No alerts.', 'shield-heart') ?><?php endif; ?>
                 <?php foreach ($alerts as $a): ?>
                     <a class="dash-alert dash-alert-<?= dh($a['tone']) ?>" href="<?= dh($a['href']) ?>"><i class="fas fa-<?= dh($a['icon']) ?> mt-1"></i><span><?= dh($a['text']) ?></span></a>
                 <?php endforeach; ?>
@@ -91,7 +91,7 @@ adminPageStart('Dashboard');
 
     <div class="row g-3 mb-3">
         <div class="col-lg-4"><div class="dash-card"><h6>Requests by status <small class="text-muted fw-normal">last 6 months</small></h6>
-            <?= $doData ? dashChart('chStatus', 'doughnut', $doLabels, [['label' => 'Requests', 'data' => $doData, 'colors' => $doColours]]) : '<div class="text-muted small py-4 text-center">No requests yet.</div>' ?></div></div>
+            <?= $doData ? dashChart('chStatus', 'doughnut', $doLabels, [['label' => 'Requests', 'data' => $doData, 'colors' => $doColours]], ['centre' => [array_sum($doData), 'requests']]) : dashEmpty('No requests yet.', 'inbox') ?></div></div>
         <div class="col-lg-8"><div class="dash-card"><h6>Requests per month</h6>
             <?= dashChart('chMonthly', 'line', array_keys($monthly), [['label' => 'Requests', 'data' => array_values($monthly), 'color' => '#198754']]) ?></div></div>
     </div>
@@ -100,17 +100,17 @@ adminPageStart('Dashboard');
         <div class="col-lg-6"><div class="dash-card"><h6>Driver workload <small class="text-muted fw-normal">this month</small></h6>
             <?= $workload ? dashChart('chDrivers', 'bar', array_column($workload, 'name'), [
                 ['label' => 'Tasks in working hours', 'data' => array_map(fn($w) => $w['tasks'] - $w['outside'], $workload), 'color' => '#198754'],
-                ['label' => 'Outside working hours', 'data' => array_column($workload, 'outside'), 'color' => '#fd7e14']], ['stacked' => true, 'horizontal' => true, 'height' => 320]) : '<div class="text-muted small py-4 text-center">No drivers.</div>' ?>
+                ['label' => 'Outside working hours', 'data' => array_column($workload, 'outside'), 'color' => '#fd7e14']], ['stacked' => true, 'horizontal' => true, 'height' => 320]) : dashEmpty('No active drivers.', 'user-slash') ?>
             <div class="small text-muted mt-2">The same counts the driver recommendation uses (welfare days count as tasks).</div></div></div>
-        <div class="col-lg-6"><div class="dash-card"><h6>Vehicle booked hours <small class="text-muted fw-normal">last 30 days</small></h6>
-            <?= $util ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#0d6efd']], ['horizontal' => true, 'height' => 320]) : '<div class="text-muted small py-4 text-center">No vehicles.</div>' ?></div></div>
+        <div class="col-lg-6"><div class="dash-card"><h6>Vehicle booked hours <small class="text-muted fw-normal">this month, upcoming included</small></h6>
+            <?= array_sum(array_column($util, 'hours')) > 0 ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#0d6efd']], ['horizontal' => true, 'height' => 320]) : dashEmpty('No vehicle is booked this month yet.', 'car-side') ?></div></div>
     </div>
 
     <div class="row g-3">
         <div class="col-lg-8">
             <div class="dash-card">
                 <h6><span><i class="fas fa-timeline text-success me-1"></i>Today &middot; <?= date('D, d M Y') ?></span><a class="small fw-normal" href="calendar.php">Open calendar</a></h6>
-                <?php if (!$today): ?><div class="text-muted small py-3 text-center">No trips or internal tasks today.</div><?php endif; ?>
+                <?php if (!$today): ?><?= dashEmpty('No trips or internal tasks today.', 'sun') ?><?php endif; ?>
                 <?php foreach ($today as $t): ?>
                     <div class="dash-row">
                         <span><span class="dash-time"><?= date('H:i', strtotime($t['start'])) ?>-<?= date('H:i', strtotime($t['end'])) ?></span>
@@ -126,7 +126,7 @@ adminPageStart('Dashboard');
                 <h6>Fleet now</h6>
                 <?php $totalV = max(1, array_sum($fleet)); foreach (['available', 'in_use', 'maintenance', 'inactive'] as $st): ?>
                     <div class="d-flex justify-content-between small mt-2"><span><span class="badge <?= vehicleStatusBadgeClass($st) ?>"><?= dh(vehicleStatusLabel($st)) ?></span></span><strong><?= (int)$fleet[$st] ?></strong></div>
-                    <div class="dash-bar"><span style="width:<?= round($fleet[$st] / $totalV * 100) ?>%"></span></div>
+                    <div class="dash-bar"><span style="width:<?= round($fleet[$st] / $totalV * 100) ?>%;--bar:<?= ['available' => '#15803d', 'in_use' => '#1d4ed8', 'maintenance' => '#c69214', 'inactive' => '#64748b'][$st] ?>"></span></div>
                 <?php endforeach; ?>
             </div>
         </div>

@@ -68,11 +68,11 @@ function dashStatusCounts(mysqli $conn, int $months = 6): array
     return $out;
 }
 
-/** Hours each active vehicle was booked (locked) in the last $days days, busiest first. */
-function dashVehicleUtilisation(mysqli $conn, int $days = 30): array
+/** Hours each active vehicle is booked (locked) this month, upcoming bookings included, busiest first. */
+function dashVehicleUtilisation(mysqli $conn): array
 {
-    $to = date('Y-m-d H:i:s');
-    $from = date('Y-m-d H:i:s', strtotime("-$days days"));
+    $from = date('Y-m-01 00:00:00');
+    $to = date('Y-m-01 00:00:00', strtotime('first day of next month'));
     return dashRows(
         $conn,
         "SELECT v.plate_number, v.vehicle_type,

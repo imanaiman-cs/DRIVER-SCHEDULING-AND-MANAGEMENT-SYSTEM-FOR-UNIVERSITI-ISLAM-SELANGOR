@@ -30,12 +30,12 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
             <div class="dash-card">
                 <h6><span><i class="fas fa-route text-success me-1"></i>My next trip</span></h6>
                 <?php if (!$next): ?>
-                    <div class="text-muted small py-3 text-center">No upcoming trip.<br><a class="btn btn-success btn-sm mt-2" href="<?= $base ?>request_vehicle.php">Request a vehicle</a></div>
+                    <?= dashEmpty('No upcoming trip.', 'route') ?><div class="text-center"><a class="btn btn-success btn-sm" href="<?= $base ?>request_vehicle.php">Request a vehicle</a></div>
                 <?php else: ?>
                     <div class="fs-5 fw-bold"><?= dh($next['destination']) ?></div>
                     <div class="text-muted small mb-1"><?= requestPeriodText($next) ?> &middot; <?= (int)$next['passenger_count'] ?> pax</div>
                     <?= dashStepper($next['status']) ?>
-                    <div class="small mt-3 p-2 rounded bg-light">
+                    <div class="small mt-3 dash-next">
                         <?php if ($next['status'] === 'processed'):
                             $a = dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]); ?>
                             <i class="fas fa-user-tie me-1 text-success"></i>Driver: <strong><?= dh(implode(', ', array_column($a, 'name')) ?: '-') ?></strong>
@@ -51,7 +51,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
         <div class="col-lg-7">
             <div class="dash-card">
                 <h6><span><i class="fas fa-list-check text-success me-1"></i>My active requests</span><a class="small fw-normal" href="<?= $base ?>my_requests.php">See all</a></h6>
-                <?php if (!$active): ?><div class="text-muted small py-3 text-center">Nothing in progress.</div><?php endif; ?>
+                <?php if (!$active): ?><?= dashEmpty('Nothing in progress.', 'list-check') ?><?php endif; ?>
                 <?php foreach ($active as $r): ?>
                     <a class="d-block text-decoration-none text-dark py-2 border-top" href="<?= $base ?>my_requests.php?open=<?= (int)$r['request_id'] ?>">
                         <div class="d-flex flex-wrap justify-content-between gap-2">
@@ -66,7 +66,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
     </div>
     <div class="dash-card mb-3">
         <h6><span><i class="fas fa-clock-rotate-left text-success me-1"></i>Recent activity</span></h6>
-        <?php if (!$activity): ?><div class="text-muted small py-2 text-center">No activity yet.</div><?php endif; ?>
+        <?php if (!$activity): ?><?= dashEmpty('No activity yet.', 'clock-rotate-left') ?><?php endif; ?>
         <?php foreach ($activity as $a): ?>
             <div class="dash-row">
                 <span><strong><?= dh(historyActionLabel($a['action'])) ?></strong> &middot; #<?= (int)$a['request_id'] ?> <?= dh($a['destination']) ?></span>

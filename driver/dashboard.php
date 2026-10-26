@@ -38,8 +38,8 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-            <h4 class="fw-bold mb-1">Welcome, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
-            <div class="text-muted">Driver &middot; <?= date('l, d F Y') ?></div>
+            <h4 class="fw-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <div><?= dashChips([['id-badge', 'Driver'], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <div class="d-flex gap-2">
             <a class="btn btn-light" href="schedules.php"><i class="fas fa-route me-1"></i>All my tasks</a>
@@ -56,7 +56,7 @@ adminPageStart('Dashboard');
         <div class="col-lg-7">
             <div class="dash-card">
                 <h6><span><i class="fas fa-sun text-warning me-1"></i>Today</span></h6>
-                <?php if (!$todayTasks): ?><div class="text-muted small py-3 text-center">No task today.</div><?php endif; ?>
+                <?php if (!$todayTasks): ?><?= dashEmpty('No task today. Enjoy your day.', 'sun') ?><?php endif; ?>
                 <?php foreach ($todayTasks as $t): ?>
                     <div class="dash-row">
                         <span><span class="dash-time"><?= date('H:i', strtotime($t['start'])) ?>-<?= date('H:i', strtotime($t['end'])) ?></span>
@@ -69,7 +69,7 @@ adminPageStart('Dashboard');
         <div class="col-lg-5">
             <div class="dash-card">
                 <h6><span><i class="fas fa-calendar-week text-success me-1"></i>Coming up</span></h6>
-                <?php if (!$laterTasks): ?><div class="text-muted small py-3 text-center">Nothing in the next 7 days.</div><?php endif; ?>
+                <?php if (!$laterTasks): ?><?= dashEmpty('Nothing in the next 7 days.', 'calendar-check') ?><?php endif; ?>
                 <?php foreach ($laterTasks as $t): ?>
                     <div class="dash-row">
                         <span><strong><?= date('D, d M', strtotime($t['start'])) ?></strong> <?= date('H:i', strtotime($t['start'])) ?> &middot; <?= dh($t['title']) ?></span>

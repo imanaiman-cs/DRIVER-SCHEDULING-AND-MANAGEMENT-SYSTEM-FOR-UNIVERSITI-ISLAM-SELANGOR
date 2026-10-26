@@ -38,6 +38,27 @@ function dashStepper(string $status): string
     return $h . '</ol>';
 }
 
+/** "Good morning" / "Good afternoon" / "Good evening" (Malaysia time). */
+function dashGreeting(): string
+{
+    $h = (int)date('G');
+    return $h < 12 ? 'Good morning' : ($h < 18 ? 'Good afternoon' : 'Good evening');
+}
+
+/** The small rounded labels in the hero banner: [[icon, text], ...] */
+function dashChips(array $chips): string
+{
+    $h = '';
+    foreach ($chips as [$icon, $text]) { $h .= '<span class="dash-chip"><i class="fas fa-' . dh($icon) . '"></i>' . dh($text) . '</span>'; }
+    return $h;
+}
+
+/** A friendly empty state. */
+function dashEmpty(string $text, string $icon = 'mug-hot'): string
+{
+    return '<div class="dash-empty"><i class="fas fa-' . dh($icon) . '"></i>' . dh($text) . '</div>';
+}
+
 /** Waiting time as a short text: "3 h", "2 days". */
 function dashWaiting($hours): string
 {
@@ -52,7 +73,8 @@ function dashWaiting($hours): string
 function dashChart(string $id, string $type, array $labels, array $datasets, array $opts = []): string
 {
     $cfg = ['type' => $type, 'labels' => array_values($labels), 'datasets' => $datasets, 'opts' => $opts];
-    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas></div>';
+    $centre = isset($opts['centre']) ? '<div class="dash-chart-centre"><div><b>' . dh($opts['centre'][0]) . '</b><span>' . dh($opts['centre'][1]) . '</span></div></div>' : '';
+    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
     $h .= '<table class="table table-sm small mb-0 dash-chart-fallback d-none"><tbody>';
     foreach ($labels as $i => $l) {
         $h .= '<tr><td>' . dh($l) . '</td>';
@@ -80,7 +102,7 @@ function dashChartScript(): void
         }
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
-        var stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
+        var narrow = window.innerWidth < 576, stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
         var datasets = c.datasets.map(function (d) {
             var color = d.color || '#198754';
             var set = { label: d.label, data: d.data, borderWidth: round ? 2 : (c.type === 'line' ? 3 : 0), borderRadius: c.type === 'bar' ? 4 : 0 };
@@ -90,11 +112,14 @@ function dashChartScript(): void
             return set;
         });
         var options = { responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
-            plugins: { legend: { display: round || datasets.length > 1, position: round ? 'right' : 'bottom', labels: { boxWidth: 12, usePointStyle: true } } } };
+            plugins: { legend: { display: round || datasets.length > 1, position: round && !narrow ? 'right' : 'bottom', labels: { boxWidth: 12, usePointStyle: true } } } };
         if (round) { options.cutout = '62%'; }
         else {
             options.indexAxis = horizontal ? 'y' : 'x';
             options.scales = { x: { stacked: stacked, grid: { display: horizontal } }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
+            if (horizontal && narrow) {        // long names would be cut off on a phone: shorten them
+                options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 15 ? l.slice(0, 14) + '…' : l; };
+            }
         }
         new Chart(el, { type: c.type, data: { labels: c.labels, datasets: datasets }, options: options });
     });

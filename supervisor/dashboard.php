@@ -22,8 +22,8 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-            <h4 class="fw-bold mb-1">Welcome, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
-            <div class="text-muted">Head of Department &middot; <?= dh((string)($dept ?? '')) ?> &middot; <?= date('l, d F Y') ?></div>
+            <h4 class="fw-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <div><?= dashChips([['user-tie', 'Head of Department'], ['building-columns', (string)($dept ?? '')], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <div class="d-flex gap-2">
             <a class="btn btn-light" href="approvals.php"><i class="fas fa-stamp me-1"></i>Vehicle approvals (<?= $total ?>)</a>
@@ -37,7 +37,7 @@ adminPageStart('Dashboard');
     </div>
     <div class="dash-card mb-4">
         <h6><span><i class="fas fa-stamp text-success me-1"></i>To approve</span><a class="small fw-normal" href="approvals.php">Open approvals</a></h6>
-        <?php if (!$pending): ?><div class="text-muted small py-3 text-center"><i class="fas fa-circle-check text-success me-1"></i>No request is waiting for you.</div><?php endif; ?>
+        <?php if (!$pending): ?><?= dashEmpty('No request is waiting for you.', 'circle-check') ?><?php endif; ?>
         <?php foreach ($pending as $r): ?>
             <a class="dash-row text-decoration-none text-dark" href="approvals.php">
                 <span><strong>#<?= (int)$r['request_id'] ?></strong> <?= dh($r['destination']) ?> <span class="text-muted">&middot; <?= dh($r['staff_name']) ?></span></span>
