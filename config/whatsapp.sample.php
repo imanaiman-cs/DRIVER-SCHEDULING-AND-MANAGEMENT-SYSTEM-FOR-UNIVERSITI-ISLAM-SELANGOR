@@ -1,30 +1,27 @@
 <?php
 // ============================================================
 // WhatsApp (OpenWA) settings - optional, drivers only
+// OpenWA: https://github.com/rmyndharis/OpenWA   (setup steps: docs/OPENWA_SETUP.md)
 //
 // 1. Copy this file to config/whatsapp.php   (that file is NOT uploaded to
 //    GitHub, so the API key stays on your computer)
-// 2. Run your OpenWA server (open-wa EASY API) and scan the QR code with the
-//    phone of the Vehicle Section
-// 3. Fill in the values below and set 'enabled' to true
+// 2. Fill in the values below and set 'enabled' to true
 //
-// NOTE: OpenWA drives WhatsApp Web, which is not an official WhatsApp API.
-// WhatsApp may block the sending number. Use a dedicated number, and keep
-// e-mail and in-system notifications as the main channels.
+// NOTE: OpenWA is an unofficial gateway. WhatsApp may restrict the sending number.
+// Use a dedicated number; e-mail and in-system notifications stay the main channels.
 // ============================================================
 return [
     // false = nothing is sent; the attempt is only written to whatsapp_log
     'enabled'      => false,
 
-    // Address of the OpenWA server (no trailing slash)
-    'base_url'     => 'http://localhost:8002',
+    // Address of the OpenWA server (no trailing slash, no /api)
+    'base_url'     => 'http://localhost:2785',
 
-    // Sent in the "api_key" header (leave '' if the server has no key)
+    // OpenWA API key sent in the "X-API-Key" header (use an OPERATOR key limited to the session below)
     'api_key'      => '',
 
-    // Path of the send-text call and how the body is built.
-    //   open-wa EASY API: POST /sendText  {"args": {"to": "6012...@c.us", "content": "..."}}
-    'send_path'    => '/sendText',
+    // The OpenWA session that is connected to the sending phone (its id, from the dashboard)
+    'session_id'   => '',
 
     // Country code used when a number starts with 0 (Malaysia = 60)
     'country_code' => '60',

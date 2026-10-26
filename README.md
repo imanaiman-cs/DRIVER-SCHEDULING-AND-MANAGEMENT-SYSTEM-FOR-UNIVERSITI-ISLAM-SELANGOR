@@ -44,7 +44,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Reminder** — manual only (Assistant → HoD); there is no automatic reminder.
 - **Vehicles** — statuses Available / In Use (computed) / Under Maintenance / Inactive. Maintenance asks for the workshop and the expected return date. Vehicles and drivers are deactivated, never deleted.
 - **Notifications** — always saved in the system **and** sent by e-mail; a failed e-mail is written to `email_log` and the in-system notification is kept.
-- **WhatsApp (optional)** — drivers are also told on WhatsApp through an OpenWA server (open-wa EASY API). Copy `config/whatsapp.sample.php` to `config/whatsapp.php`, fill in the server address and API key, set `enabled` to true. Attempts are written to `whatsapp_log`; a failure never stops the in-system notification or the e-mail. OpenWA is not an official WhatsApp API, so the sending number may be blocked: use a dedicated number.
+- **WhatsApp (optional)** — drivers are also told on WhatsApp through an OpenWA server (setup: `docs/OPENWA_SETUP.md`). Copy `config/whatsapp.sample.php` to `config/whatsapp.php`, fill in the server address, API key and session id, set `enabled` to true. Attempts are written to `whatsapp_log`; a failure never stops the in-system notification or the e-mail. OpenWA is not an official WhatsApp API, so the sending number may be blocked: use a dedicated number.
 - **Reports** — four monthly reports (PDF, Excel, print).
 - **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
