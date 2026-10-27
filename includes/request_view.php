@@ -81,6 +81,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <div class="col-md-6">
             <div class="text-muted">Requested vehicle</div>
             <div><?= $req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;' ?></div>
+            <?php if (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
         </div>
         <div class="col-md-6">
             <div class="text-muted">Head of Department</div>
@@ -125,6 +126,11 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
                 <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+        <?php elseif (isRequestWithoutDriver($req)): ?>
+        <div class="col-12">
+            <div class="text-muted">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
+            <div>Without driver: no driver is assigned. Only the use of <?= reqH($req['plate_number'] ?: 'the vehicle') ?> is approved.</div>
         </div>
         <?php endif; ?>
         <?php endif; ?>

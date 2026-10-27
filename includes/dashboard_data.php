@@ -114,7 +114,7 @@ function dashFleet(mysqli $conn): array
 }
 
 /** Requests that need the Vehicle Section: by status, oldest first, with hours waiting. */
-function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanHours = 0): array
+function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanHours = 0, ?int $needDriver = null): array
 {
     $cutoff = date('Y-m-d H:i:s', time() - $olderThanHours * 3600);
     return dashRows(
@@ -122,7 +122,7 @@ function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanH
         "SELECT vr.request_id, vr.destination, vr.trip_date, vr.start_time, vr.return_date, vr.end_time, vr.status, u.full_name AS staff_name,
                 TIMESTAMPDIFF(HOUR, COALESCE(vr.reviewed_at, vr.created_at), NOW()) AS waiting_h
            FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-          WHERE vr.status = ? AND COALESCE(vr.reviewed_at, vr.created_at) <= ?
+          WHERE vr.status = ? AND COALESCE(vr.reviewed_at, vr.created_at) <= ?" . ($needDriver !== null ? ' AND vr.need_driver = ' . (int)$needDriver : '') . "
           ORDER BY COALESCE(vr.reviewed_at, vr.created_at) LIMIT $limit",
         'ss', [$status, $cutoff]
     );

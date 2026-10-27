@@ -218,4 +218,10 @@ return [
         $conn->query("UPDATE vehicle_requests SET status = 'approved' WHERE request_id = $rid");
         assert_true(!sendApprovalReminder($conn, $rid, true)['ok'], 'no reminder for a request that is not Pending');
     },
+    'UC010 A3 without driver: the flag is read from the request row' => function () {
+        assert_true(isRequestWithoutDriver(['need_driver' => 0]));
+        assert_true(isRequestWithoutDriver(['need_driver' => '0']));
+        assert_true(!isRequestWithoutDriver(['need_driver' => 1]));
+        assert_true(!isRequestWithoutDriver([]), 'a row without the column counts as With driver');
+    },
 ];

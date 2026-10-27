@@ -20,6 +20,11 @@ $stmt->bind_param('i', $rid);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
 $stmt->close();
+if ($req && $req['status'] === 'approved' && isRequestWithoutDriver($req)) {
+    setFlash('warning', 'That request is without driver. Send it to the Head of Admin instead.');
+    header('Location: vehicle_requests.php');
+    exit();
+}
 if (!$req || $req['status'] !== 'approved') {
     setFlash('warning', 'That request is not waiting for a driver.');
     header('Location: vehicle_requests.php');

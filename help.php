@@ -19,7 +19,7 @@ $statuses = [
     'lapsed' => 'Not approved within two days. The vehicle is released.',
 ];
 $steps = [
-    'staff' => ['Open <strong>Request a Vehicle</strong>. Enter departure and return (date and time) and the number of passengers.',
+    'staff' => ['Open <strong>Request a Vehicle</strong>. Enter departure and return (date and time), the number of passengers and whether you need a driver.',
                 'Choose one of the vehicles that are free in that period. Fill in the destination (name and full address), purpose, passenger names, phone number and waiting location. Attach PDF, JPG or PNG files (5 MB each) if you have them.',
                 'A trip less than 2 days away asks you to confirm. A trip less than 1 day away cannot be requested online: use the paper form BPTK/BPI/2025/PIN.5.',
                 'Follow the status in <strong>My Requests</strong>. You can cancel your own request before the trip starts (the reason is optional).'],

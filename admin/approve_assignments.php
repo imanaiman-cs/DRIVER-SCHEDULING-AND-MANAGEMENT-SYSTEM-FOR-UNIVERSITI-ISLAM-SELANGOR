@@ -6,6 +6,7 @@
 // Only the Head of Admin. EVERY assignment is approved here, also when the Head of Admin made it himself
 // (there is no automatic confirmation).
 //   Approve -> Confirmed: the driver is notified first, then the staff member (with driver and vehicle details)
+//   A request WITHOUT driver (UC019 A2) shows only the vehicle; approving it confirms the use of the vehicle
 //   Reject  -> a reason is required; the driver is removed from the tasks, the request goes back to Approved,
 //              the reason is recorded and the Administrative Assistant is notified
 // ============================================================
@@ -19,10 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string)($_POST['action'] ?? '');
     if ($act === 'approve') {
         $res = approveAssignment($conn, $rid);
-        setFlash($res['ok'] ? 'success' : 'danger', $res['ok'] ? "Request #$rid is Confirmed. The driver and the staff member have been told." : $res['message']);
+        setFlash($res['ok'] ? 'success' : 'danger', $res['ok'] ? "Request #$rid is Confirmed. The driver (if any) and the staff member have been told." : $res['message']);
     } elseif ($act === 'reject') {
         $res = rejectAssignment($conn, $rid, (string)($_POST['reason'] ?? ''));
-        setFlash($res['ok'] ? 'success' : 'danger', $res['ok'] ? "The assignment of request #$rid was rejected. The Administrative Assistant must assign again." : $res['message']);
+        setFlash($res['ok'] ? 'success' : 'danger', $res['ok'] ? "Request #$rid was rejected. The Administrative Assistant has been told." : $res['message']);
     }
     header('Location: approve_assignments.php');
     exit();
@@ -42,13 +43,13 @@ adminPageStart('Approve Assignments');
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
             <div class="fw-bold">Request #<?= $rid ?> &middot; <?= htmlspecialchars($r['destination']) ?></div>
-            <?= requestStatusBadge($r['status']) ?>
+            <span><?= isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '' ?><?= requestStatusBadge($r['status']) ?></span>
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
         <div class="row g-3 mt-1 border-top pt-3">
             <form method="post" class="col-md-5">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="approve">
-                <button class="btn btn-success" data-confirm="The driver is told first, then the staff member." data-confirm-title="Approve this assignment?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve (Confirm)</button>
+                <button class="btn btn-success" data-confirm="<?= isRequestWithoutDriver($r) ? 'The staff member is told that the vehicle may be used without a driver.' : 'The driver is told first, then the staff member.' ?>" data-confirm-title="Approve this assignment?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve (Confirm)</button>
             </form>
             <form method="post" class="col-md-7">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="reject">

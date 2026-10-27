@@ -42,12 +42,13 @@ if (!$me) {
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => ''];
+      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '', 'need_driver' => '1'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
     $pax = (int)$f['passengers'];
     $vehicle_id = (int)$f['vehicle_id'];
+    $needDriver = $f['need_driver'] === '0' ? 0 : 1;      // UC010 A3: Without Driver
 
     if (!$approver_id) {
         $errors[] = 'No approver is set for your account. Please contact the Vehicle Section.';
@@ -116,13 +117,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
             $stmt = $conn->prepare(
                 "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
             $rt_time = timeWithSeconds($f['return_time']);
-            $stmt->bind_param('iisssssssisssssi', $staff_id, $vehicle_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
-                $f['destination'], $f['destination_address'], $f['purpose'], $pax, $f['passenger_names'], $full_name, $f['phone'],
+            $stmt->bind_param('iisssssssiisssssi', $staff_id, $vehicle_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
+                $f['destination'], $f['destination_address'], $f['purpose'], $pax, $needDriver, $f['passenger_names'], $full_name, $f['phone'],
                 $f['waiting_place'], $wait_addr, $approver_id);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
@@ -184,6 +185,10 @@ adminPageStart('Request a Vehicle');
                     <input type="time" class="form-control" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
                 <div class="col-6 col-md-3"><label class="form-label small" for="passengers">Number of passengers *</label>
                     <input type="number" class="form-control" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
+                <div class="col-12 col-md-6"><label class="form-label small d-block">Do you need a driver? *</label>
+                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd1" value="1" <?= $f['need_driver'] !== '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd1">With driver</label></div>
+                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd0" value="0" <?= $f['need_driver'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd0">Without driver</label></div>
+                    <div class="form-text">Without a driver, no driver is assigned. The approval steps and the vehicle booking stay the same.</div></div>
             </div>
             <div id="timingNotice" class="mt-3" style="display:none;"></div>
             <div id="confirmRow" class="form-check mt-2" style="display:none;">

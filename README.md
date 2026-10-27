@@ -37,7 +37,8 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 
 - **Dates and times** — departure and return are both date + time. Less than 1 day ahead is rejected (use the paper form BPTK/BPI/2025/PIN.5); less than 2 days ahead shows a warning.
 - **Vehicle lock per time period** — a vehicle is locked from departure to return. Overlap rule: `start < other_end AND end > other_start`. The lock is taken atomically (transaction + `SELECT … FOR UPDATE`).
-- **Request form** — destination, purpose, passengers, optional supporting document (PDF/JPG/PNG, max 5 MB), one vehicle per request.
+- **Request form** — destination, purpose, passengers, optional supporting document (PDF/JPG/PNG, max 5 MB), one vehicle per request, and **With driver / Without driver** (UC010 A3).
+- **Without driver (UC010 A3, UC019 A2)** — same approval by the Head of Department and the same vehicle lock, but no driver step and no driver tasks. After the Head of Department approves, the Assistant clicks *Send to Head of Admin* (status Driver Assigned); the Head of Admin approves the use of the vehicle (Confirmed) or rejects it with a reason (back to Approved). The hourly job completes it after the return time or cancels it if nobody confirmed it before the trip.
 - **Tasks** — each request creates an outbound task (at departure) and a return task (at return), each lasting `TASK_DURATION_HOURS` (default 2 h). Drivers are scheduled on tasks, not for the whole trip.
 - **Recommender** — only drivers holding the licence class for the vehicle (D car/van, GDL lorry, PSV bus), without an overlapping task or internal task; ranked by tasks this month and tasks outside working hours (weights `W_TASKS` 0.6 / `W_AFTER_HOURS` 0.4). Drivers on welfare duty are flagged. No auto-assign and no override: the Assistant picks, the Head of Admin always approves.
 - **Cancel** — staff may give a reason; HoD and administrators must. Never after the trip has started.

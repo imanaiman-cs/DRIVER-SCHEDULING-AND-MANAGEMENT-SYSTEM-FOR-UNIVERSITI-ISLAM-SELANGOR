@@ -645,12 +645,14 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
 
     switch ($to) {
         case 'approved':
-            if ($from === 'assigned') {                      // UC020: Head of Admin rejected the assignment
+            if ($from === 'assigned' && isRequestWithoutDriver($req)) {      // UC019 A2: the use of the vehicle was rejected
+                notifyUsers($conn, assistantUserIds($conn), "The use of the vehicle for $what (without driver) was rejected by the Head of Admin.$why", 'admin/vehicle_requests.php');
+            } elseif ($from === 'assigned') {                // UC020: Head of Admin rejected the assignment
                 notifyUsers($conn, assistantUserIds($conn), "The driver assignment for $what was rejected by the Head of Admin. Please assign again.$why", 'admin/vehicle_requests.php');
                 notifyUsers($conn, driverUserIdsFromDriverIds($conn, $oldDrivers), "You are no longer assigned to $what.", 'driver/schedules.php');
             } else {                                         // UC013
                 notifyUsers($conn, [$staff], "Your $what was approved by your Head of Department.", 'staff/my_requests.php');
-                notifyUsers($conn, adminUserIds($conn), ucfirst($what) . ' is approved and needs a driver.', 'admin/vehicle_requests.php');
+                notifyUsers($conn, adminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is approved. It is without driver: send it to the Head of Admin.' : ' is approved and needs a driver.'), 'admin/vehicle_requests.php');
             }
             break;
         case 'rejected':                                     // UC014
@@ -669,12 +671,12 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             break;
         case 'assigned':
             if ($from === 'processed') { break; }            // a replacement tells people itself (replaceTaskDriver)
-            notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . ' has a driver assigned and needs your approval.', 'admin/approve_assignments.php');
+            notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is without driver and needs your approval for the use of the vehicle.' : ' has a driver assigned and needs your approval.'), 'admin/approve_assignments.php');
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
             $ids = requestScheduleIds($conn, $request_id);
             notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
-            notifyUsers($conn, [$staff], "Your $what is confirmed. " . taskSummaryText($conn, $request_id) . '.', 'staff/my_requests.php');
+            notifyUsers($conn, [$staff], "Your $what is confirmed. " . (isRequestWithoutDriver($req) ? 'You may use the vehicle without a driver.' : taskSummaryText($conn, $request_id) . '.'), 'staff/my_requests.php');
             break;
         case 'completed':
             break;
@@ -739,6 +741,32 @@ function cancelRulesFor(array $req): array
 // Assignment (UC017): outbound task + return task
 // ------------------------------------------------------------
 
+/** UC010 A3: was this request made "Without driver"? (accepts a vehicle_requests row) */
+function isRequestWithoutDriver(array $req): bool
+{
+    return isset($req['need_driver']) && (int)$req['need_driver'] === 0;
+}
+
+/**
+ * UC010 A3 / UC019 A2: an Approved request WITHOUT driver has no driver step. The Administrative Assistant sends it to
+ * the Head of Admin, who approves the use of the vehicle. The request becomes "Driver Assigned" (no tasks are created).
+ * @return array{ok:bool, message:string}
+ */
+function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): array
+{
+    $stmt = $conn->prepare('SELECT * FROM vehicle_requests WHERE request_id = ?');
+    $stmt->bind_param('i', $request_id);
+    $stmt->execute();
+    $req = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$req || $req['status'] !== 'approved') { return ['ok' => false, 'message' => 'This request is not waiting for the Vehicle Section any more.']; }
+    if (!isRequestWithoutDriver($req)) { return ['ok' => false, 'message' => 'This request needs a driver: assign a driver.']; }
+    if (empty($req['vehicle_id'])) { return ['ok' => false, 'message' => 'The request has no vehicle.']; }
+    if (strtotime(requestDepartDT($req)) <= time()) { return ['ok' => false, 'message' => 'The trip time has already passed.']; }
+    $res = changeRequestStatus($conn, $request_id, 'assigned');
+    return $res['ok'] ? ['ok' => true, 'message' => 'Sent to the Head of Admin to approve the use of the vehicle.'] : $res;
+}
+
 /**
  * The Administrative Assistant (or Head of Admin) assigns the drivers of an Approved request.
  *   $out_driver  driver of the outbound task
@@ -759,6 +787,7 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         $req = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         if (!$req || $req['status'] !== 'approved') { $conn->rollback(); return $fail('This request is not waiting for a driver any more.'); }
+        if (isRequestWithoutDriver($req)) { $conn->rollback(); return $fail('This request is without driver: send it to the Head of Admin instead of assigning a driver.'); }
         if (empty($req['vehicle_id'])) { $conn->rollback(); return $fail('The request has no vehicle.'); }
         if (strtotime(requestDepartDT($req)) <= time()) { $conn->rollback(); return $fail('The trip time has already passed.'); }
 
@@ -847,6 +876,12 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
 /** UC019: the Head of Admin approves the assignment -> Confirmed. */
 function approveAssignment(mysqli $conn, int $request_id): array
 {
+    $q = $conn->prepare('SELECT need_driver FROM vehicle_requests WHERE request_id = ?');
+    $q->bind_param('i', $request_id);
+    $q->execute();
+    $withoutDriver = ($row = $q->get_result()->fetch_assoc()) && isRequestWithoutDriver($row);
+    $q->close();
+    if ($withoutDriver) { return changeRequestStatus($conn, $request_id, 'processed'); }       // UC019 A2: only the vehicle is approved
     $stmt = $conn->prepare("SELECT s.driver_id FROM schedules s WHERE s.request_id = ? AND s.status <> 'cancelled' AND s.driver_id IS NULL");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();

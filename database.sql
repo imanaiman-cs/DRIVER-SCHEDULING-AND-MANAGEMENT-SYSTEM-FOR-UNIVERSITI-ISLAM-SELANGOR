@@ -139,6 +139,7 @@ CREATE TABLE `vehicle_requests` (
   `destination` varchar(255) NOT NULL,
   `purpose` text NOT NULL,
   `passenger_count` int(11) NOT NULL DEFAULT 1,
+  `need_driver` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = with driver, 0 = without driver',
   `officer_name` varchar(255) DEFAULT NULL,
   `officer_phone` varchar(50) DEFAULT NULL,
   `waiting_place` varchar(150) DEFAULT NULL,
@@ -555,4 +556,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver');

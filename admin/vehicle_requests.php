@@ -3,7 +3,7 @@
 // UIS Driver Scheduling and Management System
 // admin/vehicle_requests.php  -  Administrative Assistant / Head of Admin: the requests and what to do with them
 //
-//   Approved          -> "Assign driver" (UC017, with the recommendation UC018)
+//   Approved          -> "Assign driver" (UC017, with the recommendation UC018); WITHOUT driver -> "Send to Head of Admin" (UC010 A3)
 //   Driver Assigned   -> waits for the Head of Admin (admin/approve_assignments.php)
 //   Confirmed         -> "Replace driver" (UC021) per task that has not started
 //   Cancel (reason required) and Add comment are available on every active request.
@@ -13,8 +13,15 @@ require_once '../config/database.php';
 require_once '../includes/admin_page.php';
 requireAdmin();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_without_driver') {      // UC010 A3 / UC019 A2
+    $res = sendRequestWithoutDriverForApproval($conn, (int)($_POST['request_id'] ?? 0));
+    setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
+    header('Location: vehicle_requests.php?tab=' . ($res['ok'] ? 'assigned' : 'approved'));
+    exit();
+}
+
 $tab = (string)($_GET['tab'] ?? 'approved');
-$tabs = ['approved' => ['Needs a driver', "vr.status = 'approved'"], 'assigned' => ['Driver Assigned', "vr.status = 'assigned'"],
+$tabs = ['approved' => ['Approved', "vr.status = 'approved'"], 'assigned' => ['Driver Assigned', "vr.status = 'assigned'"],
          'processed' => ['Confirmed', "vr.status = 'processed'"], 'pending' => ['Pending', "vr.status = 'pending'"],
          'history' => ['History', "vr.status IN ('rejected','cancelled','lapsed','completed')"], 'all' => ['All', '1 = 1']];
 if (!isset($tabs[$tab])) { $tab = 'approved'; }
@@ -49,7 +56,11 @@ adminPageStart('Vehicle Requests');
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
+                    <?php if (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
+                    <?php if ($r['status'] === 'approved' && isRequestWithoutDriver($r)): ?>
+                        <form method="post" class="d-inline" onclick="event.stopPropagation();"><input type="hidden" name="action" value="send_without_driver"><input type="hidden" name="request_id" value="<?= $rid ?>">
+                            <button class="btn btn-sm btn-primary" data-confirm="The Head of Admin is asked to approve the use of the vehicle. No driver is assigned." data-confirm-title="Send to the Head of Admin?" data-confirm-button="Send" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send to Head of Admin</button></form>
+                    <?php elseif ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
                 </div>
             </div>
