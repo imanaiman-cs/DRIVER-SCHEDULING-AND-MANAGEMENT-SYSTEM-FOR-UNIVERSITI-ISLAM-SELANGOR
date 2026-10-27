@@ -19,11 +19,11 @@ $stmt->close();
 if (!$cur) { setFlash('danger', 'Driver not found.'); header('Location: drivers.php'); exit(); }
 
 $v = ['license_class' => normaliseLicenceList(explode(',', (string)$cur['license_class'])), 'license_number' => (string)$cur['license_number'],
-      'license_expiry' => (string)$cur['license_expiry'], 'address' => (string)$cur['address'], 'phone' => (string)$cur['phone']];
+      'license_expiry' => (string)$cur['license_expiry'], 'date_joined' => (string)$cur['date_joined'], 'address' => (string)$cur['address'], 'phone' => (string)$cur['phone']];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    [$v, $errors] = driverInput($_POST, true, true);
+    [$v, $errors] = driverInput($_POST, true, true, true);      // the Assistant / Head of Admin also edit the date joined (UC003 A1)
     $photo = $cur['photo']; $newPhoto = null;
     if (!$errors) {
         $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'drivers');
@@ -34,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $exp = $v['license_expiry'] === '' ? null : $v['license_expiry'];
         $addr = $v['address'] === '' ? null : $v['address'];
         $phone = $v['phone'] === '' ? null : $v['phone'];
-        $stmt = $conn->prepare('UPDATE drivers SET license_class = ?, phone = ?, address = ?, license_number = ?, license_expiry = ?, photo = ? WHERE driver_id = ?');
-        $stmt->bind_param('ssssssi', $v['license_class'], $phone, $addr, $num, $exp, $photo, $id);
+        $stmt = $conn->prepare('UPDATE drivers SET license_class = ?, phone = ?, address = ?, license_number = ?, license_expiry = ?, date_joined = ?, photo = ? WHERE driver_id = ?');
+        $stmt->bind_param('sssssssi', $v['license_class'], $phone, $addr, $num, $exp, $v['date_joined'], $photo, $id);
         $stmt->execute();
         $stmt->close();
         if ($newPhoto) { deleteUploadedImage($cur['photo']); }
@@ -60,7 +60,7 @@ adminPageStart('Edit Driver');
             <div class="col-12 col-md-4"><label class="form-label" for="r_mail">E-mail</label><input class="form-control" id="r_mail" value="<?= htmlspecialchars((string)$cur['email']) ?>" readonly></div>
             <div class="col-12 form-text mt-0">Name and e-mail come from the UIS staff system.</div>
         </div>
-        <?php driverFormFields($v, $errors, true, $cur['photo']); ?>
+        <?php driverFormFields($v, $errors, true, $cur['photo'], true); ?>
         <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline-secondary" href="view_driver.php?id=<?= $id ?>">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

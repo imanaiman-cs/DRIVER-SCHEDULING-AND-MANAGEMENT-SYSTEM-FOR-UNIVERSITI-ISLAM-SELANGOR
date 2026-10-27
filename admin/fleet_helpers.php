@@ -427,13 +427,14 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
 // ------------------------------------------------------------
 
 /** Cleans and checks licence classes, licence number / expiry, address (and phone when $withPhone). @return array{0:array,1:array} [values, errors] */
-function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false): array
+function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false, bool $requireJoined = false): array
 {
     $classes = $p['license_class'] ?? [];
     $v = [
         'license_class'  => normaliseLicenceList(is_array($classes) ? $classes : []),
         'license_number' => mb_substr(trim((string)($p['license_number'] ?? '')), 0, 50),
         'license_expiry' => trim((string)($p['license_expiry'] ?? '')),
+        'date_joined'    => trim((string)($p['date_joined'] ?? '')),
         'address'        => mb_substr(trim((string)($p['address'] ?? '')), 0, 500),
         'phone'          => mb_substr(trim((string)($p['phone'] ?? '')), 0, 20),
     ];
@@ -441,12 +442,16 @@ function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false):
     if ($v['license_class'] === '') { $e['license_class'] = 'Tick at least one licence class (D, GDL or PSV).'; }
     if ($v['license_expiry'] !== '' && !isValidDate($v['license_expiry'])) { $e['license_expiry'] = 'Enter a valid date.'; }
     elseif ($rejectPastExpiry && $v['license_expiry'] !== '' && $v['license_expiry'] < date('Y-m-d')) { $e['license_expiry'] = 'The licence expiry date has already passed.'; }   // UC003 exception 3.1
+    if ($requireJoined) {      // UC001 step 3 / UC003 A1: the experience in the driver recommendation is calculated from this date
+        if ($v['date_joined'] === '') { $e['date_joined'] = 'Enter the date the driver joined the Vehicle Section.'; }
+        elseif (!isValidDate($v['date_joined']) || $v['date_joined'] > date('Y-m-d')) { $e['date_joined'] = 'Enter a valid date that is not in the future.'; }
+    }
     if ($withPhone && $v['phone'] !== '' && !preg_match('/^[0-9+\-\s()]{6,20}$/', $v['phone'])) { $e['phone'] = 'Enter a valid phone number.'; }
     return [$v, $e];
 }
 
 /** Licence ticks + optional fields. */
-function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null): void
+function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null, bool $withJoined = false): void
 {
     $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
@@ -463,6 +468,10 @@ function driverFormFields(array $v, array $errors, bool $withPhone, ?string $pho
         <?php endif; ?>
         <div class="col-12 col-md-6"><label class="form-label" for="license_number">Licence number</label><input class="form-control" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label" for="license_expiry">Licence expiry date</label><input type="date" class="form-control" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
+        <?php if ($withJoined): ?>
+        <div class="col-12 col-md-6"><label class="form-label" for="date_joined">Date joined the Vehicle Section <span class="text-danger">*</span></label><input type="date" class="form-control" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $val('date_joined') ?>"><?= $err('date_joined') ?>
+            <div class="form-text">Used to calculate the experience in the driver recommendation.</div></div>
+        <?php endif; ?>
         <div class="col-12"><label class="form-label" for="address">Address</label><textarea class="form-control" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
         <div class="col-12"><label class="form-label" for="photo">Photo</label>
             <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>

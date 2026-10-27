@@ -80,10 +80,10 @@ adminPageStart('Assign Driver');
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">Outbound trip <span class="fw-normal text-muted small">
                 <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)$req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
-            <p class="small text-muted mb-2">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). You make the final choice.</p>
+            <p class="small text-muted mb-2">Recommendation: fewer tasks this month, fewer weekend tasks and more experience rank higher (weights <?= htmlspecialchars((string)round($rec['weights']['tasks'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['weekend'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['experience'], 2)) ?>). You make the final choice.</p>
             <div class="table-responsive">
             <table class="table table-sm align-middle">
-                <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th>Note</th></tr></thead>
+                <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th><th>Note</th></tr></thead>
                 <tbody>
                 <?php foreach ($rec['ranked'] as $d): ?>
                     <tr>
@@ -91,12 +91,13 @@ adminPageStart('Assign Driver');
                         <td><?= (int)$d['rank'] ?></td>
                         <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-muted small"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
                         <td class="text-center"><?= (int)$d['tasks'] ?></td>
-                        <td class="text-center"><?= (int)$d['outside'] ?></td>
+                        <td class="text-center"><?= (int)$d['weekend'] ?></td>
+                        <td class="text-center"><?= number_format((float)$d['experience'], 1) ?></td>
                         <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
                         <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '' ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-danger">No driver is available for this trip. See the list below for the reasons.<?= $vendorOutAllowed ? '' : ' You can cancel the request with a reason.' ?></td></tr><?php endif; ?>
+                <?php if (!$rec['ranked']): ?><tr><td colspan="8" class="text-danger">No driver is available for this trip. See the list below for the reasons.<?= $vendorOutAllowed ? '' : ' You can cancel the request with a reason.' ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
             </div>
@@ -162,10 +163,10 @@ adminPageStart('Assign Driver');
         var q = new URLSearchParams({ start: R.start, end: R.end, licence: sel.options[sel.selectedIndex].getAttribute('data-lic') });
         fetch(base + 'get_available_drivers.php?' + q, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
             if (!d.success || !d.drivers.length) { box.innerHTML = '<span class="text-danger">No driver is available for the return trip.</span>'; return; }
-            box.innerHTML = '<table class="table table-sm align-middle"><thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Outside hours</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
+            box.innerHTML = '<table class="table table-sm align-middle"><thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Weekend</th><th class="text-center">Experience</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
                 d.drivers.map(function (x) {
                     return '<tr><td><input class="form-check-input" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
-                           '</td><td class="text-center">' + x.outside + '</td><td class="text-center"><span class="badge bg-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
+                           '</td><td class="text-center">' + x.weekend + '</td><td class="text-center">' + Number(x.experience).toFixed(1) + '</td><td class="text-center"><span class="badge bg-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
                            (x.welfare ? '<span class="badge bg-warning text-dark">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '') + '</td></tr>';
                 }).join('') + '</tbody></table>';
         });

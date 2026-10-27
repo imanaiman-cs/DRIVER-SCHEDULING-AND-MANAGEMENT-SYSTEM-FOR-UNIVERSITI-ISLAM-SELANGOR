@@ -27,8 +27,8 @@ dep=sql("SELECT depart_at FROM vehicle_requests WHERE request_id=%d"%r1); ret=sq
 out_end=(datetime.datetime.strptime(dep,'%Y-%m-%d %H:%M:%S')+datetime.timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
 j=rec(ad,dep,out_end,'D'); ids=[d['driver_id'] for d in j['drivers']]
 ok('recommender: inactive driver 11 is not offered', 11 not in ids and any(x['driver_id']==11 for x in j['excluded']))
-ok('recommender: ranked, score descending, with task count and outside-hours count', len(ids)>=8 and all(j['drivers'][i]['score']>=j['drivers'][i+1]['score'] for i in range(len(ids)-1)) and all('tasks' in d and 'outside' in d and 'rank' in d for d in j['drivers']))
-ok('recommender: fewer tasks ranks higher (top has the minimum number of tasks among equal outside counts)', j['drivers'][0]['tasks']<=max(d['tasks'] for d in j['drivers']))
+ok('recommender: ranked, score descending, with task count, weekend task count and experience', len(ids)>=8 and all(j['drivers'][i]['score']>=j['drivers'][i+1]['score'] for i in range(len(ids)-1)) and all('tasks' in d and 'weekend' in d and 'experience' in d and 'rank' in d for d in j['drivers']))
+ok('recommender: fewer tasks ranks higher (top has the minimum number of tasks among equal weekend counts)', j['drivers'][0]['tasks']<=max(d['tasks'] for d in j['drivers']))
 j=rec(ad,dep,out_end,'PSV'); ids=[d['driver_id'] for d in j['drivers']]
 ok('licence filter: a bus needs PSV (only PSV drivers offered)', set(ids)<={1,2,4,6,7,9,12} and len(ids)>0 and 3 not in ids and 5 not in ids)
 j=rec(ad,dep,out_end,'GDL'); ids=[d['driver_id'] for d in j['drivers']]
@@ -44,8 +44,8 @@ j=rec(ad,dep,out_end,'D'); ok('a cancelled internal task does not block', 1 in [
 sql("DELETE FROM welfare_roster WHERE duty_date='%s'"%d0); sql("INSERT INTO welfare_roster (duty_date,driver_id) VALUES ('%s',3)"%d0)
 j=rec(ad,dep,out_end,'D'); d3=[d for d in j['drivers'] if d['driver_id']==3]
 ok('welfare duty on the trip date is FLAGGED (driver still listed)', d3 and d3[0]['welfare'] is True)
-ok('no experience factor in the response', all('experience' not in k for d in j['drivers'] for k in d))
-ok('weights come from settings (0.6 / 0.4)', j['weights']['tasks']==0.6 and j['weights']['outside']==0.4)
+ok('experience (years from the date joined) is in the response', all(isinstance(d['experience'], (int, float)) for d in j['drivers']))
+ok('weights come from settings (0.5 / 0.3 / 0.2)', j['weights']=={'tasks':0.5,'weekend':0.3,'experience':0.2})
 # trip clash removal
 # ---------- assign (UC017) ----------
 page=ad.get('admin/assign_driver.php',request_id=r1); ok('assign page shows the recommendation before assigning', page.status_code==200 and 'Recommended' in page.text and 'Tasks this month' in page.text)

@@ -3,7 +3,7 @@
 // UIS Driver Scheduling and Management System
 // admin/settings.php  –  the values behind the rules (weights, lapse time, ...)
 // They live in the `settings` table, so they can be changed without touching code.
-// The two scoring weights must add up to 1, so the score stays on a clear 0-100 scale.
+// The three scoring weights must add up to 1 (so the score stays on a 0-100 scale) and the tasks weight is the highest (UC018).
 // ============================================================
 $page_title   = 'System Settings';
 $current_page = 'settings.php';
@@ -13,7 +13,8 @@ requireAdmin();
 // key => [label, kind, min, max, help]
 $FIELDS = [
     'W_TASKS'              => ['Weight: tasks this month',         'float', 0, 1,   'Share of the driver score that depends on how many tasks (request trips + internal tasks + welfare duty days) the driver already has this month. Fewer tasks = better rank.'],
-    'W_AFTER_HOURS'        => ['Weight: outside working hours',    'float', 0, 1,   'Share that depends on tasks outside working hours (Saturday/Sunday, before the start or after the end of working hours). Must add up to 1 with the weight above.'],
+    'W_WEEKEND'            => ['Weight: weekend tasks',            'float', 0, 1,   'Share that depends on tasks on Saturday or Sunday this month. Fewer weekend tasks = better rank.'],
+    'W_EXPERIENCE'         => ['Weight: experience',               'float', 0, 1,   'Share that depends on the experience, calculated from the date the driver joined the Vehicle Section. More experience = better rank.'],
     'LAPSE_HOURS'          => ['Lapse after (hours)',              'int',   1, 720, 'A request still Pending after this many hours (48 = two days) becomes Lapsed and its vehicle is released.'],
     'WORK_START'           => ['Working hours start',              'time',  0, 0,   'A task starting before this time is outside working hours (08:00).'],
     'WORK_END'             => ['Working hours end',                'time',  0, 0,   'A task ending after this time is outside working hours (17:30).'],
@@ -40,8 +41,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $new[$k] = $raw;
     }
-    if (!isset($errors['W_TASKS'], $errors['W_AFTER_HOURS']) && abs((float)$new['W_TASKS'] + (float)$new['W_AFTER_HOURS'] - 1.0) > 0.0001) {
-        $errors['W_AFTER_HOURS'] = 'The two weights must add up to exactly 1.';
+    if (!isset($errors['W_TASKS'], $errors['W_WEEKEND'], $errors['W_EXPERIENCE'])) {
+        if (abs((float)$new['W_TASKS'] + (float)$new['W_WEEKEND'] + (float)$new['W_EXPERIENCE'] - 1.0) > 0.0001) {
+            $errors['W_EXPERIENCE'] = 'The three weights must add up to exactly 1.';
+        } elseif ((float)$new['W_TASKS'] < (float)$new['W_WEEKEND'] || (float)$new['W_TASKS'] < (float)$new['W_EXPERIENCE']) {
+            $errors['W_TASKS'] = 'The number of tasks must have the highest weight (UC018).';
+        }
     }
     if (!isset($errors['WORK_START'], $errors['WORK_END']) && $new['WORK_END'] <= $new['WORK_START']) {
         $errors['WORK_END'] = 'Office hours must end after they start.';

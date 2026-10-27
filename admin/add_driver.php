@@ -12,11 +12,11 @@ require_once 'fleet_helpers.php';
 requireAdmin();
 
 $sel = (int)($_POST['user_id'] ?? $_GET['user_id'] ?? 0);
-$v = ['license_class' => '', 'license_number' => '', 'license_expiry' => '', 'address' => '', 'phone' => ''];
+$v = ['license_class' => '', 'license_number' => '', 'license_expiry' => '', 'date_joined' => '', 'address' => '', 'phone' => ''];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    [$v, $errors] = driverInput($_POST, false);
+    [$v, $errors] = driverInput($_POST, false, false, true);
     if ($sel <= 0) { $errors['user_id'] = 'Select the driver account.'; }
     $photo = null;
     if (!$errors) {
@@ -42,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $num = $v['license_number'] === '' ? null : $v['license_number'];
                 $exp = $v['license_expiry'] === '' ? null : $v['license_expiry'];
                 $addr = $v['address'] === '' ? null : $v['address'];
-                $stmt = $conn->prepare("INSERT INTO drivers (employee_id, name, phone, email, address, license_number, license_class, license_expiry, status, photo)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)");
-                $stmt->bind_param('sssssssss', $emp, $u['full_name'], $phone, $u['email'], $addr, $num, $v['license_class'], $exp, $photo);
+                $stmt = $conn->prepare("INSERT INTO drivers (employee_id, name, phone, email, address, license_number, license_class, license_expiry, date_joined, status, photo)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)");
+                $stmt->bind_param('ssssssssss', $emp, $u['full_name'], $phone, $u['email'], $addr, $num, $v['license_class'], $exp, $v['date_joined'], $photo);
                 $stmt->execute();
                 $new = (int)$conn->insert_id;
                 $stmt->close();
@@ -56,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$linked) { throw new RuntimeException('link'); }
                 $conn->commit();
                 auditLog($conn, 'driver_add', null, $u['full_name'] . ' (' . $v['license_class'] . ')');
+                notifyUsers($conn, [$sel], 'You were registered as a driver of the Vehicle Section (licence classes: ' . $v['license_class'] . '). You can see your tasks in My Tasks.', 'driver/schedules.php');   // UC001 4.3
                 setFlash('success', $u['full_name'] . ' was added as a driver.');
                 header('Location: view_driver.php?id=' . $new);
                 exit();
@@ -83,7 +84,7 @@ adminPageStart('Add Driver');
             </select>
             <?php if (isset($errors['user_id'])): ?><div class="invalid-feedback d-block"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
             <?php if (!$cands): ?><div class="form-text text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
-        <?php driverFormFields($v, $errors, false); ?>
+        <?php driverFormFields($v, $errors, false, null, true); ?>
         <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline-secondary" href="drivers.php">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

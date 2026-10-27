@@ -4,38 +4,64 @@
  * Database tests run in a transaction that is rolled back.
  */
 return [
-    'score: 100 - (0.6 * tasks + 0.4 * outside-hours) * 100, between 0 and 100' => function () {
-        assert_near(100.0, recommenderScore(0, 0, 0.6, 0.4));
-        assert_near(0.0, recommenderScore(1, 1, 0.6, 0.4));
-        assert_near(40.0, recommenderScore(1, 0, 0.6, 0.4));
-        assert_near(60.0, recommenderScore(0, 1, 0.6, 0.4));
-        assert_near(60.0, recommenderScore(0.5, 0.25, 0.6, 0.4));
-        assert_near(0.0, recommenderScore(2, 2, 0.6, 0.4), 0.01, 'never below 0');
+    'score: 100 * (wT*(1-tasks) + wW*(1-weekend) + wE*experience), between 0 and 100' => function () {
+        assert_near(80.0, recommenderScore(0, 0, 0, 0.5, 0.3, 0.2));
+        assert_near(100.0, recommenderScore(0, 0, 1, 0.5, 0.3, 0.2));
+        assert_near(0.0, recommenderScore(1, 1, 0, 0.5, 0.3, 0.2));
+        assert_near(70.0, recommenderScore(0, 1, 1, 0.5, 0.3, 0.2));
+        assert_near(30.0, recommenderScore(1, 0, 0, 0.5, 0.3, 0.2));
+        assert_near(20.0, recommenderScore(1, 1, 1, 0.5, 0.3, 0.2));
+        assert_near(0.0, recommenderScore(2, 2, 0, 0.5, 0.3, 0.2), 0.01, 'never below 0');
+        assert_near(100.0, recommenderScore(0, 0, 3, 0.5, 0.3, 0.2), 0.01, 'never above 100');
     },
-    'the score has no experience and no welfare-penalty parameter' => function () {
-        assert_same(4, (new ReflectionFunction('recommenderScore'))->getNumberOfParameters());
-        assert_same(3, (new ReflectionFunction('recommenderRank'))->getNumberOfParameters());
+    'the score takes tasks, weekend tasks and experience (three weights); more experience = higher score' => function () {
+        assert_same(6, (new ReflectionFunction('recommenderScore'))->getNumberOfParameters());
+        assert_same(4, (new ReflectionFunction('recommenderRank'))->getNumberOfParameters());
+        assert_true(recommenderScore(0.2, 0.2, 0.9, 0.5, 0.3, 0.2) > recommenderScore(0.2, 0.2, 0.1, 0.5, 0.3, 0.2));
     },
-    'ranking: fewer tasks first, counts normalised by the largest among the candidates' => function () {
+    'experience years are calculated from the date joined' => function () {
+        assert_near(5.0, driverExperienceYears('2021-01-01', '2026-01-01'), 0.1);
+        assert_same(0.0, driverExperienceYears(null, '2026-01-01'));
+        assert_same(0.0, driverExperienceYears('', '2026-01-01'));
+        assert_same(0.0, driverExperienceYears('2030-01-01', '2026-01-01'), 'a date in the future counts as 0');
+        assert_near(0.5, driverExperienceYears('2025-07-02', '2026-01-01'), 0.1);
+    },
+    'ranking: fewer tasks, fewer weekend tasks and more experience first' => function () {
         $r = recommenderRank([
-            ['driver_id' => 1, 'name' => 'Busy',   'tasks' => 10, 'outside' => 4],
-            ['driver_id' => 2, 'name' => 'Free',   'tasks' => 0,  'outside' => 0],
-            ['driver_id' => 3, 'name' => 'Middle', 'tasks' => 5,  'outside' => 2],
-        ], 0.6, 0.4);
+            ['driver_id' => 1, 'name' => 'Busy',   'tasks' => 10, 'weekend' => 4, 'experience' => 1.0],
+            ['driver_id' => 2, 'name' => 'Free',   'tasks' => 0,  'weekend' => 0, 'experience' => 2.0],
+            ['driver_id' => 3, 'name' => 'Middle', 'tasks' => 5,  'weekend' => 2, 'experience' => 4.0],
+        ], 0.5, 0.3, 0.2);
         assert_same([2, 3, 1], array_column($r, 'driver_id'));
         assert_same([1, 2, 3], array_column($r, 'rank'));
-        assert_near(100.0, $r[0]['score']); assert_near(50.0, $r[1]['score']); assert_near(0.0, $r[2]['score']);
+        assert_near(90.0, $r[0]['score']); assert_near(60.0, $r[1]['score']); assert_near(5.0, $r[2]['score']);
     },
-    'ranking: a tie is broken by fewer tasks, then by name; nobody has work -> everybody 100' => function () {
-        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 3, 'outside' => 0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 3, 'outside' => 0]], 0.6, 0.4);
+    'ranking: experience breaks a difference only through its weight; a tie is broken by fewer tasks, then by name' => function () {
+        $r = recommenderRank([
+            ['driver_id' => 1, 'name' => 'Rookie', 'tasks' => 2, 'weekend' => 1, 'experience' => 0.5],
+            ['driver_id' => 2, 'name' => 'Senior', 'tasks' => 2, 'weekend' => 1, 'experience' => 9.0],
+        ], 0.5, 0.3, 0.2);
         assert_same([2, 1], array_column($r, 'driver_id'));
-        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 0, 'outside' => 0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 0, 'outside' => 0]], 0.6, 0.4);
-        assert_near(100.0, $r[0]['score']); assert_near(100.0, $r[1]['score']);
+        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 3, 'weekend' => 0, 'experience' => 1.0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 3, 'weekend' => 0, 'experience' => 1.0]], 0.5, 0.3, 0.2);
+        assert_same([2, 1], array_column($r, 'driver_id'));
+        $r = recommenderRank([['driver_id' => 1, 'name' => 'B', 'tasks' => 0, 'weekend' => 0, 'experience' => 0.0], ['driver_id' => 2, 'name' => 'A', 'tasks' => 0, 'weekend' => 0, 'experience' => 0.0]], 0.5, 0.3, 0.2);
+        assert_near(80.0, $r[0]['score']); assert_near(80.0, $r[1]['score']);
     },
-    'outside-hours work weighs less than the total (weights 0.6 / 0.4 come from the settings)' => function () {
+    'the three weights 0.5 / 0.3 / 0.2 come from the settings' => function () {
         global $conn;
         $rec = recommendDrivers($conn, ['start' => '2034-07-04 09:00:00', 'end' => '2034-07-04 11:00:00', 'licence' => 'D']);
-        assert_same(0.6, $rec['weights']['tasks']); assert_same(0.4, $rec['weights']['outside']);
+        assert_same(0.5, $rec['weights']['tasks']); assert_same(0.3, $rec['weights']['weekend']); assert_same(0.2, $rec['weights']['experience']);
+        assert_true(!empty($rec['ranked']) && isset($rec['ranked'][0]['weekend'], $rec['ranked'][0]['experience']));
+    },
+    'weekend tasks are counted by driverMonthCounts (Saturday and Sunday only)' => function () {
+        global $conn;
+        $conn->query("DELETE FROM schedules WHERE driver_id = 1 AND trip_date LIKE '2034-07-%'");
+        // 2034-07-01 is a Saturday, 2034-07-02 a Sunday, 2034-07-03 a Monday
+        foreach (['2034-07-01', '2034-07-02', '2034-07-03'] as $d) {
+            $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (1, 5, '$d', '09:00', '11:00', 'T', 'approved')");
+        }
+        $c = driverMonthCounts($conn, '2034-07')[1];
+        assert_same(3, (int)$c['tasks']); assert_same(2, (int)$c['weekend']);
     },
     'licence filter: car D, lorry GDL, bus PSV; inactive drivers are left out with a reason' => function () {
         global $conn;

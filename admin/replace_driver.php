@@ -90,14 +90,14 @@ adminPageStart('Replace Driver');
         <?php if ($driverRequest): ?><div class="alert alert-info py-2">The driver asked for this change (schedule change request #<?= $change_id ?>). The reason is <strong>Driver Request</strong> and the task stays <strong>Confirmed</strong>.</div><?php endif; ?>
         <h6 class="fw-bold">Choose the new driver <span class="fw-normal text-muted small">(only drivers without a clash can be chosen)</span></h6>
         <div class="table-responsive"><table class="table table-sm align-middle">
-            <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($rec['ranked'] as $d): if ((int)$d['driver_id'] === (int)$task['driver_id']) { continue; } ?>
                 <tr>
                     <td><input class="form-check-input" type="radio" name="new_driver" value="<?= (int)$d['driver_id'] ?>" id="nd<?= (int)$d['driver_id'] ?>" required></td>
                     <td><?= (int)$d['rank'] ?></td>
                     <td><label for="nd<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label></td>
-                    <td class="text-center"><?= (int)$d['tasks'] ?></td><td class="text-center"><?= (int)$d['outside'] ?></td>
+                    <td class="text-center"><?= (int)$d['tasks'] ?></td><td class="text-center"><?= (int)$d['weekend'] ?></td><td class="text-center"><?= number_format((float)$d['experience'], 1) ?></td>
                     <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
                     <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">Welfare duty</span>' : '' ?></td>
                 </tr>

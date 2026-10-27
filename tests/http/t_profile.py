@@ -33,7 +33,7 @@ ok('phone only: saved, no notification to the Assistant (classes unchanged)', ro
 snap = row()
 r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_expiry': future}); ok('no licence class selected: error, nothing saved', r.status_code == 200 and 'at least one licence class' in r.text and row() == snap)
 r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D'], 'license_expiry': past}); ok('licence expiry already passed: error, nothing saved', r.status_code == 200 and 'already passed' in r.text and row() == snap)
-r = drv.post('driver/profile.php', {'phone': 'abc', 'license_class[]': ['D'], 'license_expiry': future}); ok('invalid phone: error, nothing saved', r.status_code == 200 and row() == snap)
+r = drv.post('driver/profile.php', {'phone': 'abc', 'license_class[]': ['D'], 'license_expiry': future, 'date_joined': '2019-01-01'}); ok('invalid phone: error, nothing saved', r.status_code == 200 and row() == snap)
 r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D', 'XYZ'], 'license_expiry': future}); ok('an invented licence class is dropped, valid ones saved', row()[0] == 'D')
 r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D', 'PSV'], 'license_expiry': future}, csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code == 419)
 ok('Cancel does not change anything', drv.get('driver/profile.php').status_code == 200)
@@ -46,12 +46,12 @@ ok('posting another driver id changes only the signed-in driver', rows("SELECT l
 sql("UPDATE drivers SET license_class='D' WHERE driver_id=%s" % did)
 # UC003 A1: the Assistant updates a driver and the driver is told
 n2 = cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv005'")
-r = ad.post('admin/edit_driver.php', {'id': did, 'phone': '019-5554444', 'license_class[]': ['D', 'GDL'], 'license_expiry': future, 'license_number': 'L123', 'address': 'Shah Alam'})
+r = ad.post('admin/edit_driver.php', {'id': did, 'phone': '019-5554444', 'license_class[]': ['D', 'GDL'], 'license_expiry': future, 'date_joined': '2019-01-01', 'license_number': 'L123', 'address': 'Shah Alam'})
 ok('A1: the Assistant updates the driver', r.status_code == 302 and row()[:2] == ['D,GDL', '019-5554444'])
 ok('A1: the driver is told in the system', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv005'") == n2 + 1)
 r = ad.post('admin/edit_driver.php', {'id': did, 'phone': '019-5554444', 'license_class[]': ['D'], 'license_expiry': past})
 ok('A1: an expired licence date is refused for the Assistant too', r.status_code == 200 and row()[2] == future)
-r = hd.post('admin/edit_driver.php', {'id': did, 'phone': '019-6667777', 'license_class[]': ['D'], 'license_expiry': future})
+r = hd.post('admin/edit_driver.php', {'id': did, 'phone': '019-6667777', 'license_class[]': ['D'], 'license_expiry': future, 'date_joined': '2019-01-01'})
 ok('the Head of Admin can update too', r.status_code == 302 and row()[1] == '019-6667777')
 ok('staff cannot use the admin edit page', s1.get('admin/edit_driver.php', id=did).status_code == 302)
 # UC002 A1: list and profile of all drivers for the Assistant

@@ -45,7 +45,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Record Paper Form (UC010 A4)** — *Record Paper Form* (Assistant or Head of Admin): enter the details of the approved paper form BPTK/BPI/2025/PIN.5 for a staff member and upload the scan (PDF/JPG/PNG, max 5 MB). The request is saved as **Approved** and the vehicle is locked (it clashes with no online request). No approval e-mail to the Head of Department and no reminder; allowed less than 1 day before the trip, but not in the past. History shows "Recorded from the approved paper form".
 - **Without driver (UC010 A3, UC019 A2)** — same approval by the Head of Department and the same vehicle lock, but no driver step and no driver tasks. After the Head of Department approves, the Assistant clicks *Send to Head of Admin* (status Driver Assigned); the Head of Admin approves the use of the vehicle (Confirmed) or rejects it with a reason (back to Approved). The hourly job completes it after the return time or cancels it if nobody confirmed it before the trip.
 - **Tasks** — each request creates an outbound task (at departure) and a return task (at return), each lasting `TASK_DURATION_HOURS` (default 2 h). Drivers are scheduled on tasks, not for the whole trip.
-- **Recommender** — only drivers holding the licence class for the vehicle (D car/van, GDL lorry, PSV bus), without an overlapping task or internal task; ranked by tasks this month and tasks outside working hours (weights `W_TASKS` 0.6 / `W_AFTER_HOURS` 0.4). Drivers on welfare duty are flagged. No auto-assign and no override: the Assistant picks, the Head of Admin always approves.
+- **Recommender** — only drivers holding the licence class for the vehicle (D car/van, GDL lorry, PSV bus), without an overlapping task or internal task; ranked by a weighted score (UC018): tasks this month (`W_TASKS` 0.5, the highest), weekend tasks, Saturday and Sunday only (`W_WEEKEND` 0.3) and experience in years, calculated from the date the driver joined the Vehicle Section (`W_EXPERIENCE` 0.2). Fewer tasks and fewer weekend tasks rank higher, more experience ranks higher. The date joined is entered in Add Driver and edited in Edit Driver; the old column `drivers.experience_years` is kept but no longer used. Drivers on welfare duty are flagged. No auto-assign and no override: the Assistant picks, the Head of Admin always approves.
 - **Cancel** — staff may give a reason; HoD and administrators must. Never after the trip has started.
 - **Reminder (UC012)** — the hourly job sends ONE reminder (e-mail + in the system) to the Head of Department when a request is still Pending after 1 day, and records it in `reminders`. The Assistant can still remind by hand (Approval Reminders page).
 - **Vehicles** — statuses Available / In Use (computed) / Under Maintenance / Inactive. Maintenance asks for the workshop and the expected return date. Vehicles and drivers are deactivated, never deleted.
@@ -99,7 +99,7 @@ It also runs opportunistically on page load.
 
 ## Settings (Admin → Settings)
 
-`W_TASKS`, `W_AFTER_HOURS` (must add up to 1), `WORK_START` 08:00, `WORK_END` 17:30, `TASK_DURATION_HOURS` 2,
+`W_TASKS`, `W_WEEKEND`, `W_EXPERIENCE` (must add up to 1, tasks the highest; an old `W_AFTER_HOURS` row stays in existing databases but is not used), `WORK_START` 08:00, `WORK_END` 17:30, `TASK_DURATION_HOURS` 2,
 `LAPSE_HOURS` 48, `SESSION_TIMEOUT_MIN` 15, `MAX_FAILED_ATTEMPTS` 5, `LOCKOUT_MINUTES` 15.
 
 ## Tests

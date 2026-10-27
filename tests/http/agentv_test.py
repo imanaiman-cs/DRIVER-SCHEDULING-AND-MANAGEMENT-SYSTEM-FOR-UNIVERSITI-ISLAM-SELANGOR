@@ -32,19 +32,19 @@ ok('delete ajax removed', not os.path.exists(ROOT+'/ajax/delete_vehicle.php') an
 
 # ---- add driver
 r = a.post('admin/add_driver.php', {'user_id': uid}); ok('add driver: no licence -> error', 'Tick at least one licence class' in r.text and sql(f"SELECT driver_id FROM users WHERE user_id={uid}") == 'NULL')
-r = a.post('admin/add_driver.php', {'user_id': 11, 'license_class[]': ['D']}); ok('add driver: already linked -> error', 'already linked' in r.text)
+r = a.post('admin/add_driver.php', {'user_id': 11, 'license_class[]': ['D'], 'date_joined': '2020-02-01'}); ok('add driver: already linked -> error', 'already linked' in r.text)
 r = a.post('admin/add_driver.php', {'user_id': 6, 'license_class[]': ['D']}); ok('add driver: admin account refused', 'does not exist' in r.text or 'Driver role' in r.text)
 r = a.post('admin/add_driver.php', {'license_class[]': ['D']}); ok('add driver: no account -> error', 'Select the driver account' in r.text)
-r = a.post('admin/add_driver.php', {'user_id': uid, 'license_class[]': ['PSV','D','XX'], 'license_number':'D777','license_expiry':D(300),'address':'Shah Alam'})
+r = a.post('admin/add_driver.php', {'user_id': uid, 'license_class[]': ['PSV','D','XX'], 'license_number':'D777','date_joined':'2020-02-01','license_expiry':D(300),'address':'Shah Alam'})
 ok('add driver success redirect', r.status_code == 302, ) 
 row = sql(f"SELECT d.employee_id,d.name,d.email,d.license_class,d.status,u.driver_id=d.driver_id FROM drivers d JOIN users u ON u.user_id={uid} WHERE d.employee_id='DRV099'")
 ok('driver row copied + linked: '+row, row.startswith('DRV099\tNew Driver') or ('DRV099' in row and 'New Driver' in row and 'D,PSV' in row and row.endswith('1')))
-r = a.post('admin/add_driver.php', {'user_id': uid, 'license_class[]': ['D']}); ok('add same user again -> already linked', 'already linked' in r.text)
+r = a.post('admin/add_driver.php', {'user_id': uid, 'license_class[]': ['D'], 'date_joined': '2020-02-01'}); ok('add same user again -> already linked', 'already linked' in r.text)
 did = sql("SELECT driver_id FROM drivers WHERE employee_id='DRV099'")
 r = a.get('admin/add_driver.php'); ok('add form no longer lists linked user', 'drv099' not in r.text and 'drv098' in r.text)
 
 # ---- edit driver
-r = a.post('admin/edit_driver.php', {'id': did, 'phone':'012-1112223','license_class[]':['D','GDL'],'license_number':'D888','license_expiry':D(400),'address':'Klang'})
+r = a.post('admin/edit_driver.php', {'id': did, 'phone':'012-1112223','license_class[]':['D','GDL'],'license_number':'D888','date_joined':'2020-02-01','license_expiry':D(400),'address':'Klang'})
 ok('edit driver redirect', r.status_code == 302)
 ok('edit driver saved', sql(f"SELECT license_class,phone,license_number,address FROM drivers WHERE driver_id={did}") == 'D,GDL\t012-1112223\tD888\tKlang'.replace('\t','\t') or 'D,GDL' in sql(f"SELECT license_class FROM drivers WHERE driver_id={did}"))
 r = a.post('admin/edit_driver.php', {'id': did, 'phone':'012-1112223'}); ok('edit driver no licence -> error', 'Tick at least one' in r.text)

@@ -12,42 +12,51 @@
 //                              Inactive drivers are removed too.
 // STEP 3 - COUNT THE MONTH     for the month of the trip, per remaining driver:
 //                                tasks        = request tasks + internal tasks + welfare duty days
-//                                outsideHours = request/internal tasks that start before 08:00,
-//                                               end after 17:30, or fall on Saturday/Sunday
+//                                weekendTasks = request/internal tasks on Saturday or Sunday
+//                                experience   = years since the date the driver joined the Vehicle Section
 //                              (cancelled tasks never count)
-// STEP 4 - WEIGHTED SCORE      score = 100 - ( W_TASKS * normTasks + W_AFTER_HOURS * normOutside ) * 100
-//                              normX = the driver's count / the largest count among the candidates.
-//                              So the driver with the FEWEST tasks scores highest and the work is
-//                              shared fairly. The weights (default 0.6 / 0.4) are in Settings.
-//                              Experience is NOT part of the score.
+// STEP 4 - WEIGHTED SCORE      score = 100 * ( W_TASKS * (1 - normTasks) + W_WEEKEND * (1 - normWeekend) + W_EXPERIENCE * normExperience )
+//                              normX = the driver's value / the largest value among the candidates.
+//                              So the driver with the FEWEST tasks and the fewest weekend tasks, and the MOST experience, scores
+//                              highest. The number of tasks has the highest weight (default 0.5 / 0.3 / 0.2, in Settings).
 // STEP 5 - FLAG                a driver on welfare duty on the trip date is flagged (not removed).
 //
 // The two formula functions are PURE (no database) so tests/RecommenderTest.php can check them.
 // ============================================================
 
-/** One driver's score, 0..100, higher = better choice. Pure function. */
-function recommenderScore(float $normTasks, float $normOutside, float $wTasks, float $wOutside): float
+/** One driver's score, 0..100, higher = better choice. Pure function. The three weights should add up to 1. */
+function recommenderScore(float $normTasks, float $normWeekend, float $normExperience, float $wTasks, float $wWeekend, float $wExperience): float
 {
-    $score = 100 - ($wTasks * $normTasks + $wOutside * $normOutside) * 100;
+    $score = 100 * ($wTasks * (1 - $normTasks) + $wWeekend * (1 - $normWeekend) + $wExperience * $normExperience);
     return round(max(0.0, min(100.0, $score)), 1);
+}
+
+/** Years of experience from the date joined (0 when the date is unknown or in the future). Pure function. */
+function driverExperienceYears(?string $dateJoined, ?string $today = null): float
+{
+    if ($dateJoined === null || $dateJoined === '' || !isValidDate($dateJoined)) { return 0.0; }
+    $days = (strtotime($today ?? date('Y-m-d')) - strtotime($dateJoined)) / 86400;
+    return $days > 0 ? round($days / 365.25, 1) : 0.0;
 }
 
 /**
  * Normalises, scores and sorts the candidates. Pure function.
- * Each candidate needs: tasks (int), outside (int), name (string).
+ * Each candidate needs: tasks (int), weekend (int), experience (years, float), name (string).
  * Order: highest score, then fewest tasks, then name (stable and easy to explain).
  */
-function recommenderRank(array $candidates, float $wTasks, float $wOutside): array
+function recommenderRank(array $candidates, float $wTasks, float $wWeekend, float $wExperience): array
 {
-    $maxT = 0; $maxO = 0;
+    $maxT = 0; $maxW = 0; $maxE = 0.0;
     foreach ($candidates as $c) {
         $maxT = max($maxT, (int)$c['tasks']);
-        $maxO = max($maxO, (int)$c['outside']);
+        $maxW = max($maxW, (int)$c['weekend']);
+        $maxE = max($maxE, (float)$c['experience']);
     }
     foreach ($candidates as &$c) {
-        $c['norm_tasks']   = $maxT > 0 ? $c['tasks'] / $maxT : 0.0;
-        $c['norm_outside'] = $maxO > 0 ? $c['outside'] / $maxO : 0.0;
-        $c['score']        = recommenderScore($c['norm_tasks'], $c['norm_outside'], $wTasks, $wOutside);
+        $c['norm_tasks']      = $maxT > 0 ? $c['tasks'] / $maxT : 0.0;
+        $c['norm_weekend']    = $maxW > 0 ? $c['weekend'] / $maxW : 0.0;
+        $c['norm_experience'] = $maxE > 0 ? $c['experience'] / $maxE : 0.0;
+        $c['score']           = recommenderScore($c['norm_tasks'], $c['norm_weekend'], $c['norm_experience'], $wTasks, $wWeekend, $wExperience);
     }
     unset($c);
     usort($candidates, fn($a, $b) => [-$a['score'], $a['tasks'], $a['name']] <=> [-$b['score'], $b['tasks'], $b['name']]);
@@ -139,8 +148,9 @@ function isOutsideWorkingHours(mysqli $conn, string $date, string $start_time, s
  * Every driver's workload in a month (one query):
  *   tasks   = request tasks + internal tasks + welfare duty days
  *   outside = request tasks + internal tasks outside working hours (welfare days are not counted here)
+ *   weekend = request tasks + internal tasks on Saturday or Sunday (welfare days are not counted here)
  *   welfare = welfare duty days
- * @return array<int, array{tasks:int, outside:int, welfare:int}> keyed by driver_id
+ * @return array<int, array{tasks:int, outside:int, weekend:int, welfare:int}> keyed by driver_id
  */
 function driverMonthCounts(mysqli $conn, string $month): array
 {
@@ -149,21 +159,21 @@ function driverMonthCounts(mysqli $conn, string $month): array
     $from = $month . '-01';
     $to   = date('Y-m-t', strtotime($from));
     $stmt = $conn->prepare(
-        "SELECT driver_id, COUNT(*) AS tasks, COALESCE(SUM(out_h), 0) AS outside, COALESCE(SUM(is_w), 0) AS welfare FROM (
-             SELECT driver_id, (DAYOFWEEK(trip_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, 0 AS is_w
+        "SELECT driver_id, COUNT(*) AS tasks, COALESCE(SUM(out_h), 0) AS outside, COALESCE(SUM(wk), 0) AS weekend, COALESCE(SUM(is_w), 0) AS welfare FROM (
+             SELECT driver_id, (DAYOFWEEK(trip_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(trip_date) IN (1, 7)) AS wk, 0 AS is_w
                FROM schedules WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND trip_date BETWEEN ? AND ?
              UNION ALL
-             SELECT driver_id, (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, 0 AS is_w
+             SELECT driver_id, (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(task_date) IN (1, 7)) AS wk, 0 AS is_w
                FROM internal_tasks WHERE status = 'active' AND task_date BETWEEN ? AND ?
              UNION ALL
-             SELECT driver_id, 0 AS out_h, 1 AS is_w FROM welfare_roster WHERE duty_date BETWEEN ? AND ?
+             SELECT driver_id, 0 AS out_h, 0 AS wk, 1 AS is_w FROM welfare_roster WHERE duty_date BETWEEN ? AND ?
          ) x GROUP BY driver_id"
     );
     $stmt->bind_param('ssssssssss', $ws, $we, $from, $to, $ws, $we, $from, $to, $from, $to);
     $stmt->execute();
     $out = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $out[(int)$r['driver_id']] = ['tasks' => (int)$r['tasks'], 'outside' => (int)$r['outside'], 'welfare' => (int)$r['welfare']];
+        $out[(int)$r['driver_id']] = ['tasks' => (int)$r['tasks'], 'outside' => (int)$r['outside'], 'weekend' => (int)$r['weekend'], 'welfare' => (int)$r['welfare']];
     }
     $stmt->close();
     return $out;
@@ -187,7 +197,7 @@ function welfareDriverIdsOn(mysqli $conn, string $date): array
  * @param array $task start (Y-m-d H:i:s), end, licence ('D'|'GDL'|'PSV'|null = any),
  *                    except_schedule (a task being replaced does not clash with itself)
  * @return array{ranked: array, excluded: array, weights: array}
- *   ranked   : driver_id, name, employee_id, phone, license_class, tasks, outside, welfare (flag), score, rank
+ *   ranked   : driver_id, name, employee_id, phone, license_class, tasks, weekend, experience (years), welfare (flag), score, rank
  *   excluded : driver_id, name, reason
  */
 function recommendDrivers(mysqli $conn, array $task): array
@@ -196,9 +206,11 @@ function recommendDrivers(mysqli $conn, array $task): array
     $end   = $task['end'];
     $need  = $task['licence'] ?? null;
     $except = (int)($task['except_schedule'] ?? 0);
-    $w = ['tasks' => (float)getSetting($conn, 'W_TASKS'), 'outside' => (float)getSetting($conn, 'W_AFTER_HOURS')];
+    $w = ['tasks' => (float)getSetting($conn, 'W_TASKS'), 'weekend' => (float)getSetting($conn, 'W_WEEKEND'), 'experience' => (float)getSetting($conn, 'W_EXPERIENCE')];
+    $sum = $w['tasks'] + $w['weekend'] + $w['experience'];
+    if ($sum > 0 && abs($sum - 1.0) > 0.0001) { foreach ($w as $k => $x) { $w[$k] = $x / $sum; } }      // always on a 0-100 scale, whatever the weights are
 
-    $drivers = $conn->query("SELECT driver_id, name, employee_id, phone, license_class, status FROM drivers ORDER BY name")->fetch_all(MYSQLI_ASSOC);
+    $drivers = $conn->query("SELECT driver_id, name, employee_id, phone, license_class, status, date_joined FROM drivers ORDER BY name")->fetch_all(MYSQLI_ASSOC);
     $counts  = driverMonthCounts($conn, substr($start, 0, 7));
     $welfare = [];
     for ($d = strtotime(substr($start, 0, 10)); $d <= strtotime(substr($end, 0, 10)); $d += 86400) {
@@ -220,13 +232,13 @@ function recommendDrivers(mysqli $conn, array $task): array
             $excluded[] = ['driver_id' => $id, 'name' => $d['name'], 'reason' => $why];
             continue;
         }
-        $c = $counts[$id] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
+        $c = $counts[$id] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
         $candidates[] = [
             'driver_id' => $id, 'name' => $d['name'], 'employee_id' => $d['employee_id'], 'phone' => $d['phone'],
             'license_class' => $d['license_class'],
-            'tasks' => $c['tasks'], 'outside' => $c['outside'], 'welfare_days' => $c['welfare'],
+            'tasks' => $c['tasks'], 'outside' => $c['outside'], 'weekend' => $c['weekend'], 'experience' => driverExperienceYears($d['date_joined'], substr($start, 0, 10)), 'welfare_days' => $c['welfare'],
             'welfare' => isset($welfare[$id]),                       // on welfare duty on the trip date: FLAG
         ];
     }
-    return ['ranked' => recommenderRank($candidates, $w['tasks'], $w['outside']), 'excluded' => $excluded, 'weights' => $w];
+    return ['ranked' => recommenderRank($candidates, $w['tasks'], $w['weekend'], $w['experience']), 'excluded' => $excluded, 'weights' => $w];
 }

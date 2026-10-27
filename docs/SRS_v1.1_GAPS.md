@@ -31,7 +31,7 @@ Each item names the use case to read first.
 
 ## 2. Behaviour that differs from the SRS
 
-- [ ] **Date joined and recommender score — UC001, UC003 A1 and UC018.** Code ranks by tasks this month (`W_TASKS` 0.6) and tasks
+- [x] **Date joined and recommender score — UC001, UC003 A1 and UC018.** (done 27 Oct, Iman chose weights 0.5 / 0.3 / 0.2 and more experience = higher score; `drivers.date_joined`, migration `2026_11_date_joined_weights`, `W_WEEKEND` + `W_EXPERIENCE` in Settings, `driverExperienceYears()`; `experience_years` kept unused, the old `W_AFTER_HOURS` row stays in old databases; tests `RecommenderTest`, `tests/http/t_joined.py`.) Code ranks by tasks this month (`W_TASKS` 0.6) and tasks
   **outside working hours** (`W_AFTER_HOURS` 0.4, which also counts before-start/after-end hours); experience is excluded.
   SRS: weighted score of tasks this month (highest weight), **weekend tasks only** (Saturday/Sunday) and **experience calculated
   from the date the driver joined the Vehicle Section**. Add the three weights to Settings.

@@ -28,8 +28,9 @@
 
 /** Defaults used when a setting row does not exist yet. */
 const SETTING_DEFAULTS = [
-    'W_TASKS'             => '0.6',
-    'W_AFTER_HOURS'       => '0.4',
+    'W_TASKS'             => '0.5',
+    'W_WEEKEND'           => '0.3',
+    'W_EXPERIENCE'        => '0.2',
     'LAPSE_HOURS'         => '48',
     'WORK_START'          => '08:00',
     'WORK_END'            => '17:30',

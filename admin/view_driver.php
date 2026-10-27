@@ -16,7 +16,7 @@ $d = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if (!$d) { setFlash('danger', 'Driver not found.'); header('Location: drivers.php'); exit(); }
 
-$c = driverMonthCounts($conn, date('Y-m'))[$id] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
+$c = driverMonthCounts($conn, date('Y-m'))[$id] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
 $upcoming = driverUpcomingTasks($conn, $id);
 $expired = $d['license_expiry'] && $d['license_expiry'] < date('Y-m-d');
 adminPageStart($d['name']);
@@ -46,6 +46,7 @@ adminPageStart($d['name']);
                 <dt class="col-5">Licence no.</dt><dd class="col-7"><?= htmlspecialchars((string)($d['license_number'] ?? '-')) ?></dd>
                 <dt class="col-5">Licence expiry</dt><dd class="col-7"><?= $d['license_expiry'] ? date('d M Y', strtotime($d['license_expiry'])) : '-' ?>
                     <?= $expired ? '<span class="badge bg-danger ms-1">Expired</span>' : '' ?></dd>
+                <dt class="col-5">Date joined</dt><dd class="col-7"><?= !empty($d['date_joined']) ? date('d M Y', strtotime($d['date_joined'])) . ' (' . driverExperienceYears($d['date_joined']) . ' years)' : '-' ?></dd>
                 <dt class="col-5">Address</dt><dd class="col-7"><?= htmlspecialchars((string)($d['address'] ?? '-')) ?></dd>
             </dl>
         </div></div></div>
@@ -54,7 +55,7 @@ adminPageStart($d['name']);
                 <h6 class="fw-bold">Workload in <?= date('F Y') ?></h6>
                 <div class="row text-center g-2">
                     <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['tasks'] ?></div><div class="small text-muted">Tasks</div></div>
-                    <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['outside'] ?></div><div class="small text-muted">Outside working hours</div></div>
+                    <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['weekend'] ?></div><div class="small text-muted">Weekend tasks</div></div>
                     <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['welfare'] ?></div><div class="small text-muted">Welfare duty days</div></div>
                 </div>
             </div></div>

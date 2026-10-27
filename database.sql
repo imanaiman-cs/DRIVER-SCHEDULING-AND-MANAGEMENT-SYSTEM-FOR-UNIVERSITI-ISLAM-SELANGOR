@@ -31,6 +31,7 @@ CREATE TABLE `drivers` (
   `license_number` varchar(50) DEFAULT NULL,
   `license_class` varchar(10) DEFAULT NULL COMMENT 'comma list: B2,D,E',
   `license_expiry` date DEFAULT NULL,
+  `date_joined` date DEFAULT NULL COMMENT 'date the driver joined the Vehicle Section (experience is calculated from it)',
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/drivers/',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -422,6 +423,7 @@ INSERT INTO drivers (driver_id, employee_id, name, phone, email, experience_year
 (10,'UIS-DRV-010','Nurul Ain binti Saharuddin','011-0123456','nurulain.saharuddin@uis.edu.my',4.0,'D0123456','D,GDL','2027-10-30','No. 18, Jalan Seroja 5, Taman Seroja, 41000 Klang, Selangor','active'),
 (11,'UIS-DRV-011','Hairul Nizam bin Kamaruddin','013-1234567','hairul.kamaruddin@uis.edu.my',6.0,'D1345678','D','2026-12-01','No. 27, Jalan Teratai 8, Taman Sri Andalas, 41200 Klang, Selangor','inactive'),
 (12,'UIS-DRV-012','Azhari bin Mahmud','017-2345670','azhari.mahmud@uis.edu.my',9.0,'D2456789','D,PSV','2028-03-20','No. 9, Jalan Dahlia 3, Taman Meru Jaya, 41050 Klang, Selangor','active');
+UPDATE drivers SET date_joined = DATE_SUB(CURDATE(), INTERVAL ROUND(experience_years * 12) MONTH) WHERE experience_years > 0;
 
 
 -- ============================================================
@@ -478,8 +480,9 @@ VALUES (4, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 9 D
 -- SEED: settings
 -- ============================================================
 INSERT INTO settings (setting_key, setting_value, description) VALUES
- ('W_TASKS',             '0.6',   'Weight of the number of tasks this month in the driver score'),
- ('W_AFTER_HOURS',       '0.4',   'Weight of the number of tasks outside working hours in the driver score'),
+ ('W_TASKS',             '0.5',   'Weight of the number of tasks this month in the driver score (the highest weight)'),
+ ('W_WEEKEND',           '0.3',   'Weight of the number of weekend tasks (Saturday and Sunday) this month in the driver score'),
+ ('W_EXPERIENCE',        '0.2',   'Weight of the experience (years since the date joined) in the driver score'),
  ('LAPSE_HOURS',         '48',    'A request still Pending after this many hours becomes Lapsed'),
  ('WORK_START',          '08:00', 'Working hours start (a task before this is outside working hours)'),
  ('WORK_END',            '17:30', 'Working hours end (a task after this is outside working hours)'),
@@ -603,4 +606,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights');
