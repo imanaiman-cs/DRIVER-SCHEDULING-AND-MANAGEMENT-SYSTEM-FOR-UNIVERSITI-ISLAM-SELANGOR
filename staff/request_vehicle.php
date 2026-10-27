@@ -13,8 +13,14 @@
 //      submitting at the same moment cannot both get it)
 // The request goes to the approver of THIS account (a staff member -> their Head of Department;
 // a Head of Department -> his own head).
+//
+// UC010 A4 "Record Paper Form": admin/record_paper_form.php sets $PAPER_FORM_MODE and includes this page. The Administrative
+// Assistant records the details of the approved paper form BPTK/BPI/2025/PIN.5 for a staff member and uploads the scan. The
+// request is saved as APPROVED and the vehicle is locked. No approval e-mail (UC011) and no reminder (UC012): it was already
+// approved on paper. The 1-day / 2-day rule does not apply (the trip may be less than 1 day away, but not in the past).
 // ============================================================
-$current_page = 'request_vehicle.php';
+$paper = !empty($PAPER_FORM_MODE);
+$current_page = $paper ? 'record_paper_form.php' : 'request_vehicle.php';
 require_once '../config/database.php';
 require_once '../includes/admin_page.php';
 require_once '../includes/upload.php';
@@ -22,6 +28,14 @@ requireRequester();
 
 $staff_id  = (int)$_SESSION['user_id'];
 $full_name = (string)($_SESSION['full_name'] ?? '');
+$requesters = [];
+if ($paper) {                                   // the staff member the paper form belongs to
+    if (!isAdmin()) { header('Location: ' . SITE_URL . '/staff/request_vehicle.php'); exit(); }
+    $requesters = $conn->query("SELECT user_id, full_name, department FROM users WHERE is_active = 1 ORDER BY full_name")->fetch_all(MYSQLI_ASSOC);
+    $staff_id = (int)($_POST['requester_id'] ?? 0);
+    $full_name = '';
+    foreach ($requesters as $u) { if ((int)$u['user_id'] === $staff_id) { $full_name = (string)$u['full_name']; } }
+}
 
 // The approver (read fresh from the database: the staff system may have changed it)
 $q = $conn->prepare("SELECT u.supervisor_id, u.phone FROM users u JOIN users a ON a.user_id = u.supervisor_id
@@ -42,7 +56,7 @@ if (!$me) {
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '', 'need_driver' => '1'];
+      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '', 'need_driver' => '1', 'requester_id' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
@@ -50,7 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $vehicle_id = (int)$f['vehicle_id'];
     $needDriver = $f['need_driver'] === '0' ? 0 : 1;      // UC010 A3: Without Driver
 
-    if (!$approver_id) {
+    if ($paper && $full_name === '') { $errors[] = 'Choose the staff member who made the paper form.'; }
+    if (!$paper && !$approver_id) {
         $errors[] = 'No approver is set for your account. Please contact the Vehicle Section.';
     }
     if (!isValidDate($f['depart_date']) || !isValidTime($f['depart_time']) || !isValidDate($f['return_date']) || !isValidTime($f['return_time'])) {
@@ -63,8 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $end   = $f['return_date'] . ' ' . timeWithSeconds($f['return_time']);
         if (strtotime($end) <= strtotime($start)) { $errors[] = 'The return must be after the departure.'; }
     }
-    // Timing rule: < 1 day refused (nothing is saved), < 2 days needs the confirmation
-    if (!$errors) {
+    if (!$errors && $paper && strtotime($start) <= time()) { $errors[] = 'The departure must be in the future.'; }
+    // Timing rule: < 1 day refused (nothing is saved), < 2 days needs the confirmation. (Not for a paper form request.)
+    if (!$errors && !$paper) {
         $timing = requestTimingRule($start);
         if ($timing['level'] === 'reject') {
             $errors[] = $timing['message'];
@@ -94,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         $errors[] = 'The form was too large and was not received. Each document must be 5 MB or smaller.';
     }
+    if ($paper && !$files) { $errors[] = 'Upload the scanned paper form (PDF, JPG or PNG, up to 5 MB).'; }
     if (count($files) > MAX_SUPPORTING_DOCUMENTS) { $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' documents.'; }
     $saved = [];
     if (!$errors) {
@@ -130,11 +147,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end);     // atomic: refuses a vehicle that was just taken
+            if ($paper) {                                                  // already approved on paper
+                $ap = $conn->prepare("UPDATE vehicle_requests SET status = 'approved', reviewed_at = NOW() WHERE request_id = ? AND status = 'pending'");
+                $ap->bind_param('i', $rid);
+                $ap->execute();
+                $ap->close();
+            }
 
             if ($saved) {
-                $ds = $conn->prepare("INSERT INTO request_documents (request_id, doc_type, original_name, stored_path, mime_type, file_size) VALUES (?, 'other', ?, ?, ?, ?)");
+                $docType = $paper ? 'approval_letter' : 'other';
+                $ds = $conn->prepare("INSERT INTO request_documents (request_id, doc_type, original_name, stored_path, mime_type, file_size) VALUES (?, ?, ?, ?, ?, ?)");
                 foreach ($saved as $d) {
-                    $ds->bind_param('isssi', $rid, $d['name'], $d['path'], $d['mime'], $d['size']);
+                    $ds->bind_param('issssi', $rid, $docType, $d['name'], $d['path'], $d['mime'], $d['size']);
                     $ds->execute();
                 }
                 $ds->close();
@@ -142,6 +166,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->commit();
             $inTx = false;
 
+            if ($paper) {                                                  // UC010 A4: no UC011 e-mail, no UC012 reminder
+                auditLog($conn, 'paper_form', $rid, 'Recorded from the approved paper form BPTK/BPI/2025/PIN.5');
+                notifyUsers($conn, [$staff_id], "Your request #$rid to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') was recorded by the Vehicle Section from your approved paper form.', 'staff/my_requests.php');
+                setFlash('success', "Paper form request #$rid recorded as Approved and the vehicle is locked." . ($needDriver ? ' Assign a driver next.' : ' It is without driver: send it to the Head of Admin.'));
+                header('Location: ' . SITE_URL . '/admin/vehicle_requests.php?tab=approved&open=' . $rid);
+                exit();
+            }
             auditLog($conn, 'submit', $rid, 'Request submitted');
             notifyUsers($conn, [$approver_id],
                 "New vehicle request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
@@ -160,11 +191,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-adminPageStart('Request a Vehicle');
+adminPageStart($paper ? 'Record Paper Form' : 'Request a Vehicle');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-car-side text-success me-2"></i>Request a Vehicle</h4>
+    <h4 class="fw-bold mb-3"><i class="fas fa-<?= $paper ? 'file-pen' : 'car-side' ?> text-success me-2"></i><?= $paper ? 'Record Paper Form' : 'Request a Vehicle' ?></h4>
+    <?php if ($paper): ?>
+        <div class="alert alert-info">Enter the details of the approved paper form <strong>BPTK/BPI/2025/PIN.5</strong> and upload the scanned form. The request is saved as <strong>Approved</strong> and the vehicle is locked. The Head of Department is not asked again.</div>
+    <?php endif; ?>
 
-    <?php if (!$approver_id): ?>
+    <?php if (!$paper && !$approver_id): ?>
         <div class="alert alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>
     <?php endif; ?>
     <?php if ($errors): ?>
@@ -172,6 +206,16 @@ adminPageStart('Request a Vehicle');
     <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data" id="requestForm" novalidate>
+        <?php if ($paper): ?>
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+            <h6 class="fw-bold">0. Staff member</h6>
+            <label class="form-label small" for="requester_id">Who made the paper form? *</label>
+            <select class="form-select" id="requester_id" name="requester_id" required>
+                <option value="">Choose...</option>
+                <?php foreach ($requesters as $u): ?><option value="<?= (int)$u['user_id'] ?>" <?= (int)$f['requester_id'] === (int)$u['user_id'] ? 'selected' : '' ?>><?= htmlspecialchars($u['full_name'] . ($u['department'] ? ' (' . $u['department'] . ')' : '')) ?></option><?php endforeach; ?>
+            </select>
+        </div></div>
+        <?php endif; ?>
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">1. When and how many</h6>
             <div class="row g-3">
@@ -222,13 +266,13 @@ adminPageStart('Request a Vehicle');
                     </select></div>
                 <div class="col-md-4" id="otherRow" style="display:none;"><label class="form-label small" for="waiting_address">Address of the waiting location *</label>
                     <input class="form-control" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>
-                <div class="col-12"><label class="form-label small" for="docs">Supporting documents <span class="text-muted">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
-                    <input type="file" class="form-control" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple></div>
+                <div class="col-12"><label class="form-label small" for="docs"><?= $paper ? 'Scanned paper form * and other documents' : 'Supporting documents' ?> <span class="text-muted">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
+                    <input type="file" class="form-control" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple <?= $paper ? 'required' : '' ?>></div>
             </div>
         </div></div>
 
         <input type="hidden" name="vehicle_id" id="vehicle_id" value="<?= htmlspecialchars($f['vehicle_id']) ?>">
-        <button class="btn btn-success" type="submit" id="submitBtn"><i class="fas fa-paper-plane me-1"></i>Submit request</button>
+        <button class="btn btn-success" type="submit" id="submitBtn"><i class="fas fa-paper-plane me-1"></i><?= $paper ? 'Save paper form request' : 'Submit request' ?></button>
     </form>
 
 <script>
@@ -241,7 +285,7 @@ adminPageStart('Request a Vehicle');
 
     function search() {
         var q = new URLSearchParams({ depart_date: el('depart_date').value, depart_time: el('depart_time').value,
-            return_date: el('return_date').value, return_time: el('return_time').value, passengers: el('passengers').value });
+            return_date: el('return_date').value, return_time: el('return_time').value, passengers: el('passengers').value<?= $paper ? ", for_assignment: '1'" : '' ?> });
         if (ids.some(function (i) { return !el(i).value; })) { return; }
         var mine = ++seq;
         fetch('<?= SITE_URL ?>/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })

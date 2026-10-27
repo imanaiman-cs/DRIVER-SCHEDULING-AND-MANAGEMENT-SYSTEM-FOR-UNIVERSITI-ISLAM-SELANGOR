@@ -12,7 +12,7 @@ Each item names the use case to read first.
 - [x] **Request without driver — UC010 A3.** (done 27 Oct, flow chosen by Iman: HoD approves -> Assistant "Send to Head of Admin" -> Head of Admin approves the use of the vehicle = Confirmed. `vehicle_requests.need_driver`, migration `2026_11_need_driver`, `sendRequestWithoutDriverForApproval()`, test `tests/http/t_nodriver.py`.) Add a "With driver / Without driver" choice to `staff/request_vehicle.php`
   (new column, e.g. `vehicle_requests.need_driver`). Without driver: same approval flow and vehicle lock, but no driver
   assignment step and no driver tasks.
-- [ ] **Record paper form request — UC010 A4.** Admin page "Record Paper Form": enter the details of form BPTK/BPI/2025/PIN.5,
+- [x] **Record paper form request — UC010 A4.** (done 27 Oct: `admin/record_paper_form.php` = `staff/request_vehicle.php` in paper-form mode; saved Approved, vehicle locked, scan stored as `approval_letter`, history `paper_form`; no UC011/UC012; test `tests/http/t_paper.py`.) Admin page "Record Paper Form": enter the details of form BPTK/BPI/2025/PIN.5,
   upload the scanned form, save with status Approved and lock the vehicle. No UC011/UC012 emails. Allowed even when the trip
   is less than 1 day away.
   _Re-checked: still open (no `record paper form` page or code anywhere)._

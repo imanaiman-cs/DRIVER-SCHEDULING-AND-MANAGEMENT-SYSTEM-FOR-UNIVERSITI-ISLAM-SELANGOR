@@ -130,7 +130,7 @@ function auditLog(mysqli $conn, string $action, ?int $request_id = null, ?string
 function historyActionLabel(string $action): string
 {
     return [
-        'submit' => 'Request submitted', 'approve' => 'Approved by Head of Department', 'reject' => 'Rejected',
+        'submit' => 'Request submitted', 'paper_form' => 'Recorded from the approved paper form', 'approve' => 'Approved by Head of Department', 'reject' => 'Rejected',
         'cancel' => 'Cancelled', 'lapse' => 'Lapsed', 'assign' => 'Driver assigned', 'confirm' => 'Assignment approved (Confirmed)',
         'reject_assignment' => 'Assignment rejected', 'replace_driver' => 'Driver replaced', 'complete' => 'Completed',
         'comment' => 'Comment added', 'reminder' => 'Approval reminder sent',

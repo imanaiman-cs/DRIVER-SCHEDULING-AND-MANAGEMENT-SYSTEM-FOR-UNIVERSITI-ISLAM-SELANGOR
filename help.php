@@ -31,6 +31,7 @@ $steps = [
                      'A request from a Head of Department is approved by his own head.'],
     'admin' => ['<strong>Vehicle Requests</strong>: Approved requests need a driver. Press <em>Assign driver</em>: the recommendation (fewer tasks and fewer tasks outside working hours rank higher) is shown first; you choose the outbound driver, then use the same driver and vehicle for the return trip or choose a separate driver and vehicle.',
                 'The Head of Admin approves every assignment. A Confirmed trip can have a driver replaced (reason required) until the task starts.',
+                '<strong>Record Paper Form</strong>: for an approved paper form BPTK/BPI/2025/PIN.5, enter its details and upload the scan. The request is saved as Approved and the vehicle is locked.',
                 '<strong>Approval Reminders</strong>: the system reminds the Head of Department once after 1 day; you can also send a reminder by hand.',
                 '<strong>Internal Tasks</strong>, <strong>Welfare Duty</strong> and the <strong>Schedule Calendar</strong>; <strong>Drivers</strong> and <strong>Vehicles</strong> (never deleted, only deactivated); <strong>Reports</strong> by month (screen, print, PDF, Excel).'],
 ];

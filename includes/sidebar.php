@@ -96,6 +96,7 @@ if ($_is_admin_role) {
         'Main' => [[['dashboard.php'], 'admin/dashboard.php', 'gauge-high', 'Dashboard', null]],
         'Requests' => array_merge(
             [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
+            [[['record_paper_form.php'], 'admin/record_paper_form.php', 'file-pen', 'Record Paper Form', null]],
             $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
             [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
         ),
