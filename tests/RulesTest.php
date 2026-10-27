@@ -202,4 +202,20 @@ return [
         $res = sendWhatsApp($conn, null, '', 'x');
         assert_same('skipped', $res['status']);
     },
+    'UC012 automatic reminder: only the Head of Department is told, the sender is the system, the date is recorded' => function () {
+        global $conn;
+        $hod = t_user('supervisor'); $staff = t_user(); $v = t_vehicle();
+        $rid = t_request($staff, $v, '2034-07-10 09:00:00', '2034-07-10 12:00:00');
+        $conn->query("UPDATE vehicle_requests SET supervisor_id = $hod, created_at = DATE_SUB(NOW(), INTERVAL 26 HOUR) WHERE request_id = $rid");
+        $res = sendApprovalReminder($conn, $rid, true);
+        assert_true($res['ok'], 'reminder sent');
+        $n = $conn->query("SELECT user_id FROM notifications WHERE message LIKE 'Reminder: request #$rid %'")->fetch_all(MYSQLI_ASSOC);
+        assert_same(1, count($n), 'one in-system notification');
+        assert_same($hod, (int)$n[0]['user_id'], 'it goes to the Head of Department, not the staff member');
+        $row = $conn->query("SELECT sent_by FROM reminders WHERE request_id = $rid")->fetch_assoc();
+        assert_same(null, $row['sent_by'], 'no sender: the system sent it');
+        assert_same(1, (int)$conn->query("SELECT COUNT(*) FROM email_log WHERE user_id = $hod AND subject LIKE '%Reminder: request #$rid%'")->fetch_row()[0], 'the e-mail is logged even when sending is switched off');
+        $conn->query("UPDATE vehicle_requests SET status = 'approved' WHERE request_id = $rid");
+        assert_true(!sendApprovalReminder($conn, $rid, true)['ok'], 'no reminder for a request that is not Pending');
+    },
 ];

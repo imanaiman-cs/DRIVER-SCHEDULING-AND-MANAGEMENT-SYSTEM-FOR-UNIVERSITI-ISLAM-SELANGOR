@@ -41,7 +41,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Tasks** — each request creates an outbound task (at departure) and a return task (at return), each lasting `TASK_DURATION_HOURS` (default 2 h). Drivers are scheduled on tasks, not for the whole trip.
 - **Recommender** — only drivers holding the licence class for the vehicle (D car/van, GDL lorry, PSV bus), without an overlapping task or internal task; ranked by tasks this month and tasks outside working hours (weights `W_TASKS` 0.6 / `W_AFTER_HOURS` 0.4). Drivers on welfare duty are flagged. No auto-assign and no override: the Assistant picks, the Head of Admin always approves.
 - **Cancel** — staff may give a reason; HoD and administrators must. Never after the trip has started.
-- **Reminder** — manual only (Assistant → HoD); there is no automatic reminder.
+- **Reminder (UC012)** — the hourly job sends ONE reminder (e-mail + in the system) to the Head of Department when a request is still Pending after 1 day, and records it in `reminders`. The Assistant can still remind by hand (Approval Reminders page).
 - **Vehicles** — statuses Available / In Use (computed) / Under Maintenance / Inactive. Maintenance asks for the workshop and the expected return date. Vehicles and drivers are deactivated, never deleted.
 - **Notifications** — always saved in the system **and** sent by e-mail; a failed e-mail is written to `email_log` and the in-system notification is kept.
 - **WhatsApp (optional)** — drivers are also told on WhatsApp through an OpenWA server (setup: `docs/OPENWA_SETUP.md`). Copy `config/whatsapp.sample.php` to `config/whatsapp.php`, fill in the server address, API key and session id, set `enabled` to true. Attempts are written to `whatsapp_log`; a failure never stops the in-system notification or the e-mail. OpenWA is not an official WhatsApp API, so the sending number may be blocked: use a dedicated number.
@@ -88,7 +88,7 @@ Add Driver (Admin → Drivers) picks an existing user with the Driver role and r
 php cron/run_jobs.php        # Windows Task Scheduler: C:\xampp\php\php.exe cron\run_jobs.php, every hour
 ```
 
-It lapses unhandled Pending requests after 2 days, cancels unconfirmed assignments when the trip starts, and completes finished trips.
+It reminds the Head of Department once after 1 day, lapses unhandled Pending requests after 2 days, cancels unconfirmed assignments when the trip starts, and completes finished trips.
 It also runs opportunistically on page load.
 
 ## Settings (Admin → Settings)

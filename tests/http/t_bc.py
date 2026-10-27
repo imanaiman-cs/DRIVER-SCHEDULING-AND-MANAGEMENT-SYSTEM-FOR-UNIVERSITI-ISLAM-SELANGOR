@@ -1,6 +1,7 @@
 import sys, threading, json, datetime
 from lib import *
 reseed()
+sql("UPDATE internal_tasks SET status='cancelled' WHERE vehicle_id=6")   # demo internal tasks use relative dates; keep vehicle 6 free for these tests
 s1=user('stf001'); s2=user('stf002'); s3=user('stf003'); hos2=user('hos002'); hos3=user('hos003'); hos1=user('hos001'); hos5=user('hos005')
 ad=user('admin'); hd=user('head001'); drv=user('drv001'); drv3=user('drv003')
 uid=lambda u: sql("SELECT user_id FROM users WHERE username='%s'"%u)
@@ -105,7 +106,24 @@ j=run_jobs(); ok('job output', 'lapsed=' in j.stdout)
 ok('pending for more than 2 days -> Lapsed', st(rC)=='lapsed')
 ok('lapse releases the lock', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d"%rC)=='0')
 ok('lapse notifies the staff member and the Head of Department', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username IN ('stf002','hos003') AND n.message LIKE '%%#%d%%lapsed%%'"%rC))==2)
-ok('no automatic reminder exists', sql("SELECT COUNT(*) FROM reminders")=='0' and not __import__('os').path.exists(ROOT+'/cron/send_reminders.php') and 'REMINDER_AFTER_HOURS' not in open(ROOT+'/includes/workflow.php').read().split('const SETTING_DEFAULTS')[1][:600])
+# UC012 automatic reminder: ONE reminder to the Head of Department when a request is Pending for more than 1 day
+sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 26 HOUR) WHERE request_id=1")
+sql("DELETE FROM reminders WHERE request_id=1")
+cnt=lambda q: int(sql(q))
+N0=cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='hos002' AND n.message LIKE 'Reminder: request #1 %'")
+E0=cnt("SELECT COUNT(*) FROM email_log e JOIN users u ON u.user_id=e.user_id WHERE u.username='hos002' AND e.subject LIKE '%%Reminder: request #1%%'")
+A0=cnt("SELECT COUNT(*) FROM audit_log WHERE request_id=1 AND action='reminder' AND user_role='system'")
+j=run_jobs(); ok('hourly job reminds: output shows reminded=1', 'reminded=1' in j.stdout)
+ok('one reminder recorded without a sender (the system)', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1 AND sent_by IS NULL")=='1')
+ok('the Head of Department got the reminder in the system', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='hos002' AND n.message LIKE 'Reminder: request #1 %'")==N0+1)
+ok('and by e-mail (logged)', cnt("SELECT COUNT(*) FROM email_log e JOIN users u ON u.user_id=e.user_id WHERE u.username='hos002' AND e.subject LIKE '%%Reminder: request #1%%'")==E0+1)
+ok('the staff member was NOT sent the automatic reminder', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE 'Reminder: request #1 %'"))==0)
+run_jobs(); ok('only one reminder per request (second run sends nothing)', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='1')
+ok('history shows the automatic reminder with the system as sender', cnt("SELECT COUNT(*) FROM audit_log WHERE request_id=1 AND action='reminder' AND user_role='system'")==A0+1)
+sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE request_id=2 AND status='pending'")
+# the manual tests below start clean
+sql("DELETE FROM reminders WHERE request_id=1"); sql("DELETE FROM notifications WHERE message LIKE 'Reminder: request #1 %'"); sql("DELETE FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'")
+sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE request_id=1")
 # manual reminder
 r=hos2.get('admin/reminders.php'); ok('Head of Department cannot open the reminder page', r.status_code==302)
 page=ad.get('admin/reminders.php'); ok('reminder list shows pending requests with days pending', page.status_code==200 and 'Days pending' in page.text and 'Send Reminder' in page.text)

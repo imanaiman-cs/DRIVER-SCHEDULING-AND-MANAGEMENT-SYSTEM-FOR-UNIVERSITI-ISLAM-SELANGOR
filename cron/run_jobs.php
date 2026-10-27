@@ -5,9 +5,9 @@
 //
 //   1. a request still "Pending" after 2 days (or whose trip time has passed) becomes "Lapsed":
 //      the vehicle lock is released and the staff member and the Head of Department are told
-//   2. an "Approved" or "Driver Assigned" request that nobody confirmed before the trip time is cancelled
-//   3. a "Confirmed" request whose trip is over becomes "Completed"
-//   (There is no automatic approval reminder: reminders are sent by hand, see admin/reminders.php.)
+//   2. UC012: a request still "Pending" after 1 day gets ONE reminder to the Head of Department (e-mail + in the system)
+//   3. an "Approved" or "Driver Assigned" request that nobody confirmed before the trip time is cancelled
+//   4. a "Confirmed" request whose trip is over becomes "Completed"
 //
 // Run it at least ONCE AN HOUR from the command line:     php cron/run_jobs.php
 //
@@ -27,4 +27,4 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/mailer.php';
 
 $r = runRequestJobs($conn);
-echo date('Y-m-d H:i:s') . " lapsed={$r['lapsed']} cancelled={$r['cancelled']} completed={$r['completed']}" . PHP_EOL;
+echo date('Y-m-d H:i:s') . " lapsed={$r['lapsed']} reminded={$r['reminded']} cancelled={$r['cancelled']} completed={$r['completed']}" . PHP_EOL;

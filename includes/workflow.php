@@ -1018,15 +1018,21 @@ function hodOwnsRequest(array $req): bool
 }
 
 // ------------------------------------------------------------
-// Manual approval reminder (UC016). There is NO automatic reminder.
+// Approval reminders.
+//   Automatic (UC012): the hourly job reminds the Head of Department ONCE when a request is still Pending after
+//   APPROVAL_REMINDER_HOURS (one day). Manual: the Administrative Assistant can also remind by hand (admin/reminders.php).
 // ------------------------------------------------------------
 
+const APPROVAL_REMINDER_HOURS = 24;
+
 /**
- * The Administrative Assistant reminds the Head of Department AND the staff member about a Pending request.
- * Saved in the system and e-mailed; the reminder date is recorded. If the e-mail fails the reminder is still saved.
+ * Reminds about a Pending request. Saved in the system and e-mailed; the reminder date is recorded.
+ * If the e-mail fails the reminder is still saved and the failure is recorded.
+ * $automatic = true (the hourly job): only the Head of Department is reminded and the reminder has no sender.
+ * $automatic = false (the Administrative Assistant): the Head of Department AND the staff member are reminded.
  * @return array{ok:bool, message:string, email_error:?string}
  */
-function sendApprovalReminder(mysqli $conn, int $request_id): array
+function sendApprovalReminder(mysqli $conn, int $request_id, bool $automatic = false): array
 {
     $stmt = $conn->prepare("SELECT vr.*, u.full_name AS staff_name FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id WHERE vr.request_id = ?");
     $stmt->bind_param('i', $request_id);
@@ -1035,10 +1041,11 @@ function sendApprovalReminder(mysqli $conn, int $request_id): array
     $stmt->close();
     if (!$req || $req['status'] !== 'pending') { return ['ok' => false, 'message' => 'This request is not waiting for approval any more.', 'email_error' => null]; }
     $days = max(0, (int)floor((time() - strtotime($req['created_at'])) / 86400));
-    $by = (int)$_SESSION['user_id'];
+    $by = $automatic ? null : (int)$_SESSION['user_id'];
+    $hod = (int)($req['supervisor_id'] ?? 0);
+    if ($automatic && $hod === 0) { return ['ok' => false, 'message' => 'The request has no Head of Department.', 'email_error' => null]; }
     $err = null;
-    $lastErr = '';
-    $res = notifyUsers($conn, array_filter([(int)$req['staff_id'], (int)($req['supervisor_id'] ?? 0)]),
+    $res = notifyUsers($conn, $automatic ? [$hod] : array_filter([(int)$req['staff_id'], $hod]),
         "Reminder: request #$request_id from {$req['staff_name']} to {$req['destination']} has been waiting for approval for $days day(s) and will lapse after " . lapseWindowText($conn) . '.',
         'supervisor/approvals.php', 'reminder');
     if ($res['failed'] > 0) { $err = 'The e-mail could not be sent (' . ($res['errors'][0] ?? 'unknown error') . '). The reminder is saved in the system.'; }
@@ -1046,19 +1053,20 @@ function sendApprovalReminder(mysqli $conn, int $request_id): array
     $stmt->bind_param('iis', $request_id, $by, $err);
     $stmt->execute();
     $stmt->close();
-    auditLog($conn, 'reminder', $request_id, "Pending for $days day(s)");
-    return ['ok' => true, 'message' => 'Reminder sent to the Head of Department and the staff member.' . ($err ? ' ' . $err : ''), 'email_error' => $err];
+    if ($automatic) { auditLog($conn, 'reminder', $request_id, "Automatic reminder: pending for $days day(s)", null, 'system'); }
+    else { auditLog($conn, 'reminder', $request_id, "Pending for $days day(s)"); }
+    return ['ok' => true, 'message' => $automatic ? 'Reminder sent to the Head of Department.' : 'Reminder sent to the Head of Department and the staff member.' . ($err ? ' ' . $err : ''), 'email_error' => $err];
 }
 
 // ------------------------------------------------------------
-// Background jobs: lapse, cancel what nobody handled, complete finished trips.
-// (There is no automatic reminder.) Run hourly: php cron/run_jobs.php
+// Background jobs: lapse, remind (UC012), cancel what nobody handled, complete finished trips.
+// Run hourly: php cron/run_jobs.php
 // ------------------------------------------------------------
 
-/** @return array{lapsed:int, cancelled:int, completed:int} */
+/** @return array{lapsed:int, reminded:int, cancelled:int, completed:int} */
 function runRequestJobs(mysqli $conn): array
 {
-    $out = ['lapsed' => 0, 'cancelled' => 0, 'completed' => 0];
+    $out = ['lapsed' => 0, 'reminded' => 0, 'cancelled' => 0, 'completed' => 0];
     $hours = max(1, getSettingInt($conn, 'LAPSE_HOURS'));
 
     // 1. Pending for 2 days (or the trip time has passed): Lapsed. The vehicle lock is released.
@@ -1068,6 +1076,17 @@ function runRequestJobs(mysqli $conn): array
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
         if (changeRequestStatus($conn, (int)$row['request_id'], 'lapsed', ['system' => true])['ok']) { $out['lapsed']++; }
+    }
+    $stmt->close();
+
+    // 1b. UC012: still Pending after one day and no reminder was sent yet: ONE reminder to the Head of Department
+    $remindAfter = date('Y-m-d H:i:s', time() - APPROVAL_REMINDER_HOURS * 3600);
+    $stmt = $conn->prepare("SELECT request_id FROM vehicle_requests vr WHERE status = 'pending' AND created_at <= ?
+                              AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.request_id = vr.request_id)");
+    $stmt->bind_param('s', $remindAfter);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        if (sendApprovalReminder($conn, (int)$row['request_id'], true)['ok']) { $out['reminded']++; }
     }
     $stmt->close();
 

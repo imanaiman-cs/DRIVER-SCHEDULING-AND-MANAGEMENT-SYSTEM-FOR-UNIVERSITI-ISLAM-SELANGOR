@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // UIS Driver Scheduling and Management System
-// admin/reminders.php  -  UC016 Send Approval Reminder (MANUAL only; there is no automatic reminder)
+// admin/reminders.php  -  Send Approval Reminder by hand (the hourly job already sends ONE automatic reminder to the Head of Department after 1 day, UC012)
 //
 // The Administrative Assistant sees the Pending requests and how many days each has been waiting, and presses
 // "Send Reminder". The reminder goes to the Head of Department AND the staff member, in the system and by e-mail,
@@ -33,7 +33,7 @@ $lapse = lapseWindowText($conn);
 adminPageStart('Approval Reminders');
 ?>
     <h4 class="fw-bold mb-1"><i class="fas fa-bell-concierge text-success me-2"></i>Approval Reminders</h4>
-    <p class="text-muted small">Requests waiting for the Head of Department. A request that is still Pending after <?= htmlspecialchars($lapse) ?> lapses. Reminders are sent by you, never automatically.</p>
+    <p class="text-muted small">Requests waiting for the Head of Department. A request that is still Pending after <?= htmlspecialchars($lapse) ?> lapses. The system sends one reminder to the Head of Department after 1 day by itself; here you can remind again by hand.</p>
     <div class="card border-0 shadow-sm"><div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light"><tr><th>Request</th><th>Requester</th><th>Head of Department</th><th class="text-center">Days pending</th><th>Last reminder</th><th></th></tr></thead>

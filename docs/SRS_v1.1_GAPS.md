@@ -5,7 +5,7 @@ Each item names the use case to read first.
 
 ## 1. Missing features
 
-- [ ] **Automatic approval reminder — UC012.** Code: reminders are manual only (`admin/reminders.php`, `sendApprovalReminder()`).
+- [x] **Automatic approval reminder — UC012.** (done 27 Oct: `runRequestJobs()` step 1b, `sendApprovalReminder($conn, $id, true)`; one reminder per request, HoD only, recorded in `reminders` with no sender; the manual page is kept) Code: reminders are manual only (`admin/reminders.php`, `sendApprovalReminder()`).
   SRS: the hourly job sends one reminder email to the HoD when a request is still Pending one day after submission.
   Add it to `runRequestJobs()`, send it only once per request (record it in `reminders`), and keep the manual page only if Iman wants it.
   _Re-checked: still open. `runRequestJobs()` only lapses, cancels and completes; `includes/workflow.php` says "There is NO automatic reminder". The manual page and `sendApprovalReminder()` stay (nothing is deleted)._
