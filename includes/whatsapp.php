@@ -50,15 +50,13 @@ function logWhatsapp(mysqli $conn, ?int $userId, ?string $number, string $messag
 function sendWhatsApp(mysqli $conn, ?int $userId, ?string $phone, string $text): array
 {
     $c = whatsappConfig();
+    if (!whatsappEnabled()) {   // outside the SRS: while it is off nothing happens and nothing is logged
+        return ['status' => 'skipped', 'message' => 'WhatsApp sending is switched off (see config/whatsapp.php).'];
+    }
     $number = whatsappNumber($phone, (string)$c['country_code']);
     if ($number === null) {
         $err = 'No valid mobile number is saved for this driver.';
         logWhatsapp($conn, $userId, null, $text, 'skipped', $err);
-        return ['status' => 'skipped', 'message' => $err];
-    }
-    if (!whatsappEnabled()) {
-        $err = 'WhatsApp sending is switched off (see config/whatsapp.php).';
-        logWhatsapp($conn, $userId, $number, $text, 'skipped', $err);
         return ['status' => 'skipped', 'message' => $err];
     }
     $target = preg_replace('/\D+/', '', (string)$c['redirect_to']) ?: $number;

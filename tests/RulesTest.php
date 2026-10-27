@@ -199,8 +199,11 @@ return [
         assert_same('60123456789', whatsappNumber('012-345 6789'));
         assert_same('60123456789', whatsappNumber('+60 12-345 6789'));
         assert_same(null, whatsappNumber('123'));
+        $before = (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0];
         $res = sendWhatsApp($conn, null, '', 'x');
         assert_same('skipped', $res['status']);
+        assert_true(!whatsappEnabled(), 'WhatsApp is off in the test setup');
+        assert_same($before, (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0], 'switched off: no row is written to whatsapp_log');
     },
     'UC012 automatic reminder: only the Head of Department is told, the sender is the system, the date is recorded' => function () {
         global $conn;

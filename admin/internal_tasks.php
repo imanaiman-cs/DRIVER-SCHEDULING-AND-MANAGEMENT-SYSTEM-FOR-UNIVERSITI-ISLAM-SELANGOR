@@ -69,23 +69,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int)($_POST['task_id'] ?? 0);
     $by  = (int)$_SESSION['user_id'];
 
-    if ($act === 'cancel') {
+    if ($act === 'delete') {   // UC024: a soft delete. The row stays for the history; it no longer counts anywhere.
         $reason = mb_substr(trim($_POST['reason'] ?? ''), 0, 255);
         $t = loadInternalTask($conn, $id);
         if (!$t || $t['status'] !== 'active') {
             setFlash('danger', 'That task is not active.');
+        } elseif (strtotime($t['start_dt']) <= time()) {
+            setFlash('danger', 'This task has already started and cannot be deleted.');   // UC024 exception 1.1
         } elseif (mb_strlen($reason) < 3) {
-            setFlash('danger', 'Please give the reason for cancelling the task.');
+            setFlash('danger', 'Please give the reason for deleting the task.');
         } else {
-            $stmt = $conn->prepare("UPDATE internal_tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND status = 'active'");
+            $stmt = $conn->prepare("UPDATE internal_tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND status = 'active' AND start_dt > NOW()");
             $stmt->bind_param('si', $reason, $id);
             $stmt->execute();
             $stmt->close();
-            auditLog($conn, 'internal_task_cancel', null, "Internal task #$id cancelled: $reason");
+            auditLog($conn, 'internal_task_delete', null, "Internal task #$id deleted: $reason");
             if ($u = userIdOfDriver($conn, (int)$t['driver_id'])) {
-                notifyUsers($conn, [$u], 'Your internal task was cancelled: ' . taskText($t) . '. Reason: ' . $reason, 'driver/schedules.php');
+                notifyUsers($conn, [$u], 'Your internal task was deleted: ' . taskText($t) . '. Reason: ' . $reason, 'driver/schedules.php');
             }
-            setFlash('success', 'The task was cancelled and the driver was notified.');
+            setFlash('success', 'The task was deleted and the driver was notified.');
         }
         header('Location: internal_tasks.php');
         exit();
@@ -218,7 +220,7 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Internal Tasks');
 ?>
     <h4 class="fw-bold mb-1"><i class="fas fa-wrench text-success me-2"></i>Internal Tasks</h4>
-    <p class="text-muted small mb-3">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A task is never deleted: cancel it with a reason.</p>
+    <p class="text-muted small mb-3">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A deleted task is kept in the history with its reason (filter Deleted) and no longer counts in any workload.</p>
 
     <div class="card border-0 shadow-sm mb-4" id="taskForm">
         <div class="card-body">
@@ -288,7 +290,7 @@ adminPageStart('Internal Tasks');
     <form method="get" class="row g-2 mb-3 align-items-end">
         <input type="hidden" name="when" value="<?= $h($when) ?>">
         <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_status">Status</label>
-            <select class="form-select form-select-sm" id="f_status" name="status"><option value="">All</option><option value="active" <?= $fStat === 'active' ? 'selected' : '' ?>>Active</option><option value="cancelled" <?= $fStat === 'cancelled' ? 'selected' : '' ?>>Cancelled</option></select></div>
+            <select class="form-select form-select-sm" id="f_status" name="status"><option value="">All</option><option value="active" <?= $fStat === 'active' ? 'selected' : '' ?>>Active</option><option value="cancelled" <?= $fStat === 'cancelled' ? 'selected' : '' ?>>Deleted</option></select></div>
         <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_driver">Driver</label>
             <select class="form-select form-select-sm" id="f_driver" name="driver_id"><option value="">All drivers</option>
                 <?php foreach ($conn->query('SELECT driver_id, name FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC) as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDrv === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
@@ -301,20 +303,22 @@ adminPageStart('Internal Tasks');
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light"><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
-            <?php foreach ($tasks as $t): $canChange = $t['status'] === 'active' && strtotime($t['end_dt']) >= time(); ?>
+            <?php foreach ($tasks as $t): $canChange = $t['status'] === 'active' && strtotime($t['end_dt']) >= time(); $canDelete = $t['status'] === 'active' && strtotime($t['start_dt']) > time(); ?>
                 <tr>
                     <td class="text-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="small text-muted"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
                     <td><strong><?= $h(internalTaskTypeLabel($t['task_type'])) ?></strong>
                         <?php if ($t['location'] || $t['description']): ?><div class="small text-muted"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
                     <td class="text-nowrap"><?= $h(vehicleText($t['plate_number'], $t['brand'], $t['model'])) ?></td>
                     <td><?= $h($t['driver_name']) ?></td>
-                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge bg-danger">Cancelled</span>
+                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge bg-danger">Deleted</span>
                         <div class="small text-muted mt-1"><?= $h($t['cancel_reason']) ?></div>
                         <?php else: ?><span class="badge bg-success">Active</span><?php endif; ?></td>
                     <td class="text-end text-nowrap">
                         <?php if ($canChange): ?>
                             <a class="btn btn-sm btn-outline-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="d-none d-md-inline ms-1">Update</span></a>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal" data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="d-none d-md-inline ms-1">Cancel</span></button>
+                        <?php endif; ?>
+                        <?php if ($canDelete): ?>
+                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal" data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-trash"></i><span class="d-none d-md-inline ms-1">Delete</span></button>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -331,15 +335,15 @@ adminPageStart('Internal Tasks');
 
     <div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
-            <input type="hidden" name="action" value="cancel"><input type="hidden" name="task_id" id="cancelId" value="">
-            <div class="modal-header"><h5 class="modal-title" id="cancelTitle">Cancel this task?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" id="cancelId" value="">
+            <div class="modal-header"><h5 class="modal-title" id="cancelTitle">Delete this task?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body">
                 <p class="mb-2" id="cancelLabel"></p>
-                <label class="form-label fw-semibold" for="cancelReason">Reason for cancelling</label>
+                <label class="form-label fw-semibold" for="cancelReason">Reason for deleting</label>
                 <textarea class="form-control" id="cancelReason" name="reason" rows="2" maxlength="255" required minlength="3"></textarea>
                 <div class="form-text">The driver is told the reason.</div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep the task</button><button class="btn btn-danger" type="submit">Cancel the task</button></div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep the task</button><button class="btn btn-danger" type="submit">Delete the task</button></div>
         </form></div>
     </div>
     <script>

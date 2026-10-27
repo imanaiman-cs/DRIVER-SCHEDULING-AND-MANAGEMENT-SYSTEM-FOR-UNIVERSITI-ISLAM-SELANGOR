@@ -42,10 +42,10 @@ Each item names the use case to read first.
 - [x] **Reports — UC031.** (done 27 Oct, Iman chose to keep "outside working hours" and add the two missing ones, so 6 reports: `weekend` and `replacements` in `reportTypes()`; message "No data for the selected month"; tests in `agents_test.py`.) Code has 4 reports (`reportTypes()`: tasks, **outside working hours**, welfare, vehicle usage). SRS has 5: tasks per driver,
   **weekend tasks per driver**, welfare duty days, **driver replacements**, vehicle usage. So: replace/rename "outside working hours" by
   "weekend tasks" and add "driver replacements". Export as PDF/Excel and print (UC032) for all 5. Exception 3.1: message when there is no data.
-- [ ] **Delete internal task — UC024.** Code never deletes an internal task (cancel with a reason). Ask Iman: either keep it as
+- [x] **Delete internal task — UC024.** (done 27 Oct, Iman chose: soft delete with a reason, called Delete in the interface; refused once the task has started; test in `agents_test.py`.) Code never deletes an internal task (cancel with a reason). Ask Iman: either keep it as
   a soft delete with a reason and call it "Delete" in the interface, or change the SRS wording.
   _Re-checked: still open (code only cancels, with a reason). **Waiting for Iman's decision.**_
-- [ ] **WhatsApp notifications.** The code can also notify drivers on WhatsApp (optional, off by default). The SRS only lists
+- [x] **WhatsApp notifications.** (done 27 Oct, Iman chose: keep the code, keep it off; `sendWhatsApp()` returns at once and writes no `whatsapp_log` row while disabled; documented in the README as outside the SRS.) The code can also notify drivers on WhatsApp (optional, off by default). The SRS only lists
   in-system and email. Keep it disabled, or ask Iman to add it to the SRS.
   _Re-checked: still open. Note: `notifyUsers()` calls `sendWhatsApp()` for every driver even when WhatsApp is switched off, and then writes a `skipped` row in `whatsapp_log`. **Waiting for Iman's decision** (keep disabled, remove, or add to the SRS)._
 

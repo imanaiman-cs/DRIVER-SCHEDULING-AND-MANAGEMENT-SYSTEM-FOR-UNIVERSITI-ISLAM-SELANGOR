@@ -11,7 +11,7 @@
 // Use a dedicated number; e-mail and in-system notifications stay the main channels.
 // ============================================================
 return [
-    // false = nothing is sent; the attempt is only written to whatsapp_log
+    // false (default) = nothing is sent and nothing is written to whatsapp_log. WhatsApp is outside the SRS (v1.1 lists in-system and e-mail only).
     'enabled'      => false,
 
     // Address of the OpenWA server (no trailing slash, no /api)
