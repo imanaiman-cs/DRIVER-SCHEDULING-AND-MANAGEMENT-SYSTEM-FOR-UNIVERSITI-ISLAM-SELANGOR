@@ -31,7 +31,7 @@ if ($driver_id > 0) {
                 COALESCE(vr.purpose, s.purpose) AS purpose, COALESCE(vr.officer_name, s.officer_name) AS officer_name,
                 COALESCE(vr.officer_phone, s.officer_phone) AS officer_phone,
                 COALESCE(vr.waiting_place, s.waiting_place) AS waiting_place, vr.waiting_address,
-                v.plate_number, v.brand, v.model
+                v.plate_number, v.brand, v.model, s.vehicle_id
            FROM schedules s
            JOIN vehicle_requests vr ON vr.request_id = s.request_id
            LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
@@ -40,7 +40,7 @@ if ($driver_id > 0) {
     $stmt->bind_param('is', $driver_id, $now);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $tasks[] = ['kind' => 'trip', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => legLabel($r['leg_no'] !== null ? (int)$r['leg_no'] : null),
+        $tasks[] = ['upd' => $r['vehicle_id'] ? 'trip=' . (int)$r['schedule_id'] : '', 'kind' => 'trip', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => legLabel($r['leg_no'] !== null ? (int)$r['leg_no'] : null),
                     'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
                     'destination' => destinationText($r['destination'], $r['destination_address']), 'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
                     'purpose' => (string)$r['purpose'], 'officer' => (string)$r['officer_name'], 'phone' => (string)$r['officer_phone'], 'sheet' => (int)$r['schedule_id']];
@@ -54,7 +54,7 @@ if ($driver_id > 0) {
     $stmt->bind_param('is', $driver_id, $now);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $tasks[] = ['kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
+        $tasks[] = ['upd' => $r['vehicle_id'] ? 'internal=' . (int)$r['task_id'] : '', 'kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
                     'ref' => '', 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
                     'purpose' => (string)$r['description'], 'officer' => '', 'phone' => '', 'sheet' => 0];
     }
@@ -114,6 +114,7 @@ adminPageStart('My Tasks');
                     <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
                         <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
                 </dl>
+                <?php if (!empty($t['upd'])): ?><a class="btn btn-sm btn-outline-success mt-2 me-1" href="update_vehicle.php?<?= $h($t['upd']) ?>"><i class="fas fa-gauge-high me-1"></i>Update Vehicle</a><?php endif; ?>
                 <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
             </div></div>
         </div>

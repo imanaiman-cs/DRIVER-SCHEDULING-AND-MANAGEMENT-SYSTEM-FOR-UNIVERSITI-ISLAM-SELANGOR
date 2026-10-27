@@ -20,6 +20,11 @@ if (!$v) { setFlash('danger', 'Vehicle not found.'); header('Location: vehicles.
 
 $shown = vehicleDisplayStatus($conn, $id, $v['status']);
 $trips = vehicleUpcomingTrips($conn, $id);
+$stmt = $conn->prepare('SELECT l.recorded_at, l.mileage, l.fuel_level, l.condition_issue, d.name AS driver FROM vehicle_usage_log l JOIN drivers d ON d.driver_id = l.driver_id WHERE l.vehicle_id = ? ORDER BY l.log_id DESC LIMIT 15');
+$stmt->bind_param('i', $id);
+$stmt->execute();
+$usage = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);   // UC007 A1: what the drivers recorded (mileage history for servicing)
+$stmt->close();
 adminPageStart($v['plate_number']);
 ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
@@ -58,6 +63,21 @@ adminPageStart($v['plate_number']);
             <h6 class="fw-bold">Upcoming trips</h6>
             <?php if (!$trips): ?><p class="text-muted small mb-0">No upcoming trips. This vehicle can be deactivated.</p>
             <?php else: ?><?= fleetItemsList($trips) ?><?php endif; ?>
+        </div></div></div>
+        <div class="col-12"><div class="card border-0 shadow-sm"><div class="card-body">
+            <h6 class="fw-bold">Usage updates by drivers <span class="fw-normal text-muted small">(mileage <?= (int)$v['mileage'] ?> km now)</span></h6>
+            <?php if (!$usage): ?><p class="text-muted small mb-0">No driver has recorded the mileage yet.</p>
+            <?php else: ?>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Date and time</th><th>Driver</th><th class="text-end">Mileage (km)</th><th>Fuel</th><th>Condition issue</th></tr></thead>
+                <tbody>
+                <?php foreach ($usage as $u): ?>
+                    <tr><td class="text-nowrap"><?= date('d M Y H:i', strtotime($u['recorded_at'])) ?></td><td><?= htmlspecialchars($u['driver']) ?></td>
+                        <td class="text-end"><?= (int)$u['mileage'] ?></td><td><?= htmlspecialchars(VEHICLE_FUEL_LEVELS[$u['fuel_level']] ?? $u['fuel_level']) ?></td>
+                        <td><?= $u['condition_issue'] ? '<span class="text-danger">' . htmlspecialchars($u['condition_issue']) . '</span>' : '&mdash;' ?></td></tr>
+                <?php endforeach; ?>
+                </tbody></table></div>
+            <?php endif; ?>
         </div></div></div>
     </div>
 <?php fleetActionScript(); adminPageEnd(); ?>

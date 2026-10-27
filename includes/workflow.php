@@ -1164,3 +1164,89 @@ function runRequestJobsThrottled(mysqli $conn): void
     }
     fclose($fh);
 }
+
+// ------------------------------------------------------------
+// UC007 A1: the driver updates the vehicle used for their task (mileage, fuel level, condition)
+// ------------------------------------------------------------
+
+const VEHICLE_FUEL_LEVELS = ['empty' => 'Empty', 'quarter' => '1/4', 'half' => '1/2', 'three_quarters' => '3/4', 'full' => 'Full'];
+
+/**
+ * The vehicle of one of THIS driver's tasks: a trip task of a Confirmed / Completed request, or an active internal task.
+ * $kind is 'trip' (schedule_id) or 'internal' (internal_tasks.task_id). Returns the vehicle row, or null when the driver may not update it.
+ */
+function driverTaskVehicle(mysqli $conn, int $driver_id, string $kind, int $id): ?array
+{
+    if ($kind === 'trip') {
+        $sql = "SELECT v.* FROM schedules s JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+                 WHERE s.schedule_id = ? AND s.driver_id = ? AND s.status <> 'cancelled' AND " . SCHEDULE_CONFIRMED_ONLY_SQL;
+    } elseif ($kind === 'internal') {
+        $sql = "SELECT v.* FROM internal_tasks t JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+                 WHERE t.task_id = ? AND t.driver_id = ? AND t.status = 'active'";
+    } else {
+        return null;
+    }
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('ii', $id, $driver_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+/**
+ * Saves the driver's update (name, date and time are kept) and the new mileage becomes the vehicle's mileage.
+ * The new mileage must not be lower than the last recorded one. If a condition issue is entered the Administrative Assistant is told.
+ * @return array{ok:bool, message:string}
+ */
+function recordVehicleUsage(mysqli $conn, int $driver_id, string $kind, int $task_id, $mileage, string $fuel, ?string $issue): array
+{
+    $veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);
+    if (!$veh) { return ['ok' => false, 'message' => 'You can only update a vehicle that is used for one of your tasks.']; }
+    if (!is_numeric($mileage) || (string)(int)$mileage !== trim((string)$mileage) || (int)$mileage < 0 || (int)$mileage > 9999999) {
+        return ['ok' => false, 'message' => 'Enter the current mileage as a whole number (km).'];
+    }
+    $mileage = (int)$mileage;
+    if (!isset(VEHICLE_FUEL_LEVELS[$fuel])) { return ['ok' => false, 'message' => 'Choose the fuel level.']; }
+    $issue = $issue === null ? null : trim($issue);
+    if ($issue !== null && mb_strlen($issue) > 500) { return ['ok' => false, 'message' => 'Describe the condition issue in at most 500 characters.']; }
+    $issue = ($issue === '' ? null : $issue);
+    $vehicle_id = (int)$veh['vehicle_id'];
+    $sched = $kind === 'trip' ? $task_id : null;
+    $task  = $kind === 'internal' ? $task_id : null;
+
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare('SELECT mileage FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
+        $stmt->bind_param('i', $vehicle_id);
+        $stmt->execute();
+        $last = (int)($stmt->get_result()->fetch_row()[0] ?? 0);
+        $stmt->close();
+        if ($mileage < $last) {
+            $conn->rollback();
+            return ['ok' => false, 'message' => "The mileage is lower than the last recorded mileage ($last km)."];
+        }
+        $stmt = $conn->prepare('INSERT INTO vehicle_usage_log (vehicle_id, driver_id, schedule_id, internal_task_id, mileage, fuel_level, condition_issue) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('iiiiiss', $vehicle_id, $driver_id, $sched, $task, $mileage, $fuel, $issue);
+        $stmt->execute();
+        $stmt->close();
+        $stmt = $conn->prepare('UPDATE vehicles SET mileage = ? WHERE vehicle_id = ?');
+        $stmt->bind_param('ii', $mileage, $vehicle_id);
+        $stmt->execute();
+        $stmt->close();
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('recordVehicleUsage: ' . $e->getMessage());
+        return ['ok' => false, 'message' => 'Database error. Please try again.'];
+    }
+    if ($issue !== null) {
+        $q = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
+        $q->bind_param('i', $driver_id);
+        $q->execute();
+        $name = $q->get_result()->fetch_row()[0] ?? 'A driver';
+        $q->close();
+        notifyUsers($conn, assistantUserIds($conn), "$name reported a condition issue on {$veh['plate_number']}: $issue", 'admin/view_vehicle.php?id=' . $vehicle_id);
+    }
+    return ['ok' => true, 'message' => 'The vehicle was updated.' . ($issue !== null ? ' The Administrative Assistant was told about the condition issue.' : '')];
+}

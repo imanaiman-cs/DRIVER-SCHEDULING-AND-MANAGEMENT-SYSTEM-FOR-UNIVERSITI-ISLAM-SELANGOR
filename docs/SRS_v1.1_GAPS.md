@@ -19,7 +19,7 @@ Each item names the use case to read first.
 - [x] **Driver profile — UC002 and UC003.** (done 27 Oct: `driver/profile.php`, `driverInput(..., $rejectPastExpiry)`, driver told when the Assistant edits; test `tests/http/t_profile.py`. Date joined is part of the recommender item below.) Driver page "My Profile" (view, UC002) and update of their own phone number and licence details (classes, expiry; UC003).
   Licence expiry in the past → error (exception 3.1). Admin keeps `admin/edit_driver.php`.
   _Corrected: SRS also asks to notify the Assistant when the licence classes change (UC003 3.3) and no licence class selected → error. `driver/` has only dashboard, schedules and task_sheet, so My Profile does not exist yet._
-- [ ] **Driver updates vehicle after a task — UC007 A1.** New table `vehicle_usage_log` (vehicle, driver, mileage, fuel level,
+- [x] **Driver updates vehicle after a task — UC007 A1.** (done 27 Oct: table `vehicle_usage_log`, migration `2026_11_vehicle_usage_log`, `driver/update_vehicle.php`, `recordVehicleUsage()`, history on `admin/view_vehicle.php`; test `tests/http/t_usage.py`.) New table `vehicle_usage_log` (vehicle, driver, mileage, fuel level,
   condition issue, recorded_at). The driver can record it only for vehicles used in their own tasks. Update `vehicles.mileage`.
 - [ ] **Schedule change request — UC029 and UC030.** New table `schedule_change_requests` (driver, type = unavailable dates or
   withdraw from a task, dates / task, reason, status). Driver submits (no duplicate pending request for the same date or task).

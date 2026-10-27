@@ -349,6 +349,25 @@ CREATE TABLE `welfare_roster` (
   CONSTRAINT `fk_welfare_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `vehicle_usage_log` (
+  `log_id` int(11) NOT NULL AUTO_INCREMENT,
+  `vehicle_id` int(11) NOT NULL,
+  `driver_id` int(11) NOT NULL,
+  `schedule_id` int(11) DEFAULT NULL COMMENT 'the trip task the update was made from',
+  `internal_task_id` int(11) DEFAULT NULL COMMENT 'or the internal task',
+  `mileage` int(11) NOT NULL,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') NOT NULL,
+  `condition_issue` varchar(500) DEFAULT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`log_id`),
+  KEY `idx_usage_vehicle` (`vehicle_id`,`recorded_at`),
+  KEY `idx_usage_driver` (`driver_id`),
+  CONSTRAINT `fk_usage_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`),
+  CONSTRAINT `fk_usage_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `fk_usage_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_usage_task` FOREIGN KEY (`internal_task_id`) REFERENCES `internal_tasks` (`task_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- The history (audit_log) and the comments are INSERT ONLY: the database refuses to change or delete a row.
 DELIMITER //
@@ -556,4 +575,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log');
