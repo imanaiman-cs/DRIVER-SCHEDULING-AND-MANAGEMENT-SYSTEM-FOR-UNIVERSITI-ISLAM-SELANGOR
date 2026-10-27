@@ -14,6 +14,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | Script | Covers |
 |---|---|
 | `t_bc.py` | SRS B + C: request form rules, vehicle lock, cancel, HoD approval, reminders |
+| `t_profile.py` | UC002 / UC003: My Profile, driver and Assistant updates, expired licence refused, notifications |
 | `t_paper.py` | UC010 A4: Record Paper Form (Approved, vehicle lock, no UC011/UC012, < 1 day allowed, validations) |
 | `t_nodriver.py` | UC010 A3: request without driver, send to Head of Admin, approve / reject, jobs |
 | `t_d.py` | SRS D: recommender, assignment, Head of Admin approval, replace driver |

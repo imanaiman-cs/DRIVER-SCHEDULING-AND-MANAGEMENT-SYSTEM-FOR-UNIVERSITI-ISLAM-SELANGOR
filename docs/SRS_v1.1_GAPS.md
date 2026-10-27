@@ -16,7 +16,7 @@ Each item names the use case to read first.
   upload the scanned form, save with status Approved and lock the vehicle. No UC011/UC012 emails. Allowed even when the trip
   is less than 1 day away.
   _Re-checked: still open (no `record paper form` page or code anywhere)._
-- [ ] **Driver profile — UC002 and UC003.** Driver page "My Profile" (view, UC002) and update of their own phone number and licence details (classes, expiry; UC003).
+- [x] **Driver profile — UC002 and UC003.** (done 27 Oct: `driver/profile.php`, `driverInput(..., $rejectPastExpiry)`, driver told when the Assistant edits; test `tests/http/t_profile.py`. Date joined is part of the recommender item below.) Driver page "My Profile" (view, UC002) and update of their own phone number and licence details (classes, expiry; UC003).
   Licence expiry in the past → error (exception 3.1). Admin keeps `admin/edit_driver.php`.
   _Corrected: SRS also asks to notify the Assistant when the licence classes change (UC003 3.3) and no licence class selected → error. `driver/` has only dashboard, schedules and task_sheet, so My Profile does not exist yet._
 - [ ] **Driver updates vehicle after a task — UC007 A1.** New table `vehicle_usage_log` (vehicle, driver, mileage, fuel level,

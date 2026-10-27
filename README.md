@@ -11,7 +11,7 @@ Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5. No framework, no build step.
 | Role | Stored as | What they do |
 |------|-----------|--------------|
 | Staff | `staff` | Request a vehicle (never a driver), see status, cancel own requests, notifications |
-| Driver | `driver` | View-only task page (only **Confirmed** tasks), plus everything Staff can do |
+| Driver | `driver` | View-only task page (only **Confirmed** tasks), own profile (phone, licence classes and expiry), plus everything Staff can do |
 | Head of Department (HoD) | `supervisor` | Approve / reject (reason required) / cancel requests of **their own PTJ**, add comments |
 | Administrative Assistant | `admin` | Process Approved requests (recommended driver), Replace Driver, vehicles + maintenance, drivers, internal tasks, welfare duty, calendar, manual reminders, reports, settings |
 | Head of Admin | `head_admin` | Everything the Assistant can do, plus **approve / reject every driver assignment** |
@@ -38,6 +38,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Dates and times** — departure and return are both date + time. Less than 1 day ahead is rejected (use the paper form BPTK/BPI/2025/PIN.5); less than 2 days ahead shows a warning.
 - **Vehicle lock per time period** — a vehicle is locked from departure to return. Overlap rule: `start < other_end AND end > other_start`. The lock is taken atomically (transaction + `SELECT … FOR UPDATE`).
 - **Request form** — destination, purpose, passengers, optional supporting document (PDF/JPG/PNG, max 5 MB), one vehicle per request, and **With driver / Without driver** (UC010 A3).
+- **Driver profile (UC002, UC003)** — a driver opens *My Profile*, sees name, staff ID, phone, licence classes and expiry, and can update phone, licence classes (D, GDL, PSV) and licence expiry. No class ticked or an expiry date in the past is refused. The Assistant is told when the classes change. The Assistant / Head of Admin update any driver in *Drivers* (the driver is told).
 - **Record Paper Form (UC010 A4)** — *Record Paper Form* (Assistant or Head of Admin): enter the details of the approved paper form BPTK/BPI/2025/PIN.5 for a staff member and upload the scan (PDF/JPG/PNG, max 5 MB). The request is saved as **Approved** and the vehicle is locked (it clashes with no online request). No approval e-mail to the Head of Department and no reminder; allowed less than 1 day before the trip, but not in the past. History shows "Recorded from the approved paper form".
 - **Without driver (UC010 A3, UC019 A2)** — same approval by the Head of Department and the same vehicle lock, but no driver step and no driver tasks. After the Head of Department approves, the Assistant clicks *Send to Head of Admin* (status Driver Assigned); the Head of Admin approves the use of the vehicle (Confirmed) or rejects it with a reason (back to Approved). The hourly job completes it after the return time or cancels it if nobody confirmed it before the trip.
 - **Tasks** — each request creates an outbound task (at departure) and a return task (at return), each lasting `TASK_DURATION_HOURS` (default 2 h). Drivers are scheduled on tasks, not for the whole trip.

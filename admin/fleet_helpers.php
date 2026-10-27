@@ -427,7 +427,7 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
 // ------------------------------------------------------------
 
 /** Cleans and checks licence classes, licence number / expiry, address (and phone when $withPhone). @return array{0:array,1:array} [values, errors] */
-function driverInput(array $p, bool $withPhone): array
+function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false): array
 {
     $classes = $p['license_class'] ?? [];
     $v = [
@@ -440,6 +440,7 @@ function driverInput(array $p, bool $withPhone): array
     $e = [];
     if ($v['license_class'] === '') { $e['license_class'] = 'Tick at least one licence class (D, GDL or PSV).'; }
     if ($v['license_expiry'] !== '' && !isValidDate($v['license_expiry'])) { $e['license_expiry'] = 'Enter a valid date.'; }
+    elseif ($rejectPastExpiry && $v['license_expiry'] !== '' && $v['license_expiry'] < date('Y-m-d')) { $e['license_expiry'] = 'The licence expiry date has already passed.'; }   // UC003 exception 3.1
     if ($withPhone && $v['phone'] !== '' && !preg_match('/^[0-9+\-\s()]{6,20}$/', $v['phone'])) { $e['phone'] = 'Enter a valid phone number.'; }
     return [$v, $e];
 }

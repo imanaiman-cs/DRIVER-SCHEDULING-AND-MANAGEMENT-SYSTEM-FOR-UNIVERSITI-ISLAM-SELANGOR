@@ -119,7 +119,8 @@ if ($_is_admin_role) {
     $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 } else {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
+              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
+                             [['profile.php'], 'driver/profile.php', 'id-card', 'My Profile', null]]] + $_my_requests;
 }
 ?>
 

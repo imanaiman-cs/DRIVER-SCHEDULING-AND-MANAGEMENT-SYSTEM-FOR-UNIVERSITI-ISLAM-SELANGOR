@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// admin/edit_driver.php  -  UC003 Update Driver: licence classes, phone, address, licence number / expiry, photo
+// admin/edit_driver.php  -  UC003 A1 Update Driver (by the Assistant / Head of Admin; the driver is told): licence classes, phone, address, licence number / expiry, photo
 // Name and e-mail come from the UIS staff system, so they are read-only here.
 // ============================================================
 $current_page = 'edit_driver.php';
@@ -23,7 +23,7 @@ $v = ['license_class' => normaliseLicenceList(explode(',', (string)$cur['license
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    [$v, $errors] = driverInput($_POST, true);
+    [$v, $errors] = driverInput($_POST, true, true);
     $photo = $cur['photo']; $newPhoto = null;
     if (!$errors) {
         $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'drivers');
@@ -40,6 +40,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
         if ($newPhoto) { deleteUploadedImage($cur['photo']); }
         auditLog($conn, 'driver_update', null, $cur['name'] . ' (' . $v['license_class'] . ')');
+        if ($du = userIdOfDriver($conn, $id)) {      // UC003 A1: the driver is told
+            notifyUsers($conn, [$du], 'Your driver profile was updated by the Vehicle Section (licence classes: ' . $v['license_class'] . ').', 'driver/profile.php');
+        }
         setFlash('success', $cur['name'] . ' was updated.');
         header('Location: view_driver.php?id=' . $id);
         exit();

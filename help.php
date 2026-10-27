@@ -25,6 +25,7 @@ $steps = [
                 'Follow the status in <strong>My Requests</strong>. You can cancel your own request before the trip starts (the reason is optional).'],
     'driver' => ['Open <strong>My Tasks</strong>: your upcoming tasks in date order, and the Past Tasks tab. You only see confirmed tasks.',
                  'Each task shows the date, time, vehicle, full destination address, waiting location, purpose and the officer name and phone number.',
+                 'Open <strong>My Profile</strong> to see your details and to update your phone number, licence classes and licence expiry date.',
                  'You do not confirm tasks or update the trip status. Like everyone you can also request a vehicle for yourself.'],
     'supervisor' => ['Open <strong>Vehicle Approvals</strong>. You only see requests of your own PTJ.',
                      'Approve, or reject with a reason. You can add a comment, and cancel a request (reason required).',
