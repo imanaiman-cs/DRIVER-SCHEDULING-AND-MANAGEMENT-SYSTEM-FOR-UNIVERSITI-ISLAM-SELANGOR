@@ -214,7 +214,7 @@ function recommendDrivers(mysqli $conn, array $task): array
         } elseif ($need !== null && !driverHoldsLicence($d['license_class'], $need)) {
             $why = 'Licence class ' . $need . ' needed';
         } else {
-            $why = driverClashReason($conn, $id, $start, $end, $except);
+            $why = driverUnavailableReason($conn, $id, $start, $end) ?? driverClashReason($conn, $id, $start, $end, $except);   // UC018 1.3: marked unavailable (UC030)
         }
         if ($why !== null) {
             $excluded[] = ['driver_id' => $id, 'name' => $d['name'], 'reason' => $why];

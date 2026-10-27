@@ -21,7 +21,7 @@ Each item names the use case to read first.
   _Corrected: SRS also asks to notify the Assistant when the licence classes change (UC003 3.3) and no licence class selected → error. `driver/` has only dashboard, schedules and task_sheet, so My Profile does not exist yet._
 - [x] **Driver updates vehicle after a task — UC007 A1.** (done 27 Oct: table `vehicle_usage_log`, migration `2026_11_vehicle_usage_log`, `driver/update_vehicle.php`, `recordVehicleUsage()`, history on `admin/view_vehicle.php`; test `tests/http/t_usage.py`.) New table `vehicle_usage_log` (vehicle, driver, mileage, fuel level,
   condition issue, recorded_at). The driver can record it only for vehicles used in their own tasks. Update `vehicles.mileage`.
-- [ ] **Schedule change request — UC029 and UC030.** New table `schedule_change_requests` (driver, type = unavailable dates or
+- [x] **Schedule change request — UC029 and UC030.** (done 27 Oct, Iman chose: an unavailable driver is BLOCKED, not only warned. Tables `schedule_change_requests` + `schedule_change_dates`, migration `2026_11_schedule_changes`, `driver/schedule_change.php`, `admin/schedule_changes.php`, `driverUnavailableReason()`, Replace Driver with `$driverRequest`; test `tests/http/t_change.py`. Withdraw is for trip tasks only.) New table `schedule_change_requests` (driver, type = unavailable dates or
   withdraw from a task, dates / task, reason, status). Driver submits (no duplicate pending request for the same date or task).
   Head of Admin approves or rejects with a comment (UC016). Approved "unavailable" dates must be excluded by the recommender
   and must block welfare duty on those days (UC025 exception 3.1). Approved "withdraw" frees the driver from the task so the

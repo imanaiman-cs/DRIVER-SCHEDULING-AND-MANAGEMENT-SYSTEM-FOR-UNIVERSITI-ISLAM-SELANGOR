@@ -73,13 +73,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $ins = $conn->prepare('INSERT INTO welfare_roster (duty_date, driver_id) VALUES (?, ?)
                                        ON DUPLICATE KEY UPDATE driver_id = VALUES(driver_id), replaced_from_driver_id = NULL, replacement_reason = NULL');
-                $n = 0;
+                $n = 0; $noDriver = [];
                 for ($d = 1; $d <= $days; $d++) {
                     $date = sprintf('%s-%02d', $month, $d);
                     if ($date < $today) { continue; }
                     $existing = $roster[$date] ?? null;
                     if ($existing && !$replaceAll) { continue; }
-                    $did = $rotation[($d - 1) % count($rotation)];
+                    $did = null;                       // the next driver of the rotation who is not marked unavailable that day (UC030)
+                    for ($k = 0; $k < count($rotation); $k++) {
+                        $cand = $rotation[($d - 1 + $k) % count($rotation)];
+                        if (driverUnavailableReason($conn, $cand, $date . ' 00:00:00', $date . ' 23:59:59') === null) { $did = $cand; break; }
+                    }
+                    if ($did === null) { $noDriver[] = date('d M', strtotime($date)); continue; }
                     if ($existing && (int)$existing['driver_id'] === $did && $existing['replaced_from_driver_id'] === null) { continue; }
                     $ins->bind_param('si', $date, $did);
                     $ins->execute();
@@ -100,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($c);
             auditLog($conn, 'welfare_generate', null, "Welfare duty $month: $n day(s) set, rotation of " . count($rotation) . ' driver(s)');
             notifyWelfareChanges($conn, $changes);
-            setFlash($n ? 'success' : 'warning', $n ? "Welfare duty set for $n day(s) of " . date('F Y', strtotime($first)) . '. The drivers were notified.'
+            setFlash($n ? 'success' : 'warning', $n ? "Welfare duty set for $n day(s) of " . date('F Y', strtotime($first)) . '. The drivers were notified.' . ($noDriver ? ' No driver could be set on ' . implode(', ', $noDriver) . ' (all marked unavailable).' : '')
                                                    : 'Nothing to set: every day is already filled or in the past. Tick "Regenerate days that already have a driver" to replace them.');
         }
     } elseif ($act === 'update') {
@@ -113,6 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('danger', 'Choose a day that is today or later.');
         } elseif (!in_array($did, $activeIds, true)) {
             setFlash('danger', 'Choose an active driver.');
+        } elseif (($why = driverUnavailableReason($conn, $did, $date . ' 00:00:00', $date . ' 23:59:59')) !== null) {
+            setFlash('danger', 'That driver cannot be set on welfare duty that day: ' . strtolower($why) . ' (schedule change request approved). Choose another driver.');   // UC025 3.1
         } elseif ($existing && (int)$existing['driver_id'] === $did) {
             setFlash('warning', 'That driver is already on duty that day.');
         } elseif ($existing && mb_strlen($reason) < 3) {

@@ -114,6 +114,7 @@ adminPageStart('My Tasks');
                     <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
                         <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
                 </dl>
+                <?php if ($t['kind'] === 'trip' && $t['sheet']): ?><a class="btn btn-sm btn-outline-warning mt-2 me-1" href="schedule_change.php?type=withdraw&schedule_id=<?= (int)$t['sheet'] ?>"><i class="fas fa-calendar-xmark me-1"></i>Request Schedule Change</a><?php endif; ?>
                 <?php if (!empty($t['upd'])): ?><a class="btn btn-sm btn-outline-success mt-2 me-1" href="update_vehicle.php?<?= $h($t['upd']) ?>"><i class="fas fa-gauge-high me-1"></i>Update Vehicle</a><?php endif; ?>
                 <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
             </div></div>

@@ -224,4 +224,28 @@ return [
         assert_true(!isRequestWithoutDriver(['need_driver' => 1]));
         assert_true(!isRequestWithoutDriver([]), 'a row without the column counts as With driver');
     },
+    'UC030 unavailable dates: only an APPROVED Unavailable Date request blocks the driver on those days' => function () {
+        global $conn;
+        $dr = (int)$conn->query("SELECT driver_id FROM drivers WHERE status = 'active' ORDER BY driver_id LIMIT 1")->fetch_row()[0];
+        $stmt = $conn->prepare("INSERT INTO schedule_change_requests (driver_id, change_type, reason, status) VALUES (?, 'unavailable', 'test', 'pending')");
+        $stmt->bind_param('i', $dr); $stmt->execute(); $cid = (int)$stmt->insert_id; $stmt->close();
+        foreach (['2034-08-02', '2034-08-03'] as $d) { $conn->query("INSERT INTO schedule_change_dates (change_id, change_date) VALUES ($cid, '$d')"); }
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'pending: not unavailable');
+        $conn->query("UPDATE schedule_change_requests SET status = 'rejected' WHERE change_id = $cid");
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'rejected: not unavailable');
+        $conn->query("UPDATE schedule_change_requests SET status = 'approved' WHERE change_id = $cid");
+        assert_true(driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00') !== null, 'approved: unavailable that day');
+        assert_true(driverUnavailableReason($conn, $dr, '2034-08-03 23:00:00', '2034-08-04 02:00:00') !== null, 'a task that runs into an unavailable day');
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-04 09:00:00', '2034-08-04 11:00:00'), 'the next day is free');
+        assert_same(null, driverUnavailableReason($conn, $dr + 1000, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'another driver is not affected');
+        $conn->query("UPDATE schedule_change_requests SET change_type = 'withdraw' WHERE change_id = $cid");
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'a withdraw request never makes the driver unavailable');
+    },
+    'UC029 the days of a request' => function () {
+        assert_same(['2034-08-02', '2034-08-03', '2034-08-04'], scheduleChangeDates('2034-08-02', '2034-08-04'));
+        assert_same(['2034-08-02'], scheduleChangeDates('2034-08-02', '2034-08-02'));
+        assert_same([], scheduleChangeDates('2034-08-04', '2034-08-02'), 'backwards');
+        assert_same([], scheduleChangeDates('nonsense', '2034-08-02'));
+        assert_true(count(scheduleChangeDates('2034-01-01', '2034-12-31')) > SCHEDULE_CHANGE_MAX_DAYS, 'a long range is cut so the caller can refuse it');
+    },
 ];

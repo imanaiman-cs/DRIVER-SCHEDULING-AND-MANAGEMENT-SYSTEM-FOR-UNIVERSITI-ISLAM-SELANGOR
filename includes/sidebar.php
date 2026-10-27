@@ -53,7 +53,7 @@ function submenuShow(array $pages, string $current): string
 
 // ── Counts shown as small badges ─────────────────────────────────
 $_sidebar_uid     = (int)($_SESSION['user_id'] ?? 0);
-$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0];
+$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0, 'changes' => 0];
 $_app_unread      = 0;   // unread notifications (the bell)
 $_app_notifs      = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
@@ -62,6 +62,7 @@ if ($_sidebar_uid > 0 && isset($conn)) {
             $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
             $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
             $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
+            if ($role === 'head_admin') { $_badge['changes'] = (int)$conn->query("SELECT COUNT(*) FROM schedule_change_requests WHERE status = 'pending'")->fetch_row()[0]; }
         }
         if ($role === 'supervisor') {
             $st = $conn->prepare("SELECT COUNT(*) FROM vehicle_requests WHERE supervisor_id = ? AND status = 'pending'");
@@ -98,6 +99,7 @@ if ($_is_admin_role) {
             [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
             [[['record_paper_form.php'], 'admin/record_paper_form.php', 'file-pen', 'Record Paper Form', null]],
             $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
+            $role === 'head_admin' ? [[['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Changes', 'changes']] : [],
             [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
         ),
         'Schedule' => [
@@ -120,6 +122,7 @@ if ($_is_admin_role) {
 } else {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
               'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
+                             [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null],
                              [['profile.php'], 'driver/profile.php', 'id-card', 'My Profile', null]]] + $_my_requests;
 }
 ?>

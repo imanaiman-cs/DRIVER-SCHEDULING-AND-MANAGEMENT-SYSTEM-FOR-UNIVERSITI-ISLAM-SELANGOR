@@ -812,7 +812,7 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
             if (!driverHoldsLicence($d['license_class'], $d['license_required'])) {
                 return $d['name'] . ' does not hold licence class ' . $d['license_required'] . ', which ' . $d['plate_number'] . ' needs.';
             }
-            if (($why = driverClashReason($conn, $driver_id, $w['start_dt'], $w['end_dt'])) !== null) {
+            if (($why = driverUnavailableReason($conn, $driver_id, $w['start_dt'], $w['end_dt']) ?? driverClashReason($conn, $driver_id, $w['start_dt'], $w['end_dt'])) !== null) {
                 return $d['name'] . ' cannot be chosen for the ' . $label . ' trip: ' . $why . '.';
             }
             return null;
@@ -906,9 +906,10 @@ function rejectAssignment(mysqli $conn, int $request_id, string $reason): array
  * (old driver, new driver, reason, date), the request goes back to "Driver Assigned" so the
  * Head of Admin approves again, and the old driver, the new driver and the Head of Admin are told.
  */
-function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, string $reason): array
+function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, string $reason, bool $driverRequest = false): array
 {
     $reason = trim($reason);
+    if ($driverRequest && $reason === '') { $reason = 'Driver Request'; }      // UC020 A1: the Head of Admin replaces after a schedule change request
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     if (mb_strlen($reason) < 3) { return $fail('Please give a reason for replacing the driver.'); }
     $conn->begin_transaction();
@@ -941,7 +942,7 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $need = (string)($v->get_result()->fetch_row()[0] ?? 'D');
         $v->close();
         if (!driverHoldsLicence($nd['license_class'], $need)) { $conn->rollback(); return $fail($nd['name'] . ' does not hold licence class ' . $need . '.'); }
-        if (($why = driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], $schedule_id)) !== null) {
+        if (($why = driverUnavailableReason($conn, $new_driver, $t['start_dt'], $t['end_dt']) ?? driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], $schedule_id)) !== null) {
             $conn->rollback();
             return $fail($nd['name'] . ' cannot be chosen: ' . $why . '.');
         }
@@ -956,10 +957,12 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $log->execute();
         $log->close();
         $rid = (int)$t['request_id'];
-        $back = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned' WHERE request_id = ? AND status = 'processed'");
-        $back->bind_param('i', $rid);
-        $back->execute();
-        $back->close();
+        if (!$driverRequest) {                       // normal replacement: the Head of Admin approves the new assignment (UC019)
+            $back = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned' WHERE request_id = ? AND status = 'processed'");
+            $back->bind_param('i', $rid);
+            $back->execute();
+            $back->close();
+        }
         $conn->commit();
     } catch (Throwable $e) {
         $conn->rollback();
@@ -976,6 +979,11 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
     auditLog($conn, 'replace_driver', $rid, "Task #$schedule_id: $oldN -> {$nd['name']}. Reason: $reason");
     $what = "request #$rid ({$t['req_dest']}, " . date('d M Y H:i', strtotime($t['start_dt'])) . ')';
     notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$old]), "You were replaced on $what. Reason: $reason", 'driver/schedules.php');
+    if ($driverRequest) {                            // UC020 A1: done by the Head of Admin, so the task is Confirmed directly
+        notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$new_driver]), "You have a new trip: $what.", 'driver/schedules.php');
+        notifyUsers($conn, [(int)$t['staff_id']], "The driver of your $what changed to {$nd['name']}.", 'staff/my_requests.php');
+        return ['ok' => true, 'message' => "Driver replaced by {$nd['name']}; the task is Confirmed."];
+    }
     notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$new_driver]), "You are assigned to $what, waiting for the Head of Admin to confirm.", 'driver/schedules.php');
     notifyUsers($conn, headAdminUserIds($conn), "The driver of $what was replaced ($oldN -> {$nd['name']}). Reason: $reason. Please approve the new assignment.", 'admin/approve_assignments.php');
     return ['ok' => true, 'message' => 'Driver replaced. The Head of Admin must approve the change.'];
@@ -1249,4 +1257,226 @@ function recordVehicleUsage(mysqli $conn, int $driver_id, string $kind, int $tas
         notifyUsers($conn, assistantUserIds($conn), "$name reported a condition issue on {$veh['plate_number']}: $issue", 'admin/view_vehicle.php?id=' . $vehicle_id);
     }
     return ['ok' => true, 'message' => 'The vehicle was updated.' . ($issue !== null ? ' The Administrative Assistant was told about the condition issue.' : '')];
+}
+
+// ------------------------------------------------------------
+// UC029 Request Schedule Change (driver) and UC030 Approve/Reject Schedule Change (Head of Admin)
+//   type "unavailable": the driver cannot work some dates; once approved the driver is not recommended or assigned on them
+//   type "withdraw":    the driver asks to be withdrawn from ONE confirmed task; the task stays with the driver until the Head of Admin
+//                       approves and replaces the driver (UC020)
+// ------------------------------------------------------------
+
+const SCHEDULE_CHANGE_MAX_DAYS = 31;
+
+/** Is the driver marked unavailable on a day of this period (an approved Unavailable Date request)? Returns the reason text, or null. */
+function driverUnavailableReason(mysqli $conn, int $driver_id, string $start, string $end): ?string
+{
+    $from = substr($start, 0, 10);
+    $to = substr($end, 0, 10);
+    $stmt = $conn->prepare(
+        "SELECT d.change_date FROM schedule_change_dates d JOIN schedule_change_requests r ON r.change_id = d.change_id
+          WHERE r.driver_id = ? AND r.change_type = 'unavailable' AND r.status = 'approved' AND d.change_date BETWEEN ? AND ?
+          ORDER BY d.change_date LIMIT 1"
+    );
+    $stmt->bind_param('iss', $driver_id, $from, $to);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? 'Marked unavailable on ' . date('d M Y', strtotime($row['change_date'])) : null;
+}
+
+/** Every day from $from to $to (Y-m-d, inclusive). Empty when a date is invalid or the range is backwards. */
+function scheduleChangeDates(string $from, string $to): array
+{
+    if (!isValidDate($from) || !isValidDate($to) || $to < $from) { return []; }
+    $out = [];
+    for ($d = strtotime($from); $d <= strtotime($to) && count($out) <= SCHEDULE_CHANGE_MAX_DAYS; $d += 86400) { $out[] = date('Y-m-d', $d); }
+    return $out;
+}
+
+/**
+ * UC029: saves the request with the status Pending and tells the Head of Admin (system + e-mail).
+ * $dates: the days of an "unavailable" request. $schedule_id: the task of a "withdraw" request.
+ * @return array{ok:bool, message:string, change_id?:int}
+ */
+function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type, array $dates, ?int $schedule_id, string $reason): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $reason = trim($reason);
+    if (!in_array($type, ['unavailable', 'withdraw'], true)) { return $fail('Choose the type of request.'); }
+    if ($reason === '') { return $fail('Please enter the reason.'); }
+    $reason = mb_substr($reason, 0, 500);
+    $today = date('Y-m-d');
+
+    $task = null;
+    if ($type === 'withdraw') {
+        $stmt = $conn->prepare(
+            "SELECT s.schedule_id, s.start_dt, s.end_dt, vr.destination FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+              WHERE s.schedule_id = ? AND s.driver_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed'"
+        );
+        $sid = (int)$schedule_id;
+        $stmt->bind_param('ii', $sid, $driver_id);
+        $stmt->execute();
+        $task = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$task) { return $fail('Choose one of your confirmed tasks.'); }
+        if (strtotime($task['start_dt']) <= time()) { return $fail('The task has already started or passed.'); }
+        $dates = [substr($task['start_dt'], 0, 10)];
+    } else {
+        $dates = array_values(array_unique(array_filter(array_map('strval', $dates), 'isValidDate')));
+        sort($dates);
+        if (!$dates) { return $fail('Choose the date or dates.'); }
+        if (count($dates) > SCHEDULE_CHANGE_MAX_DAYS) { return $fail('Choose at most ' . SCHEDULE_CHANGE_MAX_DAYS . ' days in one request.'); }
+        if ($dates[0] < $today) { return $fail('The selected date has already passed.'); }
+    }
+
+    $conn->begin_transaction();
+    try {
+        // no second Pending request for the same date or task
+        if ($type === 'withdraw') {
+            $stmt = $conn->prepare("SELECT 1 FROM schedule_change_requests WHERE driver_id = ? AND change_type = 'withdraw' AND status = 'pending' AND schedule_id = ? FOR UPDATE");
+            $sid = (int)$schedule_id;
+            $stmt->bind_param('ii', $driver_id, $sid);
+            $stmt->execute();
+            $dup = (bool)$stmt->get_result()->fetch_row();
+            $stmt->close();
+            if ($dup) { $conn->rollback(); return $fail('A pending request already exists for this task.'); }
+        } else {
+            $in = implode(',', array_fill(0, count($dates), '?'));
+            $stmt = $conn->prepare("SELECT d.change_date FROM schedule_change_dates d JOIN schedule_change_requests r ON r.change_id = d.change_id
+                                     WHERE r.driver_id = ? AND r.change_type = 'unavailable' AND r.status = 'pending' AND d.change_date IN ($in) ORDER BY d.change_date LIMIT 1 FOR UPDATE");
+            $stmt->bind_param('i' . str_repeat('s', count($dates)), $driver_id, ...$dates);
+            $stmt->execute();
+            $dupRow = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($dupRow) { $conn->rollback(); return $fail('A pending request already exists for ' . date('d M Y', strtotime($dupRow['change_date'])) . '.'); }
+        }
+        $stmt = $conn->prepare('INSERT INTO schedule_change_requests (driver_id, change_type, schedule_id, reason) VALUES (?, ?, ?, ?)');
+        $sid = $type === 'withdraw' ? (int)$schedule_id : null;
+        $stmt->bind_param('isis', $driver_id, $type, $sid, $reason);
+        $stmt->execute();
+        $cid = (int)$stmt->insert_id;
+        $stmt->close();
+        $stmt = $conn->prepare('INSERT INTO schedule_change_dates (change_id, change_date) VALUES (?, ?)');
+        foreach ($dates as $d) {
+            $stmt->bind_param('is', $cid, $d);
+            $stmt->execute();
+        }
+        $stmt->close();
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('createScheduleChangeRequest: ' . $e->getMessage());
+        return $fail('Database error. Please try again.');
+    }
+
+    $q = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
+    $q->bind_param('i', $driver_id);
+    $q->execute();
+    $name = (string)($q->get_result()->fetch_row()[0] ?? 'A driver');
+    $q->close();
+    $what = $type === 'withdraw' ? 'to be withdrawn from the task on ' . date('d M Y H:i', strtotime($task['start_dt'])) . ' (' . $task['destination'] . ')'
+                                 : 'to be unavailable on ' . scheduleChangeDatesText($dates);
+    auditLog($conn, 'schedule_change_request', null, "Request #$cid by $name $what. Reason: $reason");
+    notifyUsers($conn, headAdminUserIds($conn), "$name asks $what. Reason: $reason", 'admin/schedule_changes.php');
+    return ['ok' => true, 'message' => 'Your request was sent to the Head of Admin.', 'change_id' => $cid];
+}
+
+/** "25 Oct 2026" or "25, 26 and 28 Oct 2026" style text for a list of days. */
+function scheduleChangeDatesText(array $dates): string
+{
+    $dates = array_values($dates);
+    if (count($dates) === 1) { return date('d M Y', strtotime($dates[0])); }
+    return date('d M Y', strtotime($dates[0])) . ' to ' . date('d M Y', strtotime($dates[count($dates) - 1])) . ' (' . count($dates) . ' days)';
+}
+
+/** The days of a request. */
+function scheduleChangeDatesOf(mysqli $conn, int $change_id): array
+{
+    $stmt = $conn->prepare('SELECT change_date FROM schedule_change_dates WHERE change_id = ? ORDER BY change_date');
+    $stmt->bind_param('i', $change_id);
+    $stmt->execute();
+    $out = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'change_date');
+    $stmt->close();
+    return $out;
+}
+
+/** The driver's tasks that a request touches (UC029 2.1 and UC030 2.1): trips of this driver on the days, or the withdraw task. */
+function scheduleChangeAffectedTasks(mysqli $conn, array $change): array
+{
+    if ($change['change_type'] === 'withdraw') {
+        $stmt = $conn->prepare(
+            "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
+               FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id WHERE s.schedule_id = ? AND s.status <> 'cancelled'"
+        );
+        $sid = (int)$change['schedule_id'];
+        $stmt->bind_param('i', $sid);
+    } else {
+        $stmt = $conn->prepare(
+            "SELECT DISTINCT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
+               FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+               JOIN schedule_change_dates d ON d.change_id = ? AND d.change_date BETWEEN DATE(s.start_dt) AND DATE(s.end_dt)
+              WHERE s.driver_id = ? AND s.status <> 'cancelled' AND vr.status IN ('assigned', 'processed') AND s.end_dt > NOW() ORDER BY s.start_dt"
+        );
+        $cid = (int)$change['change_id']; $did = (int)$change['driver_id'];
+        $stmt->bind_param('ii', $cid, $did);
+    }
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+/**
+ * UC030: the Head of Admin approves or rejects a Pending request (the comment is UC016: required when rejecting).
+ * Approve: the driver is marked unavailable on the days (unavailable type) and the driver and the Administrative Assistant are told.
+ * Reject: the driver is told the reason and the task stays with the driver.
+ * @return array{ok:bool, message:string, tasks?:array}  tasks = the Confirmed tasks whose driver must be replaced now (UC020)
+ */
+function decideScheduleChange(mysqli $conn, int $change_id, string $decision, string $comment): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $comment = trim($comment);
+    if (!in_array($decision, ['approve', 'reject'], true)) { return $fail('Choose Approve or Reject.'); }
+    if ($decision === 'reject' && mb_strlen($comment) < 3) { return $fail('Please enter the reason for rejecting.'); }
+    $comment = mb_substr($comment, 0, 500);
+    $actor = (int)($_SESSION['user_id'] ?? 0);
+    $status = $decision === 'approve' ? 'approved' : 'rejected';
+
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare('SELECT r.*, d.name AS driver_name FROM schedule_change_requests r JOIN drivers d ON d.driver_id = r.driver_id WHERE r.change_id = ? FOR UPDATE');
+        $stmt->bind_param('i', $change_id);
+        $stmt->execute();
+        $ch = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$ch) { $conn->rollback(); return $fail('Request not found.'); }
+        if ($ch['status'] !== 'pending') { $conn->rollback(); return $fail('This request was already ' . $ch['status'] . '.'); }
+        $com = $comment === '' ? null : $comment;
+        $stmt = $conn->prepare("UPDATE schedule_change_requests SET status = ?, decision_comment = ?, decided_by = ?, decided_at = NOW() WHERE change_id = ? AND status = 'pending'");
+        $stmt->bind_param('ssii', $status, $com, $actor, $change_id);
+        $stmt->execute();
+        $stmt->close();
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('decideScheduleChange: ' . $e->getMessage());
+        return $fail('Database error. Please try again.');
+    }
+
+    $dates = scheduleChangeDatesOf($conn, $change_id);
+    $what = $ch['change_type'] === 'withdraw' ? 'to be withdrawn from the task on ' . scheduleChangeDatesText($dates) : 'to be unavailable on ' . scheduleChangeDatesText($dates);
+    $du = userIdOfDriver($conn, (int)$ch['driver_id']);
+    $why = $com !== null ? ' Comment: ' . $com : '';
+    $tasks = [];
+    if ($decision === 'approve') {
+        auditLog($conn, 'schedule_change_approve', null, "Request #$change_id of {$ch['driver_name']} approved.$why");
+        if ($du) { notifyUsers($conn, [$du], "Your request $what was approved.$why", 'driver/schedule_change.php'); }
+        notifyUsers($conn, assistantUserIds($conn), "{$ch['driver_name']}'s request $what was approved." . ($ch['change_type'] === 'withdraw' ? ' The driver is replaced on the task.' : ' The driver is not offered on those days.'), 'admin/vehicle_requests.php');
+        foreach (scheduleChangeAffectedTasks($conn, $ch) as $t) { if ($t['req_status'] === 'processed') { $tasks[] = $t; } }
+    } else {
+        auditLog($conn, 'schedule_change_reject', null, "Request #$change_id of {$ch['driver_name']} rejected.$why");
+        if ($du) { notifyUsers($conn, [$du], "Your request $what was rejected.$why The task stays with you.", 'driver/schedule_change.php'); }
+    }
+    return ['ok' => true, 'message' => 'Request ' . $status . '.', 'tasks' => $tasks];
 }

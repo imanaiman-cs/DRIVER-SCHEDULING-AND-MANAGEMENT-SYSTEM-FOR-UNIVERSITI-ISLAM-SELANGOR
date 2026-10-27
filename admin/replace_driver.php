@@ -31,15 +31,35 @@ if (!$task) {
 }
 $canReplace = $task['req_status'] === 'processed' && strtotime($task['start_dt']) > time();
 
+// UC020 A1: opened by the Head of Admin after approving a schedule change request ("Driver Request"); the task stays Confirmed
+$change_id = (int)($_GET['change_id'] ?? $_POST['change_id'] ?? 0);
+$driverRequest = false;
+if ($change_id > 0 && isHeadAdmin()) {
+    $cs = $conn->prepare("SELECT 1 FROM schedule_change_requests r WHERE r.change_id = ? AND r.status = 'approved' AND r.driver_id = ?
+                             AND (r.schedule_id = ? OR (r.change_type = 'unavailable' AND EXISTS (SELECT 1 FROM schedule_change_dates d WHERE d.change_id = r.change_id AND d.change_date BETWEEN DATE(?) AND DATE(?))))");
+    $cs->bind_param('iiiss', $change_id, $task['driver_id'], $sid, $task['start_dt'], $task['end_dt']);
+    $cs->execute();
+    $driverRequest = (bool)$cs->get_result()->fetch_row();
+    $cs->close();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$canReplace) {
         setFlash('danger', 'Only a Confirmed task that has not started can have its driver replaced.');
     } else {
-        $res = replaceTaskDriver($conn, $sid, (int)($_POST['new_driver'] ?? 0), (string)($_POST['reason'] ?? ''));
+        $res = replaceTaskDriver($conn, $sid, (int)($_POST['new_driver'] ?? 0), (string)($_POST['reason'] ?? ''), $driverRequest);
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
+        if ($res['ok'] && $driverRequest) {                           // the next affected task of the same request, or back to the list
+            $q = $_SESSION['replace_queue'] ?? null;
+            $left = ($q && (int)$q['change_id'] === $change_id) ? array_values(array_diff($q['tasks'], [$sid])) : [];
+            $_SESSION['replace_queue'] = $left ? ['change_id' => $change_id, 'tasks' => $left] : null;
+            if (!$left) { unset($_SESSION['replace_queue']); }
+            header('Location: ' . ($left ? 'replace_driver.php?schedule_id=' . $left[0] . '&change_id=' . $change_id : 'schedule_changes.php'));
+            exit();
+        }
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . (int)$task['request_id']); exit(); }
     }
-    header('Location: replace_driver.php?schedule_id=' . $sid);
+    header('Location: replace_driver.php?schedule_id=' . $sid . ($driverRequest ? '&change_id=' . $change_id : ''));
     exit();
 }
 
@@ -66,7 +86,8 @@ adminPageStart('Replace Driver');
         <div class="alert alert-warning">The driver can be replaced only while the request is Confirmed and the task has not started.</div>
     <?php else: ?>
     <form method="post" class="card border-0 shadow-sm"><div class="card-body">
-        <input type="hidden" name="schedule_id" value="<?= $sid ?>">
+        <input type="hidden" name="schedule_id" value="<?= $sid ?>"><?php if ($driverRequest): ?><input type="hidden" name="change_id" value="<?= $change_id ?>"><?php endif; ?>
+        <?php if ($driverRequest): ?><div class="alert alert-info py-2">The driver asked for this change (schedule change request #<?= $change_id ?>). The reason is <strong>Driver Request</strong> and the task stays <strong>Confirmed</strong>.</div><?php endif; ?>
         <h6 class="fw-bold">Choose the new driver <span class="fw-normal text-muted small">(only drivers without a clash can be chosen)</span></h6>
         <div class="table-responsive"><table class="table table-sm align-middle">
             <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
@@ -84,8 +105,8 @@ adminPageStart('Replace Driver');
             </tbody>
         </table></div>
         <label class="form-label small fw-semibold" for="reason">Reason for replacing the driver <span class="text-danger">*</span></label>
-        <input class="form-control mb-3" id="reason" name="reason" maxlength="500" required>
-        <button class="btn btn-primary" data-confirm="The request goes back to Driver Assigned and the Head of Admin must approve again." data-confirm-title="Replace the driver?" data-confirm-button="Replace" data-confirm-tone="primary"><i class="fas fa-right-left me-1"></i>Replace driver</button>
+        <input class="form-control mb-3" id="reason" name="reason" maxlength="500" required value="<?= $driverRequest ? 'Driver Request' : '' ?>">
+        <button class="btn btn-primary" data-confirm="<?= $driverRequest ? 'The task stays Confirmed.' : 'The request goes back to Driver Assigned and the Head of Admin must approve again.' ?>" data-confirm-title="Replace the driver?" data-confirm-button="Replace" data-confirm-tone="primary"><i class="fas fa-right-left me-1"></i>Replace driver</button>
     </div></form>
     <?php endif; ?>
 

@@ -368,6 +368,31 @@ CREATE TABLE `vehicle_usage_log` (
   CONSTRAINT `fk_usage_task` FOREIGN KEY (`internal_task_id`) REFERENCES `internal_tasks` (`task_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `schedule_change_requests` (
+  `change_id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` int(11) NOT NULL,
+  `change_type` enum('unavailable','withdraw') NOT NULL,
+  `schedule_id` int(11) DEFAULT NULL COMMENT 'the task of a withdraw request',
+  `reason` varchar(500) NOT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `decision_comment` varchar(500) DEFAULT NULL,
+  `decided_by` int(11) DEFAULT NULL,
+  `decided_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`change_id`),
+  KEY `idx_change_driver` (`driver_id`,`status`),
+  KEY `idx_change_status` (`status`,`created_at`),
+  CONSTRAINT `fk_change_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `fk_change_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE `schedule_change_dates` (
+  `change_id` int(11) NOT NULL,
+  `change_date` date NOT NULL,
+  PRIMARY KEY (`change_id`,`change_date`),
+  KEY `idx_change_date` (`change_date`),
+  CONSTRAINT `fk_change_dates` FOREIGN KEY (`change_id`) REFERENCES `schedule_change_requests` (`change_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- The history (audit_log) and the comments are INSERT ONLY: the database refuses to change or delete a row.
 DELIMITER //
@@ -575,4 +600,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes');
