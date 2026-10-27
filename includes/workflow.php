@@ -525,7 +525,7 @@ function cancelRequestTasks(mysqli $conn, int $request_id): array
 function taskSummaryText(mysqli $conn, int $request_id): string
 {
     $stmt = $conn->prepare(
-        "SELECT s.leg_no, d.name AS driver, v.plate_number, v.model FROM schedules s
+        "SELECT s.leg_no, d.name AS driver, v.plate_number, v.model, s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name FROM schedules s
            LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
           WHERE s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.leg_no"
     );
@@ -533,8 +533,9 @@ function taskSummaryText(mysqli $conn, int $request_id): string
     $stmt->execute();
     $parts = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $parts[] = ((int)$r['leg_no'] === 2 ? 'Return' : 'Outbound') . ': ' . ($r['driver'] ?? 'no driver')
-                 . ' with ' . ($r['plate_number'] ?? 'no vehicle') . ($r['model'] ? ' (' . $r['model'] . ')' : '');
+        $parts[] = ((int)$r['leg_no'] === 2 ? 'Return' : 'Outbound') . ': ' . ($r['vendor_name'] !== null
+            ? 'vendor bus ' . $r['vendor_bus_plate'] . ' (' . $r['vendor_name'] . ', driver ' . $r['vendor_driver_name'] . ')'
+            : ($r['driver'] ?? 'no driver') . ' with ' . ($r['plate_number'] ?? 'no vehicle') . ($r['model'] ? ' (' . $r['model'] . ')' : ''));
     }
     $stmt->close();
     return implode('; ', $parts);
@@ -604,6 +605,9 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         if ($to === 'cancelled') {
             $oldDrivers = cancelRequestTasks($conn, $request_id);
         }
+        if ($to === 'processed' && requestAllTasksVendor($conn, $request_id)) {
+            releaseVehicleLocks($conn, $request_id);          // UC017 A2: the vendor bus replaces the UIS bus, which is free for others again
+        }
         if ($to === 'approved' && $req['status'] === 'assigned') {
             // The Head of Admin rejected the assignment: the tasks and the driver go, the vehicle stays locked
             $oldDrivers = cancelRequestTasks($conn, $request_id);
@@ -629,6 +633,17 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
 }
 
 /** History entry + notifications after a status change (never undoes the change). */
+/** True when the request has tasks and every one of them is given to a vendor bus (no UIS driver and no UIS bus is needed). */
+function requestAllTasksVendor(mysqli $conn, int $request_id): bool
+{
+    $stmt = $conn->prepare("SELECT COUNT(*) AS n, SUM(vendor_name IS NULL) AS uis FROM schedules WHERE request_id = ? AND status <> 'cancelled'");
+    $stmt->bind_param('i', $request_id);
+    $stmt->execute();
+    $r = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (int)$r['n'] > 0 && (int)$r['uis'] === 0;
+}
+
 function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string $reason, bool $system, ?int $actor, string $role, array $oldDrivers = []): void
 {
     $request_id = (int)$req['request_id'];
@@ -772,11 +787,15 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): arr
  *   $out_driver  driver of the outbound task
  *   $ret_driver  driver of the return task (null = the same driver as outbound)
  *   $ret_vehicle vehicle of the return task (null = the same vehicle as outbound)
+ *   $vendorOut / $vendorRet  UC017 A2 vendor bus ['name', 'plate', 'driver'] instead of a UIS driver for that task. Only for a bus that needs
+ *                a PSV licence when no UIS driver is available for the task. With a vendor outbound and nothing chosen for the return,
+ *                the return uses the same vendor bus.
  * The request becomes "Driver Assigned" and the Head of Admin is told. The system never assigns by itself,
  * and a driver with a clashing task cannot be chosen.
  * @return array{ok:bool, message:string}
  */
-function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?int $ret_driver = null, ?int $ret_vehicle = null): array
+function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?int $ret_driver = null, ?int $ret_vehicle = null,
+                              ?array $vendorOut = null, ?array $vendorRet = null): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
@@ -793,10 +812,10 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
 
         $win = requestTaskWindows($conn, $req);
         $mainVehicle = (int)$req['vehicle_id'];
-        $sameReturn  = ($ret_driver === null && $ret_vehicle === null);
+        $sameReturn  = ($ret_driver === null && $ret_vehicle === null && $vendorRet === null);
         $retVehicle  = $ret_vehicle ?? $mainVehicle;
         $retDriver   = $ret_driver ?? $out_driver;
-        if (!$sameReturn && ($ret_driver === null || $ret_vehicle === null)) {
+        if (!$sameReturn && $vendorRet === null && ($ret_driver === null || $ret_vehicle === null)) {
             $conn->rollback();
             return $fail('Choose both a driver and a vehicle for the return trip, or use the same driver and vehicle.');
         }
@@ -818,28 +837,53 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
             return null;
         };
 
-        if (($e = $checkDriver($out_driver, $mainVehicle, $win['out'], 'outbound')) !== null) { $conn->rollback(); return $fail($e); }
+        // UC017 A2: a vendor bus is allowed only when no UIS driver with the PSV licence is available for that task
+        $vendorOk = function (array $v, array $w, string $label) use ($conn, $mainVehicle): ?string {
+            if (trim((string)($v['name'] ?? '')) === '' || trim((string)($v['plate'] ?? '')) === '' || trim((string)($v['driver'] ?? '')) === '') {
+                return 'Enter the vendor name, the bus registration number and the vendor driver name.';
+            }
+            if (mb_strlen((string)$v['name']) > 150 || mb_strlen((string)$v['plate']) > 20 || mb_strlen((string)$v['driver']) > 100) { return 'The vendor details are too long.'; }
+            $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
+            $q->bind_param('i', $mainVehicle);
+            $q->execute();
+            $need = (string)($q->get_result()->fetch_row()[0] ?? 'D');
+            $q->close();
+            if ($need !== 'PSV') { return 'A vendor bus can be used only for a bus that needs a PSV licence.'; }
+            if (recommendDrivers($conn, ['start' => $w['start_dt'], 'end' => $w['end_dt'], 'licence' => 'PSV'])['ranked']) {
+                return 'A UIS driver with a PSV licence is available for the ' . $label . ' trip, so a vendor bus cannot be used.';
+            }
+            return null;
+        };
+        $vend = fn(?array $v) => $v === null ? null : ['name' => trim((string)($v['name'] ?? '')), 'plate' => trim((string)($v['plate'] ?? '')), 'driver' => trim((string)($v['driver'] ?? ''))];
+        $vendorOut = $vend($vendorOut); $vendorRet = $vend($vendorRet);
+        if ($vendorOut !== null) {
+            if (($e = $vendorOk($vendorOut, $win['out'], 'outbound')) !== null) { $conn->rollback(); return $fail($e); }
+        } elseif (($e = $checkDriver($out_driver, $mainVehicle, $win['out'], 'outbound')) !== null) { $conn->rollback(); return $fail($e); }
+        if ($vendorRet !== null && ($e = $vendorOk($vendorRet, $win['ret'], 'return')) !== null) { $conn->rollback(); return $fail($e); }
 
         $ins = $conn->prepare(
             "INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, purpose, passenger_count,
-                                    status, created_by, notes, officer_name, officer_phone, waiting_place, request_id, leg_no)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?, ?)"
+                                    status, created_by, notes, officer_name, officer_phone, waiting_place, request_id, leg_no,
+                                    vendor_name, vendor_bus_plate, vendor_driver_name)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
         $note = 'e-Kenderaan request #' . $request_id;
-        $insertTask = function (int $driver, int $vehicle, array $w, int $leg) use ($ins, $req, $by, $note, $request_id) {
+        $insertTask = function (?int $driver, ?int $vehicle, array $w, int $leg, ?array $vendor = null) use ($ins, $req, $by, $note, $request_id) {
             $dest = $req['destination'];
             $purpose = mb_substr((string)$req['purpose'], 0, 255);
             $pax = (int)$req['passenger_count'];
-            $ins->bind_param('iisssssiissssii', $driver, $vehicle, $w['date'], $w['start'], $w['end'], $dest, $purpose, $pax,
-                $by, $note, $req['officer_name'], $req['officer_phone'], $req['waiting_place'], $request_id, $leg);
+            $vn = $vendor['name'] ?? null; $vp = $vendor['plate'] ?? null; $vd = $vendor['driver'] ?? null;
+            $ins->bind_param('iisssssiissssiisss', $driver, $vehicle, $w['date'], $w['start'], $w['end'], $dest, $purpose, $pax,
+                $by, $note, $req['officer_name'], $req['officer_phone'], $req['waiting_place'], $request_id, $leg, $vn, $vp, $vd);
             $ins->execute();
             return (int)$ins->insert_id;
         };
-        $outId = $insertTask($out_driver, $mainVehicle, $win['out'], 1);
+        $outId = $insertTask($vendorOut !== null ? null : $out_driver, $vendorOut !== null ? null : $mainVehicle, $win['out'], 1, $vendorOut);   // a vendor task uses no UIS vehicle
 
         // return trip
-        if ($retVehicle !== $mainVehicle) {
+        $retIsVendor = $vendorRet !== null || ($sameReturn && $vendorOut !== null);
+        if ($retVehicle !== $mainVehicle && !$retIsVendor) {
             $why = vehicleUnavailableReason($conn, $retVehicle, $win['ret']['start_dt'], $win['ret']['end_dt'], $request_id);
             if ($why !== null) { $conn->rollback(); return $fail('The return vehicle ' . vehicleUnavailableText($why) . '.'); }
             $cap = $conn->prepare('SELECT capacity FROM vehicles WHERE vehicle_id = ?');
@@ -849,9 +893,13 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
             $cap->close();
             if ($c < (int)$req['passenger_count']) { $conn->rollback(); return $fail('The return vehicle has too few seats for ' . (int)$req['passenger_count'] . ' passengers.'); }
         }
-        if (($e = $checkDriver($retDriver, $retVehicle, $win['ret'], 'return')) !== null) { $conn->rollback(); return $fail($e); }
-        $insertTask($retDriver, $retVehicle, $win['ret'], 2);
-        if ($retVehicle !== $mainVehicle) {
+        if ($retIsVendor) {
+            $insertTask(null, null, $win['ret'], 2, $vendorRet ?? $vendorOut);
+        } else {
+            if (($e = $checkDriver($retDriver, $retVehicle, $win['ret'], 'return')) !== null) { $conn->rollback(); return $fail($e); }
+            $insertTask($retDriver, $retVehicle, $win['ret'], 2);
+        }
+        if ($retVehicle !== $mainVehicle && !$retIsVendor) {
             lockVehiclePeriod($conn, $request_id, $retVehicle, $win['ret']['start_dt'], $win['ret']['end_dt']);
         }
         $ins->close();
@@ -870,7 +918,7 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         return $fail('Database error. Please try again.');
     }
     afterRequestStatusChange($conn, $req, 'assigned', null, false, (int)($_SESSION['user_id'] ?? 0), (string)($_SESSION['role'] ?? ''));
-    return ['ok' => true, 'message' => 'Driver assigned. The Head of Admin was asked to approve it.'];
+    return ['ok' => true, 'message' => ($vendorOut !== null || $vendorRet !== null ? 'Vendor bus recorded.' : 'Driver assigned.') . ' The Head of Admin was asked to approve it.'];
 }
 
 /** UC019: the Head of Admin approves the assignment -> Confirmed. */
@@ -882,7 +930,7 @@ function approveAssignment(mysqli $conn, int $request_id): array
     $withoutDriver = ($row = $q->get_result()->fetch_assoc()) && isRequestWithoutDriver($row);
     $q->close();
     if ($withoutDriver) { return changeRequestStatus($conn, $request_id, 'processed'); }       // UC019 A2: only the vehicle is approved
-    $stmt = $conn->prepare("SELECT s.driver_id FROM schedules s WHERE s.request_id = ? AND s.status <> 'cancelled' AND s.driver_id IS NULL");
+    $stmt = $conn->prepare("SELECT s.driver_id FROM schedules s WHERE s.request_id = ? AND s.status <> 'cancelled' AND s.driver_id IS NULL AND s.vendor_name IS NULL");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
     $noDriver = (bool)$stmt->get_result()->fetch_row();
@@ -925,6 +973,7 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $stmt->close();
         if (!$t || $t['status'] === 'cancelled') { $conn->rollback(); return $fail('Task not found.'); }
         if ($t['req_status'] !== 'processed') { $conn->rollback(); return $fail('Only a Confirmed task can have its driver replaced.'); }
+        if ($t['vendor_name'] !== null) { $conn->rollback(); return $fail('This task is given to a vendor bus, so there is no UIS driver to replace.'); }
         if (strtotime($t['start_dt']) <= time()) { $conn->rollback(); return $fail('The task has already started, so its driver cannot be replaced.'); }
         $old = (int)$t['driver_id'];
         if ($old === $new_driver) { $conn->rollback(); return $fail('The new driver is the same as the current driver.'); }

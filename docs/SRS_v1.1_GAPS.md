@@ -26,7 +26,7 @@ Each item names the use case to read first.
   Head of Admin approves or rejects with a comment (UC016). Approved "unavailable" dates must be excluded by the recommender
   and must block welfare duty on those days (UC025 exception 3.1). Approved "withdraw" frees the driver from the task so the
   Assistant can replace them (UC020).
-- [ ] **Vendor bus — UC017 A2.** When no UIS driver with a PSV licence is available, the Assistant records a vendor bus
+- [x] **Vendor bus — UC017 A2.** (done 27 Oct, Iman chose: the UIS bus lock is released when the all-vendor request is Confirmed. Migration `2026_11_vendor_bus`, `assignRequestDrivers(..., $vendorOut, $vendorRet)`, `requestAllTasksVendor()`; test `tests/http/t_vendor.py`.) When no UIS driver with a PSV licence is available, the Assistant records a vendor bus
   (vendor name, bus registration number, vendor driver name) instead of a UIS driver.
 
 ## 2. Behaviour that differs from the SRS

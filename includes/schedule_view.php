@@ -76,7 +76,7 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     $sql = "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, s.driver_id, s.vehicle_id, s.purpose AS s_purpose,
                    s.destination AS s_dest, s.officer_name AS s_officer, s.officer_phone AS s_phone, s.waiting_place AS s_wait,
                    vr.status AS req_status, vr.destination, vr.destination_address, vr.purpose, vr.officer_name, vr.officer_phone,
-                   vr.waiting_place, vr.waiting_address, d.name AS driver_name, v.plate_number, v.brand, v.model
+                   vr.waiting_place, vr.waiting_address, d.name AS driver_name, v.plate_number, v.brand, v.model, s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name
               FROM schedules s
               LEFT JOIN vehicle_requests vr ON vr.request_id = s.request_id
               LEFT JOIN drivers d ON d.driver_id = s.driver_id
@@ -84,7 +84,7 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
              WHERE s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?";
     $p = [$to_dt, $from_dt];
     if ($driver_id)  { $sql .= ' AND s.driver_id = ?';  $p[] = $driver_id; }
-    if ($vehicle_id) { $sql .= ' AND s.vehicle_id = ?'; $p[] = $vehicle_id; }
+    if ($vehicle_id) { $sql .= ' AND s.vehicle_id = ? AND s.vendor_name IS NULL'; $p[] = $vehicle_id; }
     $sql .= ' ORDER BY s.start_dt LIMIT 1500';
     $stmt = $conn->prepare($sql);
     bindDynamic($stmt, $p);
@@ -94,8 +94,8 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
         $out[] = [
             'id' => 't' . $r['schedule_id'], 'kind' => 'trip', 'title' => legLabel($leg) . ($r['request_id'] ? ' - request #' . $r['request_id'] : ''),
             'start' => $iso($r['start_dt']), 'end' => $iso($r['end_dt']),
-            'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'] ?? '', 'vehicle_id' => (int)$r['vehicle_id'],
-            'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
+            'driver_id' => (int)$r['driver_id'], 'driver' => $r['vendor_name'] !== null ? 'Vendor bus: ' . $r['vendor_driver_name'] . ' (' . $r['vendor_name'] . ')' : ($r['driver_name'] ?? ''), 'vehicle_id' => $r['vendor_name'] !== null ? 0 : (int)$r['vehicle_id'],
+            'vehicle' => $r['vendor_name'] !== null ? 'Vendor bus ' . $r['vendor_bus_plate'] : vehicleText($r['plate_number'], $r['brand'], $r['model']),
             'request_id' => $r['request_id'] ? (int)$r['request_id'] : null,
             'request_status' => $r['req_status'] ? requestStatusLabel($r['req_status']) : '',
             'leg' => legLabel($leg),

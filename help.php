@@ -33,6 +33,7 @@ $steps = [
                      'Approve, or reject with a reason. You can add a comment, and cancel a request (reason required).',
                      'A request from a Head of Department is approved by his own head.'],
     'admin' => ['<strong>Vehicle Requests</strong>: Approved requests need a driver. Press <em>Assign driver</em>: the recommendation (fewer tasks and fewer tasks outside working hours rank higher) is shown first; you choose the outbound driver, then use the same driver and vehicle for the return trip or choose a separate driver and vehicle.',
+                'When a bus needs a PSV licence and no UIS driver is free, record a <strong>vendor bus</strong> (vendor name, bus registration number, vendor driver) in Assign Driver.',
                 'The Head of Admin approves every assignment and decides the <strong>Schedule Changes</strong> asked by the drivers. A Confirmed trip can have a driver replaced (reason required) until the task starts.',
                 '<strong>Record Paper Form</strong>: for an approved paper form BPTK/BPI/2025/PIN.5, enter its details and upload the scan. The request is saved as Approved and the vehicle is locked.',
                 '<strong>Approval Reminders</strong>: the system reminds the Head of Department once after 1 day; you can also send a reminder by hand.',

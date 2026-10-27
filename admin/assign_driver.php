@@ -33,15 +33,18 @@ if (!$req || $req['status'] !== 'approved') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $out = (int)($_POST['out_driver'] ?? 0);
-    $same = ($_POST['return_mode'] ?? 'same') === 'same';
-    $retDriver = $same ? null : (int)($_POST['ret_driver'] ?? 0);
-    $retVehicle = $same ? null : (int)($_POST['ret_vehicle'] ?? 0);
-    if ($out <= 0) {
+    $mode = (string)($_POST['return_mode'] ?? 'same');
+    $same = $mode === 'same';
+    $vendorOut = ($_POST['out_mode'] ?? '') === 'vendor' ? ['name' => $_POST['out_vendor_name'] ?? '', 'plate' => $_POST['out_vendor_plate'] ?? '', 'driver' => $_POST['out_vendor_driver'] ?? ''] : null;   // UC017 A2
+    $vendorRet = $mode === 'vendor' ? ['name' => $_POST['ret_vendor_name'] ?? '', 'plate' => $_POST['ret_vendor_plate'] ?? '', 'driver' => $_POST['ret_vendor_driver'] ?? ''] : null;
+    $retDriver = ($same || $vendorRet) ? null : (int)($_POST['ret_driver'] ?? 0);
+    $retVehicle = ($same || $vendorRet) ? null : (int)($_POST['ret_vehicle'] ?? 0);
+    if ($out <= 0 && !$vendorOut) {
         setFlash('danger', 'Choose the driver of the outbound trip.');
-    } elseif (!$same && ($retDriver <= 0 || $retVehicle <= 0)) {
+    } elseif (!$same && !$vendorRet && ($retDriver <= 0 || $retVehicle <= 0)) {
         setFlash('danger', 'Choose the driver and the vehicle of the return trip, or use the same driver and vehicle.');
     } else {
-        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle);
+        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet);
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . $rid); exit(); }
     }
@@ -57,6 +60,14 @@ $lq->execute();
 $licence = $lq->get_result()->fetch_row()[0] ?? 'D';
 $lq->close();
 $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $win['out']['end_dt'], 'licence' => $licence]);
+$vendorOutAllowed = $licence === 'PSV' && !$rec['ranked'];          // UC017 A2: no UIS driver with a PSV licence is available
+$vendorRetAllowed = $licence === 'PSV';                             // checked again on the server for the return window
+$vendorBox = function (string $p): string {
+    return '<div class="row g-2 mt-1">'
+        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_name">Vendor name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_name" name="' . $p . '_vendor_name" maxlength="150"></div>'
+        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_plate">Bus registration number *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_plate" name="' . $p . '_vendor_plate" maxlength="20"></div>'
+        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_driver">Vendor driver name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_driver" name="' . $p . '_vendor_driver" maxlength="100"></div></div>';
+};
 
 adminPageStart('Assign Driver');
 ?>
@@ -85,10 +96,14 @@ adminPageStart('Assign Driver');
                         <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '' ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-danger">No driver is available for this trip. See the list below for the reasons.</td></tr><?php endif; ?>
+                <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-danger">No driver is available for this trip. See the list below for the reasons.<?= $vendorOutAllowed ? '' : ' You can cancel the request with a reason.' ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
             </div>
+            <?php if ($vendorOutAllowed): ?>
+            <div class="alert alert-warning py-2 mt-2 mb-2"><input type="hidden" name="out_mode" value="vendor"><strong>Vendor bus.</strong> No UIS driver with a PSV licence is available, so use a vendor bus. The quotation and payment are handled outside DSMS.
+                <?= $vendorBox('out') ?></div>
+            <?php endif; ?>
             <?php if ($rec['excluded']): ?>
             <details class="small"><summary class="text-muted" style="cursor:pointer;">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
                 <ul class="mb-0"><?php foreach ($rec['excluded'] as $x): ?><li><?= htmlspecialchars($x['name']) ?> &mdash; <?= htmlspecialchars($x['reason']) ?></li><?php endforeach; ?></ul>
@@ -102,6 +117,9 @@ adminPageStart('Assign Driver');
                 <label class="form-check-label" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
             <div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_sep" value="separate">
                 <label class="form-check-label" for="rm_sep">A separate driver and vehicle for the return trip</label></div>
+            <?php if ($vendorRetAllowed): ?><div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_vendor" value="vendor">
+                <label class="form-check-label" for="rm_vendor">A vendor bus for the return trip <span class="text-muted small">(only when no UIS driver with a PSV licence is free then)</span></label></div>
+            <div id="vendorBox" class="mt-2" style="display:none;"><?= $vendorBox('ret') ?></div><?php endif; ?>
             <div id="sepBox" class="mt-3" style="display:none;">
                 <label class="form-label small" for="ret_vehicle">Return vehicle (free in the return period, enough seats)</label>
                 <select class="form-select form-select-sm mb-2" id="ret_vehicle" name="ret_vehicle"><option value="">Loading&hellip;</option></select>
@@ -119,7 +137,11 @@ adminPageStart('Assign Driver');
     function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
     var sepBox = document.getElementById('sepBox');
     document.querySelectorAll('input[name=return_mode]').forEach(function (r) {
-        r.addEventListener('change', function () { sepBox.style.display = this.value === 'separate' && this.checked ? '' : 'none'; if (this.value === 'separate') { loadVehicles(); } });
+        r.addEventListener('change', function () {
+            sepBox.style.display = document.getElementById('rm_sep').checked ? '' : 'none';
+            var vb = document.getElementById('vendorBox'); if (vb) { vb.style.display = document.getElementById('rm_vendor') && document.getElementById('rm_vendor').checked ? '' : 'none'; }
+            if (document.getElementById('rm_sep').checked) { loadVehicles(); }
+        });
     });
     function loadVehicles() {
         if (vehicles.length) { return; }

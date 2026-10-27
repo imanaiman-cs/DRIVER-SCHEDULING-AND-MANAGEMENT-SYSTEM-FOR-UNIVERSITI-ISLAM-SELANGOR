@@ -116,6 +116,9 @@ CREATE TABLE `schedules` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `request_id` int(11) DEFAULT NULL,
   `leg_no` tinyint(4) DEFAULT NULL,
+  `vendor_name` varchar(150) DEFAULT NULL COMMENT 'vendor bus: company',
+  `vendor_bus_plate` varchar(20) DEFAULT NULL COMMENT 'vendor bus: registration number',
+  `vendor_driver_name` varchar(100) DEFAULT NULL COMMENT 'vendor bus: driver',
   `start_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
   `end_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`end_time`)) STORED,
   PRIMARY KEY (`schedule_id`),
@@ -600,4 +603,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus');
