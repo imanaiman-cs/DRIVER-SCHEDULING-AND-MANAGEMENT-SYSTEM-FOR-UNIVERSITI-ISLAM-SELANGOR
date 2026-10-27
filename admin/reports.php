@@ -51,9 +51,9 @@ adminPageStart('Reports');
                 <?php foreach ($rep['rows'] as $row): ?>
                     <tr><?php foreach ($row as $c => $v): ?><td class="<?= is_int($v) || is_float($v) ? 'text-end' : '' ?>"><?= $h($v) ?></td><?php endforeach; ?></tr>
                 <?php endforeach; ?>
-                <?php if (!$rep['rows']): ?><tr><td colspan="<?= count($rep['headers']) ?>" class="text-center text-muted py-4">No data for this month.</td></tr><?php endif; ?>
+                <?php if (!$rep['rows']): ?><tr><td colspan="<?= count($rep['headers']) ?>" class="text-center text-muted py-4">No data for the selected month.</td></tr><?php endif; ?>
                 </tbody>
-                <tfoot><tr class="table-light fw-bold"><?php foreach ($rep['totals'] as $c => $v): ?><td class="<?= is_int($v) || is_float($v) ? 'text-end' : '' ?>"><?= $h($v) ?></td><?php endforeach; ?></tr></tfoot>
+                <?php if ($rep['rows']): ?><tfoot><tr class="table-light fw-bold"><?php foreach ($rep['totals'] as $c => $v): ?><td class="<?= is_int($v) || is_float($v) ? 'text-end' : '' ?>"><?= $h($v) ?></td><?php endforeach; ?></tr></tfoot><?php endif; ?>
             </table>
         </div>
         <?php if ($rep['note']): ?><p class="small text-muted mt-3 mb-0"><?= $h($rep['note']) ?></p><?php endif; ?>

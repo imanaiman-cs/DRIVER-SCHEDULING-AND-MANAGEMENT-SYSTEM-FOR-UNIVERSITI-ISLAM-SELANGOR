@@ -39,7 +39,7 @@ Each item names the use case to read first.
   wants experience **calculated from a date joined** that the Assistant enters in Add Driver (UC001 step 3) and edits (UC003 A1). There is no
   `date_joined` column yet, so a migration is needed. Questions for Iman before this item: (1) the weight of the experience factor
   (En. Khairul is still confirming), (2) what to do with the old `experience_years` column (keep unused or drop; nothing is dropped without asking)._
-- [ ] **Reports — UC031.** Code has 4 reports (`reportTypes()`: tasks, **outside working hours**, welfare, vehicle usage). SRS has 5: tasks per driver,
+- [x] **Reports — UC031.** (done 27 Oct, Iman chose to keep "outside working hours" and add the two missing ones, so 6 reports: `weekend` and `replacements` in `reportTypes()`; message "No data for the selected month"; tests in `agents_test.py`.) Code has 4 reports (`reportTypes()`: tasks, **outside working hours**, welfare, vehicle usage). SRS has 5: tasks per driver,
   **weekend tasks per driver**, welfare duty days, **driver replacements**, vehicle usage. So: replace/rename "outside working hours" by
   "weekend tasks" and add "driver replacements". Export as PDF/Excel and print (UC032) for all 5. Exception 3.1: message when there is no data.
 - [ ] **Delete internal task — UC024.** Code never deletes an internal task (cancel with a reason). Ask Iman: either keep it as

@@ -221,6 +221,14 @@ expo = {x[0]: x for x in rows(f"""select d.name,
    (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}' and (dayofweek(s.trip_date) in (1,7) or s.start_time<'{ws}' or s.end_time>'{we}')) +
    (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}' and (dayofweek(t.task_date) in (1,7) or t.start_time<'{ws}' or t.end_time>'{we}')) from drivers d""")}
 good = all(l[2] == expo[l[0]][1] and l[3] == expo[l[0]][2] for l in tb[1:-1]); ok('outside working hours numbers match SQL', good and len(tb) > 5 and any(l[3] != '0' for l in tb[1:-1]))
+r = rep('weekend'); tb = table(main_html(r))
+expk = {x[0]: x for x in rows(f"""select d.name,
+   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}') + (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}'),
+   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}' and dayofweek(s.trip_date) in (1,7)) +
+   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}' and dayofweek(t.task_date) in (1,7)) from drivers d""")}
+ok('weekend tasks per driver: headers', tb[0][:4] == ['Driver', 'Employee ID', 'Total tasks', 'Weekend tasks'])
+ok('weekend tasks numbers match SQL (Saturday and Sunday only)', len(tb) > 5 and all(l[2] == expk[l[0]][1] and l[3] == expk[l[0]][2] for l in tb[1:-1]))
+ok('weekend tasks totals row', tb[-1][0] == 'Total' and tb[-1][3] == str(sum(int(l[3]) for l in tb[1:-1])))
 r = rep('welfare'); tb = table(main_html(r))
 expw = {x[0]: x[1] for x in rows(f"select d.name, (select count(*) from welfare_roster w where w.driver_id=d.driver_id and w.duty_date between '{a}' and '{b}') from drivers d")}
 ok('welfare days numbers match SQL', all(l[2] == expw[l[0]] for l in tb[1:-1]) and tb[-1][2] == str(sum(int(l[2]) for l in tb[1:-1])) and int(tb[-1][2]) == count(f"select count(*) from welfare_roster where duty_date between '{a}' and '{b}'"))
@@ -237,10 +245,25 @@ for l in tb[1:-1]:
     if not (int(l[2]) == int(e[1]) and abs(num(l[3]) - num(e[2])) < .01 and abs(num(l[4]) - num(e[3])) < .01 and int(l[5]) == int(float(e[4]))): good = False; print('  mismatch', l, e)
 ok('vehicle usage numbers match SQL (trips, hours, internal hours, maintenance days)', good and len(tb) > 5)
 ok('maintenance days counted for WB 3322 D', any(l[0].startswith('WB 3322') and int(l[5]) > 0 for l in tb[1:-1]))
-ok('only four report types', len(re.findall(r'<option value="(tasks|outside|welfare|vehicle)"', rep('tasks').text)) == 4 and 'report_driver' not in rep('tasks').text)
+# driver replacements (UC020 records, UC031)
+sql("DELETE FROM driver_replacements")
+sid = sql("SELECT schedule_id FROM schedules WHERE driver_id IS NOT NULL AND status<>'cancelled' LIMIT 1")
+sql("INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by, changed_at) VALUES (%s, 1, 2, 'Driver fell sick', 5, '%s 10:30:00')" % (sid, a))
+r = rep('replacements'); tb = table(main_html(r))
+ok('driver replacements: headers', r.status_code == 200 and not errs(r) and tb[0] == ['Date changed', 'Request', 'Trip date', 'Previous driver', 'New driver', 'Reason', 'Changed by'])
+ok('driver replacements: the row shows previous driver, new driver, reason and who', len(tb) == 3 and 'Driver fell sick' in tb[1][5] and tb[1][3] != tb[1][4] and tb[-1][0] == 'Total: 1')
+sql("INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by, changed_at) VALUES (%s, 2, 1, 'Next month', 5, DATE_ADD('%s', INTERVAL 40 DAY))" % (sid, a))
+ok('driver replacements: only the selected month', len(table(main_html(rep('replacements')))) == 3)
+for ex in ('pdf', 'xlsx'):
+    rr = rep('replacements', export=ex)
+    ok('driver replacements export %s works' % ex, rr.status_code == 200 and (rr.content[:5] == b'%PDF-' if ex == 'pdf' else rr.content[:2] == b'PK'))
+# no data for the month (UC031 exception 3.1)
+e = admin.get('admin/reports.php', type='replacements', month='2020-01'); ok('no data: the message is shown, no PHP errors', 'No data for the selected month' in e.text and not errs(e))
+ok('no data: PDF and Excel still download', admin.get('admin/reports.php', type='replacements', month='2020-01', export='pdf').content[:5] == b'%PDF-' and admin.get('admin/reports.php', type='tasks', month='2020-01', export='xlsx').content[:2] == b'PK')
+ok('the six report types of UC031 (tasks, weekend, outside hours, welfare, replacements, vehicle)', len(re.findall(r'<option value="(tasks|weekend|outside|welfare|replacements|vehicle)"', rep('tasks').text)) == 6 and 'report_driver' not in rep('tasks').text)
 ok('bad type falls back', admin.get('admin/reports.php', type='zzz', month='bad').status_code == 200)
 # export pdf / xlsx
-for t in ('tasks', 'outside', 'welfare', 'vehicle'):
+for t in ('tasks', 'weekend', 'outside', 'welfare', 'replacements', 'vehicle'):
     r = rep(t, export='pdf'); good, info = pdfcheck.check_pdf(r.content)
     ok(f'{t} PDF valid (header, xref offsets, stream lengths)', r.headers['Content-Type'] == 'application/pdf' and 'attachment' in r.headers['Content-Disposition'] and good, ) 
     if not good: print('  ', info)
@@ -252,9 +275,9 @@ for t in ('tasks', 'outside', 'welfare', 'vehicle'):
     cells = re.findall(r'<c r="([A-Z]+)(\d+)"[^>]*?(?:/>|>(?:<is><t[^>]*>(.*?)</t></is>|<v>(.*?)</v>)</c>)', x)
     sheetrows = {}
     for col, rw, s, v in cells: sheetrows.setdefault(int(rw), {})[col] = s or v
-    hdr = [rr for rr in sheetrows.values() if rr.get('A') in ('Driver', 'Vehicle')][0]
+    hdr = [rr for rr in sheetrows.values() if rr.get('A') in ('Driver', 'Vehicle', 'Date changed')][0]
     first = [rr for rr in sheetrows.values() if rr.get('A') and rr.get('A') == (scr[0].replace('&', '&amp;'))]
-    ok(f'{t} XLSX has headers, data and a numeric total', bool(hdr) and bool(first) and any(rr.get('A') == 'Total' for rr in sheetrows.values()))
+    ok(f'{t} XLSX has headers, data and a numeric total', bool(hdr) and bool(first) and any((rr.get('A') or '').startswith('Total') for rr in sheetrows.values()))
     ok(f'{t} export starts with file bytes only (no HTML before)', r.content[:2] == b'PK' and rep(t, export='pdf').content[:5] == b'%PDF-')
 ok('xlsx numbers are real numbers', re.search(r'<c r="C5"[^>]*><v>\d+</v>', zipfile.ZipFile(io.BytesIO(rep('tasks', export='xlsx').content)).read('xl/worksheets/sheet1.xml').decode()) is not None)
 ok('csrf not injected into download', b'csrf_token' not in rep('tasks', export='pdf').content and b'csrf_token' not in rep('tasks', export='xlsx').content)

@@ -32,7 +32,7 @@ usort($tasks, fn($a, $b) => strcmp($a['start'], $b['start']));
 $todayKey = date('Y-m-d');
 $todayTasks = array_filter($tasks, fn($t) => substr($t['start'], 0, 10) === $todayKey);
 $laterTasks = array_filter($tasks, fn($t) => substr($t['start'], 0, 10) > $todayKey);
-$month = driverMonthCounts($conn, date('Y-m'))[$driverId] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
+$month = driverMonthCounts($conn, date('Y-m'))[$driverId] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
 $welfareDays = $driverId > 0 ? dashRows($conn, 'SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date >= ? ORDER BY duty_date LIMIT 5', 'is', [$driverId, $todayKey]) : [];
 adminPageStart('Dashboard');
 ?>

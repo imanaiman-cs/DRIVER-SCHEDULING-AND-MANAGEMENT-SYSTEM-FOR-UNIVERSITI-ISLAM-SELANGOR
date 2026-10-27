@@ -51,7 +51,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Vehicles** — statuses Available / In Use (computed) / Under Maintenance / Inactive. Maintenance asks for the workshop and the expected return date. Vehicles and drivers are deactivated, never deleted.
 - **Notifications** — always saved in the system **and** sent by e-mail; a failed e-mail is written to `email_log` and the in-system notification is kept.
 - **WhatsApp (optional)** — drivers are also told on WhatsApp through an OpenWA server (setup: `docs/OPENWA_SETUP.md`). Copy `config/whatsapp.sample.php` to `config/whatsapp.php`, fill in the server address, API key and session id, set `enabled` to true. Attempts are written to `whatsapp_log`; a failure never stops the in-system notification or the e-mail. OpenWA is not an official WhatsApp API, so the sending number may be blocked: use a dedicated number.
-- **Reports** — four monthly reports (PDF, Excel, print).
+- **Reports** (UC031/UC032) — six monthly reports, each on screen, printed, PDF or Excel: tasks per driver, weekend tasks per driver, outside working hours per driver (kept in addition to the SRS list), welfare duty days per driver, driver replacements (with reason and who made it) and vehicle usage. A month without data shows "No data for the selected month".
 - **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
 ## Dashboards

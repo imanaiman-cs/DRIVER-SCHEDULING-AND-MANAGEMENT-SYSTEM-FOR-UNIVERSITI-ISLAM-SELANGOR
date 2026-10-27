@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-$rec = $canReplace ? recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'], 'except_schedule' => $sid]) : ['ranked' => [], 'excluded' => [], 'weights' => ['tasks' => 0, 'outside' => 0]];
+$rec = $canReplace ? recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'], 'except_schedule' => $sid]) : ['ranked' => [], 'excluded' => [], 'weights' => ['tasks' => 0, 'weekend' => 0, 'experience' => 0]];
 $hist = $conn->prepare("SELECT r.reason, r.changed_at, o.name AS old_name, n.name AS new_name FROM driver_replacements r
                          LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id LEFT JOIN drivers n ON n.driver_id = r.new_driver_id
                         WHERE r.schedule_id = ? ORDER BY r.replacement_id DESC");

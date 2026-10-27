@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // includes/report_export.php  -  Reports (SRS UC031 Generate, UC032 Export)
-//   reportTypes()            the four monthly report types
+//   reportTypes()            the monthly report types (UC031)
 //   buildReport()            numbers for one type and month (prepared statements)
 //   exportReportPdf()        small PDF 1.4 writer (A4, Helvetica, wrapped cells, page breaks, xref)
 //   exportReportXlsx()       .xlsx writer on ZipArchive (HTML-table .xls when ZipArchive is missing)
@@ -12,8 +12,10 @@ function reportTypes(): array
 {
     return [
         'tasks'   => 'Tasks per driver',
+        'weekend' => 'Weekend tasks per driver',
         'outside' => 'Outside working hours per driver',
         'welfare' => 'Welfare duty days per driver',
+        'replacements' => 'Driver replacements',
         'vehicle' => 'Vehicle usage',
     ];
 }
@@ -30,7 +32,7 @@ function buildReport(mysqli $conn, string $type, string $month): array
     $to   = date('Y-m-t', strtotime($from));
     $rep  = ['title' => $types[$type] ?? $type, 'month' => $month, 'headers' => [], 'rows' => [], 'totals' => [], 'widths' => [], 'note' => ''];
 
-    if ($type === 'tasks' || $type === 'outside' || $type === 'welfare') {
+    if (in_array($type, ['tasks', 'weekend', 'outside', 'welfare'], true)) {
         // drivers that are active, or that have something in the month
         $counts = driverMonthCounts($conn, $month);
         $drivers = $conn->query('SELECT driver_id, name, employee_id, status FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC);
@@ -54,6 +56,16 @@ function buildReport(mysqli $conn, string $type, string $month): array
             [$r, $i] = $split[(int)$d['driver_id']] ?? [0, 0];
             if ($d['status'] !== 'active' && $r + $i === 0) { continue; }
             $rep['rows'][] = [$d['name'], $d['employee_id'], $r, $i, $r + $i];
+        }
+    } elseif ($type === 'weekend') {
+        $rep['headers'] = ['Driver', 'Employee ID', 'Total tasks', 'Weekend tasks', 'Share'];
+        $rep['widths']  = [36, 14, 14, 22, 14];
+        $rep['note']    = 'Tasks that fall on a Saturday or Sunday (request tasks and internal tasks that are not cancelled). Welfare duty days are not counted.';
+        foreach ($drivers as $d) {
+            $c = $counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
+            $t = $c['tasks'] - $c['welfare'];
+            if ($d['status'] !== 'active' && $t === 0) { continue; }
+            $rep['rows'][] = [$d['name'], $d['employee_id'], $t, $c['weekend'], $t ? round($c['weekend'] * 100 / $t) . '%' : '-'];
         }
     } elseif ($type === 'outside') {
         $ws = substr(getSetting($conn, 'WORK_START'), 0, 5); $we = substr(getSetting($conn, 'WORK_END'), 0, 5);
@@ -81,6 +93,26 @@ function buildReport(mysqli $conn, string $type, string $month): array
             if ($d['status'] !== 'active' && !$list) { continue; }
             $rep['rows'][] = [$d['name'], $d['employee_id'], count($list), implode(', ', $list)];
         }
+    } elseif ($type === 'replacements') {
+        $stmt = $conn->prepare(
+            "SELECT r.changed_at, s.request_id, s.leg_no, s.trip_date, s.destination, o.name AS old_name, n.name AS new_name, r.reason, u.full_name AS by_name
+               FROM driver_replacements r
+               JOIN schedules s ON s.schedule_id = r.schedule_id
+               LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id
+               LEFT JOIN drivers n ON n.driver_id = r.new_driver_id
+               LEFT JOIN users u ON u.user_id = r.changed_by
+              WHERE DATE(r.changed_at) BETWEEN ? AND ?
+              ORDER BY r.changed_at, r.replacement_id");
+        $stmt->bind_param('ss', $from, $to);
+        $stmt->execute();
+        $rep['headers'] = ['Date changed', 'Request', 'Trip date', 'Previous driver', 'New driver', 'Reason', 'Changed by'];
+        $rep['widths']  = [18, 12, 14, 24, 24, 38, 20];
+        $rep['note']    = 'Every driver replacement made in the month (UC020), with the reason and who made it. Records are never edited.';
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+            $rep['rows'][] = [date('d M Y H:i', strtotime($r['changed_at'])), '#' . $r['request_id'] . ($r['leg_no'] ? ' (task ' . $r['leg_no'] . ')' : ''),
+                              date('d M Y', strtotime($r['trip_date'])), $r['old_name'] ?? '-', $r['new_name'] ?? '-', $r['reason'], $r['by_name'] ?? '-'];
+        }
+        $stmt->close();
     } else {
         $stmt = $conn->prepare(
             "SELECT v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.status,
@@ -114,6 +146,7 @@ function buildReport(mysqli $conn, string $type, string $month): array
         if ($isNum) { $tot[$c] = is_float($sum) ? round($sum, 2) : $sum; }
     }
     if ($type === 'outside' && $tot[2] !== '') { $tot[4] = $tot[2] ? round($tot[3] * 100 / $tot[2]) . '%' : '-'; }
+    if ($type === 'replacements') { $tot[0] = 'Total: ' . count($rep['rows']); }
     $rep['totals'] = $tot;
     return $rep;
 }
@@ -264,7 +297,7 @@ function reportPdfBytes(array $rep): string
 
     $startPage();
     foreach ($rep['rows'] as $i => $row) { $drawRow($row, false, $i % 2 === 1); }
-    if (!$rep['rows']) { $drawRow(array_merge(['No data for this month'], array_fill(0, $ncol - 1, '')), false, false); }
+    if (!$rep['rows']) { $drawRow(array_merge(['No data for the selected month'], array_fill(0, $ncol - 1, '')), false, false); }
     $drawRow($rep['totals'], true, true);
     if ($rep['note'] !== '') {
         foreach (pdfWrap(pdfEncode($rep['note']), $pageW - 2 * $margin, 8, 4) as $ln) {
