@@ -33,7 +33,7 @@ $monthly = dashMonthlyRequests($conn, 6);
 $byStatus = dashStatusCounts($conn, 6);
 $activeDrivers = (int)dashValue($conn, "SELECT COUNT(*) FROM drivers WHERE status = 'active'");
 
-$statusColour = ['pending' => '#ffc107', 'approved' => '#198754', 'assigned' => '#0dcaf0', 'processed' => '#0d6efd',
+$statusColour = ['pending' => '#e3a008', 'approved' => '#198754', 'assigned' => '#4fb6d6', 'processed' => '#1d6fa5',
                  'rejected' => '#dc3545', 'cancelled' => '#6c757d', 'lapsed' => '#fd7e14', 'completed' => '#212529'];
 $doLabels = []; $doData = []; $doColours = [];
 foreach ($statusColour as $k => $col) { if (!empty($byStatus[$k])) { $doLabels[] = requestStatusLabel($k); $doData[] = $byStatus[$k]; $doColours[] = $col; } }
@@ -105,7 +105,7 @@ adminPageStart('Dashboard');
                 ['label' => 'Outside working hours', 'data' => array_column($workload, 'outside'), 'color' => '#fd7e14']], ['stacked' => true, 'horizontal' => true, 'height' => 320]) : dashEmpty('No active drivers.', 'user-slash') ?>
             <div class="small text-muted mt-2">The same counts the driver recommendation uses (welfare days count as tasks).</div></div></div>
         <div class="col-lg-6"><div class="dash-card"><h6>Vehicle booked hours <small class="text-muted fw-normal">this month, upcoming included</small></h6>
-            <?= array_sum(array_column($util, 'hours')) > 0 ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#0d6efd']], ['horizontal' => true, 'height' => 320]) : dashEmpty('No vehicle is booked this month yet.', 'car-side') ?></div></div>
+            <?= array_sum(array_column($util, 'hours')) > 0 ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#15804f']], ['horizontal' => true, 'height' => 320]) : dashEmpty('No vehicle is booked this month yet.', 'car-side') ?></div></div>
     </div>
 
     <div class="row g-3">
@@ -128,7 +128,7 @@ adminPageStart('Dashboard');
                 <h6>Fleet now</h6>
                 <?php $totalV = max(1, array_sum($fleet)); foreach (['available', 'in_use', 'maintenance', 'inactive'] as $st): ?>
                     <div class="d-flex justify-content-between small mt-2"><span><span class="badge <?= vehicleStatusBadgeClass($st) ?>"><?= dh(vehicleStatusLabel($st)) ?></span></span><strong><?= (int)$fleet[$st] ?></strong></div>
-                    <div class="dash-bar"><span style="width:<?= round($fleet[$st] / $totalV * 100) ?>%;--bar:<?= ['available' => '#15803d', 'in_use' => '#1d4ed8', 'maintenance' => '#c69214', 'inactive' => '#64748b'][$st] ?>"></span></div>
+                    <div class="dash-bar"><span style="width:<?= round($fleet[$st] / $totalV * 100) ?>%;--bar:<?= ['available' => '#15803d', 'in_use' => '#1d6fa5', 'maintenance' => '#c69214', 'inactive' => '#64748b'][$st] ?>"></span></div>
                 <?php endforeach; ?>
             </div>
         </div>
