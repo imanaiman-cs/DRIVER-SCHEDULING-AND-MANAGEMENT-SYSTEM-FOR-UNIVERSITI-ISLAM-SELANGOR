@@ -199,6 +199,7 @@ if ($_is_admin_role) {
 
     <!-- ── Sidebar Footer / Logout ───────────────────────────────── -->
     <div class="sidebar-footer">
+        <?= languageSwitcher('mb-2') ?>
         <a href="<?php echo SITE_URL; ?>/help.php"
            class="sidebar-logout-btn mb-1 <?php echo $current_page === 'help.php' ? 'active' : ''; ?>"
            style="background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);">
@@ -226,6 +227,7 @@ if ($_is_admin_role) {
              style="height:26px;width:auto;">
         UIS Driver Management
     </span>
+    <?= languageSwitcher('topbar-lang') ?>
     <a href="<?php echo SITE_URL; ?>/logout.php" class="topbar-logout"
        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
        aria-label="Log out">

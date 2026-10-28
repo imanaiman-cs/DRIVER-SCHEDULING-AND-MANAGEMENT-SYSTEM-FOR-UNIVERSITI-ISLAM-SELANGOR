@@ -95,11 +95,14 @@ require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/request_view.php';
 require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
 require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
+require_once __DIR__ . '/../includes/i18n.php';            // English / Bahasa Melayu (the pages are written in English and translated on output)
 // Apply new migrations once per session (cheap: one SELECT when nothing is pending)
 if (empty($_SESSION['migrations_checked'])) {
     applyPendingMigrations($conn);
     $_SESSION['migrations_checked'] = true;
 }
+syncLanguageFromAccount($conn);
+startTranslation();
 
 // Lapse / cancel / complete, lightly, whenever a signed-in user opens a page (cron/run_jobs.php does it hourly)
 if (isLoggedIn() && !defined('SKIP_REQUEST_JOBS')) {

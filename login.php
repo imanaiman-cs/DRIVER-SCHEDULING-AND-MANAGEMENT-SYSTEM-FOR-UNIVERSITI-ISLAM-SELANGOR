@@ -83,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // new session id after authentication (prevents session fixation)
             session_regenerate_id(true);
+            unset($_SESSION['lang_synced']);
 
             $driver_id = ($user['role'] === 'driver' && isset($user['driver_id'])) ? (int)$user['driver_id'] : null;
             $_SESSION['user_id']   = $user['user_id'];
@@ -92,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['driver_id'] = $driver_id;
             $_SESSION['department']    = $user['department']    ?? null;
             $_SESSION['last_activity'] = time();
+            if (isset($_COOKIE['dsms_lang'])) { setLanguage($conn, (string)$_COOKIE['dsms_lang']); } else { syncLanguageFromAccount($conn); }   // a language chosen on the login page is kept
 
             if (in_array($user['role'], ['admin', 'head_admin'], true)) {
                 header('Location: admin/dashboard.php');
@@ -566,6 +568,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
+<style>.lang-switch{position:fixed;top:12px;right:12px;z-index:50;display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;font-size:.8rem;font-weight:600;background:#fff}.lang-switch .lang-link{padding:.25rem .65rem;color:#475569;text-decoration:none}.lang-switch .lang-link.active{background:#0b5d3b;color:#fff}</style>
+<?= languageSwitcher() ?>
 
     <!-- Animated background shapes -->
     <div class="bg-shapes" aria-hidden="true">

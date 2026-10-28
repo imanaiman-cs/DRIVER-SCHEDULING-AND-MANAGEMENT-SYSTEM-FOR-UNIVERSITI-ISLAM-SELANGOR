@@ -19,6 +19,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_usage.py` | UC007 A1: driver updates mileage, fuel level and condition of a vehicle used in their task |
 | `t_profile.py` | UC002 / UC003: My Profile, driver and Assistant updates, expired licence refused, notifications |
 | `t_paper.py` | UC010 A4: Record Paper Form (Approved, vehicle lock, no UC011/UC012, < 1 day allowed, validations) |
+| `t_lang.py` | English / Bahasa Melayu switch: pages, JSON, forms/CSRF, cookie + account, login page, e-mail language |
 | `t_joined.py` | UC001 / UC003 A1 / UC018: date joined (Add / Edit Driver), experience, the three recommender weights in Settings |
 | `t_nodriver.py` | UC010 A3: request without driver, send to Head of Admin, approve / reject, jobs |
 | `t_d.py` | SRS D: recommender, assignment, Head of Admin approval, replace driver |

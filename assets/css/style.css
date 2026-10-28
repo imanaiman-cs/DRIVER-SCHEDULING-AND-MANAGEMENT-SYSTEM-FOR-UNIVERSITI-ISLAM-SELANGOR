@@ -1660,3 +1660,12 @@ a.dash-row:hover { background: var(--uis-light); }
     .dash-steps li { font-size: .6rem; } .dash-time { min-width: 0; display: block; }
     .dash-chart-centre { padding-right: 0; padding-bottom: 2.2rem; }
 }
+
+/* English / Bahasa Melayu switch (includes/i18n.php) */
+.lang-switch{display:inline-flex;border:1px solid rgba(255,255,255,.25);border-radius:6px;overflow:hidden;font-size:.75rem;font-weight:600}
+.lang-switch .lang-link{padding:.2rem .6rem;color:rgba(255,255,255,.75);text-decoration:none}
+.lang-switch .lang-link.active{background:rgba(255,255,255,.2);color:#fff}
+.lang-switch.login-lang{border-color:#cbd5e1}
+.lang-switch.login-lang .lang-link{color:#475569}
+.lang-switch.login-lang .lang-link.active{background:#0b5d3b;color:#fff}
+.topbar-lang{margin-left:auto;margin-right:.5rem}

@@ -241,17 +241,20 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
             error_log('notifyUsers (in-system): ' . $e->getMessage());
         }
         try {
-            $q = $conn->prepare('SELECT email, full_name FROM users WHERE user_id = ?');
+            $q = $conn->prepare('SELECT email, full_name, language FROM users WHERE user_id = ?');
             $q->bind_param('i', $uid);
             $q->execute();
             $u = $q->get_result()->fetch_assoc();
             $q->close();
             if ($u && function_exists('sendMail')) {
                 $url  = $link ? rtrim(SITE_URL, '/') . '/' . ltrim($link, '/') : SITE_URL;
-                $html = '<p>Salam ' . htmlspecialchars((string)$u['full_name']) . ',</p><p>' . htmlspecialchars($msg)
-                      . '</p><p><a href="' . htmlspecialchars($url) . '">Open in the system</a></p><p>UIS Vehicle Section</p>';
-                $text = "Salam {$u['full_name']},\n\n$msg\n\nOpen: $url\n\nUIS Vehicle Section";
-                $res = sendMail($conn, $u['email'], '[UIS Vehicle Section] ' . mb_substr($msg, 0, 70), $html, $text, ['kind' => $kind ?: 'notice', 'user_id' => $uid]);
+                $lang = validLanguage($u['language'] ?? 'en');                        // the e-mail is in the language of the person who receives it
+                $body = translateText($msg, $lang);
+                $open = translateText('Open in the system', $lang);
+                $html = '<p>Salam ' . htmlspecialchars((string)$u['full_name']) . ',</p><p>' . htmlspecialchars($body)
+                      . '</p><p><a href="' . htmlspecialchars($url) . '">' . htmlspecialchars($open) . '</a></p><p>UIS Vehicle Section</p>';
+                $text = "Salam {$u['full_name']},\n\n$body\n\nOpen: $url\n\nUIS Vehicle Section";
+                $res = sendMail($conn, $u['email'], '[UIS Vehicle Section] ' . mb_substr($body, 0, 70), $html, $text, ['kind' => $kind ?: 'notice', 'user_id' => $uid]);
                 $out[$res['status']] = ($out[$res['status']] ?? 0) + 1;
                 if ($res['status'] === 'failed') { $out['errors'][] = $res['message']; }
             }
