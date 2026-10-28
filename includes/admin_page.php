@@ -24,6 +24,8 @@ function adminPageStart(string $title): void
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
+    <link href="<?= SITE_URL ?>/assets/css/uis-theme-premium.css" rel="stylesheet">
+    <script src="<?= SITE_URL ?>/assets/js/uis-theme.js"></script>
 </head>
 <body>
 <?php require __DIR__ . '/sidebar.php'; ?>
