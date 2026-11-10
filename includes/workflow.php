@@ -1474,6 +1474,133 @@ function recordVehicleUsage(mysqli $conn, int $driver_id, string $kind, int $tas
 }
 
 // ------------------------------------------------------------
+// UC024 Manage Assigned Task Report (driver): create, view, update. A report is never deleted.
+// ------------------------------------------------------------
+
+const REPORT_PROBLEM_TYPES = ['Plate Number', 'Tyre', 'Lights', 'Body Damage', 'Engine', 'Others'];
+
+/** The report of one task of this driver, or null. $kind 'trip' (schedule_id) or 'internal' (task_id). */
+function taskReportOf(mysqli $conn, string $kind, int $id): ?array
+{
+    $col = $kind === 'internal' ? 'internal_task_id' : 'schedule_id';
+    $stmt = $conn->prepare("SELECT * FROM task_reports WHERE $col = ? LIMIT 1");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+/** When the task starts (Y-m-d H:i:s): a report can only be created from then on (UC024 exception 1.1). */
+function taskStartDt(mysqli $conn, string $kind, int $id): ?string
+{
+    $sql = $kind === 'internal' ? 'SELECT start_dt FROM internal_tasks WHERE task_id = ?' : 'SELECT start_dt FROM schedules WHERE schedule_id = ?';
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $v = $stmt->get_result()->fetch_row()[0] ?? null;
+    $stmt->close();
+    return $v;
+}
+
+/**
+ * UC024 steps 2-3 and A4: saves the report of a task (creates it, or updates the driver's own report), then updates the vehicle:
+ * mileage, fuel level and, when the vehicle cannot be used, status Under Maintenance. A request task becomes Completed. The Assistant is told
+ * (a problem is highlighted). $in: actual_depart, actual_return (Y-m-d H:i or Y-m-d\TH:i), end_mileage, fuel_level, vehicle_condition (ok|problem),
+ * problem_type, problem_desc, can_be_used (1|0). $photo: path of an uploaded photo or null (keeps the old one on an update).
+ * @return array{ok:bool, message:string}
+ */
+function saveTaskReport(mysqli $conn, int $driver_id, string $kind, int $task_id, array $in, ?string $photo = null): array
+{
+    $veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);
+    if (!$veh) { return ['ok' => false, 'message' => 'You can only report a task that is assigned to you.']; }
+    $startDt = taskStartDt($conn, $kind, $task_id);
+    if ($startDt === null || strtotime($startDt) > time()) { return ['ok' => false, 'message' => 'The task has not started yet, so it cannot be reported.']; }
+    $dep = str_replace('T', ' ', trim((string)($in['actual_depart'] ?? '')));
+    $ret = str_replace('T', ' ', trim((string)($in['actual_return'] ?? '')));
+    $ok = fn($d) => (bool)preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $d) && isValidDate(substr($d, 0, 10)) && isValidTime(substr($d, 11, 5));
+    $mileage = trim((string)($in['end_mileage'] ?? ''));
+    $fuel = (string)($in['fuel_level'] ?? '');
+    $cond = (string)($in['vehicle_condition'] ?? '');
+    if (!$ok($dep) || !$ok($ret) || $mileage === '' || $fuel === '' || !in_array($cond, ['ok', 'problem'], true)) { return ['ok' => false, 'message' => 'Please fill in all required fields.']; }   // 3.1
+    if (strtotime($ret) <= strtotime($dep)) { return ['ok' => false, 'message' => 'The actual return must be after the actual departure.']; }
+    if (strtotime($dep) > time() + 60) { return ['ok' => false, 'message' => 'The actual departure cannot be in the future.']; }
+    if (!preg_match('/^\d{1,7}$/', $mileage)) { return ['ok' => false, 'message' => 'The mileage is not valid: enter a whole number (km).']; }
+    if (!isset(VEHICLE_FUEL_LEVELS[$fuel])) { return ['ok' => false, 'message' => 'Choose the fuel level.']; }
+    $mileage = (int)$mileage;
+    $ptype = $pdesc = null; $canUse = null;
+    if ($cond === 'problem') {
+        $ptype = (string)($in['problem_type'] ?? '');
+        $pdesc = trim((string)($in['problem_desc'] ?? ''));
+        $cu = (string)($in['can_be_used'] ?? '');
+        if (!in_array($ptype, REPORT_PROBLEM_TYPES, true) || $pdesc === '' || !in_array($cu, ['0', '1'], true)) { return ['ok' => false, 'message' => 'Please fill in all required fields: the problem type, the description and whether the vehicle can still be used.']; }
+        if (mb_strlen($pdesc) > 500) { return ['ok' => false, 'message' => 'Describe the problem in at most 500 characters.']; }
+        $canUse = (int)$cu;
+    }
+    $vehicle_id = (int)$veh['vehicle_id'];
+    $existing = taskReportOf($conn, $kind, $task_id);
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare('SELECT mileage, status FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
+        $stmt->bind_param('i', $vehicle_id);
+        $stmt->execute();
+        $v = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $floor = $existing ? (int)$existing['start_mileage'] : (int)$v['mileage'];
+        if ($mileage < $floor) { $conn->rollback(); return ['ok' => false, 'message' => "The mileage is not valid: it is lower than the current mileage ($floor km)."]; }   // 3.2
+        $sched = $kind === 'trip' ? $task_id : null;
+        $int   = $kind === 'internal' ? $task_id : null;
+        if ($existing) {
+            $keep = $photo ?? $existing['photo'];
+            $stmt = $conn->prepare('UPDATE task_reports SET actual_depart = ?, actual_return = ?, end_mileage = ?, fuel_level = ?, vehicle_condition = ?, problem_type = ?, problem_desc = ?, photo = ?, can_be_used = ?, updated_at = NOW() WHERE report_id = ?');
+            $rid = (int)$existing['report_id'];
+            $stmt->bind_param('ssisssssii', $dep, $ret, $mileage, $fuel, $cond, $ptype, $pdesc, $keep, $canUse, $rid);
+        } else {
+            $stmt = $conn->prepare('INSERT INTO task_reports (schedule_id, internal_task_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition, problem_type, problem_desc, photo, can_be_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('iiiissiisssssi', $sched, $int, $driver_id, $vehicle_id, $dep, $ret, $floor, $mileage, $fuel, $cond, $ptype, $pdesc, $photo, $canUse);
+        }
+        $stmt->execute();
+        $stmt->close();
+        // the vehicle: mileage, fuel level and status
+        $status = $v['status'];
+        if ($canUse === 0) { $status = 'maintenance'; }
+        elseif ($existing && (int)$existing['can_be_used'] === 0 && $v['status'] === 'maintenance') { $status = 'available'; }   // an update says it can be used after all
+        $stmt = $conn->prepare('UPDATE vehicles SET mileage = ?, fuel_level = ?, status = ? WHERE vehicle_id = ?');
+        $stmt->bind_param('issi', $mileage, $fuel, $status, $vehicle_id);
+        $stmt->execute();
+        $stmt->close();
+        $issue = $cond === 'problem' ? $ptype . ': ' . $pdesc : null;
+        $stmt = $conn->prepare('INSERT INTO vehicle_usage_log (vehicle_id, driver_id, schedule_id, internal_task_id, mileage, fuel_level, condition_issue) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('iiiiiss', $vehicle_id, $driver_id, $sched, $int, $mileage, $fuel, $issue);
+        $stmt->execute();
+        $stmt->close();
+        if ($kind === 'trip') {                                              // the task becomes Completed
+            $stmt = $conn->prepare("UPDATE schedules SET status = 'completed' WHERE schedule_id = ? AND status <> 'cancelled'");
+            $stmt->bind_param('i', $task_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('saveTaskReport: ' . $e->getMessage());
+        return ['ok' => false, 'message' => 'Database error. Please try again.'];
+    }
+    $q = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
+    $q->bind_param('i', $driver_id);
+    $q->execute();
+    $name = $q->get_result()->fetch_row()[0] ?? 'A driver';
+    $q->close();
+    $what = ($existing ? 'updated' : 'submitted') . ' the report of a task with ' . $veh['plate_number'];
+    $msg = $cond === 'problem'
+        ? "PROBLEM: $name $what. $ptype: $pdesc" . ($canUse === 0 ? ' The vehicle cannot be used and is now Under Maintenance.' : ' The vehicle can still be used.')
+        : "$name $what. Mileage $mileage km, fuel " . VEHICLE_FUEL_LEVELS[$fuel] . '.';
+    notifyUsers($conn, assistantUserIds($conn), $msg, 'admin/view_vehicle.php?id=' . $vehicle_id);
+    auditLog($conn, $existing ? 'task_report_update' : 'task_report', null, ($kind === 'trip' ? "Task #$task_id" : "Internal task #$task_id") . " reported by $name ($mileage km)");
+    return ['ok' => true, 'message' => 'The report was saved. The vehicle was updated' . ($canUse === 0 ? ' and is now Under Maintenance.' : '.')];
+}
+
+// ------------------------------------------------------------
 // UC029 Request Schedule Change (driver) and UC030 Approve/Reject Schedule Change (Head of Admin)
 //   type "unavailable": the driver cannot work some dates; once approved the driver is not recommended or assigned on them
 //   type "withdraw":    the driver asks to be withdrawn from ONE confirmed task; the task stays with the driver until the Head of Admin

@@ -74,6 +74,7 @@ CREATE TABLE `vehicles` (
   `last_maintenance` date DEFAULT NULL,
   `next_maintenance` date DEFAULT NULL,
   `mileage` int(11) NOT NULL DEFAULT 0,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') DEFAULT NULL COMMENT 'current fuel level',
   `notes` text DEFAULT NULL,
   `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/vehicles/',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -347,6 +348,35 @@ CREATE TABLE `vehicle_reservations` (
   KEY `idx_res_request` (`request_id`),
   CONSTRAINT `fk_res_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_res_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `task_reports` (
+  `report_id` int(11) NOT NULL AUTO_INCREMENT,
+  `schedule_id` int(11) DEFAULT NULL COMMENT 'the request task reported',
+  `internal_task_id` int(11) DEFAULT NULL COMMENT 'or the internal task',
+  `driver_id` int(11) NOT NULL,
+  `vehicle_id` int(11) NOT NULL,
+  `actual_depart` datetime NOT NULL,
+  `actual_return` datetime NOT NULL,
+  `start_mileage` int(11) NOT NULL COMMENT 'mileage of the vehicle before the report',
+  `end_mileage` int(11) NOT NULL,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') NOT NULL,
+  `vehicle_condition` enum('ok','problem') NOT NULL DEFAULT 'ok',
+  `problem_type` enum('Plate Number','Tyre','Lights','Body Damage','Engine','Others') DEFAULT NULL,
+  `problem_desc` varchar(500) DEFAULT NULL,
+  `photo` varchar(255) DEFAULT NULL,
+  `can_be_used` tinyint(1) DEFAULT NULL COMMENT 'with a problem: 1 = the vehicle can still be used, 0 = Under Maintenance',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`report_id`),
+  UNIQUE KEY `uq_report_schedule` (`schedule_id`),
+  UNIQUE KEY `uq_report_internal` (`internal_task_id`),
+  KEY `idx_report_driver` (`driver_id`),
+  KEY `idx_report_vehicle` (`vehicle_id`, `created_at`),
+  CONSTRAINT `fk_report_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_report_task` FOREIGN KEY (`internal_task_id`) REFERENCES `internal_tasks` (`task_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_report_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `fk_report_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `vehicle_maintenance` (
@@ -633,4 +663,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports');
