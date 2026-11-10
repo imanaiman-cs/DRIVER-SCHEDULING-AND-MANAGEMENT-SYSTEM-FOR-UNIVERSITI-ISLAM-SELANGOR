@@ -543,6 +543,50 @@ function chooseRequestVehicle(mysqli $conn, array $req, int $vehicle_id): void
     $stmt->close();
 }
 
+/**
+ * UC003 A1: chooses the 2nd, 3rd ... vehicle of a request that reserved several vehicles of one type. Same checks as the first vehicle
+ * (right type, free from departure to return + 1 hour, locked) and one more unassigned reservation row is filled. Call it inside a transaction.
+ * @throws RuntimeException 'Sorry, ...' (safe to show)
+ */
+function chooseExtraVehicle(mysqli $conn, array $req, int $vehicle_id): void
+{
+    $rid = (int)$req['request_id'];
+    $stmt = $conn->prepare('SELECT vehicle_type, plate_number FROM vehicles WHERE vehicle_id = ?');
+    $stmt->bind_param('i', $vehicle_id);
+    $stmt->execute();
+    $v = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$v || $v['vehicle_type'] !== $req['vehicle_type']) { throw new RuntimeException('Sorry, choose a ' . ($req['vehicle_type'] ?: 'vehicle') . ' for every vehicle of this request.'); }
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM vehicle_locks WHERE request_id = ? AND vehicle_id = ?');
+    $stmt->bind_param('ii', $rid, $vehicle_id);
+    $stmt->execute();
+    $already = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+    if ($already > 0) { throw new RuntimeException('Sorry, ' . $v['plate_number'] . ' was chosen twice for this request.'); }
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM vehicle_reservations WHERE request_id = ? AND vehicle_id IS NULL');
+    $stmt->bind_param('i', $rid);
+    $stmt->execute();
+    $open = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+    if ($open < 1) { throw new RuntimeException('Sorry, every vehicle of this request already has a vehicle.'); }
+    lockVehiclePeriod($conn, $rid, $vehicle_id, requestDepartDT($req), reservationEnd(requestReturnDT($req)));
+    $stmt = $conn->prepare('UPDATE vehicle_reservations SET vehicle_id = ? WHERE request_id = ? AND vehicle_id IS NULL LIMIT 1');
+    $stmt->bind_param('ii', $vehicle_id, $rid);
+    $stmt->execute();
+    $stmt->close();
+}
+
+/** Number of vehicles of a request that still have no specific vehicle (reservation rows without vehicle). */
+function requestOpenVehicleSlots(mysqli $conn, int $request_id): int
+{
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM vehicle_reservations WHERE request_id = ? AND vehicle_id IS NULL');
+    $stmt->bind_param('i', $request_id);
+    $stmt->execute();
+    $n = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+    return $n;
+}
+
 // ------------------------------------------------------------
 // Request status engine
 // ------------------------------------------------------------
@@ -905,7 +949,7 @@ function isRequestWithoutDriver(array $req): bool
  * the Head of Admin, who approves the use of the vehicle. The request becomes "Driver Assigned" (no tasks are created).
  * @return array{ok:bool, message:string}
  */
-function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int $vehicle = null): array
+function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int $vehicle = null, array $extraVehicles = []): array
 {
     $stmt = $conn->prepare('SELECT * FROM vehicle_requests WHERE request_id = ?');
     $stmt->bind_param('i', $request_id);
@@ -921,6 +965,16 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int
         try { chooseRequestVehicle($conn, $req, $vehicle); $conn->commit(); }
         catch (RuntimeException $e) { $conn->rollback(); return ['ok' => false, 'message' => $e->getMessage()]; }
         catch (Throwable $e) { $conn->rollback(); error_log('sendWithoutDriver: ' . $e->getMessage()); return ['ok' => false, 'message' => 'Database error. Please try again.']; }
+    }
+    if (!isPayClaimRequest($req) && (int)$req['quantity'] > 1) {               // UC003 A1: every vehicle of the request needs its own vehicle
+        $extraVehicles = array_values(array_filter(array_map('intval', $extraVehicles)));
+        $conn->begin_transaction();
+        try {
+            if (count($extraVehicles) !== requestOpenVehicleSlots($conn, $request_id)) { throw new RuntimeException('Sorry, choose a vehicle for each of the ' . (int)$req['quantity'] . ' vehicles.'); }
+            foreach ($extraVehicles as $xv) { chooseExtraVehicle($conn, $req, $xv); }
+            $conn->commit();
+        } catch (RuntimeException $e) { $conn->rollback(); return ['ok' => false, 'message' => $e->getMessage()]; }
+        catch (Throwable $e) { $conn->rollback(); error_log('sendWithoutDriver extra: ' . $e->getMessage()); return ['ok' => false, 'message' => 'Database error. Please try again.']; }
     }
     $res = changeRequestStatus($conn, $request_id, 'assigned');
     return $res['ok'] ? ['ok' => true, 'message' => 'Sent to the Head of Admin to approve the use of the vehicle.'] : $res;
@@ -939,7 +993,7 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int
  * @return array{ok:bool, message:string}
  */
 function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?int $ret_driver = null, ?int $ret_vehicle = null,
-                              ?array $vendorOut = null, ?array $vendorRet = null, ?int $vehicle = null, ?float $distance = null): array
+                              ?array $vendorOut = null, ?array $vendorRet = null, ?int $vehicle = null, ?float $distance = null, array $extra = []): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
@@ -1056,6 +1110,21 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         if ($retVehicle !== $mainVehicle && !$retIsVendor) {
             lockVehiclePeriod($conn, $request_id, $retVehicle, $win['ret']['start_dt'], $win['ret']['end_dt']);
         }
+
+        // UC003 A1: the 2nd, 3rd ... vehicle, each with its own driver for the outbound and the return task (the same driver and vehicle)
+        $extra = array_values(array_filter($extra, fn($x) => (int)($x['vehicle'] ?? 0) > 0 || (int)($x['driver'] ?? 0) > 0));
+        if (!isPayClaimRequest($req) && (int)$req['quantity'] > 1 && $vendorOut === null) {
+            if (count($extra) !== requestOpenVehicleSlots($conn, $request_id)) { $conn->rollback(); return $fail('Choose a vehicle and a driver for each of the ' . (int)$req['quantity'] . ' vehicles.'); }
+            foreach ($extra as $k => $x) {
+                $xv = (int)($x['vehicle'] ?? 0); $xd = (int)($x['driver'] ?? 0); $label = 'vehicle ' . ($k + 2);
+                if ($xv <= 0 || $xd <= 0) { $conn->rollback(); return $fail('Choose a vehicle and a driver for ' . $label . '.'); }
+                chooseExtraVehicle($conn, $req, $xv);
+                if (($e = $checkDriver($xd, $xv, $win['out'], 'outbound (' . $label . ')')) !== null) { $conn->rollback(); return $fail($e); }
+                $insertTask($xd, $xv, $win['out'], 1);
+                if (($e = $checkDriver($xd, $xv, $win['ret'], 'return (' . $label . ')')) !== null) { $conn->rollback(); return $fail($e); }
+                $insertTask($xd, $xv, $win['ret'], 2);
+            }
+        } elseif ($extra) { $conn->rollback(); return $fail('This request has only one vehicle.'); }
         $ins->close();
 
         $upd = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned', schedule_id = ?, status_reason = NULL WHERE request_id = ? AND status IN ('approved', 'pending')");

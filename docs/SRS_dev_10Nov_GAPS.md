@@ -19,12 +19,12 @@ Use case numbers below are the NEW numbers (UC001–UC028). Old code comments st
 - [x] Session timeout 15 min, login lock 15 min after 5 failed attempts, hashed passwords, prepared statements, CSRF, audit log never edited
 
 ## B. Business rules that CHANGED compared with v1.1 (code does the old thing)
-- [~] **Reservation by vehicle TYPE and quantity** — done for quantity 1 and for reserving N (migration `2026_11_vehicle_reservations`, `t_reserve.py`); choosing the 2nd, 3rd ... vehicle (UC003 A1) is still open.  Original text:, not a specific vehicle (UC018 step 3, UC003 note). Reserved from departure to return **+ 1 hour**. The AA picks the specific vehicle at assignment (UC003 step 3). Code: the requester picks one vehicle and a per-vehicle lock is taken.
+- [x] **Reservation by vehicle TYPE and quantity** — done, including choosing the 2nd, 3rd ... vehicle with its own driver (UC003 A1, `t_multi.py`; migration `2026_11_vehicle_reservations`).  Original text:, not a specific vehicle (UC018 step 3, UC003 note). Reserved from departure to return **+ 1 hour**. The AA picks the specific vehicle at assignment (UC003 step 3). Code: the requester picks one vehicle and a per-vehicle lock is taken.
 - [x] **Urgent flag instead of refusal** (done: `vehicle_requests.is_urgent`, migration `2026_11_urgent`, paper form page removed; Iman agreed): less than 2 days before departure is accepted and flagged Urgent; **no paper form** any more (UC018 A5, note). Code: <1 day refused, <2 days warning; Record Paper Form page exists.
 - [x] Urgent requests listed first for HoD, AA, HoA (UC003, UC025, UC026)
 - [x] Statuses (labels only, keys unchanged): Pending, **Approved by Head of Department**, Driver Assigned, **Approved**, Rejected, Cancelled, Lapsed, Completed. Code: Approved, Confirmed. Rename labels (keys can stay).
 - [~] **Purpose type** Official / Unofficial, supporting letter **required** — done (migration `2026_11_purpose_type`, `t_purpose.py`). Personal Rental still open.
-- [~] Vehicle types **car, MPV, van, bus, lorry** (MPV done); quantity of vehicles per request; more than one vehicle (UC018, UC003 A1, UC002 notes). Code: Car, Van, Lorry, Bus.
+- [x] Vehicle types **car, MPV, van, bus, lorry** (MPV done); quantity of vehicles per request; more than one vehicle (UC018, UC003 A1, UC002 notes). Code: Car, Van, Lorry, Bus.
 - [x] **Self Drive lorry** (done: `canSelfDriveLorry()`, `t_nodriver.py`): only a driver with a GDL licence; HoD then HoA (UC018 A2). Code: "Without driver" for any vehicle goes AA then HoA.
 - [x] **Personal Rental** (done: migration `2026_11_personal_rental`, `t_rental.py`) (lorry, no letter, round-trip km, RM3/km, AA confirms distance then HoA, no HoD; print rental approval) (UC018 A4, UC003 A5, UC017 A4, UC019 A1)
 - [x] **Print Claim Approval** letter (done together with the rental letter: `staff/print_approval.php`) for approved Pay and Claim (UC017 A3)

@@ -16,6 +16,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_bc.py` | SRS B + C: request form rules, vehicle lock, cancel, HoD approval, reminders |
 | `t_vendor.py` | UC017 A2: vendor bus instead of a UIS PSV driver, approval, UIS bus released when Confirmed |
 | `t_change.py` | UC029 / UC030: schedule change requests, approval, unavailable dates, Replace Driver as Driver Request |
+| `t_multi.py` | UC003 A1: a request for several vehicles (a vehicle and a driver for each, with and without driver) |
 | `t_report.py` | UC024: the driver's task report (create, view, update, problem, vehicle updated, internal task) |
 | `t_reset.py` | UC015 Reset Password with a verification code |
 | `t_profile.py` | UC016 My Profile for every role: view, update, change password |

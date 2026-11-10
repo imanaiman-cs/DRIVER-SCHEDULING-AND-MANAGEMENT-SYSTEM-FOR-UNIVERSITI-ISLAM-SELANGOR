@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!$same && !$vendorRet && ($retDriver <= 0 || $retVehicle <= 0)) {
         setFlash('danger', 'Choose the driver and the vehicle of the return trip, or use the same driver and vehicle.');
     } else {
-        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null, isset($_POST['distance_km']) && $_POST['distance_km'] !== '' ? (float)str_replace(',', '.', (string)$_POST['distance_km']) : null);
+        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null, isset($_POST['distance_km']) && $_POST['distance_km'] !== '' ? (float)str_replace(',', '.', (string)$_POST['distance_km']) : null,
+            array_map(fn($v, $d) => ['vehicle' => (int)$v, 'driver' => (int)$d], (array)($_POST['extra_vehicle'] ?? []), array_pad(array_values((array)($_POST['extra_driver'] ?? [])), count((array)($_POST['extra_vehicle'] ?? [])), 0)));
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . $rid); exit(); }
     }
@@ -92,7 +93,7 @@ adminPageStart('Assign Driver');
         <?php endif; ?>
         <?php if (!$vid && $req['vehicle_type']): ?>
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Vehicle <span class="fw-normal text-muted small">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others stay reserved)' : '' ?></span></h6>
+            <h6 class="fw-bold">Vehicle <span class="fw-normal text-muted small">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others are chosen below)' : '' ?></span></h6>
             <?php if (!$chooseVehicles): ?><div class="text-danger small">No <?= htmlspecialchars((string)$req['vehicle_type']) ?> is free for this period.</div><?php endif; ?>
             <div class="row g-2">
             <?php foreach ($chooseVehicles as $v): ?>
@@ -138,6 +139,23 @@ adminPageStart('Assign Driver');
             </details>
             <?php endif; ?>
         </div></div>
+
+        <?php if ((int)$req['quantity'] > 1 && !isPayClaimRequest($req)): ?>
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+            <h6 class="fw-bold">Other vehicles <span class="fw-normal text-muted small">the request needs <?= (int)$req['quantity'] ?> vehicles; each one gets a driver for the outbound and the return trip</span></h6>
+            <?php for ($k = 2; $k <= (int)$req['quantity']; $k++): ?>
+            <div class="row g-2 mb-2">
+                <div class="col-md-6"><label class="form-label small" for="xv<?= $k ?>">Vehicle <?= $k ?></label>
+                    <select class="form-select form-select-sm" id="xv<?= $k ?>" name="extra_vehicle[]" required><option value="">Choose a vehicle</option>
+                        <?php foreach ($chooseVehicles ?: vehicleTypeAvailability($conn, (string)$req['vehicle_type'], requestDepartDT($req), reservationEnd(requestReturnDT($req)), 0, 1, $rid)['vehicles'] as $v): ?>
+                        <option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' - ' . $v['model'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select></div>
+                <div class="col-md-6"><label class="form-label small" for="xd<?= $k ?>">Driver of vehicle <?= $k ?> <span class="text-muted">(ranked by the recommendation)</span></label>
+                    <select class="form-select form-select-sm" id="xd<?= $k ?>" name="extra_driver[]" required><option value="">Choose a driver</option>
+                        <?php foreach ($rec['ranked'] as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= (int)$d['rank'] ?>. <?= htmlspecialchars($d['name']) ?> (<?= (int)$d['tasks'] ?> tasks this month)</option><?php endforeach; ?></select></div>
+            </div>
+            <?php endfor; ?>
+        </div></div>
+        <?php endif; ?>
 
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">Return trip <span class="fw-normal text-muted small"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>

@@ -14,7 +14,7 @@ require_once '../includes/admin_page.php';
 requireAdmin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_without_driver') {      // UC010 A3 / UC019 A2
-    $res = sendRequestWithoutDriverForApproval($conn, (int)($_POST['request_id'] ?? 0), (int)($_POST['vehicle_id'] ?? 0) ?: null);
+    $res = sendRequestWithoutDriverForApproval($conn, (int)($_POST['request_id'] ?? 0), (int)($_POST['vehicle_id'] ?? 0) ?: null, (array)($_POST['extra_vehicle'] ?? []));
     setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
     header('Location: vehicle_requests.php?tab=' . ($res['ok'] ? 'assigned' : 'approved'));
     exit();
@@ -65,6 +65,11 @@ adminPageStart('Vehicle Requests');
                                 <select name="vehicle_id" class="form-select form-select-sm d-inline-block w-auto" required aria-label="Vehicle"><option value="">Vehicle...</option>
                                     <?php foreach ($fv as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select>
                             <?php endif; ?>
+                            <?php if (!isPayClaimRequest($r) && (int)$r['quantity'] > 1): $fv2 = $fv ?? vehicleTypeAvailability($conn, (string)$r['vehicle_type'], requestDepartDT($r), reservationEnd(requestReturnDT($r)), 0, 1, $rid)['vehicles'];
+                                  for ($k = 2; $k <= (int)$r['quantity']; $k++): ?>
+                                <select name="extra_vehicle[]" class="form-select form-select-sm d-inline-block w-auto" required aria-label="Vehicle <?= $k ?>"><option value="">Vehicle <?= $k ?>...</option>
+                                    <?php foreach ($fv2 as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select>
+                            <?php endfor; endif; ?>
                             <button class="btn btn-sm btn-primary" data-confirm="The Head of Admin is asked to approve the use of the vehicle. No driver is assigned." data-confirm-title="Send to the Head of Admin?" data-confirm-button="Send" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send to Head of Admin</button></form>
                     <?php elseif ($r['status'] === 'approved' || ($r['status'] === 'pending' && isPersonalRental($r))): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
