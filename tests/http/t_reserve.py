@@ -58,8 +58,11 @@ ok('the car type is free again after the cancellation', r4.status_code == 302)
 hos2.post('ajax/request_action.php', {'request_id': rid4, 'action': 'reject', 'reason': 'Not needed this week'})
 ok('rejected: the reservation is released', cnt("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d" % rid4) == 0)
 # Self drive without driver: the Assistant chooses the vehicle when sending
-r5, rid5 = new(300, vtype='Lorry', pax='1', need_driver='0')
-hos2.post('ajax/request_action.php', {'request_id': rid5, 'action': 'approve'})
+drv1 = user('drv001'); hos1 = user('hos001')
+f5 = {'request_type': 'uis', 'depart_date': when(300)[0], 'depart_time': when(300)[1], 'return_date': when(304)[0], 'return_time': when(304)[1], 'passengers': '1', 'vehicle_type': 'Lorry', 'quantity': '1',
+      'destination': 'Putrajaya', 'destination_address': 'Presint 5', 'purpose': 'Move the faculty equipment', 'purpose_type': 'official', 'passenger_names': 'A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '0'}
+drv1.post('staff/request_vehicle.php', f5); rid5 = last()
+hos1.post('ajax/request_action.php', {'request_id': rid5, 'action': 'approve'})
 r = ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rid5})
 ok('without driver: sending needs a vehicle', st(rid5) == 'approved')
 r = ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rid5, 'vehicle_id': '5'})

@@ -39,6 +39,7 @@ if (!$me) {
     $q->close();
 }
 
+$canSelfDrive = canSelfDriveLorry($conn, $staff_id);   // UC018 A2: Self Drive is only for a lorry and a driver with the GDL licence
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_type' => '', 'quantity' => '1',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
@@ -49,7 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pax = (int)$f['passengers'];
     $qty = (int)$f['quantity'];
     $payClaim = $f['request_type'] === 'pay_claim';   // own vehicle, claim the cost
-    $needDriver = $payClaim || $f['need_driver'] === '0' ? 0 : 1;   // UC010 A3: Without Driver
+    $needDriver = $payClaim || $f['need_driver'] === '0' ? 0 : 1;   // Without driver = Self Drive (or Pay and Claim)
+    if (!$payClaim && $needDriver === 0 && !($f['vehicle_type'] === 'Lorry' && $canSelfDrive)) {
+        $errors[] = 'Self Drive is only for a lorry and only if you are a driver with a GDL licence. Choose With driver.';
+        $needDriver = 1;
+    }
     $f['own_vehicle_plate'] = strtoupper(preg_replace('/\s+/', ' ', $f['own_vehicle_plate']));
 
     if (!$approver_id) {
@@ -178,7 +183,7 @@ adminPageStart('Request a Vehicle');
             <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_uis" value="uis" <?= $f['request_type'] !== 'pay_claim' ? 'checked' : '' ?>>
                 <label class="form-check-label" for="rt_uis"><strong>UIS vehicle</strong> <span class="text-muted">with a driver, or without a driver (you drive it yourself: self drive)</span></label></div>
             <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_pc" value="pay_claim" <?= $f['request_type'] === 'pay_claim' ? 'checked' : '' ?>>
-                <label class="form-check-label" for="rt_pc"><strong>Pay and Claim</strong> <span class="text-muted">you use your own vehicle and claim the cost. No UIS vehicle or driver is booked. Approved by your Head of Department, then the Head of Admin.</span></label></div>
+                <label class="form-check-label" for="rt_pc"><strong>Pay and Claim</strong> <span class="text-muted">you use your own car and claim the cost. No UIS vehicle or driver is booked. Approved by your Head of Department, then the Head of Admin.</span></label></div>
             <div id="ownVehicleRow" class="mt-3" style="display:none;"><label class="form-label small" for="own_vehicle_plate">Registration number of your own vehicle *</label>
                 <input class="form-control" id="own_vehicle_plate" name="own_vehicle_plate" maxlength="20" style="max-width:16rem;text-transform:uppercase" value="<?= htmlspecialchars($f['own_vehicle_plate']) ?>"></div>
         </div></div>
@@ -195,7 +200,7 @@ adminPageStart('Request a Vehicle');
                     <input type="time" class="form-control" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
                 <div class="col-6 col-md-3"><label class="form-label small" for="passengers">Number of passengers *</label>
                     <input type="number" class="form-control" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
-                <div class="col-12 col-md-6" id="needDriverRow"><label class="form-label small d-block">Do you need a driver? *</label>
+                <div class="col-12 col-md-6" id="needDriverRow" data-can-self-drive="<?= $canSelfDrive ? '1' : '0' ?>"><label class="form-label small d-block">Do you need a driver? * <span class="text-muted">(Self Drive: lorry, GDL drivers only)</span></label>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd1" value="1" <?= $f['need_driver'] !== '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd1">With driver</label></div>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd0" value="0" <?= $f['need_driver'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd0">Without driver</label></div>
                     <div class="form-text">Without a driver, no driver is assigned. The approval steps and the vehicle booking stay the same.</div></div>
@@ -275,10 +280,11 @@ adminPageStart('Request a Vehicle');
                         '<span class="fw-semibold">' + esc(t.label) + '</span>' +
                         '<span class="small">' + (t.enough ? t.free + ' free' : (t.free === 0 ? 'none free' : (t.can_seat ? 'only ' + t.free + ' free' : 'too few seats'))) + '</span></label>';
                     var inp = col.querySelector('input');
-                    inp.addEventListener('change', function () { chosen = t.type; el('vehicle_type').value = t.type; });
+                    inp.addEventListener('change', function () { chosen = t.type; el('vehicle_type').value = t.type; syncType(); });
                     list.appendChild(col);
                 });
                 if (!d.types.some(function (t) { return t.type === chosen && t.enough; })) { chosen = ''; el('vehicle_type').value = ''; }
+                syncType();
             })
             .catch(function () { el('vehicleMsg').textContent = 'Could not load the vehicle types. Please try again.'; });
     }
@@ -288,7 +294,9 @@ adminPageStart('Request a Vehicle');
     function syncType() {                       // Pay and Claim: no UIS vehicle and no driver choice, but the own vehicle
         var pc = el('rt_pc') && el('rt_pc').checked;
         el('vehicleCard').style.display = pc ? 'none' : '';
-        el('needDriverRow').style.display = pc ? 'none' : '';
+        var sd = el('needDriverRow').getAttribute('data-can-self-drive') === '1' && el('vehicle_type').value === 'Lorry';
+        el('needDriverRow').style.display = (!pc && sd) ? '' : 'none';
+        if (!sd) { el('nd1').checked = true; }                       // Self Drive only for a lorry and a GDL driver
         el('ownVehicleRow').style.display = pc ? '' : 'none';
     }
     ['rt_uis', 'rt_pc'].forEach(function (i) { if (el(i)) { el(i).addEventListener('change', syncType); } });

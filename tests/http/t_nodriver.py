@@ -5,15 +5,14 @@ from lib import *
 
 reseed()
 sql("UPDATE internal_tasks SET status='cancelled' WHERE vehicle_id=6")   # demo internal tasks use relative dates
-s1 = user('stf001'); hos2 = user('hos002'); ad = user('admin'); hd = user('head001'); drv = user('drv001')
+s1 = user('drv001'); hos2 = user('hos001');   # Self Drive (without driver) is only for a lorry and a driver with a GDL licence
+ad = user('admin'); hd = user('head001'); drv = user('drv002')
 st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)
 last = lambda: int(sql("SELECT MAX(request_id) FROM vehicle_requests"))
 def when(h):
     t = now() + datetime.timedelta(hours=h); return t.strftime('%Y-%m-%d'), t.strftime('%H:%M')
-def pick(dep_h):   # a vehicle that is free for the period (demo data uses relative dates, so do not hard-code one)
-    dd, dt = when(dep_h); rd, rt = when(dep_h + 4)
-    d = json.loads(s1.get('ajax/get_free_vehicles.php', depart_date=dd, depart_time=dt, return_date=rd, return_time=rt, passengers=2).text)
-    return d['vehicles'][0]['vehicle_id']
+def pick(dep_h):   # Self Drive is for a lorry (vehicles 11 and 12)
+    return 11
 def form(dep_h, nd, vehicle=None):
     vehicle = vehicle or pick(dep_h)
     dd, dt = when(dep_h); rd, rt = when(dep_h + 4)
@@ -24,6 +23,16 @@ def form(dep_h, nd, vehicle=None):
 # the form
 page = s1.get('staff/request_vehicle.php')
 ok('the form asks With driver / Without driver (With driver is the default)', 'name="need_driver"' in page.text and 'Without driver' in page.text and 'value="1" checked' in page.text)
+
+# Self Drive rules (UC018 A2)
+st1 = user('stf001')
+n0 = int(sql("SELECT COUNT(*) FROM vehicle_requests"))
+r = st1.post('staff/request_vehicle.php', form(96, '0')); ok('a staff member who is not a driver cannot choose Self Drive', int(sql("SELECT COUNT(*) FROM vehicle_requests")) == n0 and 'Self Drive is only for a lorry' in r.text)
+dd, dt = when(96)
+f = form(96, '0'); f.pop('vehicle_id'); f['vehicle_type'] = 'Car'; f['quantity'] = '1'
+r = s1.post('staff/request_vehicle.php', f); ok('a GDL driver cannot Self Drive a car (lorry only)', int(sql("SELECT COUNT(*) FROM vehicle_requests")) == n0 and 'Self Drive is only for a lorry' in r.text)
+pg = s1.get('staff/request_vehicle.php'); ok('the driver form offers Self Drive; the staff form hides it', 'data-can-self-drive="1"' in pg.text and 'data-can-self-drive="0"' in st1.get('staff/request_vehicle.php').text)
+r = user('drv005').post('staff/request_vehicle.php', form(96, '0')); ok('a driver without GDL (drv005, class D) cannot Self Drive', int(sql("SELECT COUNT(*) FROM vehicle_requests")) == n0)
 
 # submit WITHOUT driver
 r = s1.post('staff/request_vehicle.php', form(96, '0')); rA = last()
@@ -65,7 +74,7 @@ ok('the Assistant sends it: status Driver Assigned, NO tasks created', st(rA) ==
 ok('the Head of Admin is told in the system', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='head001' AND n.message LIKE '%%#%d%%without driver%%'" % rA)) >= 1)
 pg = hd.get('admin/approve_assignments.php')
 ok('the Head of Admin sees it with the vehicle details only', pg.status_code == 200 and ('Request #%d' % rA) in pg.text and 'Without driver' in pg.text and 'no driver is assigned' in pg.text)
-ok('the staff member sees no driver or Head of Admin step in the history', 'Driver assigned' not in s1.get('staff/my_requests.php', open=rA).text)
+ok('the requester sees no driver or Head of Admin step in the history', 'Driver assigned' not in s1.get('staff/my_requests.php', open=rA).text)
 
 # reject path
 r = hd.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'reject', 'reason': ''})
@@ -80,9 +89,9 @@ r = ad.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'appro
 ok('the Assistant cannot approve (only the Head of Admin)', st(rA) == 'assigned')
 r = hd.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'approve'})
 ok('the Head of Admin approves the use of the vehicle: Confirmed, still no tasks', st(rA) == 'processed' and sql("SELECT COUNT(*) FROM schedules WHERE request_id=%d" % rA) == '0')
-ok('the staff member is told they may use the vehicle without a driver',
-   int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE '%%#%d%%confirmed%%without a driver%%'" % rA)) == 1)
-ok('no driver is notified', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.role='driver' AND n.message LIKE '%%#%d %%'" % rA)) == 0)
+ok('the requester is told they may use the vehicle without a driver',
+   int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv001' AND n.message LIKE '%%#%d%%confirmed%%without a driver%%'" % rA)) == 1)
+ok('no other driver is notified', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.role='driver' AND u.username<>'drv001' AND n.message LIKE '%%#%d %%'" % rA)) == 0)
 mine = s1.get('staff/my_requests.php', open=rA).text
 ok('after Confirmed the staff member sees the vehicle and "Without driver"', 'Without driver' in mine and 'no driver is assigned' in mine)
 ok('the driver page shows nothing for this request', ('#%d' % rA) not in drv.get('driver/schedules.php').text)

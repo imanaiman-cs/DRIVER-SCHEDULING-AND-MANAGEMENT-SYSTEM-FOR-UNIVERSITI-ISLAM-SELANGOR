@@ -861,6 +861,17 @@ function isPayClaimRequest(array $req): bool
     return ($req['request_type'] ?? 'uis') === 'pay_claim';
 }
 
+/** UC018 A2: may this user drive a lorry themselves (Self Drive)? Only an active driver account that holds the GDL licence. */
+function canSelfDriveLorry(mysqli $conn, int $user_id): bool
+{
+    $stmt = $conn->prepare("SELECT d.license_class FROM users u JOIN drivers d ON d.driver_id = u.driver_id WHERE u.user_id = ? AND u.role = 'driver' AND d.status = 'active'");
+    $stmt->bind_param('i', $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row !== null && driverHoldsLicence((string)$row['license_class'], 'GDL');
+}
+
 /** UC010 A3: was this request made "Without driver"? (accepts a vehicle_requests row) */
 function isRequestWithoutDriver(array $req): bool
 {
