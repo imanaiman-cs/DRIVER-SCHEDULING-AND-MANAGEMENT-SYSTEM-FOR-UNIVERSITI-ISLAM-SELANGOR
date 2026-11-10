@@ -57,6 +57,7 @@ adminPageStart('Vehicle Requests');
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <?php if (!empty($r['is_urgent'])): ?><span class="badge bg-danger">Urgent</span><?php endif; ?>
+                    <?php if (isPersonalRental($r)): ?><span class="badge bg-info text-dark">Personal Rental</span><?php endif; ?>
                     <?php if (isPayClaimRequest($r)): ?><span class="badge bg-warning text-dark">Pay and Claim</span><?php elseif (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
                     <?php if ($r['status'] === 'approved' && isRequestWithoutDriver($r)): ?>
                         <form method="post" class="d-inline" onclick="event.stopPropagation();"><input type="hidden" name="action" value="send_without_driver"><input type="hidden" name="request_id" value="<?= $rid ?>">
@@ -65,7 +66,7 @@ adminPageStart('Vehicle Requests');
                                     <?php foreach ($fv as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select>
                             <?php endif; ?>
                             <button class="btn btn-sm btn-primary" data-confirm="The Head of Admin is asked to approve the use of the vehicle. No driver is assigned." data-confirm-title="Send to the Head of Admin?" data-confirm-button="Send" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send to Head of Admin</button></form>
-                    <?php elseif ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
+                    <?php elseif ($r['status'] === 'approved' || ($r['status'] === 'pending' && isPersonalRental($r))): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
                 </div>
             </div>

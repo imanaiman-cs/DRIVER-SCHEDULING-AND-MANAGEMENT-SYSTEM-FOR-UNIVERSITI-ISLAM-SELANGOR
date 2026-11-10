@@ -55,6 +55,8 @@ ok('the staff member may use the own vehicle and claim; no driver is told', cnt(
    and cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.role='driver' AND n.message LIKE '%%#%d %%'" % rA) == 0)
 mine = s1.get('staff/my_requests.php', open=rA).text
 ok('the staff member sees Confirmed, the own vehicle and no UIS driver', 'WXY 1234' in mine and 'Pay and Claim' in mine and not errs(s1.get('staff/my_requests.php', open=rA)))
+let = s1.get('staff/print_approval.php', id=rA)
+ok('Print Claim Approval: the letter shows the own vehicle and both approvers', let.status_code == 200 and 'Claim Approval' in let.text and 'WXY 1234' in let.text and 'Approved by Head of Department' in let.text and 'Approved by Head of Admin' in let.text and 'Print Claim Approval' in mine)
 ok('the driver page shows nothing for it', ('#%d' % rA) not in drv.get('driver/schedules.php').text)
 sql("UPDATE vehicle_requests SET trip_date=CURDATE() - INTERVAL 1 DAY, return_date=CURDATE() - INTERVAL 1 DAY, start_time='08:00:00', end_time='12:00:00' WHERE request_id=%d" % rA)
 run_jobs(); ok('the hourly job completes it after the return time', st(rA) == 'completed')

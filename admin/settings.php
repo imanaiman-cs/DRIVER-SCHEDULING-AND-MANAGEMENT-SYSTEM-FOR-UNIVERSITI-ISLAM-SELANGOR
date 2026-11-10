@@ -15,6 +15,7 @@ $FIELDS = [
     'W_TASKS'              => ['Weight: tasks this month',         'float', 0, 1,   'Share of the driver score that depends on how many tasks (request trips + internal tasks + welfare duty days) the driver already has this month. Fewer tasks = better rank.'],
     'W_WEEKEND'            => ['Weight: weekend tasks',            'float', 0, 1,   'Share that depends on tasks on Saturday or Sunday this month. Fewer weekend tasks = better rank.'],
     'W_EXPERIENCE'         => ['Weight: experience',               'float', 0, 1,   'Share that depends on the experience, calculated from the date the driver joined the Vehicle Section. More experience = better rank.'],
+    'RENTAL_RATE_PER_KM'   => ['Personal Rental rate (RM per km)',  'float', 0, 100, 'Charge of a Personal Rental of a lorry: round-trip distance x this rate (3.00).'],
     'LAPSE_HOURS'          => ['Lapse after (hours)',              'int',   1, 720, 'A request still Pending after this many hours (48 = two days) becomes Lapsed and its vehicle is released.'],
     'WORK_START'           => ['Working hours start',              'time',  0, 0,   'A task starting before this time is outside working hours (08:00).'],
     'WORK_END'             => ['Working hours end',                'time',  0, 0,   'A task ending after this time is outside working hours (17:30).'],

@@ -20,12 +20,12 @@ $stmt->bind_param('i', $rid);
 $stmt->execute();
 $req = $stmt->get_result()->fetch_assoc();
 $stmt->close();
-if ($req && $req['status'] === 'approved' && isRequestWithoutDriver($req)) {
+if ($req && $req['status'] === 'approved' && isRequestWithoutDriver($req) && !isPersonalRental($req)) {
     setFlash('warning', 'That request is without driver. Send it to the Head of Admin instead.');
     header('Location: vehicle_requests.php');
     exit();
 }
-if (!$req || $req['status'] !== 'approved') {
+if (!$req || !($req['status'] === 'approved' || ($req['status'] === 'pending' && isPersonalRental($req)))) {
     setFlash('warning', 'That request is not waiting for a driver.');
     header('Location: vehicle_requests.php');
     exit();
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!$same && !$vendorRet && ($retDriver <= 0 || $retVehicle <= 0)) {
         setFlash('danger', 'Choose the driver and the vehicle of the return trip, or use the same driver and vehicle.');
     } else {
-        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null);
+        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null, isset($_POST['distance_km']) && $_POST['distance_km'] !== '' ? (float)str_replace(',', '.', (string)$_POST['distance_km']) : null);
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . $rid); exit(); }
     }
@@ -82,6 +82,14 @@ adminPageStart('Assign Driver');
 
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
+        <?php if (isPersonalRental($req)): ?>
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+            <h6 class="fw-bold">Personal Rental <span class="fw-normal text-muted small">no Head of Department; the Head of Admin approves after you</span></h6>
+            <label class="form-label small" for="distance_km">Round-trip distance (km): confirm or correct what the requester entered</label>
+            <input type="number" step="0.1" min="0.1" max="5000" class="form-control" style="max-width:12rem" id="distance_km" name="distance_km" required value="<?= htmlspecialchars((string)$req['distance_km']) ?>">
+            <div class="form-text">Charge = distance x RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per km. The requester entered <?= htmlspecialchars((string)$req['distance_km']) ?> km (estimated RM <?= htmlspecialchars(number_format((float)$req['charge'], 2)) ?>).</div>
+        </div></div>
+        <?php endif; ?>
         <?php if (!$vid && $req['vehicle_type']): ?>
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">Vehicle <span class="fw-normal text-muted small">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others stay reserved)' : '' ?></span></h6>

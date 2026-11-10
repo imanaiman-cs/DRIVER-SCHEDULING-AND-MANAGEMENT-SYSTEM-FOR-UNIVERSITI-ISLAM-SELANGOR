@@ -43,7 +43,7 @@ adminPageStart('Approve Assignments');
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
             <div class="fw-bold">Request #<?= $rid ?> &middot; <?= htmlspecialchars($r['destination']) ?></div>
-            <span><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
+            <span><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= isPersonalRental($r) ? '<span class="badge bg-info text-dark me-1">Personal Rental</span>' : '' ?><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
         <div class="row g-3 mt-1 border-top pt-3">

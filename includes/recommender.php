@@ -71,7 +71,8 @@ function recommenderRank(array $candidates, float $wTasks, float $wWeekend, floa
 
 const LICENCE_CLASSES = ['D' => 'D (car, van)', 'GDL' => 'GDL (lorry)', 'PSV' => 'PSV (bus)'];
 const VEHICLE_TYPES   = ['Car' => 'Car', 'MPV' => 'MPV', 'Van' => 'Van', 'Bus' => 'Bus', 'Lorry' => 'Lorry'];
-const PURPOSE_TYPES   = ['official' => 'Official', 'unofficial' => 'Unofficial'];   // Personal Rental is added with its own flow
+const PURPOSE_TYPES   = ['official' => 'Official', 'unofficial' => 'Unofficial'];   // + 'personal_rental' for a lorry (PURPOSE_RENTAL)
+const PURPOSE_RENTAL  = 'personal_rental';
 
 /** The licence class a vehicle type needs: Car/Van -> D, Lorry -> GDL, Bus -> PSV. */
 function licenceForVehicleType(string $vehicle_type): string

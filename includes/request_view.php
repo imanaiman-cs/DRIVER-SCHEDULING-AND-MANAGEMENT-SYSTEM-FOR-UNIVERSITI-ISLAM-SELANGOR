@@ -85,6 +85,8 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             <?php elseif (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
         </div>
         <div class="col-md-6">
+            <?php if (isPersonalRental($req)): ?><div class="mb-1"><span class="badge bg-info text-dark"><i class="fas fa-truck me-1"></i>Personal Rental</span> <?= reqH(rtrim(rtrim(number_format((float)$req['distance_km'], 1), '0'), '.')) ?> km &middot; charge RM <?= reqH(number_format((float)$req['charge'], 2)) ?> <span class="small text-muted">(no Head of Department: Assistant, then Head of Admin)</span></div><?php endif; ?>
+            <?php if ((isPayClaimRequest($req) || isPersonalRental($req)) && in_array($req['status'], ['processed', 'completed'], true)): ?><div class="mb-2"><a class="btn btn-sm btn-outline-success" target="_blank" rel="noopener" href="<?= reqH(SITE_URL) ?>/staff/print_approval.php?id=<?= (int)$req['request_id'] ?>"><i class="fas fa-print me-1"></i><?= isPersonalRental($req) ? 'Print Rental Approval' : 'Print Claim Approval' ?></a></div><?php endif; ?>
             <?php if (!empty($req['is_urgent'])): ?><div class="mb-1"><span class="badge bg-danger"><i class="fas fa-bolt me-1"></i>Urgent</span> <span class="small text-muted">submitted less than 2 days before departure</span></div><?php endif; ?>
             <div class="text-muted">Head of Department</div>
             <div><?= reqH($req['hod_name'] ?: '—') ?></div>

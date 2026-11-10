@@ -43,13 +43,22 @@ $canSelfDrive = canSelfDriveLorry($conn, $staff_id);   // UC018 A2: Self Drive i
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_type' => '', 'quantity' => '1',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'need_driver' => '1', 'request_type' => 'uis', 'own_vehicle_plate' => '', 'purpose_type' => 'official'];
+      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'need_driver' => '1', 'request_type' => 'uis', 'own_vehicle_plate' => '', 'purpose_type' => 'official', 'distance_km' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
     $pax = (int)$f['passengers'];
     $qty = (int)$f['quantity'];
     $payClaim = $f['request_type'] === 'pay_claim';   // own vehicle, claim the cost
+    $rental = !$payClaim && $f['purpose_type'] === PURPOSE_RENTAL;   // UC018 A4: Personal Rental of a lorry, charged per km
+    $km = (float)str_replace(',', '.', $f['distance_km']);
+    if ($rental) {
+        if ($f['vehicle_type'] !== 'Lorry') { $errors[] = 'Personal Rental is only for a lorry.'; }
+        if ($km <= 0 || $km > 5000) { $errors[] = 'Enter the round-trip distance in kilometres (1 to 5000).'; }
+        $f['need_driver'] = '1';
+        if ($f['purpose'] === '') { $f['purpose'] = 'Personal Rental of a lorry'; }
+        if ($f['passenger_names'] === '') { $f['passenger_names'] = $full_name; }
+    }
     $needDriver = $payClaim || $f['need_driver'] === '0' ? 0 : 1;   // Without driver = Self Drive (or Pay and Claim)
     if (!$payClaim && $needDriver === 0 && !($f['vehicle_type'] === 'Lorry' && $canSelfDrive)) {
         $errors[] = 'Self Drive is only for a lorry and only if you are a driver with a GDL licence. Choose With driver.';
@@ -57,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $f['own_vehicle_plate'] = strtoupper(preg_replace('/\s+/', ' ', $f['own_vehicle_plate']));
 
-    if (!$approver_id) {
+    if (!$approver_id && !$rental) {   // a Personal Rental has no Head of Department: the Assistant, then the Head of Admin
         $errors[] = 'No approver is set for your account. Please contact the Vehicle Section.';
     }
     if (!isValidDate($f['depart_date']) || !isValidTime($f['depart_time']) || !isValidDate($f['return_date']) || !isValidTime($f['return_time'])) {
@@ -78,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($f['destination'] === '' || mb_strlen($f['destination']) > 255) { $errors[] = 'Destination name is required (max 255 characters).'; }
     if ($f['destination_address'] === '' || mb_strlen($f['destination_address']) > 500) { $errors[] = 'The full destination address is required (max 500 characters).'; }
-    if (!isset(PURPOSE_TYPES[$f['purpose_type']])) { $errors[] = 'Choose the purpose type (Official or Unofficial).'; }
+    if (!isset(PURPOSE_TYPES[$f['purpose_type']]) && !$rental) { $errors[] = 'Choose the purpose type (Official or Unofficial).'; }
     if (mb_strlen($f['purpose']) < 10) { $errors[] = 'Please describe the purpose (at least 10 characters).'; }
     if ($f['passenger_names'] === '') { $errors[] = 'Passenger names are required.'; }
     if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
@@ -97,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         $errors[] = 'The form was too large and was not received. Each document must be 5 MB or smaller.';
     }
-    if (!$files) { $errors[] = 'The supporting letter is required (PDF, JPG or PNG, up to 5 MB).'; }   // UC018 exception 3.2
+    if (!$files && !$rental) { $errors[] = 'The supporting letter is required (PDF, JPG or PNG, up to 5 MB).'; }   // UC018 exception 3.2
     if (count($files) > MAX_SUPPORTING_DOCUMENTS) { $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' documents.'; }
     $saved = [];
     if (!$errors) {
@@ -121,17 +130,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
             $stmt = $conn->prepare(
                 "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent, purpose_type, vehicle_type, quantity)
-                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent, purpose_type, vehicle_type, quantity, distance_km, charge)
+                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
             $rt_time = timeWithSeconds($f['return_time']);
             $typeOrNull = $payClaim ? null : $f['vehicle_type'];
             $reqType = $payClaim ? 'pay_claim' : 'uis';
             $plateOrNull = $payClaim ? $f['own_vehicle_plate'] : null;
-            $stmt->bind_param('isssssssiisssssississi', $staff_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
+            $kmOrNull = $rental ? $km : null;
+            $chargeOrNull = $rental ? rentalCharge($conn, $km) : null;
+            $approverOrNull = $rental ? null : $approver_id;
+            $stmt->bind_param('isssssssiisssssississidd', $staff_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
                 $f['destination'], $f['destination_address'], $f['purpose'], $pax, $needDriver, $f['passenger_names'], $full_name, $f['phone'],
-                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull, $urgent, $f['purpose_type'], $typeOrNull, $qty);
+                $f['waiting_place'], $wait_addr, $approverOrNull, $reqType, $plateOrNull, $urgent, $f['purpose_type'], $typeOrNull, $qty, $kmOrNull, $chargeOrNull);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
             $stmt->close();
@@ -149,6 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->commit();
             $inTx = false;
 
+            if ($rental) {                                                  // UC019 A1: the Assistant is told instead of the Head of Department
+                $charge = rentalCharge($conn, $km);
+                auditLog($conn, 'submit', $rid, 'Personal Rental request submitted (' . $km . ' km, estimated charge RM ' . number_format($charge, 2) . ')' . ($urgent ? ' - Urgent' : ''));
+                notifyUsers($conn, assistantUserIds($conn), 'New ' . ($urgent ? 'URGENT ' : '') . "Personal Rental request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ', ' . $km . ' km, estimated charge RM ' . number_format($charge, 2) . ') is waiting for you.', 'admin/vehicle_requests.php?tab=pending');
+                setFlash('success', 'Request #' . $rid . ' submitted. Estimated charge: RM ' . number_format($charge, 2) . ' (' . $km . ' km x RM ' . number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2) . '). It goes to the Administrative Assistant, then the Head of Admin.');
+                header('Location: my_requests.php');
+                exit();
+            }
             auditLog($conn, 'submit', $rid, ($payClaim ? 'Pay and Claim request submitted (own vehicle ' . $f['own_vehicle_plate'] . ')' : 'Request submitted') . ($urgent ? ' - Urgent' : ''));
             notifyUsers($conn, [$approver_id],
                 "New " . ($urgent ? 'URGENT ' : '') . ($payClaim ? 'Pay and Claim' : 'vehicle') . " request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
@@ -225,6 +245,10 @@ adminPageStart('Request a Vehicle');
                     <input class="form-control" id="destination_address" name="destination_address" maxlength="500" value="<?= htmlspecialchars($f['destination_address']) ?>" required></div>
                 <div class="col-12"><label class="form-label small d-block">Purpose type *</label>
                     <?php foreach (PURPOSE_TYPES as $k => $lbl): ?><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="purpose_type" id="pt_<?= $k ?>" value="<?= $k ?>" <?= $f['purpose_type'] === $k ? 'checked' : '' ?>><label class="form-check-label" for="pt_<?= $k ?>"><?= $lbl ?></label></div><?php endforeach; ?>
+                    <div class="form-check form-check-inline" id="ptRentalWrap" style="display:none;"><input class="form-check-input" type="radio" name="purpose_type" id="pt_personal_rental" value="personal_rental" <?= $f['purpose_type'] === 'personal_rental' ? 'checked' : '' ?>><label class="form-check-label" for="pt_personal_rental">Personal Rental</label></div>
+                    <div id="rentalRow" class="mt-2" style="display:none;"><label class="form-label small" for="distance_km">Round-trip distance (km) *</label>
+                        <input type="number" step="0.1" min="0.1" max="5000" class="form-control" id="distance_km" name="distance_km" style="max-width:12rem" value="<?= htmlspecialchars($f['distance_km']) ?>">
+                        <div class="form-text" id="rentalCharge">Charge: RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per kilometre of the round trip. No supporting letter and no Head of Department: the Administrative Assistant confirms the distance, then the Head of Admin approves.</div></div>
                     <div class="form-text">Official: an official university programme. Unofficial: a programme that is not official. Both need a supporting letter.</div></div>
                 <div class="col-12"><label class="form-label small" for="purpose">Purpose *</label>
                     <textarea class="form-control" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
@@ -298,9 +322,23 @@ adminPageStart('Request a Vehicle');
         el('needDriverRow').style.display = (!pc && sd) ? '' : 'none';
         if (!sd) { el('nd1').checked = true; }                       // Self Drive only for a lorry and a GDL driver
         el('ownVehicleRow').style.display = pc ? '' : 'none';
+        var lorry = !pc && el('vehicle_type').value === 'Lorry', rent = lorry && el('pt_personal_rental').checked;
+        el('ptRentalWrap').style.display = lorry ? '' : 'none';
+        if (!lorry && el('pt_personal_rental').checked) { el('pt_official').checked = true; rent = false; }
+        el('rentalRow').style.display = rent ? '' : 'none';
+        el('docs').required = !rent;
+        updateCharge();
     }
+    var rate = <?= json_encode((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00')) ?>;
+    function updateCharge() {
+        var km = parseFloat(el('distance_km').value);
+        el('rentalCharge').textContent = (km > 0 ? 'Estimated charge: RM ' + (km * rate).toFixed(2) + ' (' + km + ' km x RM ' + rate.toFixed(2) + '). ' : 'Charge: RM ' + rate.toFixed(2) + ' per kilometre of the round trip. ') +
+            'No supporting letter and no Head of Department: the Administrative Assistant confirms the distance, then the Head of Admin approves.';
+    }
+    el('distance_km').addEventListener('input', updateCharge);
+    document.querySelectorAll('input[name=purpose_type]').forEach(function (r) { r.addEventListener('change', syncType); });
     ['rt_uis', 'rt_pc'].forEach(function (i) { if (el(i)) { el(i).addEventListener('change', syncType); } });
-    if (el('rt_pc')) { syncType(); }
+    syncType();
 
     var wp = el('waiting_place');
     function syncOther() { el('otherRow').style.display = wp.value === 'Other' ? '' : 'none'; }

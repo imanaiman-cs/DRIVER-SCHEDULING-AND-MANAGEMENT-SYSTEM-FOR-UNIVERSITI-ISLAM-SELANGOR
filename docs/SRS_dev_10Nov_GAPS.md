@@ -26,8 +26,8 @@ Use case numbers below are the NEW numbers (UC001–UC028). Old code comments st
 - [~] **Purpose type** Official / Unofficial, supporting letter **required** — done (migration `2026_11_purpose_type`, `t_purpose.py`). Personal Rental still open.
 - [~] Vehicle types **car, MPV, van, bus, lorry** (MPV done); quantity of vehicles per request; more than one vehicle (UC018, UC003 A1, UC002 notes). Code: Car, Van, Lorry, Bus.
 - [x] **Self Drive lorry** (done: `canSelfDriveLorry()`, `t_nodriver.py`): only a driver with a GDL licence; HoD then HoA (UC018 A2). Code: "Without driver" for any vehicle goes AA then HoA.
-- [ ] **Personal Rental** (lorry, no letter, round-trip km, RM3/km, AA confirms distance then HoA, no HoD; print rental approval) (UC018 A4, UC003 A5, UC017 A4, UC019 A1)
-- [ ] **Print Claim Approval** letter for approved Pay and Claim (UC017 A3)
+- [x] **Personal Rental** (done: migration `2026_11_personal_rental`, `t_rental.py`) (lorry, no letter, round-trip km, RM3/km, AA confirms distance then HoA, no HoD; print rental approval) (UC018 A4, UC003 A5, UC017 A4, UC019 A1)
+- [x] **Print Claim Approval** letter (done together with the rental letter: `staff/print_approval.php`) for approved Pay and Claim (UC017 A3)
 - [ ] A HoD's own request goes to that HoD's head (exists: approver = head) — recheck with the new "one HoD per department" rule
 - [ ] **One Head of Department per department** (UC001 A2.1, UC013 4.2). Code allows several.
 - [ ] Welfare duty: **weekly** schedule, vehicle (car/van only) chosen per day and reserved, then driver assigned per day, **HoA approves** (UC006, UC007). Code: monthly rotation, no vehicle, no HoA approval.

@@ -38,6 +38,7 @@ const SETTING_DEFAULTS = [
     'MAX_FAILED_ATTEMPTS' => '5',
     'LOCKOUT_MINUTES'     => '15',
     'TASK_DURATION_HOURS' => '2',
+    'RENTAL_RATE_PER_KM'  => '3.00',
 ];
 
 /** Reads one setting. The whole table is loaded once per request. */
@@ -785,6 +786,12 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
                 notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . ' is a Pay and Claim request (own vehicle: ' . ($req['own_vehicle_plate'] ?: 'no plate') . ') and needs your approval.', 'admin/approve_assignments.php');
                 break;
             }
+            if (isPersonalRental($req)) {
+                $q = $conn->prepare('SELECT distance_km, charge FROM vehicle_requests WHERE request_id = ?');
+                $q->bind_param('i', $request_id); $q->execute(); $rc = $q->get_result()->fetch_assoc(); $q->close();
+                notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . ' is a Personal Rental (' . (float)$rc['distance_km'] . ' km, charge RM ' . number_format((float)$rc['charge'], 2) . ') with a driver assigned and needs your approval.', 'admin/approve_assignments.php');
+                break;
+            }
             notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is without driver and needs your approval for the use of the vehicle.' : ' has a driver assigned and needs your approval.'), 'admin/approve_assignments.php');
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
@@ -855,6 +862,18 @@ function cancelRulesFor(array $req): array
 // Assignment (UC017): outbound task + return task
 // ------------------------------------------------------------
 
+/** UC018 A4: is this a Personal Rental (lorry rented for personal use, charged per kilometre, no Head of Department)? */
+function isPersonalRental(array $req): bool
+{
+    return ($req['purpose_type'] ?? '') === 'personal_rental';
+}
+
+/** UC003 A5: the charge of a Personal Rental = round-trip distance x the rate per kilometre (RM). */
+function rentalCharge(mysqli $conn, float $km): float
+{
+    return round($km * (float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2);
+}
+
 /** SRS summary 10 Nov: is this a Pay and Claim request (own vehicle, no UIS vehicle, no driver, no vehicle lock)? */
 function isPayClaimRequest(array $req): bool
 {
@@ -917,7 +936,7 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int
  * @return array{ok:bool, message:string}
  */
 function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?int $ret_driver = null, ?int $ret_vehicle = null,
-                              ?array $vendorOut = null, ?array $vendorRet = null, ?int $vehicle = null): array
+                              ?array $vendorOut = null, ?array $vendorRet = null, ?int $vehicle = null, ?float $distance = null): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
@@ -927,9 +946,11 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         $stmt->execute();
         $req = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$req || $req['status'] !== 'approved') { $conn->rollback(); return $fail('This request is not waiting for a driver any more.'); }
+        $waiting = $req && ($req['status'] === 'approved' || ($req['status'] === 'pending' && isPersonalRental($req)));   // a Personal Rental goes straight to the Assistant
+        if (!$waiting) { $conn->rollback(); return $fail('This request is not waiting for a driver any more.'); }
         if (isRequestWithoutDriver($req)) { $conn->rollback(); return $fail('This request is without driver: send it to the Head of Admin instead of assigning a driver.'); }
         if (strtotime(requestDepartDT($req)) <= time()) { $conn->rollback(); return $fail('The trip time has already passed.'); }
+        if (isPersonalRental($req) && ($distance !== null ? $distance : (float)$req['distance_km']) <= 0) { $conn->rollback(); return $fail('Enter the round-trip distance in kilometres.'); }
         if (empty($req['vehicle_id'])) {                                     // UC003 step 3: the Assistant chooses the vehicle of the reserved type
             if ($vehicle) {
                 try { chooseRequestVehicle($conn, $req, $vehicle); } catch (RuntimeException $e) { $conn->rollback(); return $fail($e->getMessage()); }
@@ -1034,10 +1055,18 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         }
         $ins->close();
 
-        $upd = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned', schedule_id = ?, status_reason = NULL WHERE request_id = ? AND status = 'approved'");
+        $upd = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned', schedule_id = ?, status_reason = NULL WHERE request_id = ? AND status IN ('approved', 'pending')");
         $upd->bind_param('ii', $outId, $request_id);
         $upd->execute();
         $upd->close();
+        if (isPersonalRental($req)) {                                          // UC003 A5: the Assistant confirms or corrects the distance; the charge follows
+            $km = $distance ?? (float)$req['distance_km'];
+            $charge = rentalCharge($conn, $km);
+            $upd = $conn->prepare('UPDATE vehicle_requests SET distance_km = ?, charge = ? WHERE request_id = ?');
+            $upd->bind_param('ddi', $km, $charge, $request_id);
+            $upd->execute();
+            $upd->close();
+        }
         $conn->commit();
     } catch (RuntimeException $e) {
         $conn->rollback();
@@ -1309,7 +1338,7 @@ function runRequestJobs(mysqli $conn): array
 
     // 1b. UC012: still Pending after one day and no reminder was sent yet: ONE reminder to the Head of Department
     $remindAfter = date('Y-m-d H:i:s', time() - APPROVAL_REMINDER_HOURS * 3600);
-    $stmt = $conn->prepare("SELECT request_id FROM vehicle_requests vr WHERE status = 'pending' AND created_at <= ?
+    $stmt = $conn->prepare("SELECT request_id FROM vehicle_requests vr WHERE status = 'pending' AND supervisor_id IS NOT NULL AND created_at <= ?
                               AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.request_id = vr.request_id)");
     $stmt->bind_param('s', $remindAfter);
     $stmt->execute();

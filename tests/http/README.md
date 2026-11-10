@@ -19,6 +19,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_usage.py` | UC007 A1: driver updates mileage, fuel level and condition of a vehicle used in their task |
 | `t_profile.py` | UC002 / UC003: My Profile, driver and Assistant updates, expired licence refused, notifications |
 | `t_paper.py` | UC010 A4: Record Paper Form (Approved, vehicle lock, no UC011/UC012, < 1 day allowed, validations) |
+| `t_rental.py` | Personal Rental (lorry, RM3/km, Assistant then Head of Admin) and the approval letters |
 | `t_reserve.py` | Reservation by vehicle type and quantity, the Assistant chooses the vehicle, release on cancel/reject |
 | `t_purpose.py` | Purpose type, required supporting letter, vehicle type MPV |
 | `t_users.py` | Staff self-registration, Users (add, edit, reset password, deactivate), role limits |
