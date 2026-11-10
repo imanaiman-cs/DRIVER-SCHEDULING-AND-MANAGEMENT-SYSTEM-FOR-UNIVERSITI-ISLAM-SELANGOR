@@ -56,7 +56,7 @@ adminPageStart('Vehicle Requests');
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <?php if (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
+                    <?php if (isPayClaimRequest($r)): ?><span class="badge bg-warning text-dark">Pay and Claim</span><?php elseif (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
                     <?php if ($r['status'] === 'approved' && isRequestWithoutDriver($r)): ?>
                         <form method="post" class="d-inline" onclick="event.stopPropagation();"><input type="hidden" name="action" value="send_without_driver"><input type="hidden" name="request_id" value="<?= $rid ?>">
                             <button class="btn btn-sm btn-primary" data-confirm="The Head of Admin is asked to approve the use of the vehicle. No driver is assigned." data-confirm-title="Send to the Head of Admin?" data-confirm-button="Send" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send to Head of Admin</button></form>

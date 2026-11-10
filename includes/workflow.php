@@ -464,7 +464,7 @@ function releaseVehicleLocks(mysqli $conn, int $request_id): void
 const REQUEST_TRANSITIONS = [
     'pending'   => ['approved', 'rejected', 'lapsed', 'cancelled'],
     'approved'  => ['assigned', 'cancelled'],
-    'assigned'  => ['processed', 'approved', 'cancelled'],      // processed = Head of Admin approves; approved = rejects
+    'assigned'  => ['processed', 'approved', 'rejected', 'cancelled'],   // processed = Head of Admin approves; approved = rejects an assignment; rejected = rejects a Pay and Claim request
     'processed' => ['completed', 'cancelled', 'assigned'],      // assigned = a driver was replaced
     'rejected'  => [], 'lapsed' => [], 'completed' => [], 'cancelled' => [],
 ];
@@ -579,6 +579,10 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
             $conn->rollback();
             return ['ok' => false, 'message' => 'This request is not assigned to you.'];
         }
+        if ($req['status'] === 'assigned' && $to === 'rejected' && !isPayClaimRequest($req)) {    // only a Pay and Claim request is rejected for good at this step
+            $conn->rollback();
+            return ['ok' => false, 'message' => 'This request is already Driver Assigned and cannot become Rejected.'];
+        }
         if (!canChangeRequestStatus($req['status'], $to)) {
             $conn->rollback();
             return ['ok' => false, 'message' => 'This request is already ' . requestStatusLabel($req['status']) . ' and cannot become ' . requestStatusLabel($to) . '.'];
@@ -669,13 +673,18 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             } elseif ($from === 'assigned') {                // UC020: Head of Admin rejected the assignment
                 notifyUsers($conn, assistantUserIds($conn), "The driver assignment for $what was rejected by the Head of Admin. Please assign again.$why", 'admin/vehicle_requests.php');
                 notifyUsers($conn, driverUserIdsFromDriverIds($conn, $oldDrivers), "You are no longer assigned to $what.", 'driver/schedules.php');
+            } elseif (isPayClaimRequest($req)) {              // Pay and Claim: no Assistant step, it goes straight to the Head of Admin
+                notifyUsers($conn, [$staff], "Your $what (Pay and Claim) was approved by your Head of Department. It now waits for the Head of Admin.", 'staff/my_requests.php');
+                changeRequestStatus($conn, $request_id, 'assigned', ['system' => true, 'reason' => 'Pay and Claim: sent to the Head of Admin']);
             } else {                                         // UC013
                 notifyUsers($conn, [$staff], "Your $what was approved by your Head of Department.", 'staff/my_requests.php');
                 notifyUsers($conn, adminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is approved. It is without driver: send it to the Head of Admin.' : ' is approved and needs a driver.'), 'admin/vehicle_requests.php');
             }
             break;
         case 'rejected':                                     // UC014
-            notifyUsers($conn, [$staff], "Your $what was rejected by your Head of Department.$why", 'staff/my_requests.php');
+            $byWhom = $from === 'assigned' ? 'the Head of Admin' : 'your Head of Department';
+            notifyUsers($conn, [$staff], "Your $what was rejected by $byWhom.$why", 'staff/my_requests.php');
+            if ($from === 'assigned') { notifyUsers($conn, assistantUserIds($conn), ucfirst($what) . " (Pay and Claim) was rejected by the Head of Admin.$why", 'admin/vehicle_requests.php?tab=all'); }
             break;
         case 'lapsed':
             $msg = "The $what lapsed because it was not approved within " . lapseWindowText($conn) . '.';
@@ -690,12 +699,16 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             break;
         case 'assigned':
             if ($from === 'processed') { break; }            // a replacement tells people itself (replaceTaskDriver)
+            if (isPayClaimRequest($req)) {
+                notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . ' is a Pay and Claim request (own vehicle: ' . ($req['own_vehicle_plate'] ?: 'no plate') . ') and needs your approval.', 'admin/approve_assignments.php');
+                break;
+            }
             notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is without driver and needs your approval for the use of the vehicle.' : ' has a driver assigned and needs your approval.'), 'admin/approve_assignments.php');
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
             $ids = requestScheduleIds($conn, $request_id);
             notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
-            notifyUsers($conn, [$staff], "Your $what is confirmed. " . (isRequestWithoutDriver($req) ? 'You may use the vehicle without a driver.' : taskSummaryText($conn, $request_id) . '.'), 'staff/my_requests.php');
+            notifyUsers($conn, [$staff], "Your $what is confirmed. " . (isPayClaimRequest($req) ? 'You may use your own vehicle and make your claim.' : (isRequestWithoutDriver($req) ? 'You may use the vehicle without a driver.' : taskSummaryText($conn, $request_id) . '.')), 'staff/my_requests.php');
             break;
         case 'completed':
             break;
@@ -760,6 +773,12 @@ function cancelRulesFor(array $req): array
 // Assignment (UC017): outbound task + return task
 // ------------------------------------------------------------
 
+/** SRS summary 10 Nov: is this a Pay and Claim request (own vehicle, no UIS vehicle, no driver, no vehicle lock)? */
+function isPayClaimRequest(array $req): bool
+{
+    return ($req['request_type'] ?? 'uis') === 'pay_claim';
+}
+
 /** UC010 A3: was this request made "Without driver"? (accepts a vehicle_requests row) */
 function isRequestWithoutDriver(array $req): bool
 {
@@ -780,7 +799,7 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): arr
     $stmt->close();
     if (!$req || $req['status'] !== 'approved') { return ['ok' => false, 'message' => 'This request is not waiting for the Vehicle Section any more.']; }
     if (!isRequestWithoutDriver($req)) { return ['ok' => false, 'message' => 'This request needs a driver: assign a driver.']; }
-    if (empty($req['vehicle_id'])) { return ['ok' => false, 'message' => 'The request has no vehicle.']; }
+    if (empty($req['vehicle_id']) && !isPayClaimRequest($req)) { return ['ok' => false, 'message' => 'The request has no vehicle.']; }
     if (strtotime(requestDepartDT($req)) <= time()) { return ['ok' => false, 'message' => 'The trip time has already passed.']; }
     $res = changeRequestStatus($conn, $request_id, 'assigned');
     return $res['ok'] ? ['ok' => true, 'message' => 'Sent to the Head of Admin to approve the use of the vehicle.'] : $res;
@@ -949,6 +968,12 @@ function approveAssignment(mysqli $conn, int $request_id): array
 function rejectAssignment(mysqli $conn, int $request_id, string $reason): array
 {
     if (mb_strlen(trim($reason)) < 3) { return ['ok' => false, 'message' => 'Please give a reason for rejecting the assignment.']; }
+    $q = $conn->prepare('SELECT request_type FROM vehicle_requests WHERE request_id = ?');
+    $q->bind_param('i', $request_id);
+    $q->execute();
+    $row = $q->get_result()->fetch_assoc();
+    $q->close();
+    if ($row && isPayClaimRequest($row)) { return changeRequestStatus($conn, $request_id, 'rejected', ['reason' => $reason]); }   // no Assistant step to go back to
     return changeRequestStatus($conn, $request_id, 'approved', ['reason' => $reason]);
 }
 

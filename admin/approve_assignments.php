@@ -35,7 +35,7 @@ $open = (int)($_GET['open'] ?? 0);
 adminPageStart('Approve Assignments');
 ?>
     <h4 class="fw-bold mb-1"><i class="fas fa-user-check text-success me-2"></i>Approve Assignments</h4>
-    <p class="text-muted small">Vehicles and drivers chosen by the Administrative Assistant. The driver and the staff member are told only when you approve.</p>
+    <p class="text-muted small">Vehicles and drivers chosen by the Administrative Assistant, and Pay and Claim requests (own vehicle) sent by the Head of Department. The driver and the staff member are told only when you approve. Rejecting a Pay and Claim request ends it.</p>
 
     <?php if (!$requests): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5"><i class="fas fa-circle-check fa-2x text-success mb-2"></i><div>Nothing is waiting for your approval.</div></div></div><?php endif; ?>
 
@@ -43,13 +43,13 @@ adminPageStart('Approve Assignments');
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
             <div class="fw-bold">Request #<?= $rid ?> &middot; <?= htmlspecialchars($r['destination']) ?></div>
-            <span><?= isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '' ?><?= requestStatusBadge($r['status']) ?></span>
+            <span><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
         <div class="row g-3 mt-1 border-top pt-3">
             <form method="post" class="col-md-5">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="approve">
-                <button class="btn btn-success" data-confirm="<?= isRequestWithoutDriver($r) ? 'The staff member is told that the vehicle may be used without a driver.' : 'The driver is told first, then the staff member.' ?>" data-confirm-title="Approve this assignment?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve (Confirm)</button>
+                <button class="btn btn-success" data-confirm="<?= isPayClaimRequest($r) ? 'The staff member is told that they may use their own vehicle and make the claim.' : (isRequestWithoutDriver($r) ? 'The staff member is told that the vehicle may be used without a driver.' : 'The driver is told first, then the staff member.') ?>" data-confirm-title="Approve this assignment?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve (Confirm)</button>
             </form>
             <form method="post" class="col-md-7">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="reject">

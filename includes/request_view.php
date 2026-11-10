@@ -79,9 +79,10 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         </div>
         <?php endif; ?>
         <div class="col-md-6">
-            <div class="text-muted">Requested vehicle</div>
-            <div><?= $req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;' ?></div>
-            <?php if (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
+            <div class="text-muted"><?= isPayClaimRequest($req) ? 'Own vehicle' : 'Requested vehicle' ?></div>
+            <div><?= isPayClaimRequest($req) ? reqH($req['own_vehicle_plate'] ?: '—') : ($req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;') ?></div>
+            <?php if (isPayClaimRequest($req)): ?><div class="mt-1"><span class="badge bg-warning text-dark"><i class="fas fa-coins me-1"></i>Pay and Claim</span></div>
+            <?php elseif (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
         </div>
         <div class="col-md-6">
             <div class="text-muted">Head of Department</div>
@@ -136,7 +137,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php elseif (isRequestWithoutDriver($req)): ?>
         <div class="col-12">
             <div class="text-muted">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
-            <div>Without driver: no driver is assigned. Only the use of <?= reqH($req['plate_number'] ?: 'the vehicle') ?> is approved.</div>
+            <div><?= isPayClaimRequest($req) ? 'Pay and Claim: the staff member uses their own vehicle (' . reqH($req['own_vehicle_plate'] ?: '-') . '). No UIS vehicle or driver is booked.' : 'Without driver: no driver is assigned. Only the use of ' . reqH($req['plate_number'] ?: 'the vehicle') . ' is approved.' ?></div>
         </div>
         <?php endif; ?>
         <?php endif; ?>

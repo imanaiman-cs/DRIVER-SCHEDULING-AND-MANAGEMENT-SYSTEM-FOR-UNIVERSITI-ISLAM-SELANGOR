@@ -56,13 +56,15 @@ if (!$me) {
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '', 'need_driver' => '1', 'requester_id' => ''];
+      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '', 'need_driver' => '1', 'requester_id' => '', 'request_type' => 'uis', 'own_vehicle_plate' => ''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
     $pax = (int)$f['passengers'];
     $vehicle_id = (int)$f['vehicle_id'];
-    $needDriver = $f['need_driver'] === '0' ? 0 : 1;      // UC010 A3: Without Driver
+    $payClaim = !$paper && $f['request_type'] === 'pay_claim';   // own vehicle, claim the cost (SRS summary 10 Nov); a paper form is always for a UIS vehicle
+    $needDriver = $payClaim || $f['need_driver'] === '0' ? 0 : 1;   // UC010 A3: Without Driver
+    $f['own_vehicle_plate'] = strtoupper(preg_replace('/\s+/', ' ', $f['own_vehicle_plate']));
 
     if ($paper && $full_name === '') { $errors[] = 'Choose the staff member who made the paper form.'; }
     if (!$paper && !$approver_id) {
@@ -95,10 +97,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
     if (!in_array($f['waiting_place'], WAITING_LOCATIONS, true)) { $errors[] = 'Choose the waiting location.'; }
     if ($f['waiting_place'] === 'Other' && ($f['waiting_address'] === '' || mb_strlen($f['waiting_address']) > 255)) { $errors[] = 'Enter the address of the waiting location.'; }
-    if ($vehicle_id <= 0) { $errors[] = 'Choose a vehicle.'; }
+    if ($payClaim) {
+        $vehicle_id = 0;                                                      // no UIS vehicle, nothing is locked
+        if (!preg_match('/^[A-Z0-9][A-Z0-9 \-]{1,19}$/', $f['own_vehicle_plate'])) { $errors[] = 'Enter the registration number of your own vehicle (letters, digits, spaces and hyphens, up to 20 characters).'; }
+    } elseif ($vehicle_id <= 0) { $errors[] = 'Choose a vehicle.'; }
 
     // The vehicle must still be in the list of free vehicles for this period
-    if (!$errors) {
+    if (!$errors && !$payClaim) {
         $freeIds = array_map('intval', array_column(availableVehicles($conn, $start, $end, $pax), 'vehicle_id'));
         if (!in_array($vehicle_id, $freeIds, true)) {
             $errors[] = 'That vehicle is not available for the period you chose (locked by another request, under maintenance, inactive or too small). Please choose another one.';
@@ -134,19 +139,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
             $stmt = $conn->prepare(
                 "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
             $rt_time = timeWithSeconds($f['return_time']);
-            $stmt->bind_param('iisssssssiisssssi', $staff_id, $vehicle_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
+            $vehicleOrNull = $payClaim ? null : $vehicle_id;
+            $reqType = $payClaim ? 'pay_claim' : 'uis';
+            $plateOrNull = $payClaim ? $f['own_vehicle_plate'] : null;
+            $stmt->bind_param('iisssssssiisssssiss', $staff_id, $vehicleOrNull, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
                 $f['destination'], $f['destination_address'], $f['purpose'], $pax, $needDriver, $f['passenger_names'], $full_name, $f['phone'],
-                $f['waiting_place'], $wait_addr, $approver_id);
+                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
             $stmt->close();
 
-            lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end);     // atomic: refuses a vehicle that was just taken
+            if (!$payClaim) { lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end); }    // atomic: refuses a vehicle that was just taken
             if ($paper) {                                                  // already approved on paper
                 $ap = $conn->prepare("UPDATE vehicle_requests SET status = 'approved', reviewed_at = NOW() WHERE request_id = ? AND status = 'pending'");
                 $ap->bind_param('i', $rid);
@@ -173,11 +181,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: ' . SITE_URL . '/admin/vehicle_requests.php?tab=approved&open=' . $rid);
                 exit();
             }
-            auditLog($conn, 'submit', $rid, 'Request submitted');
+            auditLog($conn, 'submit', $rid, $payClaim ? 'Pay and Claim request submitted (own vehicle ' . $f['own_vehicle_plate'] . ')' : 'Request submitted');
             notifyUsers($conn, [$approver_id],
-                "New vehicle request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
+                "New " . ($payClaim ? 'Pay and Claim' : 'vehicle') . " request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
                 'supervisor/approvals.php');
-            setFlash('success', 'Request #' . $rid . ' submitted. It is waiting for the approval of your Head of Department.');
+            setFlash('success', 'Request #' . $rid . ' submitted. It is waiting for the approval of your Head of Department' . ($payClaim ? ', then the Head of Admin.' : '.'));
             header('Location: my_requests.php');
             exit();
         } catch (Throwable $ex) {
@@ -216,6 +224,17 @@ adminPageStart($paper ? 'Record Paper Form' : 'Request a Vehicle');
             </select>
         </div></div>
         <?php endif; ?>
+        <?php if (!$paper): ?>
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+            <h6 class="fw-bold">Type of request</h6>
+            <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_uis" value="uis" <?= $f['request_type'] !== 'pay_claim' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="rt_uis"><strong>UIS vehicle</strong> <span class="text-muted">with a driver, or without a driver (you drive it yourself: self drive)</span></label></div>
+            <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_pc" value="pay_claim" <?= $f['request_type'] === 'pay_claim' ? 'checked' : '' ?>>
+                <label class="form-check-label" for="rt_pc"><strong>Pay and Claim</strong> <span class="text-muted">you use your own vehicle and claim the cost. No UIS vehicle or driver is booked. Approved by your Head of Department, then the Head of Admin.</span></label></div>
+            <div id="ownVehicleRow" class="mt-3" style="display:none;"><label class="form-label small" for="own_vehicle_plate">Registration number of your own vehicle *</label>
+                <input class="form-control" id="own_vehicle_plate" name="own_vehicle_plate" maxlength="20" style="max-width:16rem;text-transform:uppercase" value="<?= htmlspecialchars($f['own_vehicle_plate']) ?>"></div>
+        </div></div>
+        <?php endif; ?>
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">1. When and how many</h6>
             <div class="row g-3">
@@ -229,7 +248,7 @@ adminPageStart($paper ? 'Record Paper Form' : 'Request a Vehicle');
                     <input type="time" class="form-control" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
                 <div class="col-6 col-md-3"><label class="form-label small" for="passengers">Number of passengers *</label>
                     <input type="number" class="form-control" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
-                <div class="col-12 col-md-6"><label class="form-label small d-block">Do you need a driver? *</label>
+                <div class="col-12 col-md-6" id="needDriverRow"><label class="form-label small d-block">Do you need a driver? *</label>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd1" value="1" <?= $f['need_driver'] !== '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd1">With driver</label></div>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd0" value="0" <?= $f['need_driver'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd0">Without driver</label></div>
                     <div class="form-text">Without a driver, no driver is assigned. The approval steps and the vehicle booking stay the same.</div></div>
@@ -241,7 +260,7 @@ adminPageStart($paper ? 'Record Paper Form' : 'Request a Vehicle');
             </div>
         </div></div>
 
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+        <div class="card border-0 shadow-sm mb-3" id="vehicleCard"><div class="card-body">
             <h6 class="fw-bold">2. Choose a vehicle <span class="fw-normal text-muted small">(only vehicles that are free in that period and big enough are shown)</span></h6>
             <div id="vehicleMsg" class="text-muted small">Enter the departure, the return and the number of passengers to see the available vehicles.</div>
             <div id="vehicleList" class="row g-2 mt-1"></div>
@@ -320,6 +339,15 @@ adminPageStart($paper ? 'Record Paper Form' : 'Request a Vehicle');
     }
     function schedule() { clearTimeout(timer); timer = setTimeout(search, 250); }
     ids.forEach(function (i) { el(i).addEventListener('change', schedule); el(i).addEventListener('input', schedule); });
+
+    function syncType() {                       // Pay and Claim: no UIS vehicle and no driver choice, but the own vehicle
+        var pc = el('rt_pc') && el('rt_pc').checked;
+        el('vehicleCard').style.display = pc ? 'none' : '';
+        el('needDriverRow').style.display = pc ? 'none' : '';
+        el('ownVehicleRow').style.display = pc ? '' : 'none';
+    }
+    ['rt_uis', 'rt_pc'].forEach(function (i) { if (el(i)) { el(i).addEventListener('change', syncType); } });
+    if (el('rt_pc')) { syncType(); }
 
     var wp = el('waiting_place');
     function syncOther() { el('otherRow').style.display = wp.value === 'Other' ? '' : 'none'; }
