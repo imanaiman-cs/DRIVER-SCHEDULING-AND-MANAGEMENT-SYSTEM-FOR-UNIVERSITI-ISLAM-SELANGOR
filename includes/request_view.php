@@ -69,7 +69,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             <div><?= reqH($req['waiting_place'] === 'Other' ? ($req['waiting_address'] ?: 'Other') : $req['waiting_place']) ?></div>
         </div>
         <div class="col-12">
-            <div class="text-muted">Purpose</div>
+            <div class="text-muted">Purpose<?= !empty($req['purpose_type']) ? ' (' . reqH(PURPOSE_TYPES[$req['purpose_type']] ?? ucfirst(str_replace('_', ' ', $req['purpose_type']))) . ')' : '' ?></div>
             <div><?= nl2br(reqH($req['purpose'])) ?></div>
         </div>
         <?php if (!empty($req['passenger_names'])): ?>

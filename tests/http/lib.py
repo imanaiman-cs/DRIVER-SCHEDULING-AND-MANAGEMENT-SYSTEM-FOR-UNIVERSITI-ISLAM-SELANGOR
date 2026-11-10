@@ -30,6 +30,10 @@ class C:
             s.tok = m.group(1) if m else ''
         return s.tok
     def post(s, path, data=None, files=None, csrf=True, **p):
+        # SRS 10 Nov: every request needs a purpose type and a supporting letter; add them for the older tests that do not care
+        if path == 'staff/request_vehicle.php' and data is not None and 'destination' in data:
+            data = dict(data); data.setdefault('purpose_type', 'official')
+            if files is None: files = [('docs[]', ('letter.pdf', b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n', 'application/pdf'))]
         h = {'X-CSRF-Token': s.token()} if csrf else {}
         return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
     def login(s, u, pw):

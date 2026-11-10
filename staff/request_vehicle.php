@@ -42,7 +42,7 @@ if (!$me) {
 $errors = [];
 $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'need_driver' => '1', 'request_type' => 'uis', 'own_vehicle_plate' => ''];
+      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'need_driver' => '1', 'request_type' => 'uis', 'own_vehicle_plate' => '', 'purpose_type' => 'official'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
@@ -73,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($f['destination'] === '' || mb_strlen($f['destination']) > 255) { $errors[] = 'Destination name is required (max 255 characters).'; }
     if ($f['destination_address'] === '' || mb_strlen($f['destination_address']) > 500) { $errors[] = 'The full destination address is required (max 500 characters).'; }
+    if (!isset(PURPOSE_TYPES[$f['purpose_type']])) { $errors[] = 'Choose the purpose type (Official or Unofficial).'; }
     if (mb_strlen($f['purpose']) < 10) { $errors[] = 'Please describe the purpose (at least 10 characters).'; }
     if ($f['passenger_names'] === '') { $errors[] = 'Passenger names are required.'; }
     if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
@@ -96,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         $errors[] = 'The form was too large and was not received. Each document must be 5 MB or smaller.';
     }
+    if (!$files) { $errors[] = 'The supporting letter is required (PDF, JPG or PNG, up to 5 MB).'; }   // UC018 exception 3.2
     if (count($files) > MAX_SUPPORTING_DOCUMENTS) { $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' documents.'; }
     $saved = [];
     if (!$errors) {
@@ -119,24 +121,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
             $stmt = $conn->prepare(
                 "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent, purpose_type)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
             $rt_time = timeWithSeconds($f['return_time']);
             $vehicleOrNull = $payClaim ? null : $vehicle_id;
             $reqType = $payClaim ? 'pay_claim' : 'uis';
             $plateOrNull = $payClaim ? $f['own_vehicle_plate'] : null;
-            $stmt->bind_param('iisssssssiisssssissi', $staff_id, $vehicleOrNull, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
+            $stmt->bind_param('iisssssssiisssssissis', $staff_id, $vehicleOrNull, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
                 $f['destination'], $f['destination_address'], $f['purpose'], $pax, $needDriver, $f['passenger_names'], $full_name, $f['phone'],
-                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull, $urgent);
+                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull, $urgent, $f['purpose_type']);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
             $stmt->close();
 
             if (!$payClaim) { lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end); }    // atomic: refuses a vehicle that was just taken
             if ($saved) {
-                $docType = 'other';
+                $docType = 'approval_letter';
                 $ds = $conn->prepare("INSERT INTO request_documents (request_id, doc_type, original_name, stored_path, mime_type, file_size) VALUES (?, ?, ?, ?, ?, ?)");
                 foreach ($saved as $d) {
                     $ds->bind_param('issssi', $rid, $docType, $d['name'], $d['path'], $d['mime'], $d['size']);
@@ -219,6 +221,9 @@ adminPageStart('Request a Vehicle');
                     <input class="form-control" id="destination" name="destination" maxlength="255" value="<?= htmlspecialchars($f['destination']) ?>" required></div>
                 <div class="col-md-6"><label class="form-label small" for="destination_address">Destination (full address) *</label>
                     <input class="form-control" id="destination_address" name="destination_address" maxlength="500" value="<?= htmlspecialchars($f['destination_address']) ?>" required></div>
+                <div class="col-12"><label class="form-label small d-block">Purpose type *</label>
+                    <?php foreach (PURPOSE_TYPES as $k => $lbl): ?><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="purpose_type" id="pt_<?= $k ?>" value="<?= $k ?>" <?= $f['purpose_type'] === $k ? 'checked' : '' ?>><label class="form-check-label" for="pt_<?= $k ?>"><?= $lbl ?></label></div><?php endforeach; ?>
+                    <div class="form-text">Official: an official university programme. Unofficial: a programme that is not official. Both need a supporting letter.</div></div>
                 <div class="col-12"><label class="form-label small" for="purpose">Purpose *</label>
                     <textarea class="form-control" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
                 <div class="col-12"><label class="form-label small" for="passenger_names">Passenger names *</label>
@@ -231,8 +236,8 @@ adminPageStart('Request a Vehicle');
                     </select></div>
                 <div class="col-md-4" id="otherRow" style="display:none;"><label class="form-label small" for="waiting_address">Address of the waiting location *</label>
                     <input class="form-control" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>
-                <div class="col-12"><label class="form-label small" for="docs">Supporting documents <span class="text-muted">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
-                    <input type="file" class="form-control" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple ></div>
+                <div class="col-12"><label class="form-label small" for="docs">Supporting letter * <span class="text-muted">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
+                    <input type="file" class="form-control" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple required></div>
             </div>
         </div></div>
 
