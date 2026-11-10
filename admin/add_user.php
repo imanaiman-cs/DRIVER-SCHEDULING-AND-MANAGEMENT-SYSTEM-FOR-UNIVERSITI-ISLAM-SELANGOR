@@ -17,6 +17,9 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     [$v, $errors] = accountInput($conn, $_POST, true);
     if (!isset($roles[$v['role']])) { $errors['role'] = 'You cannot create an account with this role.'; }
+    if (empty($errors['role']) && $v['role'] === 'supervisor' && $v['department'] !== '' && ($hod = headOfDepartmentOf($conn, $v['department']))) {
+        $errors['role'] = 'The department already has a Head of Department (' . $hod['full_name'] . ').';   // UC001 A2.1
+    }
     $password = (string)($_POST['password'] ?? '');
     if (($problem = passwordProblem($password)) !== null) { $errors['password'] = $problem; }
     elseif ($password !== (string)($_POST['confirm_password'] ?? '')) { $errors['confirm_password'] = 'The two passwords do not match.'; }

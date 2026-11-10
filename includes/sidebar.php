@@ -124,9 +124,9 @@ if ($_is_admin_role) {
 } else {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
               'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
-                             [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null],
-                             [['profile.php'], 'driver/profile.php', 'id-card', 'My Profile', null]]] + $_my_requests;
+                             [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null]]] + $_my_requests;
 }
+$_menu['My Account'] = [[['profile.php'], 'profile.php', 'id-card', 'My Profile', null]];      // UC016: every role
 ?>
 
 <a class="skip-link" href="#mainContent">Skip to main content</a>

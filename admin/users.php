@@ -38,9 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ((int)$u['active_driver'] > 0) {
             setFlash('danger', $u['full_name'] . ' is an active driver. Make the driver Inactive first (Drivers page).');
         } else {
-            $other = $u['role'] === 'supervisor' ? approverIdForDepartment($conn, $u['department'], 'staff', $id) : 1;
-            if ($u['role'] === 'supervisor' && $other === null && pendingRequestsOfApprover($conn, $id) > 0) {
-                setFlash('danger', $u['full_name'] . ' has Pending requests to approve and no other Head of Department is active in ' . $u['department'] . '. Add another Head of Department first.');
+            if ($u['role'] === 'supervisor' && pendingRequestsOfApprover($conn, $id) > 0) {                       // UC001 A3.2
+                setFlash('danger', $u['full_name'] . ' is a Head of Department with pending requests. The pending requests must be handled first.');
             } else {
                 $stmt = $conn->prepare('UPDATE users SET is_active = 0 WHERE user_id = ?');
                 $stmt->bind_param('i', $id); $stmt->execute(); $stmt->close();

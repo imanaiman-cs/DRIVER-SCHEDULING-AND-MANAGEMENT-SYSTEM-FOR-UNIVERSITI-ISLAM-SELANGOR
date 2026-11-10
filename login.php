@@ -22,6 +22,11 @@ if (isLoggedIn()) {
 if (isset($_GET['msg']) && $_GET['msg'] === 'logged_out') {
     $success = 'You have been successfully logged out.';
 }
+// Success notice (account created, password reset)
+if (!empty($_SESSION['login_success'])) {
+    $success = $_SESSION['login_success'];
+    unset($_SESSION['login_success']);
+}
 // Notice left by the idle timeout / deactivated account
 if (!empty($_SESSION['login_notice'])) {
     $error = $_SESSION['login_notice'];
@@ -681,7 +686,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- ── Card footer info ── -->
             <div class="card-footer-info">
-                <p class="mb-2">New staff? <a href="register.php">Register an account</a></p>
+                <p class="mb-1"><a href="forgot_password.php">Forgot password?</a></p>
+                <p class="mb-2">First time user? <a href="register.php">Register now</a></p>
                 <p>
                     <i class="fas fa-shield-halved" aria-hidden="true" style="color: var(--uis-primary);"></i>
                     &nbsp;Authorised personnel only &mdash; <strong>UIS</strong> Internal System

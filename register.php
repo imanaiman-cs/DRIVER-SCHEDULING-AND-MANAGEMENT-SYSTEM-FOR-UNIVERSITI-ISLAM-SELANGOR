@@ -1,42 +1,95 @@
 <?php
 // ============================================================
-// register.php  -  Staff register their own account (SRS summary of 10 Nov 2026)
-// Anyone can register as Staff. Drivers, Heads of Department and administrators are created by the
-// Administrative Assistant / Head of Admin (admin/users.php). The staff ID is the login name.
-// Requests of the new account are approved by the Head of Department of the chosen PTJ.
+// register.php  -  UC013 Register Account (first-time user: Staff or Head of Department)
+//   1. staff ID + UIS e-mail -> Request Code (UC014)     exceptions: already registered (2.1), not a UIS e-mail (2.2)
+//   2. the verification code (Resend Code, A1)           exception: wrong code (3.1)
+//   3. name, phone, department, role (Staff or Head of Department), password + confirm   exceptions: passwords differ (4.1),
+//      the department already has a Head of Department (4.2)
+// Driver accounts are registered by the Administrative Assistant (admin/users.php). The Administrative Assistant and Head of Admin
+// accounts are created during the initial setup. The staff ID is the login name.
 // ============================================================
 require_once 'config/database.php';
 
 if (isLoggedIn()) { header('Location: ' . roleHomeUrl()); exit(); }
 
-$departments = departmentChoices($conn);
-$v = ['username' => '', 'full_name' => '', 'email' => '', 'phone' => '', 'department' => '', 'role' => 'staff'];
+$departments = allDepartments($conn);
+$state = $_SESSION['reg'] ?? null;                 // ['staff_id', 'email', 'step' => 'code'|'details']
+$step = $state['step'] ?? 'start';
 $errors = [];
-$done = false;
+$info = '';
+$v = ['username' => $state['staff_id'] ?? '', 'full_name' => '', 'email' => $state['email'] ?? '', 'phone' => '', 'department' => '', 'role' => 'staff'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // nobody is signed in here, so the global CSRF check does not apply: check the token of the session ourselves
     if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''))) {
         securityStop(419, 'Your page expired. Please go back, reload it and try again.');
     }
-    [$v, $errors] = accountInput($conn, $_POST, true);
-    $password = (string)($_POST['password'] ?? '');
-    $confirm  = (string)($_POST['confirm_password'] ?? '');
-    if ($v['department'] !== '' && !in_array($v['department'], $departments, true)) { $errors['department'] = 'Choose your PTJ from the list.'; }
-    if (($problem = passwordProblem($password)) !== null) { $errors['password'] = $problem; }
-    elseif ($password !== $confirm) { $errors['confirm_password'] = 'The two passwords do not match.'; }
-    if (!$errors) {
-        try {
-            $id = createAccount($conn, $v, 'staff', $password);   // the role is always Staff here, whatever is posted
-            auditLog($conn, 'user_register', null, 'Staff ' . $v['username'] . ' (' . $v['department'] . ') registered', $id, 'staff');
-            $done = true;
-        } catch (mysqli_sql_exception $ex) {
-            $errors['username'] = 'This staff ID or e-mail address already has an account.';   // two people registering at the same moment
+    $action = (string)($_POST['action'] ?? '');
+    if ($action === 'restart') {
+        unset($_SESSION['reg']);
+        header('Location: register.php');
+        exit();
+    }
+    if ($action === 'request_code' || $action === 'resend') {                                  // steps 1-2 and A1
+        $staffId = $action === 'resend' ? (string)($state['staff_id'] ?? '') : trim((string)($_POST['username'] ?? ''));
+        $email   = $action === 'resend' ? (string)($state['email'] ?? '') : strtolower(trim((string)($_POST['email'] ?? '')));
+        $v['username'] = $staffId; $v['email'] = $email;
+        if (!preg_match('/^[A-Za-z0-9._-]{3,50}$/', $staffId) || $email === '') { $errors['username'] = 'Please fill in the staff ID and the UIS e-mail.'; }
+        elseif (!isUisEmail($conn, $email)) { $errors['email'] = 'Only a UIS e-mail address (@' . getSetting($conn, 'UIS_EMAIL_DOMAIN', 'uis.edu.my') . ') is accepted.'; }   // 2.2
+        else {
+            $q = $conn->prepare('SELECT 1 FROM users WHERE username = ? OR email = ? LIMIT 1');
+            $q->bind_param('ss', $staffId, $email);
+            $q->execute();
+            $taken = (bool)$q->get_result()->fetch_row();
+            $q->close();
+            if ($taken) { $errors['username'] = 'This staff ID or e-mail is already registered. The account already exists.'; }          // 2.1
         }
+        if (!$errors) {
+            $res = sendVerificationCode($conn, $email, $staffId, 'register');
+            if ($res['ok']) {
+                $_SESSION['reg'] = ['staff_id' => $staffId, 'email' => $email, 'step' => 'code'];
+                $state = $_SESSION['reg']; $step = 'code'; $info = $res['message'];
+            } else { $errors['email'] = $res['message']; }
+        }
+    } elseif ($action === 'verify' && $step === 'code') {                                      // step 3
+        $res = checkVerificationCode($conn, $state['email'], 'register', (string)($_POST['code'] ?? ''));
+        if ($res['ok']) { $_SESSION['reg']['step'] = 'details'; $step = 'details'; $state = $_SESSION['reg']; }
+        else { $errors['code'] = $res['message']; }
+    } elseif ($action === 'register' && $step === 'details' && isVerified($conn, $state['email'], 'register')) {   // step 4
+        $_POST['username'] = $state['staff_id']; $_POST['email'] = $state['email'];
+        [$v, $errors] = accountInput($conn, $_POST, true);
+        $role = (string)($_POST['role'] ?? 'staff');
+        $role = $role === 'supervisor' ? 'supervisor' : 'staff';                              // the options are Staff and Head of Department
+        $v['role'] = $role;
+        if ($v['department'] !== '' && !in_array($v['department'], $departments, true)) { $errors['department'] = 'Choose your PTJ from the list.'; }
+        $password = (string)($_POST['password'] ?? '');
+        if (($problem = passwordProblem($password)) !== null) { $errors['password'] = $problem; }
+        elseif ($password !== (string)($_POST['confirm_password'] ?? '')) { $errors['confirm_password'] = 'The two passwords do not match.'; }   // 4.1
+        if (!$errors && $role === 'supervisor' && ($existing = headOfDepartmentOf($conn, $v['department']))) {
+            $errors['role'] = 'The department already has a Head of Department (' . $existing['full_name'] . ').';                               // 4.2
+        }
+        if (!$errors) {
+            try {
+                $id = createAccount($conn, $v, $role, $password);
+                if ($role === 'supervisor') { refreshApprovers($conn, $v['department']); }
+                auditLog($conn, 'user_register', null, ($role === 'supervisor' ? 'Head of Department ' : 'Staff ') . $v['username'] . ' (' . $v['department'] . ') registered', $id, $role);
+                consumeVerification($conn, $v['email'], 'register');
+                unset($_SESSION['reg']);
+                $_SESSION['login_success'] = 'Your account was created. You can sign in with your staff ID and password.';
+                header('Location: login.php');
+                exit();
+            } catch (mysqli_sql_exception $ex) {
+                $errors['username'] = 'This staff ID or e-mail address already has an account.';   // two people registering at the same moment
+            }
+        }
+    } else {
+        $errors['code'] = 'Please start again.';
+        unset($_SESSION['reg']); $step = 'start';
     }
 }
 $err = fn($k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
 $val = fn($k) => htmlspecialchars((string)$v[$k]);
+$tok = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken()) . '">';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,38 +117,52 @@ $val = fn($k) => htmlspecialchars((string)$v[$k]);
 <div class="card reg-card">
     <div class="reg-head">
         <img src="assets/images/uis-favicon.png" alt="UIS">
-        <h5 class="fw-bold mt-2 mb-0" style="color:#0b5d3b">Register as Staff</h5>
-        <p class="text-muted small mb-2">Create your account to request a vehicle from the UIS Vehicle Section.</p>
+        <h5 class="fw-bold mt-2 mb-0" style="color:#0b5d3b">Register an account</h5>
+        <p class="text-muted small mb-2">For Staff and Heads of Department. Driver accounts are registered by the Vehicle Section.</p>
     </div>
     <div class="card-body p-4 pt-2">
-    <?php if ($done): ?>
-        <div class="alert alert-success mb-3"><i class="fas fa-circle-check me-1"></i>Your account was created. You can sign in with your staff ID and password.</div>
-        <a class="btn btn-uis w-100" href="login.php"><i class="fas fa-right-to-bracket me-1"></i>Go to sign in</a>
+    <?php if ($info): ?><div class="alert alert-success py-2"><i class="fas fa-envelope-circle-check me-1"></i><?= htmlspecialchars($info) ?></div><?php endif; ?>
+    <?php if ($step === 'start'): ?>
+        <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="request_code">
+            <p class="small text-muted">Enter your staff ID and your UIS e-mail. We send a verification code to that e-mail.</p>
+            <div class="mb-3"><label class="form-label" for="username">Staff ID *</label>
+                <input class="form-control" id="username" name="username" maxlength="50" required autocomplete="username" value="<?= $val('username') ?>"><?= $err('username') ?></div>
+            <div class="mb-3"><label class="form-label" for="email">UIS e-mail *</label>
+                <input type="email" class="form-control" id="email" name="email" maxlength="100" required autocomplete="email" value="<?= $val('email') ?>"><?= $err('email') ?></div>
+            <button class="btn btn-uis w-100" type="submit"><i class="fas fa-paper-plane me-1"></i>Request code</button>
+            <p class="text-center small mt-3 mb-0">Already have an account? <a href="login.php">Sign in</a></p>
+        </form>
+    <?php elseif ($step === 'code'): ?>
+        <p class="small text-muted">A verification code was sent to <strong><?= htmlspecialchars($state['email']) ?></strong>. It is valid for <?= VERIFICATION_MINUTES ?> minutes.</p>
+        <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="verify">
+            <div class="mb-3"><label class="form-label" for="code">Verification code *</label>
+                <input class="form-control form-control-lg text-center" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required style="letter-spacing:.3em"><?= $err('code') ?></div>
+            <button class="btn btn-uis w-100" type="submit"><i class="fas fa-check me-1"></i>Submit</button>
+        </form>
+        <div class="d-flex justify-content-between mt-3 small">
+            <form method="post" class="d-inline"><?= $tok ?><input type="hidden" name="action" value="resend"><button class="btn btn-link p-0 small" type="submit">Resend code</button></form>
+            <form method="post" class="d-inline"><?= $tok ?><input type="hidden" name="action" value="restart"><button class="btn btn-link p-0 small" type="submit">Use another e-mail</button></form>
+        </div>
     <?php else: ?>
-        <?php if (!$departments): ?><div class="alert alert-warning">No PTJ is open for registration yet. Please contact the Vehicle Section.</div><?php endif; ?>
-        <form method="post" novalidate>
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
+        <p class="small text-muted"><i class="fas fa-circle-check text-success me-1"></i>Verified: <strong><?= htmlspecialchars($state['staff_id']) ?></strong> (<?= htmlspecialchars($state['email']) ?>)</p>
+        <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="register">
             <div class="row g-3">
-                <div class="col-sm-6"><label class="form-label" for="username">Staff ID *</label>
-                    <input class="form-control" id="username" name="username" maxlength="50" required autocomplete="username" value="<?= $val('username') ?>"><?= $err('username') ?></div>
-                <div class="col-sm-6"><label class="form-label" for="phone">Phone number</label>
-                    <input class="form-control" id="phone" name="phone" maxlength="20" autocomplete="tel" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
                 <div class="col-12"><label class="form-label" for="full_name">Full name *</label>
                     <input class="form-control" id="full_name" name="full_name" maxlength="100" required autocomplete="name" value="<?= $val('full_name') ?>"><?= $err('full_name') ?></div>
-                <div class="col-12"><label class="form-label" for="email">E-mail *</label>
-                    <input type="email" class="form-control" id="email" name="email" maxlength="100" required autocomplete="email" value="<?= $val('email') ?>"><?= $err('email') ?></div>
+                <div class="col-sm-6"><label class="form-label" for="phone">Phone number</label>
+                    <input class="form-control" id="phone" name="phone" maxlength="20" autocomplete="tel" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
+                <div class="col-sm-6"><label class="form-label" for="role">Role *</label>
+                    <select class="form-select" id="role" name="role"><option value="staff" <?= $v['role'] === 'staff' ? 'selected' : '' ?>>Staff</option><option value="supervisor" <?= $v['role'] === 'supervisor' ? 'selected' : '' ?>>Head of Department</option></select><?= $err('role') ?></div>
                 <div class="col-12"><label class="form-label" for="department">PTJ (department) *</label>
                     <select class="form-select" id="department" name="department" required><option value="">Choose...</option>
-                        <?php foreach ($departments as $d): ?><option <?= $v['department'] === $d ? 'selected' : '' ?>><?= htmlspecialchars($d) ?></option><?php endforeach; ?></select>
-                    <?= $err('department') ?><div class="form-text">Your requests are approved by the Head of Department of this PTJ.</div></div>
+                        <?php foreach ($departments as $d): ?><option <?= $v['department'] === $d ? 'selected' : '' ?>><?= htmlspecialchars($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
                 <div class="col-sm-6"><label class="form-label" for="password">Password *</label>
                     <input type="password" class="form-control" id="password" name="password" required autocomplete="new-password" maxlength="72"><?= $err('password') ?>
                     <div class="form-text">At least 8 characters, with letters and digits.</div></div>
                 <div class="col-sm-6"><label class="form-label" for="confirm_password">Confirm password *</label>
                     <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password" maxlength="72"><?= $err('confirm_password') ?></div>
             </div>
-            <button class="btn btn-uis w-100 mt-4" type="submit" <?= $departments ? '' : 'disabled' ?>><i class="fas fa-user-plus me-1"></i>Create account</button>
-            <p class="text-center small mt-3 mb-0">Already have an account? <a href="login.php">Sign in</a></p>
+            <button class="btn btn-uis w-100 mt-4" type="submit"><i class="fas fa-user-plus me-1"></i>Register</button>
         </form>
     <?php endif; ?>
     </div>

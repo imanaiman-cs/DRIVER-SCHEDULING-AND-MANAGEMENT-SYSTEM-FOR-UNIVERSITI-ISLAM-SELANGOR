@@ -6,7 +6,7 @@ ADMIN_ONLY=[]; PAGES=[]
 for f in sorted(glob.glob(ROOT+'/**/*.php',recursive=True)):
     rel=os.path.relpath(f,ROOT)
     top=rel.split('/')[0]
-    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php','register.php','set_language.php') or rel.endswith('fleet_helpers.php'): continue
+    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php','register.php','forgot_password.php','set_language.php') or rel.endswith('fleet_helpers.php'): continue
     PAGES.append(rel)
 # 1. anonymous visitors get nothing
 bad=[]

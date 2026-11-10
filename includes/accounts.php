@@ -26,6 +26,25 @@ function passwordProblem(string $password): ?string
     return null;
 }
 
+/** Every PTJ (department) known in the system (UC013 step 4: the user selects the department). */
+function allDepartments(mysqli $conn): array
+{
+    $r = $conn->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department <> '' ORDER BY department");
+    return array_column($r->fetch_all(MYSQLI_ASSOC), 'department');
+}
+
+/** UC001 A2.1 / UC013 4.2: the active Head of Department of a PTJ, other than $exceptUser (null when there is none). */
+function headOfDepartmentOf(mysqli $conn, string $department, ?int $exceptUser = null): ?array
+{
+    $stmt = $conn->prepare("SELECT user_id, full_name FROM users WHERE role = 'supervisor' AND is_active = 1 AND department = ? AND user_id <> ? LIMIT 1");
+    $except = (int)$exceptUser;
+    $stmt->bind_param('si', $department, $except);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
 /** The PTJs (departments) that have an active Head of Department: the only ones a request can be approved in. */
 function departmentChoices(mysqli $conn): array
 {
@@ -86,6 +105,11 @@ function createAccount(mysqli $conn, array $v, string $role, string $password): 
 {
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $approver = approverIdForDepartment($conn, $v['department'], $role);
+    if ($role === 'supervisor') {                       // the request of a Head of Department goes to the head of that Head of Department
+        $r = $conn->query("SELECT supervisor_id FROM users WHERE role = 'supervisor' AND supervisor_id IS NOT NULL GROUP BY supervisor_id ORDER BY COUNT(*) DESC LIMIT 1");
+        $approver = $r->fetch_row()[0] ?? null;
+        $approver = $approver !== null ? (int)$approver : null;
+    }
     $phone = $v['phone'] !== '' ? $v['phone'] : null;
     $stmt = $conn->prepare('INSERT INTO users (username, password, email, full_name, role, department, supervisor_id, phone, is_active, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)');
     $lang = currentLanguage();

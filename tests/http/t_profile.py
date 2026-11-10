@@ -1,60 +1,38 @@
-"""UC002 My Profile and UC003 Update Driver Profile (by the driver, and by the Assistant: A1)."""
-import re, sys, datetime
+"""SRS 10 Nov UC016 Manage Profile (Staff, Driver, Assistant, Head of Admin, Head of Department): view, update name/phone/address, change password."""
+import sys
 from lib import *
 
 reseed()
-drv = user('drv005'); drv2 = user('drv002'); s1 = user('stf001'); ad = user('admin'); hd = user('head001')
 cnt = lambda q: int(sql(q))
-did = sql("SELECT driver_id FROM drivers WHERE employee_id=(SELECT employee_id FROM drivers d JOIN users u ON u.driver_id=d.driver_id WHERE u.username='drv005')")
-row = lambda: rows("SELECT license_class, phone, license_expiry FROM drivers WHERE driver_id=%s" % did)[0]
-future = (today() + datetime.timedelta(days=400)).isoformat(); past = (today() - datetime.timedelta(days=2)).isoformat()
-
-# UC002 view
-pg = drv.get('driver/profile.php')
-ok('My Profile shows name, staff ID, phone, licence classes and expiry', pg.status_code == 200 and not errs(pg) and 'Staff ID' in pg.text and 'Licence expiry date' in pg.text and 'Siti Norzaharah' in pg.text)
-ok('the driver menu has My Profile', 'My Profile' in pg.text)
-ok('other roles cannot open the driver profile page', s1.get('driver/profile.php').status_code == 302 and ad.get('driver/profile.php').status_code == 302)
-ok('a driver sees only their own profile (not the other driver)', 'Siti Norzaharah' in pg.text and 'Mohd Hafizuddin' not in pg.text)
-ok('Update opens the form with only phone, licence classes and expiry editable', 'name="license_class[]"' in drv.get('driver/profile.php', edit=1).text and 'name="license_number"' not in drv.get('driver/profile.php', edit=1).text)
-
-# UC003 normal flow
-before = row()
-n0 = cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='admin'")
-r = drv.post('driver/profile.php', {'phone': '019-9998888', 'license_class[]': ['D', 'PSV'], 'license_expiry': future})
-now_ = row()
-ok('saved: phone, classes and expiry updated', r.status_code == 302 and now_ == ['D,PSV', '019-9998888', future])
-ok('the Assistant is told in the system that the licence classes changed', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='admin'") == n0 + 1)
-ok('the change is recorded in the history log', cnt("SELECT COUNT(*) FROM audit_log WHERE action='driver_update' AND reason LIKE '%%Siti Norzaharah%%their own profile%%'") == 1)
-n1 = cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='admin'")
-drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D', 'PSV'], 'license_expiry': future})
-ok('phone only: saved, no notification to the Assistant (classes unchanged)', row()[1] == '019-1112222' and cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='admin'") == n1)
-
-# exceptions: nothing saved
-snap = row()
-r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_expiry': future}); ok('no licence class selected: error, nothing saved', r.status_code == 200 and 'at least one licence class' in r.text and row() == snap)
-r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D'], 'license_expiry': past}); ok('licence expiry already passed: error, nothing saved', r.status_code == 200 and 'already passed' in r.text and row() == snap)
-r = drv.post('driver/profile.php', {'phone': 'abc', 'license_class[]': ['D'], 'license_expiry': future, 'date_joined': '2019-01-01'}); ok('invalid phone: error, nothing saved', r.status_code == 200 and row() == snap)
-r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D', 'XYZ'], 'license_expiry': future}); ok('an invented licence class is dropped, valid ones saved', row()[0] == 'D')
-r = drv.post('driver/profile.php', {'phone': '019-1112222', 'license_class[]': ['D', 'PSV'], 'license_expiry': future}, csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code == 419)
-ok('Cancel does not change anything', drv.get('driver/profile.php').status_code == 200)
-# a driver cannot change someone else (the page has no id parameter; posting one is ignored)
-other = rows("SELECT license_class FROM drivers WHERE driver_id<>%s ORDER BY driver_id" % did)
-drv.post('driver/profile.php', {'driver_id': 1, 'id': 1, 'phone': '019-0000000', 'license_class[]': ['D', 'PSV'], 'license_expiry': future})
-ok('posting another driver id changes only the signed-in driver', rows("SELECT license_class FROM drivers WHERE driver_id<>%s ORDER BY driver_id" % did) == other)
-
-# the recommender follows the licence classes: without PSV the driver is no longer offered for a bus
-sql("UPDATE drivers SET license_class='D' WHERE driver_id=%s" % did)
-# UC003 A1: the Assistant updates a driver and the driver is told
-n2 = cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv005'")
-r = ad.post('admin/edit_driver.php', {'id': did, 'phone': '019-5554444', 'license_class[]': ['D', 'GDL'], 'license_expiry': future, 'date_joined': '2019-01-01', 'license_number': 'L123', 'address': 'Shah Alam'})
-ok('A1: the Assistant updates the driver', r.status_code == 302 and row()[:2] == ['D,GDL', '019-5554444'])
-ok('A1: the driver is told in the system', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv005'") == n2 + 1)
-r = ad.post('admin/edit_driver.php', {'id': did, 'phone': '019-5554444', 'license_class[]': ['D'], 'license_expiry': past})
-ok('A1: an expired licence date is refused for the Assistant too', r.status_code == 200 and row()[2] == future)
-r = hd.post('admin/edit_driver.php', {'id': did, 'phone': '019-6667777', 'license_class[]': ['D'], 'license_expiry': future, 'date_joined': '2019-01-01'})
-ok('the Head of Admin can update too', r.status_code == 302 and row()[1] == '019-6667777')
-ok('staff cannot use the admin edit page', s1.get('admin/edit_driver.php', id=did).status_code == 302)
-# UC002 A1: list and profile of all drivers for the Assistant
-lst = ad.get('admin/drivers.php'); vw = ad.get('admin/view_driver.php', id=did)
-ok('UC002 A1: the Assistant sees all drivers with licence classes and tasks this month, and a driver profile with upcoming tasks', 'Tasks this month' in lst.text and vw.status_code == 200 and 'Upcoming tasks' in vw.text)
+who = {'stf001': 'Staff', 'drv005': 'Driver', 'admin': 'Administrative Assistant', 'head001': 'Head of Admin', 'hos002': 'Head of Department'}
+for u, role in who.items():
+    c = user(u); pg = c.get('profile.php')
+    ok('%s: My Profile shows staff ID, name, UIS e-mail, phone, address, department and role' % role, pg.status_code == 200 and not errs(pg) and all(x in pg.text for x in ['Staff ID', 'UIS e-mail', 'Address', 'Department']) and role in pg.text and 'My Profile' in pg.text)
+drv = user('drv005'); pg = drv.get('profile.php')
+ok('a driver also sees the licence class, expiry date and start date of service, read-only', 'Licence class' in pg.text and 'Licence expiry date' in pg.text and 'Start date of service' in pg.text and 'name="license_class' not in drv.get('profile.php', edit=1).text)
+ok('the old driver profile link goes to the new page', drv.get('driver/profile.php').headers['Location'].endswith('/profile.php'))
+ok('anonymous visitors cannot open it', C().get('profile.php').status_code == 302)
+s1 = user('stf001')
+ok('Edit shows the name, phone and address only', all(x in s1.get('profile.php', edit=1).text for x in ['name="full_name"', 'name="phone"', 'name="address"']) and 'name="email"' not in s1.get('profile.php', edit=1).text)
+r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza', 'phone': '', 'address': ''}); ok('an empty field: fill in all required fields (A1.1)', 'fill in all required' in r.text)
+r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza binti Abdul Rahman', 'phone': 'abc', 'address': 'No 1 Jalan Setia'}); ok('an invalid phone number is refused', 'valid phone' in r.text)
+orig = rows("SELECT full_name, email, department, role, username FROM users WHERE username='stf001'")
+r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza binti Abdul Rahman Jr', 'phone': '019-1234567', 'address': 'No 1 Jalan Setia, 40000 Shah Alam', 'email': 'hacker@evil.com', 'department': 'Rectory', 'role': 'head_admin', 'username': 'x'})
+ok('updated: name, phone and address change', r.status_code == 302 and rows("SELECT full_name, phone, address FROM users WHERE username='stf001'") == [['Norliza binti Abdul Rahman Jr', '019-1234567', 'No 1 Jalan Setia, 40000 Shah Alam']])
+now_ = rows("SELECT email, department, role, username FROM users WHERE username='stf001'")[0]
+ok('the staff ID, e-mail, department and role are unchanged', now_ == [orig[0][1], orig[0][2], orig[0][3], orig[0][4]])
+ok('the history log has it and the page shows the new name', cnt("SELECT COUNT(*) FROM audit_log WHERE action='profile_update'") == 1 and 'Jr' in s1.get('profile.php').text)
+# driver: the driver record follows; licence fields in the post are ignored
+before = rows("SELECT license_class, license_expiry FROM drivers WHERE driver_id=5")[0]
+r = drv.post('profile.php', {'action': 'update', 'full_name': 'Siti Norzaharah binti Othman', 'phone': '017-5550000', 'address': 'Shah Alam', 'license_class[]': ['D', 'GDL', 'PSV'], 'license_expiry': '2099-01-01'})
+ok('a driver updates the phone and address; the driver record follows; the licence cannot be changed here', r.status_code == 302 and sql("SELECT phone FROM drivers WHERE driver_id=5") == '017-5550000' and rows("SELECT license_class, license_expiry FROM drivers WHERE driver_id=5")[0] == before)
+# password
+pw = lambda c, **kw: c.post('profile.php', dict({'action': 'password', 'current_password': 'staff001@uis', 'new_password': 'Newpass123', 'confirm_password': 'Newpass123'}, **kw))
+r = pw(s1, current_password='wrong'); ok('a wrong current password is refused (A2.1)', 'wrong or the new passwords do not match' in r.text and C().login('stf001', 'staff001@uis').status_code == 302)
+r = pw(s1, confirm_password='Different1'); ok('new passwords that differ are refused', 'do not match' in r.text)
+r = pw(s1, new_password='abc', confirm_password='abc'); ok('a weak password is refused', 'at least 8' in r.text or 'letters and digits' in r.text)
+r = pw(s1, new_password='staff001@uis', confirm_password='staff001@uis'); ok('the same password is refused', 'different' in r.text)
+r = pw(s1); ok('changed: the new password works, the old one does not, history without the password', r.status_code == 302 and C().login('stf001', 'Newpass123').status_code == 302 and C().login('stf001', 'staff001@uis').status_code == 200
+   and cnt("SELECT COUNT(*) FROM audit_log WHERE action='password_changed'") == 1 and cnt("SELECT COUNT(*) FROM audit_log WHERE reason LIKE '%Newpass123%'") == 0)
+ok('POST without CSRF is refused (419)', s1.post('profile.php', {'action': 'update', 'full_name': 'X Y Z', 'phone': '012-1111111', 'address': 'A'}, csrf=False).status_code == 419)
 sys.exit(0 if summary() else 1)

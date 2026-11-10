@@ -29,15 +29,15 @@ Use case numbers below are the NEW numbers (UC001–UC028). Old code comments st
 - [x] **Personal Rental** (done: migration `2026_11_personal_rental`, `t_rental.py`) (lorry, no letter, round-trip km, RM3/km, AA confirms distance then HoA, no HoD; print rental approval) (UC018 A4, UC003 A5, UC017 A4, UC019 A1)
 - [x] **Print Claim Approval** letter (done together with the rental letter: `staff/print_approval.php`) for approved Pay and Claim (UC017 A3)
 - [ ] A HoD's own request goes to that HoD's head (exists: approver = head) — recheck with the new "one HoD per department" rule
-- [ ] **One Head of Department per department** (UC001 A2.1, UC013 4.2). Code allows several.
+- [x] **One Head of Department per department** (done) (UC001 A2.1, UC013 4.2). Code allows several.
 - [ ] Welfare duty: **weekly** schedule, vehicle (car/van only) chosen per day and reserved, then driver assigned per day, **HoA approves** (UC006, UC007). Code: monthly rotation, no vehicle, no HoA approval.
 - [ ] Internal task: status **Waiting for Driver → Driver Assigned → Approved**, vehicle reserved, driver assigned in a separate page with recommendation, **HoA approves** (UC004, UC005). Task types Workshop, Refuelling, Test Drive.
 - [x] Driver task **report** (done: `task_reports`, `driver/task_report.php`, `t_report.py`; the welfare duty report waits for the weekly welfare redesign) (UC024): actual depart/return, end mileage, fuel level (Full, 3/4, 1/2, 1/4, Empty), condition, problem (type, description, photo, still usable), vehicle status Active/Under Maintenance, never deleted, notifies AA. Task becomes Completed. Replaces the smaller "Update Vehicle" page.
 - [ ] Vehicle: types incl. MPV, **required licence class** and **current fuel level** fields, status Active / Under Maintenance, edit only fuel/mileage/status, deactivating or maintenance with upcoming bookings lists them (UC002)
 - [ ] Driver registration by AA with **start date of service**, default password **emailed** to the driver (UC001 step 3). Code: password typed by AA.
 - [ ] Deactivate a driver with upcoming tasks lists the tasks and asks to replace first (exists for drivers); a HoD with pending requests (done)
-- [ ] **Register Account with verification code by e-mail** (staff ID + UIS e-mail, only UIS e-mail accepted, code with expiry, resend), role Staff or HoD; **Reset Password** with code (UC013, UC014, UC015). Code: direct registration, no code, no reset.
-- [ ] Profile for Staff, Driver and AA with address, change password (UC016). Code: driver profile only; change_password page hidden.
+- [x] **Register Account with verification code by e-mail** (done: `t_users.py`, `t_reset.py`) (staff ID + UIS e-mail, only UIS e-mail accepted, code with expiry, resend), role Staff or HoD; **Reset Password** with code (UC013, UC014, UC015). Code: direct registration, no code, no reset.
+- [x] Profile for Staff, Driver and AA (done: `profile.php`, `t_profile.py`) with address, change password (UC016). Code: driver profile only; change_password page hidden.
 - [ ] My Request list with filters by status/date, Department Request (HoD), All Request (AA/HoA); details with status history (UC017)
 - [ ] Notifications in-system and e-mail for every status change; approval e-mail recorded with date/time and retried (UC019 1.1)
 - [ ] Data model names differ (Department table, VehicleReservation, Task, WelfareDuty, TaskReport, StatusHistory, VerificationCode). Decide whether to migrate (see question 3).

@@ -54,10 +54,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $v['username'] = $u['username'];
         if ($lockRole !== '') { $v['role'] = $u['role']; }
         elseif (!isset($roles[$v['role']])) { $errors['role'] = 'You cannot give this role.'; }
+        if (empty($errors['role']) && $v['role'] === 'supervisor' && $v['department'] !== '' && ($hod = headOfDepartmentOf($conn, $v['department'], $id))) {
+            $errors['role'] = 'The department already has a Head of Department (' . $hod['full_name'] . ').';   // UC001 A2.1
+        }
         $oldDept = (string)$u['department'];
         $movesAway = $u['role'] === 'supervisor' && ($v['role'] !== 'supervisor' || $v['department'] !== $oldDept) && (int)$u['is_active'] === 1;
-        if (!$errors && $movesAway && pendingRequestsOfApprover($conn, $id) > 0 && approverIdForDepartment($conn, $oldDept, 'staff', $id) === null) {
-            $errors['role'] = 'This Head of Department has Pending requests to approve and no other Head of Department is active in ' . $oldDept . '. Add another one first.';
+        if (!$errors && $movesAway && pendingRequestsOfApprover($conn, $id) > 0) {
+            $errors['role'] = 'This Head of Department has pending requests. Handle the pending requests first.';
         }
         if (!$errors) {
             $phone = $v['phone'] !== '' ? $v['phone'] : null;

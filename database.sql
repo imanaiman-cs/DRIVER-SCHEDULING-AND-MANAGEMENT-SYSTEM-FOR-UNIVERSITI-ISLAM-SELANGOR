@@ -52,6 +52,7 @@ CREATE TABLE `users` (
   `supervisor_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `phone` varchar(30) DEFAULT NULL,
+  `address` text DEFAULT NULL COMMENT 'own address (UC016)',
   `failed_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `last_login_at` datetime DEFAULT NULL,
@@ -379,6 +380,20 @@ CREATE TABLE `task_reports` (
   CONSTRAINT `fk_report_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `verification_codes` (
+  `code_id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(100) NOT NULL,
+  `staff_id` varchar(50) NOT NULL,
+  `purpose` enum('register','reset') NOT NULL,
+  `code_hash` varchar(255) NOT NULL COMMENT 'hash of the 6-digit code',
+  `expiry_time` datetime NOT NULL,
+  `attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `verified_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`code_id`),
+  KEY `idx_vc_lookup` (`email`, `purpose`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `vehicle_maintenance` (
   `maintenance_id` int(11) NOT NULL AUTO_INCREMENT,
   `vehicle_id` int(11) NOT NULL,
@@ -543,7 +558,8 @@ INSERT INTO settings (setting_key, setting_value, description) VALUES
  ('MAX_FAILED_ATTEMPTS', '5',     'Failed logins before the login is blocked'),
  ('LOCKOUT_MINUTES',     '15',    'Minutes a login is blocked after too many failed attempts'),
  ('TASK_DURATION_HOURS', '2',     'Length of the outbound and the return task of a trip (hours)'),
- ('RENTAL_RATE_PER_KM',  '3.00',  'Personal Rental charge per kilometre of the round trip (RM)');
+ ('RENTAL_RATE_PER_KM',  '3.00',  'Personal Rental charge per kilometre of the round trip (RM)'),
+ ('UIS_EMAIL_DOMAIN',    'uis.edu.my', 'Only e-mail addresses of this domain can register (UC013)');
 
 -- ============================================================
 -- SEED: demo requests (relative to today) in every status
@@ -663,4 +679,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes');

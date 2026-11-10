@@ -60,6 +60,11 @@ for i in range(1, 4): PW['stf%03d' % i] = 'staff%03d@uis' % i
 for i in range(1, 13): PW['drv%03d' % i] = 'driver%03d@uis' % i
 def user(u):
     c = C(); r = c.login(u, PW[u]); assert r.status_code == 302, (u, r.status_code); return c
+def last_code(email):
+    """the verification code of the last e-mail to this address (with e-mail sending off it is only in email_log)"""
+    body = sql("SELECT body_html FROM email_log WHERE to_email='%s' AND kind='verification' ORDER BY log_id DESC LIMIT 1" % email)
+    m = re.search(r'<strong>(\d{6})</strong>', body)
+    return m.group(1) if m else ''
 def errs(r): return bool(re.search(r'Warning:|Notice:|Fatal error|Parse error|Undefined|Deprecated:', r.text))
 def run_jobs():
     env = dict(os.environ, DSMS_DB=DB)

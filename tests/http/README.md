@@ -17,12 +17,13 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_vendor.py` | UC017 A2: vendor bus instead of a UIS PSV driver, approval, UIS bus released when Confirmed |
 | `t_change.py` | UC029 / UC030: schedule change requests, approval, unavailable dates, Replace Driver as Driver Request |
 | `t_report.py` | UC024: the driver's task report (create, view, update, problem, vehicle updated, internal task) |
-| `t_profile.py` | UC002 / UC003: My Profile, driver and Assistant updates, expired licence refused, notifications |
+| `t_reset.py` | UC015 Reset Password with a verification code |
+| `t_profile.py` | UC016 My Profile for every role: view, update, change password |
 | `t_paper.py` | UC010 A4: Record Paper Form (Approved, vehicle lock, no UC011/UC012, < 1 day allowed, validations) |
 | `t_rental.py` | Personal Rental (lorry, RM3/km, Assistant then Head of Admin) and the approval letters |
 | `t_reserve.py` | Reservation by vehicle type and quantity, the Assistant chooses the vehicle, release on cancel/reject |
 | `t_purpose.py` | Purpose type, required supporting letter, vehicle type MPV |
-| `t_users.py` | Staff self-registration, Users (add, edit, reset password, deactivate), role limits |
+| `t_users.py` | UC013/UC014 Register Account with a verification code, UC001 user accounts (add, edit, reset password, deactivate), one Head of Department per PTJ |
 | `t_lang.py` | English / Bahasa Melayu switch: pages, JSON, forms/CSRF, cookie + account, login page, e-mail language |
 | `t_joined.py` | UC001 / UC003 A1 / UC018: date joined (Add / Edit Driver), experience, the three recommender weights in Settings |
 | `t_nodriver.py` | UC010 A3: request without driver, send to Head of Admin, approve / reject, jobs |
