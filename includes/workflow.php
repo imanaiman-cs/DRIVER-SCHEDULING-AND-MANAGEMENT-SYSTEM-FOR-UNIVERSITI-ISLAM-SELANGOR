@@ -365,7 +365,7 @@ function vehicleUnavailableReason(mysqli $conn, int $vehicle_id, string $start, 
     $checks = [
         'locked'   => "SELECT 1 FROM vehicle_locks WHERE vehicle_id = ? AND request_id <> ? AND start_dt < ? AND end_dt > ? LIMIT 1",
         'trip'     => "SELECT 1 FROM schedules WHERE vehicle_id = ? AND COALESCE(request_id, 0) <> ? AND status <> 'cancelled' AND start_dt < ? AND end_dt > ? LIMIT 1",
-        'internal' => "SELECT 1 FROM internal_tasks WHERE vehicle_id = ? AND task_id <> ? AND status = 'active' AND start_dt < ? AND end_dt > ? LIMIT 1",
+        'internal' => "SELECT 1 FROM internal_tasks WHERE vehicle_id = ? AND task_id <> ? AND status IN ('waiting', 'assigned', 'active') AND start_dt < ? AND end_dt > ? LIMIT 1",
     ];
     foreach ($checks as $why => $sql) {
         $except = $why === 'internal' ? 0 : $except_request;
@@ -407,7 +407,7 @@ function availableVehicles(mysqli $conn, string $start, string $end, int $passen
                  OR COALESCE((SELECT MAX(m.end_date) FROM vehicle_maintenance m WHERE m.vehicle_id = v.vehicle_id AND m.closed_at IS NULL), '9999-12-31') < ?)
             AND NOT EXISTS (SELECT 1 FROM vehicle_locks l WHERE l.vehicle_id = v.vehicle_id AND l.request_id <> ? AND l.start_dt < ? AND l.end_dt > ?)
             AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND COALESCE(s.request_id, 0) <> ? AND s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?)
-            AND NOT EXISTS (SELECT 1 FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status = 'active' AND t.start_dt < ? AND t.end_dt > ?)
+            AND NOT EXISTS (SELECT 1 FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status IN ('waiting', 'assigned', 'active') AND t.start_dt < ? AND t.end_dt > ?)
           ORDER BY v.capacity, v.plate_number"
     );
     $stmt->bind_param('isississss', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start);
@@ -1820,4 +1820,117 @@ function decideScheduleChange(mysqli $conn, int $change_id, string $decision, st
         if ($du) { notifyUsers($conn, [$du], "Your request $what was rejected.$why The task stays with you.", 'driver/schedule_change.php'); }
     }
     return ['ok' => true, 'message' => 'Request ' . $status . '.', 'tasks' => $tasks];
+}
+
+// ------------------------------------------------------------
+// Internal task approval (SRS 10 Nov UC005 Assign Internal Task, UC026 approval)
+//   waiting  = Waiting for Driver   (vehicle reserved, no driver)
+//   assigned = Driver Assigned      (waits for the Head of Admin)
+//   active   = Approved             (the driver sees it, it counts everywhere)
+// ------------------------------------------------------------
+
+/** One-line description of an internal task row, for messages. */
+function internalTaskLine(mysqli $conn, array $t): string
+{
+    $plate = '';
+    if (!empty($t['vehicle_id'])) {
+        $q = $conn->prepare('SELECT plate_number FROM vehicles WHERE vehicle_id = ?');
+        $q->bind_param('i', $t['vehicle_id']);
+        $q->execute();
+        $plate = (string)($q->get_result()->fetch_row()[0] ?? '');
+        $q->close();
+    }
+    return internalTaskTypeLabel($t['task_type']) . ' on ' . date('d M Y', strtotime($t['task_date'])) . ' ' . substr($t['start_time'], 0, 5) . '-' . substr($t['end_time'], 0, 5)
+         . ($plate !== '' ? ' (' . $plate . ')' : '');
+}
+
+/**
+ * UC005: the Administrative Assistant (or Head of Admin) assigns a driver to a Waiting for Driver task.
+ * The driver must hold the licence of the vehicle and have no clash. Waiting -> Driver Assigned, the Head of Admin is told.
+ */
+function assignInternalTask(mysqli $conn, int $task_id, int $driver_id): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $conn->begin_transaction();
+    try {
+        $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ? FOR UPDATE');
+        $q->bind_param('i', $task_id);
+        $q->execute();
+        $t = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$t || $t['status'] !== 'waiting') { $conn->rollback(); return $fail('That task is not waiting for a driver.'); }
+        if (strtotime($t['start_dt']) <= time()) { $conn->rollback(); return $fail('This task has already started.'); }
+        $q = $conn->prepare('SELECT name, status, license_class FROM drivers WHERE driver_id = ? FOR UPDATE');
+        $q->bind_param('i', $driver_id);
+        $q->execute();
+        $d = $q->get_result()->fetch_assoc();
+        $q->close();
+        $lic = 'D';
+        if ($t['vehicle_id']) {
+            $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
+            $q->bind_param('i', $t['vehicle_id']);
+            $q->execute();
+            $lic = (string)($q->get_result()->fetch_row()[0] ?? 'D');
+            $q->close();
+        }
+        if (!$d || $d['status'] !== 'active') { $conn->rollback(); return $fail('Choose an active driver.'); }
+        if (!driverHoldsLicence($d['license_class'], $lic)) { $conn->rollback(); return $fail($d['name'] . ' does not hold licence class ' . $lic . '.'); }
+        if (($why = driverUnavailableReason($conn, $driver_id, $t['start_dt'], $t['end_dt']) ?? driverClashReason($conn, $driver_id, $t['start_dt'], $t['end_dt'], 0, $task_id)) !== null) {
+            $conn->rollback();
+            return $fail($d['name'] . ': ' . $why . '.');
+        }
+        $q = $conn->prepare("UPDATE internal_tasks SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE task_id = ? AND status = 'waiting'");
+        $q->bind_param('ii', $driver_id, $task_id);
+        $q->execute();
+        $q->close();
+        auditLog($conn, 'internal_task_assign', null, "Internal task #$task_id assigned to {$d['name']}.");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        return $fail('Could not assign the driver. Please try again.');
+    }
+    notifyUsers($conn, headAdminUserIds($conn), 'An internal task is waiting for your approval: ' . internalTaskLine($conn, $t) . ' - ' . $d['name'] . '.', 'admin/approve_assignments.php');
+    return ['ok' => true, 'message' => 'Driver assigned. The Head of Admin has been told.'];
+}
+
+/** UC026: the Head of Admin approves a Driver Assigned internal task -> Approved (active). The driver and the Assistants are told. */
+function approveInternalTask(mysqli $conn, int $task_id, int $by): array
+{
+    $q = $conn->prepare("UPDATE internal_tasks SET status = 'active', approved_by = ?, approved_at = NOW() WHERE task_id = ? AND status = 'assigned' AND driver_id IS NOT NULL");
+    $q->bind_param('ii', $by, $task_id);
+    $q->execute();
+    $done = $q->affected_rows > 0;
+    $q->close();
+    if (!$done) { return ['ok' => false, 'message' => 'That task is not waiting for approval.']; }
+    $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ?');
+    $q->bind_param('i', $task_id);
+    $q->execute();
+    $t = $q->get_result()->fetch_assoc();
+    $q->close();
+    auditLog($conn, 'internal_task_approve', null, "Internal task #$task_id approved.");
+    $line = internalTaskLine($conn, $t);
+    if ($u = userIdOfDriver($conn, (int)$t['driver_id'])) { notifyUsers($conn, [$u], 'You have a new internal task: ' . $line . '.', 'driver/schedules.php'); }
+    notifyUsers($conn, assistantUserIds($conn), 'The internal task was approved: ' . $line . '.', 'admin/internal_tasks.php');
+    return ['ok' => true, 'message' => 'Internal task approved.'];
+}
+
+/** UC026 A1: the Head of Admin rejects (reason required) -> back to Waiting for Driver, driver removed, the Assistants are told. */
+function rejectInternalTask(mysqli $conn, int $task_id, string $reason): array
+{
+    $reason = mb_substr(trim($reason), 0, 255);
+    if (mb_strlen($reason) < 3) { return ['ok' => false, 'message' => 'Please give a reason for rejecting the assignment.']; }
+    $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ?');
+    $q->bind_param('i', $task_id);
+    $q->execute();
+    $t = $q->get_result()->fetch_assoc();
+    $q->close();
+    $q = $conn->prepare("UPDATE internal_tasks SET status = 'waiting', driver_id = NULL, reject_reason = ? WHERE task_id = ? AND status = 'assigned'");
+    $q->bind_param('si', $reason, $task_id);
+    $q->execute();
+    $done = $q->affected_rows > 0;
+    $q->close();
+    if (!$done) { return ['ok' => false, 'message' => 'That task is not waiting for approval.']; }
+    auditLog($conn, 'internal_task_reject', null, "Internal task #$task_id assignment rejected: $reason");
+    notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of an internal task was rejected: ' . internalTaskLine($conn, $t) . '. Reason: ' . $reason, 'admin/internal_tasks.php');
+    return ['ok' => true, 'message' => 'Assignment rejected. The task is Waiting for Driver again.'];
 }

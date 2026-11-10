@@ -125,7 +125,7 @@ function driverClashReason(mysqli $conn, int $driver_id, string $start, string $
     }
     $stmt = $conn->prepare(
         "SELECT start_dt, end_dt FROM internal_tasks
-          WHERE driver_id = ? AND status = 'active' AND task_id <> ?
+          WHERE driver_id = ? AND status IN ('assigned', 'active') AND task_id <> ?
             AND start_dt < ? AND end_dt > ? LIMIT 1"
     );
     $stmt->bind_param('iiss', $driver_id, $except_internal, $end, $start);
@@ -166,7 +166,7 @@ function driverMonthCounts(mysqli $conn, string $month): array
                FROM schedules WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND trip_date BETWEEN ? AND ?
              UNION ALL
              SELECT driver_id, (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(task_date) IN (1, 7)) AS wk, 0 AS is_w
-               FROM internal_tasks WHERE status = 'active' AND task_date BETWEEN ? AND ?
+               FROM internal_tasks WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND task_date BETWEEN ? AND ?
              UNION ALL
              SELECT driver_id, 0 AS out_h, 0 AS wk, 1 AS is_w FROM welfare_roster WHERE duty_date BETWEEN ? AND ?
          ) x GROUP BY driver_id"

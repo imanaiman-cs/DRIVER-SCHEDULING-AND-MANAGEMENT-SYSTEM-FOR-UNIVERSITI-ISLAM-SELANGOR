@@ -14,6 +14,12 @@ const INTERNAL_TASK_TYPES = [
     'document_delivery' => 'Document delivery',
 ];
 
+/** The words people see for the status of an internal task (SRS 10 Nov: Waiting for Driver, Driver Assigned, Approved; a deleted task is kept). */
+function internalTaskStatusLabel(string $status): string
+{
+    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'active' => 'Approved', 'cancelled' => 'Deleted'][$status] ?? ucfirst($status);
+}
+
 function internalTaskTypeLabel(string $type): string
 {
     return INTERNAL_TASK_TYPES[$type] ?? ['road_tax' => 'Road tax / inspection', 'other' => 'Other'][$type] ?? ucfirst(str_replace('_', ' ', $type));
@@ -111,9 +117,9 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     // internal tasks
     $sql = "SELECT t.*, d.name AS driver_name, v.plate_number, v.brand, v.model
               FROM internal_tasks t
-              JOIN drivers d ON d.driver_id = t.driver_id
+              LEFT JOIN drivers d ON d.driver_id = t.driver_id
               LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-             WHERE t.status = 'active' AND t.start_dt < ? AND t.end_dt > ?";
+             WHERE t.status IN ('waiting', 'assigned', 'active') AND t.start_dt < ? AND t.end_dt > ?";
     $p = [$to_dt, $from_dt];
     if ($driver_id)  { $sql .= ' AND t.driver_id = ?';  $p[] = $driver_id; }
     if ($vehicle_id) { $sql .= ' AND t.vehicle_id = ?'; $p[] = $vehicle_id; }
@@ -125,9 +131,9 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
         $out[] = [
             'id' => 'i' . $r['task_id'], 'kind' => 'internal', 'title' => internalTaskTypeLabel($r['task_type']),
             'start' => $iso($r['start_dt']), 'end' => $iso($r['end_dt']),
-            'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'], 'vehicle_id' => (int)$r['vehicle_id'],
+            'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'] ?? '(not assigned yet)', 'vehicle_id' => (int)$r['vehicle_id'],
             'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
-            'request_id' => null, 'request_status' => '', 'leg' => 'Internal task',
+            'request_id' => null, 'request_status' => internalTaskStatusLabel($r['status']), 'leg' => 'Internal task',
             'destination' => (string)$r['location'], 'purpose' => (string)$r['description'], 'officer' => '', 'waiting' => '',
         ];
     }

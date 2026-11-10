@@ -79,7 +79,7 @@ return [
         global $conn;
         $ids = fn($rec) => array_map('intval', array_column($rec['ranked'], 'driver_id'));
         $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (1, 5, '2034-07-05', '09:00', '11:00', 'T', 'approved')");
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description) VALUES ('refuel', '2034-07-05', '10:00', '12:00', 6, 2, 'x')");
+        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES ('refuel', '2034-07-05', '10:00', '12:00', 6, 2, 'x', 'active')");
         $t = ['start' => '2034-07-05 10:00:00', 'end' => '2034-07-05 12:00:00', 'licence' => 'D'];
         $rec = recommendDrivers($conn, $t);
         assert_true(!in_array(1, $ids($rec), true), 'overlapping request task');

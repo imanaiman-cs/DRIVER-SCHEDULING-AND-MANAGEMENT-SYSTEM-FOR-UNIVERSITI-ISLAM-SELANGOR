@@ -83,14 +83,14 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id
-          WHERE t.vehicle_id = ? AND t.status = 'active' AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
+        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM internal_tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id
+          WHERE t.vehicle_id = ? AND t.status IN ('waiting', 'assigned', 'active') AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $items[] = ['kind' => 'internal', 'request_id' => null,
-            'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt']) . ', driver ' . $r['name'],
+            'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt']) . ', driver ' . ($r['name'] ?? 'not assigned yet'),
             'url' => 'internal_tasks.php'];
     }
     $stmt->close();
@@ -191,7 +191,7 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
     }
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status = 'active' AND end_dt > NOW() ORDER BY start_dt");
+    $stmt = $conn->prepare("SELECT task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status IN ('assigned', 'active') AND end_dt > NOW() ORDER BY start_dt");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {

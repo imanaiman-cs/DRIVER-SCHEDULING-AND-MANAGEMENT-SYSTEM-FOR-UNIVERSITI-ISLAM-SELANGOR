@@ -142,7 +142,7 @@ return [
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00', $sid), 'the task itself is excluded (replace driver)');
         $conn->query("UPDATE schedules SET status = 'cancelled' WHERE schedule_id = $sid");
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00'), 'cancelled task');
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description) VALUES ('refuel', '2034-06-02', '14:00', '15:00', 5, 4, 'x')");
+        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES ('refuel', '2034-06-02', '14:00', '15:00', 5, 4, 'x', 'active')");
         $tid = (int)$conn->insert_id;
         assert_true(driverClashReason($conn, 4, '2034-06-02 14:30:00', '2034-06-02 16:00:00') !== null, 'internal task overlaps');
         $conn->query("UPDATE internal_tasks SET status = 'cancelled' WHERE task_id = $tid");

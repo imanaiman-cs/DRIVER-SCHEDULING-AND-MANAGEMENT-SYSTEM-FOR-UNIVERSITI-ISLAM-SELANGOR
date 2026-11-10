@@ -28,7 +28,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_joined.py` | UC001 / UC003 A1 / UC018: date joined (Add / Edit Driver), experience, the three recommender weights in Settings |
 | `t_nodriver.py` | UC010 A3: request without driver, send to Head of Admin, approve / reject, jobs |
 | `t_d.py` | SRS D: recommender, assignment, Head of Admin approval, replace driver |
-| `agentv_test.py`, `agents_test.py` | SRS E–H: vehicles, drivers, internal tasks, welfare, calendar, driver view, reports, notifications |
+| `agentv_test.py`, `agents_test.py` | SRS E–H: vehicles, drivers, internal tasks (Waiting for Driver, assign, Head of Admin approval), welfare, calendar, driver view, reports, notifications |
 | `t_nfr.py` | SRS J: role checks on every page, CSRF, idle timeout (waits ~62 s), upload rules, response times |
 | `t_dash.py` | Dashboards of every role: numbers match the database, scope per role, landing page after login |
 | `pdfcheck.py` | helper that validates generated PDF files |

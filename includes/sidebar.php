@@ -60,7 +60,8 @@ if ($_sidebar_uid > 0 && isset($conn)) {
     try {
         if ($_is_admin_role) {
             $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
-            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
+            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0]
+                                   + (int)$conn->query("SELECT COUNT(*) FROM internal_tasks WHERE status = 'assigned'")->fetch_row()[0];
             $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
             if ($role === 'head_admin') { $_badge['changes'] = (int)$conn->query("SELECT COUNT(*) FROM schedule_change_requests WHERE status = 'pending'")->fetch_row()[0]; }
         }
