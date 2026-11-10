@@ -63,7 +63,7 @@ if ($driver_id > 0) {
     $stmt->close();
 
     // welfare duty days (a day is "past" once it is over)
-    $stmt = $conn->prepare("SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date " . ($tab === 'past' ? '<' : '>=') . " ? ORDER BY duty_date $dir LIMIT $limit");
+    $stmt = $conn->prepare("SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status = 'active' AND duty_date " . ($tab === 'past' ? '<' : '>=') . " ? ORDER BY duty_date $dir LIMIT $limit");
     $stmt->bind_param('is', $driver_id, $today);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {

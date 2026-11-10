@@ -168,7 +168,7 @@ function driverMonthCounts(mysqli $conn, string $month): array
              SELECT driver_id, (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(task_date) IN (1, 7)) AS wk, 0 AS is_w
                FROM internal_tasks WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND task_date BETWEEN ? AND ?
              UNION ALL
-             SELECT driver_id, 0 AS out_h, 0 AS wk, 1 AS is_w FROM welfare_roster WHERE duty_date BETWEEN ? AND ?
+             SELECT driver_id, 0 AS out_h, 0 AS wk, 1 AS is_w FROM welfare_roster WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND duty_date BETWEEN ? AND ?
          ) x GROUP BY driver_id"
     );
     $stmt->bind_param('ssssssssss', $ws, $we, $from, $to, $ws, $we, $from, $to, $from, $to);
@@ -185,7 +185,7 @@ function driverMonthCounts(mysqli $conn, string $month): array
 function welfareDriverIdsOn(mysqli $conn, string $date): array
 {
     $out = [];
-    $stmt = $conn->prepare('SELECT driver_id FROM welfare_roster WHERE duty_date = ?');
+    $stmt = $conn->prepare("SELECT driver_id FROM welfare_roster WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND duty_date = ?");
     $stmt->bind_param('s', $date);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $out[(int)$r['driver_id']] = true; }

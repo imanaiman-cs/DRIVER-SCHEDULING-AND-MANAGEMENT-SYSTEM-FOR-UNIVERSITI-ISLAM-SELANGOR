@@ -20,6 +20,11 @@ function internalTaskStatusLabel(string $status): string
     return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'active' => 'Approved', 'cancelled' => 'Deleted'][$status] ?? ucfirst($status);
 }
 
+function welfareStatusLabel(string $status): string
+{
+    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'active' => 'Approved'][$status] ?? ucfirst($status);
+}
+
 function internalTaskTypeLabel(string $type): string
 {
     return INTERNAL_TASK_TYPES[$type] ?? ['road_tax' => 'Road tax / inspection', 'other' => 'Other'][$type] ?? ucfirst(str_replace('_', ' ', $type));
@@ -139,29 +144,28 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     }
     $stmt->close();
 
-    // welfare duty (not shown when filtering by vehicle: duty is not tied to a vehicle)
-    if (!$vehicle_id) {
-        $f = substr($from_dt, 0, 10); $t = substr($to_dt, 0, 10);
-        $sql = 'SELECT w.*, d.name AS driver_name FROM welfare_roster w JOIN drivers d ON d.driver_id = w.driver_id
-                 WHERE w.duty_date >= ? AND w.duty_date <= ?';
-        $p = [$f, $t];
-        if ($driver_id) { $sql .= ' AND w.driver_id = ?'; $p[] = $driver_id; }
-        $stmt = $conn->prepare($sql);
-        bindDynamic($stmt, $p);
-        $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-            $day = $r['duty_date'];
-            if ($day . ' 00:00:00' >= $to_dt || date('Y-m-d H:i:s', strtotime("$day +1 day")) <= $from_dt) { continue; }
-            $out[] = [
-                'id' => 'w' . $r['roster_id'], 'kind' => 'welfare', 'title' => 'Welfare duty',
-                'start' => $day . 'T00:00:00', 'end' => date('Y-m-d', strtotime("$day +1 day")) . 'T00:00:00',
-                'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'], 'vehicle_id' => 0, 'vehicle' => '',
-                'request_id' => null, 'request_status' => '', 'leg' => 'Welfare duty (24 hours)',
-                'destination' => '', 'purpose' => (string)($r['replacement_reason'] ?? ''), 'officer' => '', 'waiting' => '',
-            ];
-        }
-        $stmt->close();
+    // welfare duty: one 24-hour day with a vehicle (reserved) and, once assigned, a driver
+    $f = substr($from_dt, 0, 10); $t = substr($to_dt, 0, 10);
+    $sql = 'SELECT w.*, d.name AS driver_name, v.plate_number, v.brand, v.model FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id
+             WHERE w.duty_date >= ? AND w.duty_date <= ?';
+    $p = [$f, $t];
+    if ($driver_id) { $sql .= ' AND w.driver_id = ?'; $p[] = $driver_id; }
+    if ($vehicle_id) { $sql .= ' AND w.vehicle_id = ?'; $p[] = $vehicle_id; }
+    $stmt = $conn->prepare($sql);
+    bindDynamic($stmt, $p);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $day = $r['duty_date'];
+        if ($day . ' 00:00:00' >= $to_dt || date('Y-m-d H:i:s', strtotime("$day +1 day")) <= $from_dt) { continue; }
+        $out[] = [
+            'id' => 'w' . $r['roster_id'], 'kind' => 'welfare', 'title' => 'Welfare duty',
+            'start' => $day . 'T00:00:00', 'end' => date('Y-m-d', strtotime("$day +1 day")) . 'T00:00:00',
+            'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'] ?? '(not assigned yet)', 'vehicle_id' => (int)$r['vehicle_id'], 'vehicle' => $r['vehicle_id'] ? vehicleText($r['plate_number'], $r['brand'], $r['model']) : '',
+            'request_id' => null, 'request_status' => welfareStatusLabel($r['status']), 'leg' => 'Welfare duty (24 hours)',
+            'destination' => '', 'purpose' => (string)($r['replacement_reason'] ?? ''), 'officer' => '', 'waiting' => '',
+        ];
     }
+    $stmt->close();
     usort($out, fn($a, $b) => [$a['start'], $a['kind']] <=> [$b['start'], $b['kind']]);
     return $out;
 }

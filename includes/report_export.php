@@ -80,7 +80,7 @@ function buildReport(mysqli $conn, string $type, string $month): array
         }
     } elseif ($type === 'welfare') {
         $days = [];
-        $stmt = $conn->prepare('SELECT driver_id, DAY(duty_date) AS d FROM welfare_roster WHERE duty_date BETWEEN ? AND ? ORDER BY duty_date');
+        $stmt = $conn->prepare("SELECT driver_id, DAY(duty_date) AS d FROM welfare_roster WHERE driver_id IS NOT NULL AND status = 'active' AND duty_date BETWEEN ? AND ? ORDER BY duty_date");
         $stmt->bind_param('ss', $from, $to);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $days[(int)$r['driver_id']][] = (int)$r['d']; }

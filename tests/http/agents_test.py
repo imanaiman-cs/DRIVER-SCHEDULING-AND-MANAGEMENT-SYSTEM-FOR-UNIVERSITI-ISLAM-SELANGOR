@@ -121,32 +121,65 @@ add(admin, start_time='10:00', end_time='11:00'); t5 = int(sql("select max(task_
 assign(admin, t5, 5, confirmed=True); head.post('admin/approve_assignments.php', dict(task_id=t5, action='approve'))
 ok('approved refuelling task for driver 5 is active', sql(f"select concat(status,'/',driver_id) from internal_tasks where task_id={t5}") == 'active/5')
 
-# ---------------- welfare ----------------
-M = '2026-12'
-ex = lambda **kw: dict(action='generate', month=M, **{('use[%s]' % k): '1' for k in (4, 2, 7)}, **kw)
-data = {'action': 'generate', 'month': M, 'use[4]': '1', 'use[2]': '1', 'use[7]': '1', 'use[11]': '1', 'order[4]': '1', 'order[2]': '2', 'order[7]': '3', 'order[11]': '4'}
-r = admin.post('admin/welfare.php', data)
-got = rows("select duty_date, driver_id from welfare_roster where duty_date like '2026-12-%' order by duty_date")
-ok('welfare generated for all 31 days', len(got) == 31)
-ok('rotation order 4,2,7 repeats (inactive driver 11 not used)', [g[1] for g in got[:7]] == ['4', '2', '7', '4', '2', '7', '4'] and '11' not in {g[1] for g in got})
-ok('drivers told about their duty days', count("select count(*) from notifications where user_id in (12,14,17) and message like 'You are on welfare duty%'") == 3)
-r = admin.post('admin/welfare.php', dict(action='generate', month=M, **{'use[1]': '1', 'order[1]': '1'}))
-ok('fill-only keeps existing days', sql("select count(distinct driver_id) from welfare_roster where duty_date like '2026-12-%'") == '3')
-r = admin.post('admin/welfare.php', dict(action='generate', month=M, replace_existing='1', **{'use[1]': '1', 'use[3]': '1', 'order[1]': '1', 'order[3]': '2'}))
-ok('regenerate replaces the month', sql("select group_concat(distinct driver_id order by driver_id) from welfare_roster where duty_date like '2026-12-%'") == '1,3' and count("select count(*) from welfare_roster where duty_date like '2026-12-%'") == 31)
-ok('removed drivers told', count("select count(*) from notifications where user_id=14 and message like '%no longer on welfare duty%'") >= 1)
-admin.post('admin/welfare.php', dict(action='generate', month=M, replace_existing='1')); ok('no driver chosen: refused, month unchanged', 'at least one' in admin.get('admin/welfare.php', month=M).text and sql("select group_concat(distinct driver_id order by driver_id) from welfare_roster where duty_date like '2026-12-%'") == '1,3')
-day = '2026-12-10'; cur = sql(f"select driver_id from welfare_roster where duty_date='{day}'")
-newd = '5' if cur != '5' else '6'
-n1 = count('select count(*) from notifications')
-r = admin.post('admin/welfare.php', dict(action='update', month=M, duty_date=day, driver_id=newd, reason='')); ok('day update needs a reason', sql(f"select driver_id from welfare_roster where duty_date='{day}'") == cur)
-r = admin.post('admin/welfare.php', dict(action='update', month=M, duty_date=day, driver_id=newd, reason='Annual leave'))
-ok('day updated with reason + replaced_from', rows(f"select driver_id,replaced_from_driver_id,replacement_reason from welfare_roster where duty_date='{day}'") == [[newd, cur, 'Annual leave']])
-ok('both drivers notified', count('select count(*) from notifications') == n1 + 2 and count(f"select count(*) from notifications where user_id={10+int(cur)} and message like '%no longer on welfare duty%Annual leave%'") == 1 and count(f"select count(*) from notifications where user_id={10+int(newd)} and message like '%on welfare duty%'") >= 1)
-ok('other days untouched', count("select count(*) from welfare_roster where duty_date like '2026-12-%'") == 31)
-r = admin.post('admin/welfare.php', dict(action='update', month=M, duty_date=day, driver_id=11, reason='x is inactive')); ok('inactive driver refused', sql(f"select driver_id from welfare_roster where duty_date='{day}'") == newd)
-r = admin.post('admin/welfare.php', dict(action='update', month=M, duty_date=D(-2), driver_id=5, reason='past day')); ok('past day refused', sql(f"select driver_id from welfare_roster where duty_date='{D(-2)}'") == '9')
-r = admin.get('admin/welfare.php', month=M); ok('welfare page shows replacement reason', 'Annual leave' in r.text and not errs(r))
+# ---------------- welfare duty (SRS 10 Nov UC006 / UC007 / UC026) ----------------
+def monday_of(s):
+    d = datetime.date.fromisoformat(s); return (d - datetime.timedelta(days=d.weekday())).isoformat()
+def wk_vehicles(vid, mon, **over):
+    out = {}
+    for i in range(7):
+        d = (datetime.date.fromisoformat(mon) + datetime.timedelta(days=i)).isoformat(); out['vehicle[%s]' % d] = str(over.get(d, vid))
+    return out
+car = sql("select vehicle_id from vehicles where vehicle_type='Car' and status='available' order by vehicle_id limit 1")
+lorry = sql("select vehicle_id from vehicles where vehicle_type='Lorry' limit 1")
+mon = monday_of(D(30)); days7 = [(datetime.date.fromisoformat(mon) + datetime.timedelta(days=i)).isoformat() for i in range(7)]
+r = stf.get('admin/welfare.php'); ok('staff cannot open Welfare Duty (role check)', r.status_code in (302, 403))
+r = admin.get('admin/welfare.php'); ok('welfare page opens', r.status_code == 200 and not errs(r) and 'Create schedule' in r.text)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(lorry, mon))); ok('only a car or van can be used (lorry refused)', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+partial = wk_vehicles(car, mon); partial.pop('vehicle[%s]' % days7[3])
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **partial)); ok('every day needs a vehicle', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon)), csrf=False); ok('create without CSRF token refused (419)', r.status_code == 419)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('week created: seven days Waiting for Driver, no driver, vehicle set', rows("select status, ifnull(driver_id,'none'), vehicle_id from welfare_roster where duty_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['waiting', 'none', car]])
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('2.1: a second schedule for the same week is refused', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+ok('vehicle reserved for the 24 hours: an internal task that day is refused', 'welfare' in add(admin, task_date=days7[1], vehicle_id=car, start_time='09:00', end_time='10:00').text)
+r = admin.get('admin/welfare.php', week=mon); ok('view shows the seven days', r.status_code == 200 and 'Waiting for Driver' in r.text and not errs(r))
+# A2 update vehicle
+van = sql("select vehicle_id from vehicles where vehicle_type='Van' and status='available' order by vehicle_id limit 1")
+rid = sql("select roster_id from welfare_roster where duty_date='%s'" % days7[2])
+r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, roster_id=rid, vehicle_id=lorry)); ok('A2: a lorry cannot replace the vehicle', sql("select vehicle_id from welfare_roster where roster_id=%s" % rid) == car)
+r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, roster_id=rid, vehicle_id=van)); ok('A2: vehicle of one day updated', sql("select vehicle_id from welfare_roster where roster_id=%s" % rid) == van)
+# UC007 assign
+r = admin.get('admin/assign_welfare.php', week=mon); ok('assign page lists the recommendation of each day', r.status_code == 200 and r.text.count('Recommended') >= 7 and not errs(r))
+r = admin.post('admin/assign_welfare.php', dict(week=mon)); ok('3.1: not every day has a driver -> refused', count("select count(*) from welfare_roster where status='assigned'") == 0)
+tops = {}
+for d in days7:
+    ids = re.findall(r'name="driver\[%s\]" value="(\d+)"' % d, admin.get('admin/assign_welfare.php', week=mon).text); tops[d] = ids
+ok('each day has recommended drivers', all(len(v) >= 2 for v in tops.values()))
+pick = {'driver[%s]' % d: tops[d][0] for d in days7}
+pick2 = dict(pick); pick2['driver[%s]' % days7[4]] = tops[days7[4]][-1]
+r = admin.post('admin/assign_welfare.php', dict(week=mon, **pick2)); ok('A1: a driver outside the top recommendation gives a warning first', 'not the top recommendation' in r.text and count("select count(*) from welfare_roster where status='assigned'") == 0)
+r = admin.post('admin/assign_welfare.php', dict(week=mon, confirmed='1', **pick2)); ok('confirmed: week is Driver Assigned', r.status_code == 302 and count("select count(*) from welfare_roster where status='assigned' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+ok('Head of Admin told', count("select count(*) from notifications n join users u on u.user_id=n.user_id where u.role='head_admin' and n.message like 'A welfare duty schedule is waiting for your approval%'") >= 1)
+d0 = int(tops[days7[0]][0]); u0 = sql("select user_id from users where driver_id=%d limit 1" % d0)
+ok('the drivers are not told before approval and see nothing yet', count("select count(*) from notifications where user_id=%s and message like 'You are on welfare duty%%'" % u0) == 0)
+# UC026
+r = admin.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('Assistant cannot approve (role check)', count("select count(*) from welfare_roster where status='active' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+r = head.get('admin/approve_assignments.php'); ok('Head of Admin sees the welfare week with task counts', 'Welfare duty' in r.text and 'Tasks this month' in r.text and not errs(r))
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='')); ok('reject needs a reason', count("select count(*) from welfare_roster where status='assigned' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='Rotate the drivers')); ok('reject: back to Waiting, drivers cleared, vehicle reservation kept', rows("select status, ifnull(driver_id,'none'), reject_reason from welfare_roster where duty_date='%s'" % days7[0]) == [['waiting', 'none', 'Rotate the drivers']] and sql("select vehicle_id from welfare_roster where duty_date='%s'" % days7[0]) == car)
+ok('Assistant told of the rejection', count("select count(*) from notifications where message like 'The driver assignment of the welfare duty%Rotate the drivers%'") >= 1)
+admin.post('admin/assign_welfare.php', dict(week=mon, confirmed='1', **pick2))
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('approve: all days Approved with approver and time', rows("select status, approved_by is not null, approved_at is not null from welfare_roster where duty_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['active', '1', '1']])
+ok('the driver is told only now', count("select count(*) from notifications where user_id=%s and message like 'You are on welfare duty%%'" % u0) == 1)
+ok('welfare duty counts in the driver workload', int(sql("select count(*) from welfare_roster where driver_id=%d and status='active'" % d0)) >= 1)
+# A3 delete
+rid3 = sql("select roster_id from welfare_roster where duty_date='%s'" % days7[6])
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=rid3), csrf=False); ok('delete without CSRF refused (419)', r.status_code == 419 and count("select count(*) from welfare_roster where roster_id=%s" % rid3) == 1)
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=rid3)); ok('A3: a duty day is deleted and the vehicle released', count("select count(*) from welfare_roster where roster_id=%s" % rid3) == 0)
+ok('the deletion is in the history log', count("select count(*) from audit_log where action='welfare_delete'") == 1)
+dp = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+sql("insert into welfare_roster (duty_date, driver_id, status) values ('%s', 3, 'active')" % dp)
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=sql("select roster_id from welfare_roster where duty_date='%s'" % dp))); ok('a past day cannot be deleted', count("select count(*) from welfare_roster where duty_date='%s'" % dp) == 1)
+sql("delete from welfare_roster where duty_date='%s'" % dp)
 
 # ---------------- calendar ----------------
 def cal(c, s, e, **kw):

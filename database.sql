@@ -414,14 +414,21 @@ CREATE TABLE `vehicle_maintenance` (
 CREATE TABLE `welfare_roster` (
   `roster_id` int(11) NOT NULL AUTO_INCREMENT,
   `duty_date` date NOT NULL,
-  `driver_id` int(11) NOT NULL,
+  `driver_id` int(11) DEFAULT NULL,
+  `vehicle_id` int(11) DEFAULT NULL,
+  `status` enum('waiting','assigned','active') NOT NULL DEFAULT 'active' COMMENT 'waiting = Waiting for Driver, assigned = Driver Assigned, active = Approved',
   `replaced_from_driver_id` int(11) DEFAULT NULL,
   `replacement_reason` varchar(500) DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `reject_reason` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`roster_id`),
   UNIQUE KEY `uq_welfare_date` (`duty_date`),
   KEY `idx_welfare_driver` (`driver_id`,`duty_date`),
-  CONSTRAINT `fk_welfare_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE CASCADE
+  KEY `idx_welfare_vehicle` (`vehicle_id`,`duty_date`),
+  CONSTRAINT `fk_welfare_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_welfare_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `vehicle_usage_log` (
@@ -682,4 +689,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly');

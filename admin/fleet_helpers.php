@@ -200,7 +200,7 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
     }
     $stmt->close();
 
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date > CURDATE() ORDER BY duty_date');
+    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date > CURDATE() ORDER BY duty_date');
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
@@ -208,7 +208,7 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
     }
     $stmt->close();
     // today's welfare duty (24 h) also still counts
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date = CURDATE()');
+    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date = CURDATE()');
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) {

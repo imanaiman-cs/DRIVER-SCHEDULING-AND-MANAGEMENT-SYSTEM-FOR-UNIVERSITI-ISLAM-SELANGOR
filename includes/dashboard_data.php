@@ -186,7 +186,7 @@ function dashToday(mysqli $conn): array
 
 function dashWelfareToday(mysqli $conn): ?string
 {
-    $n = dashValue($conn, 'SELECT d.name FROM welfare_roster w JOIN drivers d ON d.driver_id = w.driver_id WHERE w.duty_date = ?', 's', [date('Y-m-d')]);
+    $n = dashValue($conn, "SELECT d.name FROM welfare_roster w JOIN drivers d ON d.driver_id = w.driver_id WHERE w.status = 'active' AND w.duty_date = ?", 's', [date('Y-m-d')]);
     return $n !== null ? (string)$n : null;
 }
 

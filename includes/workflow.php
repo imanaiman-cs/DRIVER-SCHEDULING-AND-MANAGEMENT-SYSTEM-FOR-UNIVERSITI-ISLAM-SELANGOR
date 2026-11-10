@@ -345,7 +345,7 @@ function hoursUntilDeparture(array $req): float
  * Why a vehicle cannot be used in [start, end] (Y-m-d H:i:s), or null when free:
  *   'inactive' | 'maintenance' | 'locked' (held by another request) | 'trip' | 'internal'
  */
-function vehicleUnavailableReason(mysqli $conn, int $vehicle_id, string $start, string $end, int $except_request = 0): ?string
+function vehicleUnavailableReason(mysqli $conn, int $vehicle_id, string $start, string $end, int $except_request = 0, int $except_welfare = 0): ?string
 {
     $stmt = $conn->prepare('SELECT status FROM vehicles WHERE vehicle_id = ?');
     $stmt->bind_param('i', $vehicle_id);
@@ -366,9 +366,10 @@ function vehicleUnavailableReason(mysqli $conn, int $vehicle_id, string $start, 
         'locked'   => "SELECT 1 FROM vehicle_locks WHERE vehicle_id = ? AND request_id <> ? AND start_dt < ? AND end_dt > ? LIMIT 1",
         'trip'     => "SELECT 1 FROM schedules WHERE vehicle_id = ? AND COALESCE(request_id, 0) <> ? AND status <> 'cancelled' AND start_dt < ? AND end_dt > ? LIMIT 1",
         'internal' => "SELECT 1 FROM internal_tasks WHERE vehicle_id = ? AND task_id <> ? AND status IN ('waiting', 'assigned', 'active') AND start_dt < ? AND end_dt > ? LIMIT 1",
+        'welfare'  => "SELECT 1 FROM welfare_roster WHERE vehicle_id = ? AND roster_id <> ? AND TIMESTAMP(duty_date) < ? AND DATE_ADD(TIMESTAMP(duty_date), INTERVAL 1 DAY) > ? LIMIT 1",
     ];
     foreach ($checks as $why => $sql) {
-        $except = $why === 'internal' ? 0 : $except_request;
+        $except = in_array($why, ['internal', 'welfare'], true) ? ($why === 'welfare' ? $except_welfare : 0) : $except_request;
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('iiss', $vehicle_id, $except, $end, $start);
         $stmt->execute();
@@ -387,6 +388,7 @@ function vehicleUnavailableText(string $reason): string
         'locked'      => 'is already booked by another request for that time',
         'trip'        => 'already has a trip at that time',
         'internal'    => 'is used for an internal task at that time',
+        'welfare'     => 'is used for welfare duty at that time',
         default       => 'is not available',
     };
 }
@@ -408,9 +410,10 @@ function availableVehicles(mysqli $conn, string $start, string $end, int $passen
             AND NOT EXISTS (SELECT 1 FROM vehicle_locks l WHERE l.vehicle_id = v.vehicle_id AND l.request_id <> ? AND l.start_dt < ? AND l.end_dt > ?)
             AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND COALESCE(s.request_id, 0) <> ? AND s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?)
             AND NOT EXISTS (SELECT 1 FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status IN ('waiting', 'assigned', 'active') AND t.start_dt < ? AND t.end_dt > ?)
+            AND NOT EXISTS (SELECT 1 FROM welfare_roster w WHERE w.vehicle_id = v.vehicle_id AND TIMESTAMP(w.duty_date) < ? AND DATE_ADD(TIMESTAMP(w.duty_date), INTERVAL 1 DAY) > ?)
           ORDER BY v.capacity, v.plate_number"
     );
-    $stmt->bind_param('isississss', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start);
+    $stmt->bind_param('isississssss', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start, $end, $start);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -1933,4 +1936,216 @@ function rejectInternalTask(mysqli $conn, int $task_id, string $reason): array
     auditLog($conn, 'internal_task_reject', null, "Internal task #$task_id assignment rejected: $reason");
     notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of an internal task was rejected: ' . internalTaskLine($conn, $t) . '. Reason: ' . $reason, 'admin/internal_tasks.php');
     return ['ok' => true, 'message' => 'Assignment rejected. The task is Waiting for Driver again.'];
+}
+
+// ------------------------------------------------------------
+// Weekly welfare duty (SRS 10 Nov UC006 / UC007 / UC026)
+//   one welfare_roster row per day: vehicle (car or van, reserved for the 24 hours), driver, status
+//   waiting = Waiting for Driver, assigned = Driver Assigned, active = Approved
+// ------------------------------------------------------------
+
+const WELFARE_VEHICLE_TYPES = ['Car', 'MPV', 'Van'];
+
+/** Monday (Y-m-d) of the week of a date. */
+function welfareWeekStart(string $date): string
+{
+    return date('Y-m-d', strtotime($date . ' -' . ((int)date('N', strtotime($date)) - 1) . ' days'));
+}
+
+/** The seven (or fewer) roster rows of a week keyed by date, with driver and vehicle names. */
+function welfareWeekRows(mysqli $conn, string $monday): array
+{
+    $to = date('Y-m-d', strtotime($monday . ' +6 days'));
+    $q = $conn->prepare('SELECT w.*, d.name AS driver_name, v.plate_number, v.model FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id WHERE w.duty_date BETWEEN ? AND ? ORDER BY w.duty_date');
+    $q->bind_param('ss', $monday, $to);
+    $q->execute();
+    $out = [];
+    foreach ($q->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $out[$r['duty_date']] = $r; }
+    $q->close();
+    return $out;
+}
+
+/** Why a vehicle cannot be used for welfare duty on a date, or null (type car/van, free for the whole 24 hours). */
+function welfareVehicleProblem(mysqli $conn, int $vehicle_id, string $date, int $except_roster = 0): ?string
+{
+    $q = $conn->prepare('SELECT vehicle_type, plate_number FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
+    $q->bind_param('i', $vehicle_id);
+    $q->execute();
+    $v = $q->get_result()->fetch_assoc();
+    $q->close();
+    if (!$v) { return 'Choose a vehicle.'; }
+    if (!in_array($v['vehicle_type'], WELFARE_VEHICLE_TYPES, true)) { return 'Only a car or a van can be used for welfare duty (' . $v['plate_number'] . ').'; }
+    $why = vehicleUnavailableReason($conn, $vehicle_id, $date . ' 00:00:00', date('Y-m-d H:i:s', strtotime($date . ' +1 day')), 0, $except_roster);
+    return $why === null ? null : $v['plate_number'] . ' ' . vehicleUnavailableText($why) . ' on ' . date('d M', strtotime($date)) . '.';
+}
+
+/** UC006: creates the schedule of a week. $vehicles = [date => vehicle_id] for every day from today onward. Status Waiting for Driver. */
+function createWelfareWeek(mysqli $conn, string $monday, array $vehicles): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    if (!isValidDate($monday) || welfareWeekStart($monday) !== $monday) { return $fail('Choose a week.'); }
+    $today = date('Y-m-d');
+    if (date('Y-m-d', strtotime($monday . ' +6 days')) < $today) { return $fail('That week is already over.'); }
+    $days = [];
+    for ($i = 0; $i < 7; $i++) { $d = date('Y-m-d', strtotime("$monday +$i days")); if ($d >= $today) { $days[] = $d; } }
+    foreach ($days as $d) { if ((int)($vehicles[$d] ?? 0) <= 0) { return $fail('Choose a vehicle for ' . date('D d M', strtotime($d)) . '.'); } }
+    $conn->begin_transaction();
+    try {
+        $q = $conn->prepare('SELECT COUNT(*) FROM welfare_roster WHERE duty_date BETWEEN ? AND ? FOR UPDATE');
+        $end = date('Y-m-d', strtotime($monday . ' +6 days'));
+        $q->bind_param('ss', $monday, $end);
+        $q->execute();
+        $exists = (int)$q->get_result()->fetch_row()[0];
+        $q->close();
+        if ($exists > 0) { $conn->rollback(); return $fail('A welfare duty schedule already exists for that week.'); }       // 2.1
+        foreach ($days as $d) {
+            if (($why = welfareVehicleProblem($conn, (int)$vehicles[$d], $d)) !== null) { $conn->rollback(); return $fail($why); }   // 3.1
+            $ins = $conn->prepare("INSERT INTO welfare_roster (duty_date, vehicle_id, status) VALUES (?, ?, 'waiting')");
+            $vid = (int)$vehicles[$d];
+            $ins->bind_param('si', $d, $vid);
+            $ins->execute();
+            $ins->close();
+        }
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('welfare week: ' . $e->getMessage());
+        return $fail('Database error. Nothing was saved.');
+    }
+    auditLog($conn, 'welfare_create', null, "Welfare duty week $monday created.");
+    return ['ok' => true, 'message' => 'The schedule was saved with the status Waiting for Driver and the vehicles are reserved.'];
+}
+
+/** UC006 A2: changes the vehicle of one day; the assigned driver (if any) is told. */
+function updateWelfareVehicle(mysqli $conn, int $roster_id, int $vehicle_id): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $conn->begin_transaction();
+    try {
+        $q = $conn->prepare('SELECT * FROM welfare_roster WHERE roster_id = ? FOR UPDATE');
+        $q->bind_param('i', $roster_id);
+        $q->execute();
+        $w = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$w || $w['duty_date'] < date('Y-m-d')) { $conn->rollback(); return $fail('Only a duty day from today onward can be changed.'); }
+        if ((int)$w['vehicle_id'] === $vehicle_id) { $conn->rollback(); return $fail('That vehicle is already set for the day.'); }
+        if (($why = welfareVehicleProblem($conn, $vehicle_id, $w['duty_date'], $roster_id)) !== null) { $conn->rollback(); return $fail($why); }
+        $u = $conn->prepare('UPDATE welfare_roster SET vehicle_id = ? WHERE roster_id = ?');
+        $u->bind_param('ii', $vehicle_id, $roster_id);
+        $u->execute();
+        $u->close();
+        auditLog($conn, 'welfare_update', null, "Welfare duty {$w['duty_date']}: vehicle changed to #$vehicle_id.");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        return $fail('Database error. Nothing was changed.');
+    }
+    if ($w['driver_id'] && ($u = userIdOfDriver($conn, (int)$w['driver_id']))) {
+        notifyUsers($conn, [$u], 'The vehicle of your welfare duty on ' . date('d M Y', strtotime($w['duty_date'])) . ' was changed.', 'driver/schedules.php');
+    }
+    return ['ok' => true, 'message' => 'The vehicle was updated.' . ($w['driver_id'] ? ' The driver was notified.' : '')];
+}
+
+/** UC006 A3: deletes one duty day (the vehicle is released); the assigned driver, if any, is told. */
+function deleteWelfareDay(mysqli $conn, int $roster_id): array
+{
+    $q = $conn->prepare('SELECT * FROM welfare_roster WHERE roster_id = ?');
+    $q->bind_param('i', $roster_id);
+    $q->execute();
+    $w = $q->get_result()->fetch_assoc();
+    $q->close();
+    if (!$w || $w['duty_date'] < date('Y-m-d')) { return ['ok' => false, 'message' => 'Only a duty day from today onward can be deleted.']; }
+    $d = $conn->prepare('DELETE FROM welfare_roster WHERE roster_id = ?');
+    $d->bind_param('i', $roster_id);
+    $d->execute();
+    $d->close();
+    auditLog($conn, 'welfare_delete', null, "Welfare duty {$w['duty_date']} deleted.");
+    if ($w['driver_id'] && ($u = userIdOfDriver($conn, (int)$w['driver_id']))) {
+        notifyUsers($conn, [$u], 'Your welfare duty on ' . date('d M Y', strtotime($w['duty_date'])) . ' was deleted.', 'driver/schedules.php');
+    }
+    return ['ok' => true, 'message' => 'The duty day was deleted and the vehicle is free again.' . ($w['driver_id'] ? ' The driver was notified.' : '')];
+}
+
+/** UC007: the recommendation for one welfare day (24 hours, the licence of the vehicle). */
+function welfareDayRecommendation(mysqli $conn, array $day): array
+{
+    $licence = null;
+    if ($day['vehicle_id']) {
+        $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
+        $q->bind_param('i', $day['vehicle_id']);
+        $q->execute();
+        $licence = $q->get_result()->fetch_row()[0] ?? null;
+        $q->close();
+    }
+    return recommendDrivers($conn, ['start' => $day['duty_date'] . ' 00:00:00', 'end' => date('Y-m-d H:i:s', strtotime($day['duty_date'] . ' +1 day')), 'licence' => $licence]);
+}
+
+/** UC007 step 3: saves the driver of every day of a Waiting for Driver week ($drivers = [date => driver_id]) -> Driver Assigned, Head of Admin told. */
+function assignWelfareWeek(mysqli $conn, string $monday, array $drivers): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $rows = welfareWeekRows($conn, $monday);
+    $open = array_filter($rows, fn($r) => $r['status'] === 'waiting');
+    if (!$open) { return $fail('That week is not waiting for drivers.'); }
+    foreach ($open as $date => $r) {
+        if ((int)($drivers[$date] ?? 0) <= 0) { return $fail('Every day needs a driver (' . date('D d M', strtotime($date)) . ').'); }      // 3.1
+        $rec = welfareDayRecommendation($conn, $r);
+        if (!in_array((int)$drivers[$date], array_map('intval', array_column($rec['ranked'], 'driver_id')), true)) {
+            return $fail(date('D d M', strtotime($date)) . ': that driver is not available.');
+        }
+    }
+    $conn->begin_transaction();
+    try {
+        foreach ($open as $date => $r) {
+            $u = $conn->prepare("UPDATE welfare_roster SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE roster_id = ? AND status = 'waiting'");
+            $did = (int)$drivers[$date]; $rid = (int)$r['roster_id'];
+            $u->bind_param('ii', $did, $rid);
+            $u->execute();
+            $u->close();
+        }
+        auditLog($conn, 'welfare_assign', null, "Welfare duty week $monday: drivers assigned.");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        return $fail('Database error. Nothing was saved.');
+    }
+    notifyUsers($conn, headAdminUserIds($conn), 'A welfare duty schedule is waiting for your approval: week of ' . date('d M Y', strtotime($monday)) . '.', 'admin/approve_assignments.php');
+    return ['ok' => true, 'message' => 'Drivers assigned. The schedule was sent to the Head of Admin.'];
+}
+
+/** UC026: the Head of Admin approves the week -> Approved; each driver is told their days, the Assistants too. */
+function approveWelfareWeek(mysqli $conn, string $monday, int $by): array
+{
+    $to = date('Y-m-d', strtotime($monday . ' +6 days'));
+    $u = $conn->prepare("UPDATE welfare_roster SET status = 'active', approved_by = ?, approved_at = NOW() WHERE status = 'assigned' AND driver_id IS NOT NULL AND duty_date BETWEEN ? AND ?");
+    $u->bind_param('iss', $by, $monday, $to);
+    $u->execute();
+    $n = $u->affected_rows;
+    $u->close();
+    if ($n < 1) { return ['ok' => false, 'message' => 'That schedule is not waiting for approval.']; }
+    auditLog($conn, 'welfare_approve', null, "Welfare duty week $monday approved.");
+    $per = [];
+    foreach (welfareWeekRows($conn, $monday) as $date => $r) { if ($r['driver_id']) { $per[(int)$r['driver_id']][] = date('D d M', strtotime($date)); } }
+    foreach ($per as $did => $dates) {
+        if ($uid = userIdOfDriver($conn, $did)) { notifyUsers($conn, [$uid], 'You are on welfare duty (24 hours): ' . implode(', ', $dates) . '.', 'driver/schedules.php'); }
+    }
+    notifyUsers($conn, assistantUserIds($conn), 'The welfare duty schedule of the week of ' . date('d M Y', strtotime($monday)) . ' was approved.', 'admin/welfare.php');
+    return ['ok' => true, 'message' => 'Welfare duty approved.'];
+}
+
+/** UC026 A1: rejects the week (reason required) -> back to Waiting for Driver, drivers cleared, vehicles stay reserved. */
+function rejectWelfareWeek(mysqli $conn, string $monday, string $reason): array
+{
+    $reason = mb_substr(trim($reason), 0, 255);
+    if (mb_strlen($reason) < 3) { return ['ok' => false, 'message' => 'Please give a reason for rejecting the assignment.']; }
+    $to = date('Y-m-d', strtotime($monday . ' +6 days'));
+    $u = $conn->prepare("UPDATE welfare_roster SET status = 'waiting', driver_id = NULL, reject_reason = ? WHERE status = 'assigned' AND duty_date BETWEEN ? AND ?");
+    $u->bind_param('sss', $reason, $monday, $to);
+    $u->execute();
+    $n = $u->affected_rows;
+    $u->close();
+    if ($n < 1) { return ['ok' => false, 'message' => 'That schedule is not waiting for approval.']; }
+    auditLog($conn, 'welfare_reject', null, "Welfare duty week $monday assignment rejected: $reason");
+    notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of the welfare duty of the week of ' . date('d M Y', strtotime($monday)) . ' was rejected. Reason: ' . $reason, 'admin/welfare.php');
+    return ['ok' => true, 'message' => 'Assignment rejected. The week is Waiting for Driver again.'];
 }
