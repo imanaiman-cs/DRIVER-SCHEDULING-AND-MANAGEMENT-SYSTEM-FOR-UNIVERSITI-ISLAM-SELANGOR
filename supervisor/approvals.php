@@ -23,7 +23,7 @@ $where = match ($tab) {
 };
 // own PTJ: requests of people in his department, or of the Heads of Department he heads
 $stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) AND $where
-                        ORDER BY vr.depart_at, vr.request_id");
+                        ORDER BY vr.is_urgent DESC, vr.depart_at, vr.request_id");
 $stmt->bind_param('is', $uid, $dept);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

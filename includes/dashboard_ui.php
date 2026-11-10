@@ -26,7 +26,7 @@ function dashKpi(string $label, $value, string $icon, string $tone, ?string $hre
 /** The four steps of a request, with the current one marked. */
 function dashStepper(string $status): string
 {
-    $steps = ['pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned', 'processed' => 'Confirmed'];
+    $steps = ['pending' => 'Pending', 'approved' => 'Approved by HoD', 'assigned' => 'Driver Assigned', 'processed' => 'Approved'];
     $keys = array_keys($steps);
     $at = array_search($status, $keys, true);
     if ($at === false) { $at = $status === 'completed' ? count($keys) : -1; }

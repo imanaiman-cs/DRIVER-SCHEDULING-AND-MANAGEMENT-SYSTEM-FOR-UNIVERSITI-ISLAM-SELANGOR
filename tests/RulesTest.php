@@ -60,22 +60,19 @@ return [
         assert_same('Head of Admin', roleLabel('head_admin'));
         assert_same('Staff', roleLabel('staff'));
         assert_same('Driver', roleLabel('driver'));
-        assert_same(['Pending', 'Approved', 'Driver Assigned', 'Confirmed', 'Rejected', 'Cancelled', 'Lapsed'],
+        assert_same(['Pending', 'Approved by Head of Department', 'Driver Assigned', 'Approved', 'Rejected', 'Cancelled', 'Lapsed'],
             array_map('requestStatusLabel', ['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed']));
     },
     'a request that is rejected, cancelled, lapsed or completed no longer needs its vehicle' => function () {
         foreach (['rejected', 'cancelled', 'lapsed', 'completed'] as $s) { assert_true(!in_array($s, REQUEST_ACTIVE_STATUSES, true)); }
         foreach (['pending', 'approved', 'assigned', 'processed'] as $s) { assert_true(in_array($s, REQUEST_ACTIVE_STATUSES, true)); }
     },
-    'timing rule: under 1 day is refused, under 2 days warns, otherwise ok' => function () {
+    'timing rule (SRS 10 Nov): under 2 days is accepted and marked Urgent, otherwise ok; nothing is refused' => function () {
         $at = fn(float $h) => date('Y-m-d H:i:s', time() + (int)($h * 3600));
-        assert_same('reject', requestTimingRule($at(5))['level']);
-        assert_same('reject', requestTimingRule($at(23.5))['level']);
-        assert_same('warn', requestTimingRule($at(24.5))['level']);
-        assert_same('warn', requestTimingRule($at(47))['level']);
-        assert_same('ok', requestTimingRule($at(49))['level'], 'no hard rejection at 2 days');
-        assert_same('Please use the paper form BPTK/BPI/2025/PIN.5', requestTimingRule($at(2))['message']);
-        assert_same('reject', requestTimingRule($at(-3))['level'], 'a past departure');
+        foreach ([5, 23.5, 24.5, 47] as $h) { assert_same('urgent', requestTimingRule($at($h))['level'], "$h hours"); }
+        assert_same('ok', requestTimingRule($at(49))['level']);
+        assert_true(strpos(requestTimingRule($at(2))['message'], 'Urgent') !== false);
+        assert_same('ok', requestTimingRule($at(300))['level']);
     },
     'strict date and time checks' => function () {
         assert_true(isValidDate('2026-02-28')); assert_true(!isValidDate('2026-02-31')); assert_true(!isValidDate('26-2-3'));

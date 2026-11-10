@@ -21,8 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
 }
 
 $tab = (string)($_GET['tab'] ?? 'approved');
-$tabs = ['approved' => ['Approved', "vr.status = 'approved'"], 'assigned' => ['Driver Assigned', "vr.status = 'assigned'"],
-         'processed' => ['Confirmed', "vr.status = 'processed'"], 'pending' => ['Pending', "vr.status = 'pending'"],
+$tabs = ['approved' => ['Approved by HoD', "vr.status = 'approved'"], 'assigned' => ['Driver Assigned', "vr.status = 'assigned'"],
+         'processed' => ['Approved', "vr.status = 'processed'"], 'pending' => ['Pending', "vr.status = 'pending'"],
          'history' => ['History', "vr.status IN ('rejected','cancelled','lapsed','completed')"], 'all' => ['All', '1 = 1']];
 if (!isset($tabs[$tab])) { $tab = 'approved'; }
 
@@ -33,7 +33,7 @@ $tabCount = fn(string $t) => match ($t) {
     'history' => ($counts['rejected'] ?? 0) + ($counts['cancelled'] ?? 0) + ($counts['lapsed'] ?? 0) + ($counts['completed'] ?? 0), default => array_sum($counts),
 };
 
-$requests = $conn->query(requestSelectSql() . ' WHERE ' . $tabs[$tab][1] . ' ORDER BY ' . ($tab === 'history' || $tab === 'all' ? 'vr.request_id DESC' : 'vr.depart_at, vr.request_id'))->fetch_all(MYSQLI_ASSOC);
+$requests = $conn->query(requestSelectSql() . ' WHERE ' . $tabs[$tab][1] . ' ORDER BY ' . ($tab === 'history' || $tab === 'all' ? 'vr.request_id DESC' : 'vr.is_urgent DESC, vr.depart_at, vr.request_id'))->fetch_all(MYSQLI_ASSOC);
 $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
@@ -56,6 +56,7 @@ adminPageStart('Vehicle Requests');
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <?php if (!empty($r['is_urgent'])): ?><span class="badge bg-danger">Urgent</span><?php endif; ?>
                     <?php if (isPayClaimRequest($r)): ?><span class="badge bg-warning text-dark">Pay and Claim</span><?php elseif (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
                     <?php if ($r['status'] === 'approved' && isRequestWithoutDriver($r)): ?>
                         <form method="post" class="d-inline" onclick="event.stopPropagation();"><input type="hidden" name="action" value="send_without_driver"><input type="hidden" name="request_id" value="<?= $rid ?>">

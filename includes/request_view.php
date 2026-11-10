@@ -85,6 +85,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             <?php elseif (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
         </div>
         <div class="col-md-6">
+            <?php if (!empty($req['is_urgent'])): ?><div class="mb-1"><span class="badge bg-danger"><i class="fas fa-bolt me-1"></i>Urgent</span> <span class="small text-muted">submitted less than 2 days before departure</span></div><?php endif; ?>
             <div class="text-muted">Head of Department</div>
             <div><?= reqH($req['hod_name'] ?: '—') ?></div>
         </div>

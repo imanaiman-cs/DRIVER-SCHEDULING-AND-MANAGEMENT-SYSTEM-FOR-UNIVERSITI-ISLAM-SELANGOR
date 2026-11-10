@@ -147,6 +147,7 @@ CREATE TABLE `vehicle_requests` (
   `need_driver` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = with driver, 0 = without driver',
   `request_type` enum('uis','pay_claim') NOT NULL DEFAULT 'uis' COMMENT 'uis = a UIS vehicle (with or without driver), pay_claim = own vehicle, claim the cost',
   `own_vehicle_plate` varchar(20) DEFAULT NULL COMMENT 'registration number of the own vehicle (Pay and Claim)',
+  `is_urgent` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = submitted less than 2 days before departure',
   `officer_name` varchar(255) DEFAULT NULL,
   `officer_phone` varchar(50) DEFAULT NULL,
   `waiting_place` varchar(150) DEFAULT NULL,
@@ -609,4 +610,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent');

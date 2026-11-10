@@ -131,7 +131,7 @@ function auditLog(mysqli $conn, string $action, ?int $request_id = null, ?string
 function historyActionLabel(string $action): string
 {
     return [
-        'submit' => 'Request submitted', 'paper_form' => 'Recorded from the approved paper form', 'approve' => 'Approved by Head of Department', 'reject' => 'Rejected',
+        'submit' => 'Request submitted', 'paper_form' => 'Recorded from the approved paper form (old records)', 'approve' => 'Approved by Head of Department', 'reject' => 'Rejected',
         'cancel' => 'Cancelled', 'lapse' => 'Lapsed', 'assign' => 'Driver assigned', 'confirm' => 'Assignment approved (Confirmed)',
         'reject_assignment' => 'Assignment rejected', 'replace_driver' => 'Driver replaced', 'complete' => 'Completed',
         'comment' => 'Comment added', 'reminder' => 'Approval reminder sent',
@@ -315,20 +315,16 @@ function requestTaskWindows(mysqli $conn, array $req): array
 }
 
 /**
- * The timing rule (SRS B.4) for a departure 'Y-m-d H:i:s':
- *   less than 1 day away -> 'reject' (use the paper form, nothing is saved)
- *   less than 2 days away -> 'warn'   (the requester must confirm)
+ * The timing rule (SRS 10 Nov, UC018 A5) for a departure 'Y-m-d H:i:s':
+ *   less than 2 days away -> 'urgent' (the request is accepted and marked Urgent; the requester sees a warning)
  *   otherwise             -> 'ok'
  * @return array{level:string, message:?string}
  */
 function requestTimingRule(string $departure): array
 {
     $hours = (strtotime($departure) - time()) / 3600;
-    if ($hours < 24) {
-        return ['level' => 'reject', 'message' => 'Please use the paper form BPTK/BPI/2025/PIN.5'];
-    }
     if ($hours < 48) {
-        return ['level' => 'warn', 'message' => 'This trip is less than 2 days away. The request may not be approved in time. Please confirm that you want to continue.'];
+        return ['level' => 'urgent', 'message' => 'This trip is less than 2 days away. Your request will be marked Urgent, but it may not be approved in time.'];
     }
     return ['level' => 'ok', 'message' => null];
 }

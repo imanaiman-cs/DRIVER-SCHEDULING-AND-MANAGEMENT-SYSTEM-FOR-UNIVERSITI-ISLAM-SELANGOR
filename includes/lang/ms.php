@@ -986,4 +986,12 @@ return [
     'driver e-mail(s) saved in the log (e-mail sending is switched off).' => 'e-mel pemandu disimpan dalam log (penghantaran e-mel dimatikan).',
     'skipped (no e-mail address).' => 'dilangkau (tiada alamat e-mel).',
     '(less than 2 days: confirm) or' => '(kurang 2 hari: sahkan) atau',
+    // SRS 10 Nov status words and Urgent
+    'Approved by Head of Department' => 'Diluluskan oleh Ketua Jabatan',
+    'Approved by HoD' => 'Diluluskan Ketua Jabatan',
+    'Urgent' => 'Segera',
+    'Pay and Claim' => 'Bayar dan Tuntut',
+    'Own vehicle' => 'Kenderaan sendiri',
+    'Type of request' => 'Jenis permohonan',
+    'This trip is less than 2 days away. Your request will be marked Urgent, but it may not be approved in time.' => 'Perjalanan ini kurang 2 hari lagi. Permohonan anda akan ditanda Segera, tetapi mungkin tidak sempat diluluskan.',
 ];

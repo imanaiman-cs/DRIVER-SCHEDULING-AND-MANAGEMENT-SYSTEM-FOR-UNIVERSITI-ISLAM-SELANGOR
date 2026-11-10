@@ -20,9 +20,9 @@ Use case numbers below are the NEW numbers (UC001–UC028). Old code comments st
 
 ## B. Business rules that CHANGED compared with v1.1 (code does the old thing)
 - [?] **Reservation by vehicle TYPE and quantity**, not a specific vehicle (UC018 step 3, UC003 note). Reserved from departure to return **+ 1 hour**. The AA picks the specific vehicle at assignment (UC003 step 3). Code: the requester picks one vehicle and a per-vehicle lock is taken.
-- [?] **Urgent flag instead of refusal**: less than 2 days before departure is accepted and flagged Urgent; **no paper form** any more (UC018 A5, note). Code: <1 day refused, <2 days warning; Record Paper Form page exists.
-- [ ] Urgent requests listed first for HoD, AA, HoA (UC003, UC025, UC026)
-- [ ] Statuses: Pending, **Approved by Head of Department**, Driver Assigned, **Approved**, Rejected, Cancelled, Lapsed, Completed. Code: Approved, Confirmed. Rename labels (keys can stay).
+- [x] **Urgent flag instead of refusal** (done: `vehicle_requests.is_urgent`, migration `2026_11_urgent`, paper form page removed; Iman agreed): less than 2 days before departure is accepted and flagged Urgent; **no paper form** any more (UC018 A5, note). Code: <1 day refused, <2 days warning; Record Paper Form page exists.
+- [x] Urgent requests listed first for HoD, AA, HoA (UC003, UC025, UC026)
+- [x] Statuses (labels only, keys unchanged): Pending, **Approved by Head of Department**, Driver Assigned, **Approved**, Rejected, Cancelled, Lapsed, Completed. Code: Approved, Confirmed. Rename labels (keys can stay).
 - [ ] **Purpose type** Official / Unofficial, supporting letter **required** (PDF/JPG/PNG, 5 MB); Lorry also Personal Rental (UC018 step 3, A3, exception 3.2)
 - [ ] Vehicle types **car, MPV, van, bus, lorry**; quantity of vehicles per request; more than one vehicle (UC018, UC003 A1, UC002 notes). Code: Car, Van, Lorry, Bus.
 - [ ] **Self Drive lorry**: only a driver with a GDL licence; HoD then HoA (UC018 A2). Code: "Without driver" for any vehicle goes AA then HoA.

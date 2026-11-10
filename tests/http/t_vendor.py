@@ -12,11 +12,13 @@ uid_stf = sql("SELECT user_id FROM users WHERE username='stf001'")
 pdf = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
 def when(h):
     t = now() + datetime.timedelta(hours=h); return t.strftime('%Y-%m-%d'), t.strftime('%H:%M')
-def paper(dep_h, vehicle):    # an Approved request through Record Paper Form (no Head of Department steps needed)
+hos2 = user('hos002')
+def paper(dep_h, vehicle):    # an Approved request: submitted by the staff member, approved by the Head of Department
     dd, dt = when(dep_h); rd, rt = when(dep_h + 6)
-    f = {'requester_id': uid_stf, 'depart_date': dd, 'depart_time': dt, 'return_date': rd, 'return_time': rt, 'passengers': '10', 'vehicle_id': str(vehicle), 'destination': 'Genting Highlands',
+    f = {'depart_date': dd, 'depart_time': dt, 'return_date': rd, 'return_time': rt, 'passengers': '10', 'vehicle_id': str(vehicle), 'destination': 'Genting Highlands',
          'destination_address': 'Pahang', 'purpose': 'Faculty trip with a bus', 'passenger_names': 'Group A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '1'}
-    r = ad.post('admin/record_paper_form.php', f, files=[('docs[]', ('PIN5.pdf', pdf, 'application/pdf'))]); return last()
+    s1.post('staff/request_vehicle.php', f); rid = last()
+    hos2.post('ajax/request_action.php', {'request_id': rid, 'action': 'approve'}); return rid
 def assign(rid, **d):
     return ad.post('admin/assign_driver.php', dict({'request_id': rid, 'return_mode': 'same'}, **d))
 V = {'out_mode': 'vendor', 'out_vendor_name': 'Bas Sinar Sdn Bhd', 'out_vendor_plate': 'WXY 1234', 'out_vendor_driver': 'Ali bin Abu'}

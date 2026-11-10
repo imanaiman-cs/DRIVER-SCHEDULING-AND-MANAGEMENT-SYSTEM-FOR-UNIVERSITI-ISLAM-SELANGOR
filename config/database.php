@@ -423,12 +423,12 @@ function requestStatusBadgeClass(string $status): string
     };
 }
 
-/** The words people see for a stored status ('assigned' = Driver Assigned, 'processed' = Confirmed). */
+/** The words people see for a stored status ('approved' = Approved by Head of Department, 'assigned' = Driver Assigned, 'processed' = Approved). */
 function requestStatusLabel(string $status): string
 {
     return match ($status) {
-        'pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned',
-        'processed' => 'Confirmed', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
+        'pending' => 'Pending', 'approved' => 'Approved by Head of Department', 'assigned' => 'Driver Assigned',
+        'processed' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
         'lapsed' => 'Lapsed', 'completed' => 'Completed', default => ucfirst($status),
     };
 }

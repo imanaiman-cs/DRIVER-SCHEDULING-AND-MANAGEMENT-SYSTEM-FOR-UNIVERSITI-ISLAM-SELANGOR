@@ -23,8 +23,9 @@ r = s1.post('staff/request_vehicle.php', form(96, own_vehicle_plate=''))
 ok('the registration number of the own vehicle is required', cnt("SELECT COUNT(*) FROM vehicle_requests") == before and 'own vehicle' in r.text)
 r = s1.post('staff/request_vehicle.php', form(96, own_vehicle_plate='!!'))
 ok('an invalid registration number is refused', cnt("SELECT COUNT(*) FROM vehicle_requests") == before)
-r = s1.post('staff/request_vehicle.php', form(6))
-ok('the 1-day timing rule applies to Pay and Claim too', cnt("SELECT COUNT(*) FROM vehicle_requests") == before)
+r = s1.post('staff/request_vehicle.php', form(6)); rU = last()
+ok('less than 2 days: Pay and Claim is accepted and marked Urgent too', cnt("SELECT COUNT(*) FROM vehicle_requests") == before + 1 and sql("SELECT is_urgent FROM vehicle_requests WHERE request_id=%d" % rU) == '1')
+before += 1
 
 r = s1.post('staff/request_vehicle.php', form(96)); rA = last()
 ok('submitted: Pending, type pay_claim, no UIS vehicle, without driver, plate in capitals', r.status_code == 302 and st(rA) == 'pending'

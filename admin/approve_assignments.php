@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-$requests = $conn->query(requestSelectSql() . " WHERE vr.status = 'assigned' ORDER BY vr.depart_at, vr.request_id")->fetch_all(MYSQLI_ASSOC);
+$requests = $conn->query(requestSelectSql() . " WHERE vr.status = 'assigned' ORDER BY vr.is_urgent DESC, vr.depart_at, vr.request_id")->fetch_all(MYSQLI_ASSOC);
 $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Approve Assignments');
@@ -43,7 +43,7 @@ adminPageStart('Approve Assignments');
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
             <div class="fw-bold">Request #<?= $rid ?> &middot; <?= htmlspecialchars($r['destination']) ?></div>
-            <span><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
+            <span><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
         <div class="row g-3 mt-1 border-top pt-3">

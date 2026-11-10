@@ -126,7 +126,7 @@ ev = cal(admin, D(0), D(8))
 kinds = {e['kind'] for e in ev}
 ok('calendar has trip, internal and welfare', kinds == {'trip', 'internal', 'welfare'})
 t4 = [e for e in ev if e.get('request_id') == 4]
-ok('trip: both legs of request #4 with Outbound/Return and status', sorted(e['leg'] for e in t4) == ['Outbound trip', 'Return trip'] and t4[0]['request_status'] == 'Confirmed')
+ok('trip: both legs of request #4 with Outbound/Return and status', sorted(e['leg'] for e in t4) == ['Outbound trip', 'Return trip'] and t4[0]['request_status'] == 'Approved')
 ok('trip details: destination + address, officer, waiting', 'Masjid Sultan Salahuddin' in t4[0]['destination'] and 'Shah Alam' in t4[0]['destination'] and 'Norliza' in t4[0]['officer'] and t4[0]['purpose'] and t4[0]['vehicle'] and t4[0]['driver'])
 t3 = [e for e in ev if e.get('request_id') == 3]
 ok('assigned request #3 shown to the admin with status Driver Assigned', t3 and t3[0]['request_status'] == 'Driver Assigned' and any('Lobby of Block B' in e['waiting'] for e in t3))
