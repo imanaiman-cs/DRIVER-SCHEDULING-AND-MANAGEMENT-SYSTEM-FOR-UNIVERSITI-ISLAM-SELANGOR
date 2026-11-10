@@ -28,7 +28,7 @@ ok('the form asks With driver / Without driver (With driver is the default)', 'n
 # submit WITHOUT driver
 r = s1.post('staff/request_vehicle.php', form(96, '0')); rA = last()
 ok('submitted without driver: saved Pending, need_driver = 0', r.status_code == 302 and st(rA) == 'pending' and sql("SELECT need_driver FROM vehicle_requests WHERE request_id=%d" % rA) == '0')
-ok('the vehicle is locked for the period (same as with a driver)', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d" % rA) == '1')
+ok('a vehicle of the type is reserved for the period (same as with a driver)', sql("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d" % rA) == '1')
 # submit WITH driver (default) and an unexpected value -> with driver
 r = s1.post('staff/request_vehicle.php', form(120, '1')); rB = last()
 ok('with driver: need_driver = 1', sql("SELECT need_driver FROM vehicle_requests WHERE request_id=%d" % rB) == '1')

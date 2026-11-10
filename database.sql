@@ -138,6 +138,8 @@ CREATE TABLE `vehicle_requests` (
   `request_id` int(11) NOT NULL AUTO_INCREMENT,
   `staff_id` int(11) NOT NULL,
   `vehicle_id` int(11) DEFAULT NULL,
+  `vehicle_type` varchar(20) DEFAULT NULL COMMENT 'type requested (Car, MPV, Van, Bus, Lorry); NULL for Pay and Claim',
+  `quantity` tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT 'number of vehicles of that type',
   `trip_date` date NOT NULL,
   `start_time` time NOT NULL,
   `end_time` time NOT NULL,
@@ -329,6 +331,20 @@ CREATE TABLE `vehicle_locks` (
   KEY `idx_lock_request` (`request_id`),
   CONSTRAINT `fk_lock_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_lock_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `vehicle_reservations` (
+  `reservation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `request_id` int(11) NOT NULL,
+  `vehicle_type` varchar(20) NOT NULL,
+  `vehicle_id` int(11) DEFAULT NULL COMMENT 'set when the Assistant chooses the specific vehicle',
+  `start_dt` datetime NOT NULL,
+  `end_dt` datetime NOT NULL COMMENT 'return time + 1 hour',
+  PRIMARY KEY (`reservation_id`),
+  KEY `idx_res_type` (`vehicle_type`,`start_dt`,`end_dt`),
+  KEY `idx_res_request` (`request_id`),
+  CONSTRAINT `fk_res_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_res_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `vehicle_maintenance` (
@@ -532,6 +548,9 @@ UPDATE vehicle_requests SET cancelled_at = DATE_SUB(NOW(), INTERVAL 2 DAY), canc
 -- Vehicle locks of the active requests (the requested period)
 INSERT INTO vehicle_locks (request_id, vehicle_id, start_dt, end_dt)
 SELECT request_id, vehicle_id, depart_at, return_at FROM vehicle_requests WHERE status IN ('pending','approved','assigned','processed');
+UPDATE vehicle_requests vr JOIN vehicles v ON v.vehicle_id = vr.vehicle_id SET vr.vehicle_type = v.vehicle_type;
+INSERT INTO vehicle_reservations (request_id, vehicle_type, vehicle_id, start_dt, end_dt)
+SELECT l.request_id, v.vehicle_type, l.vehicle_id, l.start_dt, l.end_dt FROM vehicle_locks l JOIN vehicles v ON v.vehicle_id = l.vehicle_id;
 
 -- Tasks of request 3 (Driver Assigned), 4 (Confirmed) and 8 (Completed): outbound (leg 1) + return (leg 2)
 INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
@@ -611,4 +630,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations');

@@ -17,7 +17,7 @@ require_once __DIR__ . '/upload.php';
 function requestSelectSql(): string
 {
     return "SELECT vr.*, u.full_name AS staff_name, u.department AS staff_department, u.role AS staff_role, u.phone AS staff_phone,
-                   hod.full_name AS hod_name, v.plate_number, v.model AS vehicle_model, v.vehicle_type, v.capacity
+                   hod.full_name AS hod_name, v.plate_number, v.model AS vehicle_model, v.capacity
               FROM vehicle_requests vr
               JOIN users u ON u.user_id = vr.staff_id
               LEFT JOIN users hod ON hod.user_id = vr.supervisor_id
@@ -80,7 +80,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php endif; ?>
         <div class="col-md-6">
             <div class="text-muted"><?= isPayClaimRequest($req) ? 'Own vehicle' : 'Requested vehicle' ?></div>
-            <div><?= isPayClaimRequest($req) ? reqH($req['own_vehicle_plate'] ?: '—') : ($req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;') ?></div>
+            <div><?= isPayClaimRequest($req) ? reqH($req['own_vehicle_plate'] ?: '—') : ($req['vehicle_type'] ? reqH(((int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : '') . $req['vehicle_type']) . ($req['plate_number'] ? ' &middot; ' . reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['capacity'] . ' seats)') : ' <span class="text-muted">(the vehicle is chosen when the driver is assigned)</span>') : '&mdash;') ?></div>
             <?php if (isPayClaimRequest($req)): ?><div class="mt-1"><span class="badge bg-warning text-dark"><i class="fas fa-coins me-1"></i>Pay and Claim</span></div>
             <?php elseif (isRequestWithoutDriver($req)): ?><div class="mt-1"><span class="badge bg-secondary"><i class="fas fa-steering-wheel me-1"></i>Without driver</span></div><?php endif; ?>
         </div>

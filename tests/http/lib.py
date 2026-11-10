@@ -20,6 +20,7 @@ def reseed():
     subprocess.run(['mysql', '-uroot'], input=src, text=True, check=True)
     for f in glob.glob('/tmp/uis_jobs_last_run_*'):
         os.remove(f)
+INTENDED = {}
 class C:
     def __init__(s):
         s.s = requests.Session(); s.tok = None
@@ -34,10 +35,25 @@ class C:
         if path == 'staff/request_vehicle.php' and data is not None and 'destination' in data:
             data = dict(data); data.setdefault('purpose_type', 'official')
             if files is None: files = [('docs[]', ('letter.pdf', b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n', 'application/pdf'))]
-        h = {'X-CSRF-Token': s.token()} if csrf else {}
-        return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
+        # SRS 10 Nov: a request reserves a vehicle TYPE; the Assistant chooses the vehicle later. Older tests name the vehicle they want:
+        # turn it into a type + quantity 1 and remember the vehicle, then hand it to the assign / send pages.
+        if path == 'staff/request_vehicle.php' and data is not None and data.get('vehicle_id') and not data.get('vehicle_type'):
+            data = dict(data); vid = data.pop('vehicle_id')
+            data['vehicle_type'] = sql("SELECT vehicle_type FROM vehicles WHERE vehicle_id=%s" % vid); data.setdefault('quantity', '1')
+            r = _post(s, path, data, files, csrf, p)
+            if r.status_code == 302:
+                INTENDED[int(sql("SELECT MAX(request_id) FROM vehicle_requests"))] = vid
+            return r
+        if path in ('admin/assign_driver.php', 'admin/vehicle_requests.php') and data is not None and 'vehicle_id' not in data:
+            rid = int(data.get('request_id', 0) or 0)
+            if rid in INTENDED and sql("SELECT vehicle_id IS NULL FROM vehicle_requests WHERE request_id=%d" % rid) == '1':
+                data = dict(data); data['vehicle_id'] = INTENDED[rid]
+        return _post(s, path, data, files, csrf, p)
     def login(s, u, pw):
         return s.s.post(B + '/login.php', data={'username': u, 'password': pw, 'csrf_token': s.token()}, allow_redirects=False)
+def _post(s, path, data, files, csrf, p):
+    h = {'X-CSRF-Token': s.token()} if csrf else {}
+    return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
 PW = {'admin': 'admin123', 'head001': 'head001@uis'}
 for i in range(1, 6): PW['hos%03d' % i] = 'hos%03d@uis' % i
 for i in range(1, 4): PW['stf%03d' % i] = 'staff%03d@uis' % i

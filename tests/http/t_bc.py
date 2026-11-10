@@ -52,22 +52,30 @@ for name,kw in (('return date',{'return_date':''}),('return time',{'return_time'
     r=submit(s1,dep_h=100,vehicle=1,pax=1,**kw); ok('mandatory: '+name, r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
 r=submit(s1,dep_h=100,vehicle=1,pax=1,waiting_place='Other',waiting_address=''); ok('waiting location Other needs an address', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
 r=submit(s1,dep_h=100,dur_h=-1,vehicle=1,pax=1); ok('return must be after departure', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
-r=submit(s1,dep_h=100,dur_h=3,vehicle=4,pax=1); ok('a vehicle under maintenance cannot be requested', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
-r=submit(s1,dep_h=100,dur_h=3,vehicle=5,pax=9); ok('too few seats refused', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
-# lock behaviour
-r=submit(s2,dep_h=61,dur_h=1,vehicle=5,pax=1); ok('overlapping period on a locked vehicle is refused', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
-r=submit(s2,dep_h=70,dur_h=1,vehicle=5,pax=1,**{}); ok('same vehicle, same day, other time is accepted', r.status_code==302); rC=last()
-ok('lock rows hold the requested period', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d"%rC)=='1')
+r=submit(s1,dep_h=100,dur_h=3,vehicle=3,pax=1,quantity='2'); ok('a vehicle under maintenance does not count: 2 vans requested but only 1 is usable', r.status_code==200 and 'only 1' in r.text and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
+r=submit(s1,dep_h=100,dur_h=3,vehicle=5,pax=9); ok('too few seats refused', r.status_code==200 and 'enough seats' in r.text and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
+r=submit(s1,dep_h=100,dur_h=3,vehicle=5,pax=1,vehicle_type='Spaceship'); ok('an unknown vehicle type is refused', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
+# reservation by TYPE and quantity (SRS 10 Nov): two cars are usable (vehicle 9 is inactive)
+r=submit(s2,dep_h=300,dur_h=2,vehicle=5,pax=1); ok('car 1 of 2 is reserved by type (no vehicle chosen yet)', r.status_code==302); rC=last()
+ok('the request holds a Car reservation row with no vehicle and the request has no vehicle yet', rows("SELECT vehicle_type, quantity, vehicle_id IS NULL FROM vehicle_requests WHERE request_id=%d"%rC)==[['Car','1','1']] and sql("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d AND vehicle_id IS NULL"%rC)=='1')
+ok('the reservation lasts from departure until 1 hour after the return', sql("SELECT TIMESTAMPDIFF(MINUTE, vr.return_at, r.end_dt) FROM vehicle_reservations r JOIN vehicle_requests vr ON vr.request_id=r.request_id WHERE r.request_id=%d"%rC)=='60')
+r=submit(s3,dep_h=300,dur_h=2,vehicle=6,pax=1); ok('car 2 of 2 is reserved too', r.status_code==302)
+r=submit(s2,dep_h=301,dur_h=1,vehicle=5,pax=1); ok('no car left in an overlapping period: refused', r.status_code==200 and 'no Car is available' in r.text)
+r=submit(s2,dep_h=302,dur_h=1,vehicle=5,pax=1); ok('the extra hour: a trip that starts only 0 hours after the return is still refused (the cars are kept 1 hour more)', r.status_code==200)
+r=submit(s2,dep_h=303,dur_h=1,vehicle=5,pax=1); ok('exactly 1 hour after the return the car type is free again', r.status_code==302)
+d=json.loads(s1.get('ajax/get_vehicle_types.php',depart_date=when(300)[0],depart_time=when(300)[1],return_date=when(302)[0],return_time=when(302)[1],passengers=1).text)
+ok('the type list says how many are free per type', d['success'] and {t['type']:t['free'] for t in d['types']}['Car']==0 and {t['type']:t['free'] for t in d['types']}['Bus']>=3)
 # multi-day trip: one request with departure and return on different days
 r=submit(s2,dep_h=500,dur_h=30,vehicle=3,pax=3); ok('multi-day request is one request', r.status_code==302); rM=last()
 ok('multi-day request has return on a later date', sql("SELECT return_date>trip_date FROM vehicle_requests WHERE request_id=%d"%rM)=='1')
-# concurrency: two submissions at once for the same vehicle and period -> exactly one wins
+# concurrency: two lorries exist; one is reserved, then three submissions at once for the last one -> exactly one wins
+submit(s1,dep_h=150,dur_h=3,vehicle=11,pax=2)
 res=[]
-def go(c,i): res.append(submit(c,dep_h=150,dur_h=3,vehicle=2,pax=10,destination='Race %d'%i).status_code)
+def go(c,i): res.append(submit(c,dep_h=150,dur_h=3,vehicle=11,pax=2,destination='Race %d'%i).status_code)
 cs=[user('stf001'),user('stf002'),user('stf003')]
 th=[threading.Thread(target=go,args=(c,i)) for i,c in enumerate(cs)]
 [t.start() for t in th]; [t.join() for t in th]
-ok('two submissions at the same moment: exactly one gets the vehicle', sorted(res).count(302)==1 and int(sql("SELECT COUNT(*) FROM vehicle_requests WHERE destination LIKE 'Race %'"))==1)
+ok('three submissions at the same moment for the last lorry: exactly one gets it', sorted(res).count(302)==1 and int(sql("SELECT COUNT(*) FROM vehicle_requests WHERE destination LIKE 'Race %'"))==1)
 # documents
 pdf=b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
 png=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082')
@@ -80,7 +88,7 @@ r=submit(s1,dep_h=210,dur_h=2,vehicle=6,pax=1,files=[('docs[]',('big.pdf',b'%PDF
 r=submit(s1,dep_h=210,dur_h=2,vehicle=6,pax=1,files=[('docs[]',('webp.webp',b'RIFF\x00\x00\x00\x00WEBPVP8 ','image/webp'))]); ok('WebP is not allowed (only PDF, JPG, PNG)', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n2)
 # every role can request; approver chain
 for k,(who,c) in enumerate((('drv001',drv),('admin',ad),('head001',hd),('hos002',hos2))):
-    r=submit(c,dep_h=300+k*5,dur_h=2,vehicle=6,pax=1); ok(who+' can submit a request as Staff', r.status_code==302)
+    r=submit(c,dep_h=700+k*5,dur_h=2,vehicle=6,pax=1); ok(who+' can submit a request as Staff', r.status_code==302)
 ok("a Head of Department's request goes to his own head (hos005)", sql("SELECT u.username FROM vehicle_requests vr JOIN users u ON u.user_id=vr.supervisor_id WHERE vr.staff_id=%s ORDER BY vr.request_id DESC LIMIT 1"%uid('hos002'))=='hos005')
 ok("a driver's request goes to the Head of Department of the Transport Unit (hos001)", sql("SELECT u.username FROM vehicle_requests vr JOIN users u ON u.user_id=vr.supervisor_id WHERE vr.staff_id=%s ORDER BY vr.request_id DESC LIMIT 1"%uid('drv001'))=='hos001')
 ok('the approver was notified in the system and an e-mail row exists', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='hos002' AND n.message LIKE '%%#%d%%'"%rA))>=1)

@@ -40,14 +40,14 @@ if (!$me) {
 }
 
 $errors = [];
-$f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
+$f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_type' => '', 'quantity' => '1',
       'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
       'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'need_driver' => '1', 'request_type' => 'uis', 'own_vehicle_plate' => '', 'purpose_type' => 'official'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
     $pax = (int)$f['passengers'];
-    $vehicle_id = (int)$f['vehicle_id'];
+    $qty = (int)$f['quantity'];
     $payClaim = $f['request_type'] === 'pay_claim';   // own vehicle, claim the cost
     $needDriver = $payClaim || $f['need_driver'] === '0' ? 0 : 1;   // UC010 A3: Without Driver
     $f['own_vehicle_plate'] = strtoupper(preg_replace('/\s+/', ' ', $f['own_vehicle_plate']));
@@ -80,17 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($f['waiting_place'], WAITING_LOCATIONS, true)) { $errors[] = 'Choose the waiting location.'; }
     if ($f['waiting_place'] === 'Other' && ($f['waiting_address'] === '' || mb_strlen($f['waiting_address']) > 255)) { $errors[] = 'Enter the address of the waiting location.'; }
     if ($payClaim) {
-        $vehicle_id = 0;                                                      // no UIS vehicle, nothing is locked
+        $f['vehicle_type'] = ''; $qty = 1;                                    // no UIS vehicle, nothing is reserved
         if (!preg_match('/^[A-Z0-9][A-Z0-9 \-]{1,19}$/', $f['own_vehicle_plate'])) { $errors[] = 'Enter the registration number of your own vehicle (letters, digits, spaces and hyphens, up to 20 characters).'; }
-    } elseif ($vehicle_id <= 0) { $errors[] = 'Choose a vehicle.'; }
+    } elseif (!isset(VEHICLE_TYPES[$f['vehicle_type']])) { $errors[] = 'Choose a vehicle type.';
+    } elseif ($qty < 1 || $qty > 20) { $errors[] = 'Enter the number of vehicles (1 to 20).'; }
 
-    // The vehicle must still be in the list of free vehicles for this period
-    if (!$errors && !$payClaim) {
-        $freeIds = array_map('intval', array_column(availableVehicles($conn, $start, $end, $pax), 'vehicle_id'));
-        if (!in_array($vehicle_id, $freeIds, true)) {
-            $errors[] = 'That vehicle is not available for the period you chose (locked by another request, under maintenance, inactive or too small). Please choose another one.';
-        }
-    }
+    // (the quantity of the type is checked and reserved inside the transaction below: first submitted, first served)
 
     // Documents: PDF, JPG or PNG, at most 5 MB each (checked by content on the server)
     $files = collectUploadedFiles('docs');
@@ -121,22 +116,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
             $stmt = $conn->prepare(
                 "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent, purpose_type)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                               passenger_count, need_driver, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id, request_type, own_vehicle_plate, is_urgent, purpose_type, vehicle_type, quantity)
+                 VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
             $rt_time = timeWithSeconds($f['return_time']);
-            $vehicleOrNull = $payClaim ? null : $vehicle_id;
+            $typeOrNull = $payClaim ? null : $f['vehicle_type'];
             $reqType = $payClaim ? 'pay_claim' : 'uis';
             $plateOrNull = $payClaim ? $f['own_vehicle_plate'] : null;
-            $stmt->bind_param('iisssssssiisssssissis', $staff_id, $vehicleOrNull, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
+            $stmt->bind_param('isssssssiisssssississi', $staff_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
                 $f['destination'], $f['destination_address'], $f['purpose'], $pax, $needDriver, $f['passenger_names'], $full_name, $f['phone'],
-                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull, $urgent, $f['purpose_type']);
+                $f['waiting_place'], $wait_addr, $approver_id, $reqType, $plateOrNull, $urgent, $f['purpose_type'], $typeOrNull, $qty);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
             $stmt->close();
 
-            if (!$payClaim) { lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end); }    // atomic: refuses a vehicle that was just taken
+            if (!$payClaim) { reserveVehicleType($conn, $rid, $f['vehicle_type'], $qty, $start, $end, $pax); }   // atomic: refuses when the last vehicle of the type was just taken
             if ($saved) {
                 $docType = 'approval_letter';
                 $ds = $conn->prepare("INSERT INTO request_documents (request_id, doc_type, original_name, stored_path, mime_type, file_size) VALUES (?, ?, ?, ?, ?, ?)");
@@ -209,9 +204,11 @@ adminPageStart('Request a Vehicle');
         </div></div>
 
         <div class="card border-0 shadow-sm mb-3" id="vehicleCard"><div class="card-body">
-            <h6 class="fw-bold">2. Choose a vehicle <span class="fw-normal text-muted small">(only vehicles that are free in that period and big enough are shown)</span></h6>
-            <div id="vehicleMsg" class="text-muted small">Enter the departure, the return and the number of passengers to see the available vehicles.</div>
+            <h6 class="fw-bold">2. Choose a vehicle type <span class="fw-normal text-muted small">(the Vehicle Section chooses the exact vehicle; the type is reserved from departure until 1 hour after the return)</span></h6>
+            <div id="vehicleMsg" class="text-muted small">Enter the departure, the return and the number of passengers to see the available vehicle types.</div>
             <div id="vehicleList" class="row g-2 mt-1"></div>
+            <div class="row g-3 mt-1"><div class="col-6 col-md-3"><label class="form-label small" for="quantity">Number of vehicles *</label>
+                <input type="number" class="form-control" id="quantity" name="quantity" min="1" max="20" value="<?= htmlspecialchars($f['quantity']) ?>"></div></div>
         </div></div>
 
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
@@ -241,7 +238,7 @@ adminPageStart('Request a Vehicle');
             </div>
         </div></div>
 
-        <input type="hidden" name="vehicle_id" id="vehicle_id" value="<?= htmlspecialchars($f['vehicle_id']) ?>">
+        <input type="hidden" name="vehicle_type" id="vehicle_type" value="<?= htmlspecialchars($f['vehicle_type']) ?>">
         <button class="btn btn-success" type="submit" id="submitBtn"><i class="fas fa-paper-plane me-1"></i>Submit request</button>
     </form>
 
@@ -249,16 +246,16 @@ adminPageStart('Request a Vehicle');
 (function () {
     var ids = ['depart_date', 'depart_time', 'return_date', 'return_time', 'passengers'];
     var el = function (i) { return document.getElementById(i); };
-    var chosen = <?= json_encode((int)$f['vehicle_id']) ?>;
+    var chosen = <?= json_encode($f['vehicle_type']) ?>;
     var timer = null, seq = 0;
     function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 
     function search() {
         var q = new URLSearchParams({ depart_date: el('depart_date').value, depart_time: el('depart_time').value,
-            return_date: el('return_date').value, return_time: el('return_time').value, passengers: el('passengers').value });
+            return_date: el('return_date').value, return_time: el('return_time').value, passengers: el('passengers').value, quantity: el('quantity').value || '1' });
         if (ids.some(function (i) { return !el(i).value; })) { return; }
         var mine = ++seq;
-        fetch('<?= SITE_URL ?>/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
+        fetch('<?= SITE_URL ?>/ajax/get_vehicle_types.php?' + q.toString(), { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 if (mine !== seq) { return; }
@@ -269,23 +266,24 @@ adminPageStart('Request a Vehicle');
                 if (d.timing === 'urgent') {
                     notice.className = 'alert alert-warning mt-3'; notice.textContent = d.notice; notice.style.display = '';
                 }
-                msg.textContent = d.vehicles.length ? d.vehicles.length + ' vehicle(s) available for this period.' : 'No vehicle is available for this period. Try other times or fewer passengers.';
-                d.vehicles.forEach(function (v) {
+                msg.textContent = 'Choose the type of vehicle. The number shows how many are free for your trip.';
+                d.types.forEach(function (t) {
                     var col = document.createElement('div');
-                    col.className = 'col-12 col-md-6 col-lg-4';
-                    col.innerHTML = '<label class="card h-100 p-2" style="cursor:pointer;"><div class="form-check">' +
-                        '<input class="form-check-input" type="radio" name="vehicle_choice" value="' + v.vehicle_id + '"' + (chosen === v.vehicle_id ? ' checked' : '') + '>' +
-                        '<span class="fw-semibold ms-1">' + esc(v.plate_number) + '</span></div>' +
-                        '<div class="small text-muted ms-4">' + esc(v.vehicle_type) + ' &middot; ' + esc(v.model) + ' &middot; ' + v.capacity + ' seats &middot; licence ' + esc(v.license_required) + '</div></label>';
-                    col.querySelector('input').addEventListener('change', function () { chosen = v.vehicle_id; el('vehicle_id').value = v.vehicle_id; });
+                    col.className = 'col-6 col-md-4 col-lg-2';
+                    col.innerHTML = '<label class="card h-100 p-2 text-center' + (t.enough ? '' : ' bg-light text-muted') + '" style="cursor:' + (t.enough ? 'pointer' : 'not-allowed') + ';">' +
+                        '<input class="form-check-input mx-auto" type="radio" name="vehicle_choice" value="' + esc(t.type) + '"' + (t.enough ? '' : ' disabled') + (chosen === t.type ? ' checked' : '') + '>' +
+                        '<span class="fw-semibold">' + esc(t.label) + '</span>' +
+                        '<span class="small">' + (t.enough ? t.free + ' free' : (t.free === 0 ? 'none free' : (t.can_seat ? 'only ' + t.free + ' free' : 'too few seats'))) + '</span></label>';
+                    var inp = col.querySelector('input');
+                    inp.addEventListener('change', function () { chosen = t.type; el('vehicle_type').value = t.type; });
                     list.appendChild(col);
                 });
-                if (!d.vehicles.some(function (v) { return v.vehicle_id === chosen; })) { chosen = 0; el('vehicle_id').value = ''; }
+                if (!d.types.some(function (t) { return t.type === chosen && t.enough; })) { chosen = ''; el('vehicle_type').value = ''; }
             })
-            .catch(function () { el('vehicleMsg').textContent = 'Could not load the vehicles. Please try again.'; });
+            .catch(function () { el('vehicleMsg').textContent = 'Could not load the vehicle types. Please try again.'; });
     }
     function schedule() { clearTimeout(timer); timer = setTimeout(search, 250); }
-    ids.forEach(function (i) { el(i).addEventListener('change', schedule); el(i).addEventListener('input', schedule); });
+    ids.concat(['quantity']).forEach(function (i) { el(i).addEventListener('change', schedule); el(i).addEventListener('input', schedule); });
 
     function syncType() {                       // Pay and Claim: no UIS vehicle and no driver choice, but the own vehicle
         var pc = el('rt_pc') && el('rt_pc').checked;

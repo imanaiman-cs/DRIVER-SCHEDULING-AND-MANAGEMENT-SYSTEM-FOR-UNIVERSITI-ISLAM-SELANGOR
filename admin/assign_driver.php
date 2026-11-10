@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!$same && !$vendorRet && ($retDriver <= 0 || $retVehicle <= 0)) {
         setFlash('danger', 'Choose the driver and the vehicle of the return trip, or use the same driver and vehicle.');
     } else {
-        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet);
+        $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null);
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . $rid); exit(); }
     }
@@ -57,8 +57,13 @@ $lq = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?
 $vid = (int)$req['vehicle_id'];
 $lq->bind_param('i', $vid);
 $lq->execute();
-$licence = $lq->get_result()->fetch_row()[0] ?? 'D';
+$licence = $lq->get_result()->fetch_row()[0] ?? licenceForVehicleType((string)$req['vehicle_type']);
 $lq->close();
+// UC003 step 3: the request reserved a vehicle TYPE; the Assistant chooses the specific vehicle (free from departure to 1 hour after the return)
+$chooseVehicles = [];
+if (!$vid && $req['vehicle_type']) {
+    $chooseVehicles = vehicleTypeAvailability($conn, (string)$req['vehicle_type'], requestDepartDT($req), reservationEnd(requestReturnDT($req)), 0, 1, $rid)['vehicles'];
+}
 $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $win['out']['end_dt'], 'licence' => $licence]);
 $vendorOutAllowed = $licence === 'PSV' && !$rec['ranked'];          // UC017 A2: no UIS driver with a PSV licence is available
 $vendorRetAllowed = $licence === 'PSV';                             // checked again on the server for the return window
@@ -77,9 +82,23 @@ adminPageStart('Assign Driver');
 
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
+        <?php if (!$vid && $req['vehicle_type']): ?>
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+            <h6 class="fw-bold">Vehicle <span class="fw-normal text-muted small">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others stay reserved)' : '' ?></span></h6>
+            <?php if (!$chooseVehicles): ?><div class="text-danger small">No <?= htmlspecialchars((string)$req['vehicle_type']) ?> is free for this period.</div><?php endif; ?>
+            <div class="row g-2">
+            <?php foreach ($chooseVehicles as $v): ?>
+                <div class="col-12 col-md-6 col-lg-4"><label class="card h-100 p-2" style="cursor:pointer;"><div class="form-check">
+                    <input class="form-check-input" type="radio" name="vehicle_id" value="<?= (int)$v['vehicle_id'] ?>" id="veh<?= (int)$v['vehicle_id'] ?>" <?= $chooseVehicles && count($chooseVehicles) === 1 ? 'checked' : '' ?>>
+                    <span class="fw-semibold ms-1"><?= htmlspecialchars($v['plate_number']) ?></span></div>
+                    <div class="small text-muted ms-4"><?= htmlspecialchars($v['model']) ?> &middot; <?= (int)$v['capacity'] ?> seats &middot; licence <?= htmlspecialchars($v['license_required']) ?></div></label></div>
+            <?php endforeach; ?>
+            </div>
+        </div></div>
+        <?php endif; ?>
         <div class="card border-0 shadow-sm mb-3"><div class="card-body">
             <h6 class="fw-bold">Outbound trip <span class="fw-normal text-muted small">
-                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)$req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
+                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)($req['plate_number'] ?: $req['vehicle_type'])) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
             <p class="small text-muted mb-2">Recommendation: fewer tasks this month, fewer weekend tasks and more experience rank higher (weights <?= htmlspecialchars((string)round($rec['weights']['tasks'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['weekend'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['experience'], 2)) ?>). You make the final choice.</p>
             <div class="table-responsive">
             <table class="table table-sm align-middle">

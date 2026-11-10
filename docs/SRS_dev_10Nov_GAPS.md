@@ -19,7 +19,7 @@ Use case numbers below are the NEW numbers (UC001–UC028). Old code comments st
 - [x] Session timeout 15 min, login lock 15 min after 5 failed attempts, hashed passwords, prepared statements, CSRF, audit log never edited
 
 ## B. Business rules that CHANGED compared with v1.1 (code does the old thing)
-- [?] **Reservation by vehicle TYPE and quantity**, not a specific vehicle (UC018 step 3, UC003 note). Reserved from departure to return **+ 1 hour**. The AA picks the specific vehicle at assignment (UC003 step 3). Code: the requester picks one vehicle and a per-vehicle lock is taken.
+- [~] **Reservation by vehicle TYPE and quantity** — done for quantity 1 and for reserving N (migration `2026_11_vehicle_reservations`, `t_reserve.py`); choosing the 2nd, 3rd ... vehicle (UC003 A1) is still open.  Original text:, not a specific vehicle (UC018 step 3, UC003 note). Reserved from departure to return **+ 1 hour**. The AA picks the specific vehicle at assignment (UC003 step 3). Code: the requester picks one vehicle and a per-vehicle lock is taken.
 - [x] **Urgent flag instead of refusal** (done: `vehicle_requests.is_urgent`, migration `2026_11_urgent`, paper form page removed; Iman agreed): less than 2 days before departure is accepted and flagged Urgent; **no paper form** any more (UC018 A5, note). Code: <1 day refused, <2 days warning; Record Paper Form page exists.
 - [x] Urgent requests listed first for HoD, AA, HoA (UC003, UC025, UC026)
 - [x] Statuses (labels only, keys unchanged): Pending, **Approved by Head of Department**, Driver Assigned, **Approved**, Rejected, Cancelled, Lapsed, Completed. Code: Approved, Confirmed. Rename labels (keys can stay).

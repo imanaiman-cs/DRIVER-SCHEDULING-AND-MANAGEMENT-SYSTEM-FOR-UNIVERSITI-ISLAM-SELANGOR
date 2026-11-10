@@ -444,11 +444,97 @@ function lockVehiclePeriod(mysqli $conn, int $request_id, int $vehicle_id, strin
     $stmt->close();
 }
 
-/** Gives the vehicle(s) of a request back (reject, cancel, lapse, completed). */
+/** Gives the vehicle(s) of a request back (reject, cancel, lapse, completed): the specific locks and the reservation by type. */
 function releaseVehicleLocks(mysqli $conn, int $request_id): void
 {
-    $stmt = $conn->prepare('DELETE FROM vehicle_locks WHERE request_id = ?');
-    $stmt->bind_param('i', $request_id);
+    foreach (['DELETE FROM vehicle_locks WHERE request_id = ?', 'DELETE FROM vehicle_reservations WHERE request_id = ?'] as $sql) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('i', $request_id);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+/** The reservation of a request ends one hour after the return time (SRS 10 Nov, UC018 notes). */
+function reservationEnd(string $returnDateTime): string
+{
+    return date('Y-m-d H:i:s', strtotime($returnDateTime) + 3600);
+}
+
+/**
+ * UC018: how many vehicles of a TYPE can still be reserved in [start, end] (Y-m-d H:i:s, end already includes the extra hour):
+ * the vehicles of the type that are free (not locked, no trip, no internal task, not in the workshop) minus the vehicles that other
+ * requests have reserved by type and that nobody has chosen yet.
+ * @return array{free:int, can_seat:bool, vehicles:array}  free = vehicles left to reserve; can_seat = the biggest $qty of them seat $passengers
+ */
+function vehicleTypeAvailability(mysqli $conn, string $type, string $start, string $end, int $passengers, int $qty = 1, int $except_request = 0): array
+{
+    $free = array_values(array_filter(availableVehicles($conn, $start, $end, 0, $except_request), fn($v) => $v['vehicle_type'] === $type));
+    $stmt = $conn->prepare('SELECT COUNT(*) FROM vehicle_reservations WHERE vehicle_type = ? AND vehicle_id IS NULL AND request_id <> ? AND start_dt < ? AND end_dt > ?');
+    $stmt->bind_param('siss', $type, $except_request, $end, $start);
+    $stmt->execute();
+    $held = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+    $left = max(0, count($free) - $held);
+    $caps = array_map(fn($v) => (int)$v['capacity'], $free);
+    rsort($caps);
+    $seats = array_sum(array_slice($caps, 0, max(1, $qty)));
+    return ['free' => $left, 'can_seat' => $seats >= $passengers, 'vehicles' => $free];
+}
+
+/**
+ * UC018: reserves $qty vehicles of a type for a request (one row each, vehicle not chosen yet). Call INSIDE a transaction:
+ * the vehicles of the type are locked first (SELECT ... FOR UPDATE), so two submissions at the same moment cannot both take the last one.
+ * @throws RuntimeException 'Sorry, ...' when not enough vehicles of the type are free
+ */
+function reserveVehicleType(mysqli $conn, int $request_id, string $type, int $qty, string $start, string $end, int $passengers): void
+{
+    $stmt = $conn->prepare('SELECT vehicle_id FROM vehicles WHERE vehicle_type = ? ORDER BY vehicle_id FOR UPDATE');
+    $stmt->bind_param('s', $type);
+    $stmt->execute();
+    $stmt->get_result();
+    $stmt->close();
+    $end1 = reservationEnd($end);
+    $a = vehicleTypeAvailability($conn, $type, $start, $end1, $passengers, $qty, $request_id);
+    if ($a['free'] < $qty) {
+        throw new RuntimeException('Sorry, ' . ($a['free'] === 0 ? 'no ' . $type . ' is' : 'only ' . $a['free'] . ' ' . $type . ' vehicle(s) are') . ' available for that period. Please choose another type, a smaller quantity or another time.');
+    }
+    if (!$a['can_seat']) {
+        throw new RuntimeException('Sorry, the available ' . $type . ' vehicle(s) do not have enough seats for ' . $passengers . ' passengers.');
+    }
+    $ins = $conn->prepare('INSERT INTO vehicle_reservations (request_id, vehicle_type, start_dt, end_dt) VALUES (?, ?, ?, ?)');
+    for ($i = 0; $i < $qty; $i++) {
+        $ins->bind_param('isss', $request_id, $type, $start, $end1);
+        $ins->execute();
+    }
+    $ins->close();
+}
+
+/**
+ * UC003 step 3: the Administrative Assistant chooses the specific vehicle of a request that reserved a TYPE. Call INSIDE a transaction.
+ * The vehicle must be of the requested type and free for [departure, return + 1 hour]; it is locked and recorded on the request and on one
+ * of its reservation rows. (With a quantity above 1 the first vehicle is the main one; the others stay reserved by type.)
+ * @throws RuntimeException 'Sorry, ...' (safe to show)
+ */
+function chooseRequestVehicle(mysqli $conn, array $req, int $vehicle_id): void
+{
+    $stmt = $conn->prepare('SELECT vehicle_type, capacity, plate_number FROM vehicles WHERE vehicle_id = ?');
+    $stmt->bind_param('i', $vehicle_id);
+    $stmt->execute();
+    $v = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$v || $v['vehicle_type'] !== $req['vehicle_type']) { throw new RuntimeException('Sorry, choose a ' . ($req['vehicle_type'] ?: 'vehicle') . ' for this request.'); }
+    if ((int)$req['quantity'] === 1 && (int)$v['capacity'] < (int)$req['passenger_count']) {
+        throw new RuntimeException('Sorry, ' . $v['plate_number'] . ' has too few seats for ' . (int)$req['passenger_count'] . ' passengers.');
+    }
+    $rid = (int)$req['request_id'];
+    lockVehiclePeriod($conn, $rid, $vehicle_id, requestDepartDT($req), reservationEnd(requestReturnDT($req)));
+    $stmt = $conn->prepare('UPDATE vehicle_requests SET vehicle_id = ? WHERE request_id = ?');
+    $stmt->bind_param('ii', $vehicle_id, $rid);
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $conn->prepare('UPDATE vehicle_reservations SET vehicle_id = ? WHERE request_id = ? AND vehicle_id IS NULL LIMIT 1');
+    $stmt->bind_param('ii', $vehicle_id, $rid);
     $stmt->execute();
     $stmt->close();
 }
@@ -786,7 +872,7 @@ function isRequestWithoutDriver(array $req): bool
  * the Head of Admin, who approves the use of the vehicle. The request becomes "Driver Assigned" (no tasks are created).
  * @return array{ok:bool, message:string}
  */
-function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): array
+function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id, ?int $vehicle = null): array
 {
     $stmt = $conn->prepare('SELECT * FROM vehicle_requests WHERE request_id = ?');
     $stmt->bind_param('i', $request_id);
@@ -795,8 +881,14 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): arr
     $stmt->close();
     if (!$req || $req['status'] !== 'approved') { return ['ok' => false, 'message' => 'This request is not waiting for the Vehicle Section any more.']; }
     if (!isRequestWithoutDriver($req)) { return ['ok' => false, 'message' => 'This request needs a driver: assign a driver.']; }
-    if (empty($req['vehicle_id']) && !isPayClaimRequest($req)) { return ['ok' => false, 'message' => 'The request has no vehicle.']; }
     if (strtotime(requestDepartDT($req)) <= time()) { return ['ok' => false, 'message' => 'The trip time has already passed.']; }
+    if (empty($req['vehicle_id']) && !isPayClaimRequest($req)) {              // UC003 step 3: the Assistant chooses the vehicle of the reserved type
+        if (!$vehicle) { return ['ok' => false, 'message' => 'Choose the vehicle for this request.']; }
+        $conn->begin_transaction();
+        try { chooseRequestVehicle($conn, $req, $vehicle); $conn->commit(); }
+        catch (RuntimeException $e) { $conn->rollback(); return ['ok' => false, 'message' => $e->getMessage()]; }
+        catch (Throwable $e) { $conn->rollback(); error_log('sendWithoutDriver: ' . $e->getMessage()); return ['ok' => false, 'message' => 'Database error. Please try again.']; }
+    }
     $res = changeRequestStatus($conn, $request_id, 'assigned');
     return $res['ok'] ? ['ok' => true, 'message' => 'Sent to the Head of Admin to approve the use of the vehicle.'] : $res;
 }
@@ -814,7 +906,7 @@ function sendRequestWithoutDriverForApproval(mysqli $conn, int $request_id): arr
  * @return array{ok:bool, message:string}
  */
 function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?int $ret_driver = null, ?int $ret_vehicle = null,
-                              ?array $vendorOut = null, ?array $vendorRet = null): array
+                              ?array $vendorOut = null, ?array $vendorRet = null, ?int $vehicle = null): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
@@ -826,11 +918,19 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         $stmt->close();
         if (!$req || $req['status'] !== 'approved') { $conn->rollback(); return $fail('This request is not waiting for a driver any more.'); }
         if (isRequestWithoutDriver($req)) { $conn->rollback(); return $fail('This request is without driver: send it to the Head of Admin instead of assigning a driver.'); }
-        if (empty($req['vehicle_id'])) { $conn->rollback(); return $fail('The request has no vehicle.'); }
         if (strtotime(requestDepartDT($req)) <= time()) { $conn->rollback(); return $fail('The trip time has already passed.'); }
+        if (empty($req['vehicle_id'])) {                                     // UC003 step 3: the Assistant chooses the vehicle of the reserved type
+            if ($vehicle) {
+                try { chooseRequestVehicle($conn, $req, $vehicle); } catch (RuntimeException $e) { $conn->rollback(); return $fail($e->getMessage()); }
+                $req['vehicle_id'] = $vehicle;
+            } elseif ($vendorOut === null) {                                  // a vendor bus replaces the UIS vehicle (UC003 A4)
+                $conn->rollback();
+                return $fail('Choose the vehicle for this request.');
+            }
+        }
 
         $win = requestTaskWindows($conn, $req);
-        $mainVehicle = (int)$req['vehicle_id'];
+        $mainVehicle = (int)($req['vehicle_id'] ?? 0);
         $sameReturn  = ($ret_driver === null && $ret_vehicle === null && $vendorRet === null);
         $retVehicle  = $ret_vehicle ?? $mainVehicle;
         $retDriver   = $ret_driver ?? $out_driver;
@@ -857,7 +957,7 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         };
 
         // UC017 A2: a vendor bus is allowed only when no UIS driver with the PSV licence is available for that task
-        $vendorOk = function (array $v, array $w, string $label) use ($conn, $mainVehicle): ?string {
+        $vendorOk = function (array $v, array $w, string $label) use ($conn, $mainVehicle, $req): ?string {
             if (trim((string)($v['name'] ?? '')) === '' || trim((string)($v['plate'] ?? '')) === '' || trim((string)($v['driver'] ?? '')) === '') {
                 return 'Enter the vendor name, the bus registration number and the vendor driver name.';
             }
@@ -865,7 +965,7 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
             $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
             $q->bind_param('i', $mainVehicle);
             $q->execute();
-            $need = (string)($q->get_result()->fetch_row()[0] ?? 'D');
+            $need = (string)($q->get_result()->fetch_row()[0] ?? licenceForVehicleType((string)($req['vehicle_type'] ?? '')));
             $q->close();
             if ($need !== 'PSV') { return 'A vendor bus can be used only for a bus that needs a PSV licence.'; }
             if (recommendDrivers($conn, ['start' => $w['start_dt'], 'end' => $w['end_dt'], 'licence' => 'PSV'])['ranked']) {

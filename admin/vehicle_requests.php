@@ -14,7 +14,7 @@ require_once '../includes/admin_page.php';
 requireAdmin();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_without_driver') {      // UC010 A3 / UC019 A2
-    $res = sendRequestWithoutDriverForApproval($conn, (int)($_POST['request_id'] ?? 0));
+    $res = sendRequestWithoutDriverForApproval($conn, (int)($_POST['request_id'] ?? 0), (int)($_POST['vehicle_id'] ?? 0) ?: null);
     setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
     header('Location: vehicle_requests.php?tab=' . ($res['ok'] ? 'assigned' : 'approved'));
     exit();
@@ -53,13 +53,17 @@ adminPageStart('Vehicle Requests');
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
+                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)($r['plate_number'] ?: ($r['vehicle_type'] ? ($r['quantity'] > 1 ? (int)$r['quantity'] . ' x ' : '') . $r['vehicle_type'] . ' (not chosen yet)' : ''))) ?></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <?php if (!empty($r['is_urgent'])): ?><span class="badge bg-danger">Urgent</span><?php endif; ?>
                     <?php if (isPayClaimRequest($r)): ?><span class="badge bg-warning text-dark">Pay and Claim</span><?php elseif (isRequestWithoutDriver($r)): ?><span class="badge bg-secondary">Without driver</span><?php endif; ?>
                     <?php if ($r['status'] === 'approved' && isRequestWithoutDriver($r)): ?>
                         <form method="post" class="d-inline" onclick="event.stopPropagation();"><input type="hidden" name="action" value="send_without_driver"><input type="hidden" name="request_id" value="<?= $rid ?>">
+                            <?php if (empty($r['vehicle_id']) && !isPayClaimRequest($r)): $fv = vehicleTypeAvailability($conn, (string)$r['vehicle_type'], requestDepartDT($r), reservationEnd(requestReturnDT($r)), 0, 1, $rid)['vehicles']; ?>
+                                <select name="vehicle_id" class="form-select form-select-sm d-inline-block w-auto" required aria-label="Vehicle"><option value="">Vehicle...</option>
+                                    <?php foreach ($fv as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select>
+                            <?php endif; ?>
                             <button class="btn btn-sm btn-primary" data-confirm="The Head of Admin is asked to approve the use of the vehicle. No driver is assigned." data-confirm-title="Send to the Head of Admin?" data-confirm-button="Send" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send to Head of Admin</button></form>
                     <?php elseif ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
