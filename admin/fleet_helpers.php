@@ -353,12 +353,15 @@ function vehicleInput(array $p): array
         'year'         => trim((string)($p['year'] ?? '')),
         'capacity'     => trim((string)($p['capacity'] ?? '')),
         'fuel_type'    => trim((string)($p['fuel_type'] ?? 'Petrol')),
+        'license_required' => trim((string)($p['license_required'] ?? '')),
+        'mileage'      => trim((string)($p['mileage'] ?? '')),
+        'fuel_level'   => trim((string)($p['fuel_level'] ?? '')),
         'notes'        => mb_substr(trim((string)($p['notes'] ?? '')), 0, 1000),
     ];
 }
 
 /** @return array<string,string> field => message */
-function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
+function validateVehicle(mysqli $conn, array $in, int $except_id = 0, bool $withUsage = false): array
 {
     $e = [];
     if ($in['plate_number'] === '') { $e['plate_number'] = 'Enter the registration number.'; }
@@ -375,11 +378,16 @@ function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
     if (!preg_match('/^\d{1,3}$/', $in['capacity']) || (int)$in['capacity'] < 1) { $e['capacity'] = 'Passenger capacity must be a whole number of 1 or more.'; }
     if ($in['year'] !== '' && (!preg_match('/^\d{4}$/', $in['year']) || (int)$in['year'] < 1980 || (int)$in['year'] > (int)date('Y') + 1)) { $e['year'] = 'Enter a valid year.'; }
     if (!in_array($in['fuel_type'], FUEL_TYPES, true)) { $e['fuel_type'] = 'Choose the fuel type.'; }
+    if (!in_array($in['license_required'], ['D', 'GDL', 'PSV'], true)) { $e['license_required'] = 'Choose the licence class the driver needs (D, GDL or PSV).'; }      // UC002 step 3
+    if ($withUsage) {
+        if (!preg_match('/^\d{1,7}$/', $in['mileage'])) { $e['mileage'] = 'Enter the current mileage as a whole number.'; }
+        if (!isset(VEHICLE_FUEL_LEVELS[$in['fuel_level']])) { $e['fuel_level'] = 'Choose the current fuel level.'; }
+    }
     return $e;
 }
 
 /** The form fields. $v = current values, $errors = messages, $photo = stored photo path (edit). */
-function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
+function vehicleFormFields(array $v, array $errors, ?string $photo = null, bool $withUsage = false): void
 {
     $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
@@ -397,9 +405,17 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
             <input class="form-control" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
         <div class="col-6 col-md-3"><label class="form-label" for="capacity">Passenger capacity <span class="text-danger">*</span></label>
             <input type="number" min="1" max="999" class="form-control" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="licence_shown">Licence required</label>
-            <input class="form-control" id="licence_shown" readonly tabindex="-1" aria-describedby="licHelp" value="<?= htmlspecialchars(isset(VEHICLE_TYPES[$v['vehicle_type'] ?? '']) ? licenceForVehicleType($v['vehicle_type']) : '-') ?>">
-            <div class="form-text" id="licHelp">Set by the type: Car/Van D, Lorry GDL, Bus PSV.</div></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="licence_shown">Licence class required <span class="text-danger">*</span></label>
+            <select class="form-select" id="licence_shown" name="license_required" required aria-describedby="licHelp"><option value="">Choose...</option>
+                <?php foreach (['D' => 'D (car / van)', 'GDL' => 'GDL (lorry)', 'PSV' => 'PSV (bus)'] as $k => $l): ?><option value="<?= $k ?>" <?= ($v['license_required'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select>
+            <div class="form-text" id="licHelp">Used to find drivers. Suggested from the type.</div><?= $err('license_required') ?></div>
+        <?php if ($withUsage): ?>
+        <div class="col-6 col-md-3"><label class="form-label" for="mileage">Current mileage (km) <span class="text-danger">*</span></label>
+            <input type="number" min="0" max="9999999" class="form-control" id="mileage" name="mileage" required value="<?= $val('mileage') ?>"><?= $err('mileage') ?></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="fuel_level">Current fuel level <span class="text-danger">*</span></label>
+            <select class="form-select" id="fuel_level" name="fuel_level" required><option value="">Choose...</option>
+                <?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($v['fuel_level'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select><?= $err('fuel_level') ?></div>
+        <?php endif; ?>
         <div class="col-12"><a class="small text-decoration-none" data-bs-toggle="collapse" href="#moreFields" role="button"><i class="fas fa-chevron-down me-1"></i>More details (optional)</a></div>
         <div class="col-12 collapse <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'show' : '' ?>" id="moreFields"><div class="row g-3">
             <div class="col-12 col-md-4"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
@@ -416,7 +432,7 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
     <script>
     (function () {
         var map = <?= json_encode($licByType) ?>, t = document.getElementById('vehicle_type'), l = document.getElementById('licence_shown');
-        t.addEventListener('change', function () { l.value = map[t.value] || '-'; });
+        t.addEventListener('change', function () { if (map[t.value]) { l.value = map[t.value]; } });
     })();
     </script>
     <?php

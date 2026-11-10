@@ -12,7 +12,7 @@ require_once '../includes/upload.php';
 requireDriver();
 
 $driver_id = (int)($_SESSION['driver_id'] ?? 0);
-$kind = isset($_REQUEST['internal']) ? 'internal' : 'trip';
+$kind = isset($_REQUEST['internal']) ? 'internal' : (isset($_REQUEST['welfare']) ? 'welfare' : 'trip');
 $task_id = (int)($_REQUEST[$kind] ?? 0);
 $veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);
 if (!$veh) {

@@ -248,4 +248,15 @@ return [
         assert_same([], scheduleChangeDates('nonsense', '2034-08-02'));
         assert_true(count(scheduleChangeDates('2034-01-01', '2034-12-31')) > SCHEDULE_CHANGE_MAX_DAYS, 'a long range is cut so the caller can refuse it');
     },
+    'UC019 the time the approval e-mail was sent is recorded; nothing is retried while e-mail is off' => function () {
+        global $conn;
+        $staff = t_user('staff'); $veh = t_vehicle();
+        $rid = t_request($staff, $veh, '2034-09-02 09:00:00', '2034-09-02 12:00:00');
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] === null, 'new request: not sent yet');
+        markApprovalEmail($conn, $rid, ['sent' => 0, 'skipped' => 1]);
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] === null, 'skipped: still empty (it will be tried again)');
+        markApprovalEmail($conn, $rid, ['sent' => 1]);
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] !== null, 'sent: date and time recorded');
+        assert_same(0, retryApprovalEmails($conn), 'e-mail sending is switched off: no retry');
+    },
 ];

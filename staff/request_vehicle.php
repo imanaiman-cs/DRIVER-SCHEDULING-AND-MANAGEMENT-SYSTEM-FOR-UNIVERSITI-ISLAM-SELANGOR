@@ -164,15 +164,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($rental) {                                                  // UC019 A1: the Assistant is told instead of the Head of Department
                 $charge = rentalCharge($conn, $km);
                 auditLog($conn, 'submit', $rid, 'Personal Rental request submitted (' . $km . ' km, estimated charge RM ' . number_format($charge, 2) . ')' . ($urgent ? ' - Urgent' : ''));
-                notifyUsers($conn, assistantUserIds($conn), 'New ' . ($urgent ? 'URGENT ' : '') . "Personal Rental request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ', ' . $km . ' km, estimated charge RM ' . number_format($charge, 2) . ') is waiting for you.', 'admin/vehicle_requests.php?tab=pending');
+                $mailRes = notifyUsers($conn, assistantUserIds($conn), 'New ' . ($urgent ? 'URGENT ' : '') . "Personal Rental request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ', ' . $km . ' km, estimated charge RM ' . number_format($charge, 2) . ') is waiting for you.', 'admin/vehicle_requests.php?tab=pending');
+                markApprovalEmail($conn, $rid, $mailRes);
                 setFlash('success', 'Request #' . $rid . ' submitted. Estimated charge: RM ' . number_format($charge, 2) . ' (' . $km . ' km x RM ' . number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2) . '). It goes to the Administrative Assistant, then the Head of Admin.');
                 header('Location: my_requests.php');
                 exit();
             }
             auditLog($conn, 'submit', $rid, ($payClaim ? 'Pay and Claim request submitted (own vehicle ' . $f['own_vehicle_plate'] . ')' : 'Request submitted') . ($urgent ? ' - Urgent' : ''));
-            notifyUsers($conn, [$approver_id],
+            $mailRes = notifyUsers($conn, [$approver_id],
                 "New " . ($urgent ? 'URGENT ' : '') . ($payClaim ? 'Pay and Claim' : 'vehicle') . " request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
                 'supervisor/approvals.php');
+            markApprovalEmail($conn, $rid, $mailRes);                  // UC019: record when the e-mail was sent
             setFlash('success', 'Request #' . $rid . ' submitted. It is waiting for the approval of your Head of Department' . ($payClaim ? ', then the Head of Admin.' : '.'));
             header('Location: my_requests.php');
             exit();

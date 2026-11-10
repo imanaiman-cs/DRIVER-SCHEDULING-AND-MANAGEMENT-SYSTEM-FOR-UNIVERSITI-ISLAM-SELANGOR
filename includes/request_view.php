@@ -24,6 +24,47 @@ function requestSelectSql(): string
               LEFT JOIN vehicles v ON v.vehicle_id = vr.vehicle_id";
 }
 
+/**
+ * UC017 step 2: the filters of the request lists (status, departure date from / to, department).
+ * @return array{0:string,1:string,2:array,3:array} [sql fragment starting with ' AND ' or '', bind types, params, the cleaned filter values]
+ */
+function requestListFilter(array $get, bool $withDepartment = false): array
+{
+    $status = (string)($get['status'] ?? '');
+    $from = (string)($get['from'] ?? ''); $to = (string)($get['to'] ?? '');
+    $dept = $withDepartment ? trim((string)($get['department'] ?? '')) : '';
+    $f = ['status' => in_array($status, ['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'], true) ? $status : '',
+          'from' => isValidDate($from) ? $from : '', 'to' => isValidDate($to) ? $to : '', 'department' => mb_substr($dept, 0, 100)];
+    $sql = ''; $types = ''; $p = [];
+    if ($f['status'] !== '') { $sql .= ' AND vr.status = ?'; $types .= 's'; $p[] = $f['status']; }
+    if ($f['from'] !== '')   { $sql .= ' AND vr.trip_date >= ?'; $types .= 's'; $p[] = $f['from']; }
+    if ($f['to'] !== '')     { $sql .= ' AND vr.trip_date <= ?'; $types .= 's'; $p[] = $f['to']; }
+    if ($f['department'] !== '') { $sql .= ' AND u.department = ?'; $types .= 's'; $p[] = $f['department']; }
+    return [$sql, $types, $p, $f];
+}
+
+/** The filter form of the request lists. $keep = hidden fields to keep (for example the tab). */
+function requestFilterForm(array $f, array $keep = [], ?array $departments = null): void
+{
+    $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    ?>
+    <form method="get" class="row g-2 align-items-end mb-3">
+        <?php foreach ($keep as $k => $v): ?><input type="hidden" name="<?= $h($k) ?>" value="<?= $h($v) ?>"><?php endforeach; ?>
+        <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_status">Status</label>
+            <select class="form-select form-select-sm" id="f_status" name="status"><option value="">All</option>
+                <?php foreach (['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'] as $st): ?><option value="<?= $st ?>" <?= $f['status'] === $st ? 'selected' : '' ?>><?= $h(requestStatusLabel($st)) ?></option><?php endforeach; ?></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_from">Departure from</label><input type="date" class="form-control form-control-sm" id="f_from" name="from" value="<?= $h($f['from']) ?>"></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_to">to</label><input type="date" class="form-control form-control-sm" id="f_to" name="to" value="<?= $h($f['to']) ?>"></div>
+        <?php if ($departments !== null): ?>
+        <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_dept">Department</label>
+            <select class="form-select form-select-sm" id="f_dept" name="department"><option value="">All</option>
+                <?php foreach ($departments as $d): ?><option <?= $f['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select></div>
+        <?php endif; ?>
+        <div class="col-auto"><button class="btn btn-sm btn-outline-success">Filter</button> <a class="btn btn-sm btn-outline-secondary" href="?<?= $h(http_build_query($keep)) ?>">Clear</a></div>
+    </form>
+    <?php
+}
+
 function requestStatusBadge(string $status): string
 {
     return '<span class="badge ' . requestStatusBadgeClass($status) . '">' . htmlspecialchars(requestStatusLabel($status)) . '</span>';

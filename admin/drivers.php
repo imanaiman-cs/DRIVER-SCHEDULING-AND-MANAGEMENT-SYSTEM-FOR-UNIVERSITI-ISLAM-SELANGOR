@@ -34,7 +34,7 @@ adminPageStart('Drivers');
 ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
         <h4 class="fw-bold mb-0"><i class="fas fa-id-card text-success me-2"></i>Drivers</h4>
-        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add driver</a>
+        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Register driver</a>
     </div>
     <p class="text-muted small">Create the driver account in <a href="users.php">User accounts</a> first, then register it here as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
 

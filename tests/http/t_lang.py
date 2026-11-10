@@ -78,5 +78,10 @@ ok('the in-system notification is stored in English', msg == 'Your request #5 wa
 ok('e-mail subject: Bahasa Melayu for a user with ms, English for en', subs and any(u == 'stf001' and 'diluluskan' in s for u, s in subs) and any(u == 'stf002' and 'was approved' in s for u, s in subs))
 nl = text(n.get('notifications.php'))
 ok('the notification list shows it in Bahasa Melayu', 'diluluskan' in nl and 'Ketua Jabatan' in nl)
+# the new SRS 10 Nov pages are translated too (the Assistant's language is Bahasa Melayu from the switch above)
+ad.s.get(B + '/set_language.php', params={'lang': 'ms', 'back': back}, allow_redirects=False)
+for pth, words in (('admin/welfare.php', ['Tugas Kebajikan', 'Cipta jadual']), ('admin/add_driver.php', ['Daftar Pemandu', 'E-mel UIS']), ('admin/add_vehicle.php', ['Kelas lesen diperlukan', 'Tahap bahan api semasa'])):
+    tx = text(ad.get(pth))
+    ok('%s is in Bahasa Melayu' % pth, all(w in tx for w in words))
 import subprocess, os
 sys.exit(0 if summary() else 1)

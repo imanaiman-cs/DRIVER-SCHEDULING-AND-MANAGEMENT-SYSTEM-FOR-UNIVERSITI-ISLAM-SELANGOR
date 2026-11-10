@@ -1392,10 +1392,56 @@ function sendApprovalReminder(mysqli $conn, int $request_id, bool $automatic = f
 // Run hourly: php cron/run_jobs.php
 // ------------------------------------------------------------
 
+/** UC019 step 1: records the date and time the approval e-mail was sent ($res = the result of notifyUsers). */
+function markApprovalEmail(mysqli $conn, int $request_id, array $res): void
+{
+    if (($res['sent'] ?? 0) > 0) {
+        $q = $conn->prepare('UPDATE vehicle_requests SET approval_email_at = NOW() WHERE request_id = ? AND approval_email_at IS NULL');
+        $q->bind_param('i', $request_id);
+        $q->execute();
+        $q->close();
+    }
+}
+
+/**
+ * UC019 exception 1.1: tries again to e-mail the approver of Pending requests whose approval e-mail was not sent (only e-mail; the in-system
+ * notification already exists). Nothing is tried while e-mail sending is switched off. @return int e-mails sent
+ */
+function retryApprovalEmails(mysqli $conn): int
+{
+    if (!function_exists('mailEnabled') || !mailEnabled()) { return 0; }
+    $n = 0;
+    $rows = $conn->query("SELECT vr.request_id, vr.destination, vr.trip_date, vr.start_time, vr.request_type, vr.is_urgent, vr.supervisor_id, vr.vehicle_type, u.full_name, u.role
+                            FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
+                           WHERE vr.status = 'pending' AND vr.approval_email_at IS NULL AND vr.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)")->fetch_all(MYSQLI_ASSOC);
+    foreach ($rows as $r) {
+        $rental = $r['vehicle_type'] === 'Lorry' && !$r['supervisor_id'];
+        $to = $rental ? assistantUserIds($conn) : ($r['supervisor_id'] ? [(int)$r['supervisor_id']] : []);
+        $link = $rental ? 'admin/vehicle_requests.php' : 'supervisor/approvals.php';
+        $ok = false;
+        foreach ($to as $uid) {
+            $q = $conn->prepare('SELECT email, full_name FROM users WHERE user_id = ?');
+            $q->bind_param('i', $uid);
+            $q->execute();
+            $u = $q->get_result()->fetch_assoc();
+            $q->close();
+            if (!$u) { continue; }
+            $msg = 'Request #' . $r['request_id'] . ' from ' . $r['full_name'] . ' to ' . $r['destination'] . ' (' . date('d M Y', strtotime($r['trip_date'])) . ') is waiting for your decision.';
+            $url = rtrim(SITE_URL, '/') . '/' . $link;
+            $res = sendMail($conn, $u['email'], '[UIS Vehicle Section] Request #' . $r['request_id'] . ' is waiting for your decision',
+                '<p>Salam ' . htmlspecialchars($u['full_name']) . ',</p><p>' . htmlspecialchars($msg) . '</p><p><a href="' . htmlspecialchars($url) . '">Open in the system</a></p>', "$msg\n$url", ['kind' => 'approval', 'user_id' => $uid]);
+            if ($res['status'] === 'sent') { $ok = true; }
+        }
+        if ($ok) { markApprovalEmail($conn, (int)$r['request_id'], ['sent' => 1]); $n++; }
+    }
+    return $n;
+}
+
 /** @return array{lapsed:int, reminded:int, cancelled:int, completed:int} */
 function runRequestJobs(mysqli $conn): array
 {
     $out = ['lapsed' => 0, 'reminded' => 0, 'cancelled' => 0, 'completed' => 0];
+    retryApprovalEmails($conn);                                  // UC019 1.1
     $hours = max(1, getSettingInt($conn, 'LAPSE_HOURS'));
 
     // 1. Pending for 2 days (or the trip time has passed): Lapsed. The vehicle lock is released.
@@ -1477,6 +1523,9 @@ function driverTaskVehicle(mysqli $conn, int $driver_id, string $kind, int $id):
     } elseif ($kind === 'internal') {
         $sql = "SELECT v.* FROM internal_tasks t JOIN vehicles v ON v.vehicle_id = t.vehicle_id
                  WHERE t.task_id = ? AND t.driver_id = ? AND t.status = 'active'";
+    } elseif ($kind === 'welfare') {
+        $sql = "SELECT v.* FROM welfare_roster w JOIN vehicles v ON v.vehicle_id = w.vehicle_id
+                 WHERE w.roster_id = ? AND w.driver_id = ? AND w.status = 'active'";
     } else {
         return null;
     }
@@ -1554,7 +1603,7 @@ const REPORT_PROBLEM_TYPES = ['Plate Number', 'Tyre', 'Lights', 'Body Damage', '
 /** The report of one task of this driver, or null. $kind 'trip' (schedule_id) or 'internal' (task_id). */
 function taskReportOf(mysqli $conn, string $kind, int $id): ?array
 {
-    $col = $kind === 'internal' ? 'internal_task_id' : 'schedule_id';
+    $col = ['internal' => 'internal_task_id', 'welfare' => 'welfare_id'][$kind] ?? 'schedule_id';
     $stmt = $conn->prepare("SELECT * FROM task_reports WHERE $col = ? LIMIT 1");
     $stmt->bind_param('i', $id);
     $stmt->execute();
@@ -1566,7 +1615,7 @@ function taskReportOf(mysqli $conn, string $kind, int $id): ?array
 /** When the task starts (Y-m-d H:i:s): a report can only be created from then on (UC024 exception 1.1). */
 function taskStartDt(mysqli $conn, string $kind, int $id): ?string
 {
-    $sql = $kind === 'internal' ? 'SELECT start_dt FROM internal_tasks WHERE task_id = ?' : 'SELECT start_dt FROM schedules WHERE schedule_id = ?';
+    $sql = $kind === 'internal' ? 'SELECT start_dt FROM internal_tasks WHERE task_id = ?' : ($kind === 'welfare' ? "SELECT TIMESTAMP(duty_date) FROM welfare_roster WHERE roster_id = ?" : 'SELECT start_dt FROM schedules WHERE schedule_id = ?');
     $stmt = $conn->prepare($sql);
     $stmt->bind_param('i', $id);
     $stmt->execute();
@@ -1622,14 +1671,15 @@ function saveTaskReport(mysqli $conn, int $driver_id, string $kind, int $task_id
         if ($mileage < $floor) { $conn->rollback(); return ['ok' => false, 'message' => "The mileage is not valid: it is lower than the current mileage ($floor km)."]; }   // 3.2
         $sched = $kind === 'trip' ? $task_id : null;
         $int   = $kind === 'internal' ? $task_id : null;
+        $wel   = $kind === 'welfare' ? $task_id : null;
         if ($existing) {
             $keep = $photo ?? $existing['photo'];
             $stmt = $conn->prepare('UPDATE task_reports SET actual_depart = ?, actual_return = ?, end_mileage = ?, fuel_level = ?, vehicle_condition = ?, problem_type = ?, problem_desc = ?, photo = ?, can_be_used = ?, updated_at = NOW() WHERE report_id = ?');
             $rid = (int)$existing['report_id'];
             $stmt->bind_param('ssisssssii', $dep, $ret, $mileage, $fuel, $cond, $ptype, $pdesc, $keep, $canUse, $rid);
         } else {
-            $stmt = $conn->prepare('INSERT INTO task_reports (schedule_id, internal_task_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition, problem_type, problem_desc, photo, can_be_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('iiiissiisssssi', $sched, $int, $driver_id, $vehicle_id, $dep, $ret, $floor, $mileage, $fuel, $cond, $ptype, $pdesc, $photo, $canUse);
+            $stmt = $conn->prepare('INSERT INTO task_reports (schedule_id, internal_task_id, welfare_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition, problem_type, problem_desc, photo, can_be_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('iiiiissiisssssi', $sched, $int, $wel, $driver_id, $vehicle_id, $dep, $ret, $floor, $mileage, $fuel, $cond, $ptype, $pdesc, $photo, $canUse);
         }
         $stmt->execute();
         $stmt->close();
@@ -1668,7 +1718,7 @@ function saveTaskReport(mysqli $conn, int $driver_id, string $kind, int $task_id
         ? "PROBLEM: $name $what. $ptype: $pdesc" . ($canUse === 0 ? ' The vehicle cannot be used and is now Under Maintenance.' : ' The vehicle can still be used.')
         : "$name $what. Mileage $mileage km, fuel " . VEHICLE_FUEL_LEVELS[$fuel] . '.';
     notifyUsers($conn, assistantUserIds($conn), $msg, 'admin/view_vehicle.php?id=' . $vehicle_id);
-    auditLog($conn, $existing ? 'task_report_update' : 'task_report', null, ($kind === 'trip' ? "Task #$task_id" : "Internal task #$task_id") . " reported by $name ($mileage km)");
+    auditLog($conn, $existing ? 'task_report_update' : 'task_report', null, ($kind === 'trip' ? "Task #$task_id" : ($kind === 'welfare' ? "Welfare duty #$task_id" : "Internal task #$task_id")) . " reported by $name ($mileage km)");
     return ['ok' => true, 'message' => 'The report was saved. The vehicle was updated' . ($canUse === 0 ? ' and is now Under Maintenance.' : '.')];
 }
 

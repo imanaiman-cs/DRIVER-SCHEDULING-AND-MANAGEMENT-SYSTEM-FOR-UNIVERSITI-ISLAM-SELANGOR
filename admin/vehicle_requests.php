@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'send_
 $tab = (string)($_GET['tab'] ?? 'approved');
 $tabs = ['approved' => ['Approved by HoD', "vr.status = 'approved'"], 'assigned' => ['Driver Assigned', "vr.status = 'assigned'"],
          'processed' => ['Approved', "vr.status = 'processed'"], 'pending' => ['Pending', "vr.status = 'pending'"],
-         'history' => ['History', "vr.status IN ('rejected','cancelled','lapsed','completed')"], 'all' => ['All', '1 = 1']];
+         'history' => ['History', "vr.status IN ('rejected','cancelled','lapsed','completed')"], 'all' => ['All Request', '1 = 1']];
 if (!isset($tabs[$tab])) { $tab = 'approved'; }
 
 $counts = [];
@@ -33,7 +33,13 @@ $tabCount = fn(string $t) => match ($t) {
     'history' => ($counts['rejected'] ?? 0) + ($counts['cancelled'] ?? 0) + ($counts['lapsed'] ?? 0) + ($counts['completed'] ?? 0), default => array_sum($counts),
 };
 
-$requests = $conn->query(requestSelectSql() . ' WHERE ' . $tabs[$tab][1] . ' ORDER BY ' . ($tab === 'history' || $tab === 'all' ? 'vr.request_id DESC' : 'vr.is_urgent DESC, vr.depart_at, vr.request_id'))->fetch_all(MYSQLI_ASSOC);
+[$fSql, $fTypes, $fParams, $fv] = requestListFilter($_GET, true);                                  // UC017 A2: All Request with filters
+$stmt = $conn->prepare(requestSelectSql() . ' WHERE ' . $tabs[$tab][1] . $fSql . ' ORDER BY ' . ($tab === 'history' || $tab === 'all' ? 'vr.request_id DESC' : 'vr.is_urgent DESC, vr.depart_at, vr.request_id'));
+if ($fParams) { $stmt->bind_param($fTypes, ...$fParams); }
+$stmt->execute();
+$requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+$deptList = array_column($conn->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department <> '' ORDER BY department")->fetch_all(MYSQLI_ASSOC), 'department');
 $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
@@ -45,7 +51,8 @@ adminPageStart('Vehicle Requests');
         <?php endforeach; ?>
     </ul>
 
-    <?php if (!$requests): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">Nothing here.</div></div><?php endif; ?>
+    <?php if ($tab === 'all' || $tab === 'history') { requestFilterForm($fv, ['tab' => $tab], $deptList); } ?>
+    <?php if (!$requests): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5"><?= $fSql ? 'No record is found.' : 'Nothing here.' ?></div></div><?php endif; ?>
 
     <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $rules = cancelRulesFor($r); $ret = 'admin/vehicle_requests.php?tab=' . $tab . '&open=' . $rid; ?>
     <details class="card border-0 shadow-sm mb-2" <?= $rid === $open ? 'open' : '' ?>>

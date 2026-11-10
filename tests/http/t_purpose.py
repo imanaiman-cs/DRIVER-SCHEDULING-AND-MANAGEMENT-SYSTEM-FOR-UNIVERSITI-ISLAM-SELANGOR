@@ -29,6 +29,6 @@ ok('Pay and Claim needs the supporting letter too', cnt("SELECT COUNT(*) FROM ve
 # MPV
 pg = ad.get('admin/add_vehicle.php')
 ok('Add Vehicle offers MPV', '<option value="MPV"' in pg.text)
-r = ad.post('admin/add_vehicle.php', {'plate_number': 'MPV 7001', 'vehicle_type': 'MPV', 'model': 'Alphard', 'capacity': '7', 'brand': 'Toyota', 'year': '2024', 'fuel_type': 'Petrol', 'notes': ''})
+r = ad.post('admin/add_vehicle.php', {'plate_number': 'MPV 7001', 'vehicle_type': 'MPV', 'model': 'Alphard', 'capacity': '7', 'brand': 'Toyota', 'year': '2024', 'fuel_type': 'Petrol', 'notes': '', 'license_required': 'D', 'mileage': '10', 'fuel_level': 'full'})
 ok('an MPV is saved with licence class D', rows("SELECT vehicle_type, license_required FROM vehicles WHERE plate_number='MPV 7001'") == [['MPV', 'D']])
 sys.exit(0 if summary() else 1)

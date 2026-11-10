@@ -48,6 +48,10 @@ class C:
             rid = int(data.get('request_id', 0) or 0)
             if rid in INTENDED and sql("SELECT vehicle_id IS NULL FROM vehicle_requests WHERE request_id=%d" % rid) == '1':
                 data = dict(data); data['vehicle_id'] = INTENDED[rid]
+        # SRS 10 Nov UC003 A3: a driver outside the top recommendation needs a confirmation; older tests confirm it, unless they ask for the warning
+        if path == 'admin/assign_driver.php' and data is not None:
+            data = dict(data)
+            if data.pop('warn', None) is None: data.setdefault('confirmed', '1')
         return _post(s, path, data, files, csrf, p)
     def login(s, u, pw):
         return s.s.post(B + '/login.php', data={'username': u, 'password': pw, 'csrf_token': s.token()}, allow_redirects=False)

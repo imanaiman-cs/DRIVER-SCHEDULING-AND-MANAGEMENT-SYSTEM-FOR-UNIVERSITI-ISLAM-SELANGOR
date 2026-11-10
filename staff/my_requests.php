@@ -17,11 +17,11 @@ $filter = (string)($_GET['status'] ?? 'all');
 $allowedFilters = ['all', 'pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'];
 if (!in_array($filter, $allowedFilters, true)) { $filter = 'all'; }
 
-$sql = requestSelectSql() . ' WHERE vr.staff_id = ?';
-if ($filter !== 'all') { $sql .= ' AND vr.status = ?'; }
-$sql .= ' ORDER BY vr.created_at DESC, vr.request_id DESC';
+$_GET['status'] = $filter === 'all' ? '' : $filter;
+[$fSql, $fTypes, $fParams, $fv] = requestListFilter($_GET);
+$sql = requestSelectSql() . ' WHERE vr.staff_id = ?' . $fSql . ' ORDER BY vr.created_at DESC, vr.request_id DESC';       // UC017 step 2: filter by status or date
 $stmt = $conn->prepare($sql);
-if ($filter !== 'all') { $stmt->bind_param('is', $uid, $filter); } else { $stmt->bind_param('i', $uid); }
+$stmt->bind_param('i' . $fTypes, $uid, ...$fParams);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -48,8 +48,9 @@ adminPageStart('My Requests');
         <?php endforeach; ?>
     </ul>
 
+    <?php requestFilterForm($fv); ?>
     <?php if (!$requests): ?>
-        <div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">No requests yet.</div></div>
+        <div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5"><?= array_sum($counts) ? 'No record is found.' : 'No requests yet.' ?></div></div>
     <?php endif; ?>
 
     <?php foreach ($requests as $r): $rules = cancelRulesFor($r); ?>
@@ -58,7 +59,7 @@ adminPageStart('My Requests');
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <span class="fw-semibold">#<?= (int)$r['request_id'] ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= htmlspecialchars((string)($r['vehicle_type'] ?: ($r['request_type'] === 'pay_claim' ? 'Pay and Claim' : ''))) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
                 </div>
                 <div><?= requestStatusBadge($r['status']) ?></div>
             </div>

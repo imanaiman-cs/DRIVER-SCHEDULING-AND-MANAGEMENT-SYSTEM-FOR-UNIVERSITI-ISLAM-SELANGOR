@@ -63,12 +63,14 @@ if ($driver_id > 0) {
     $stmt->close();
 
     // welfare duty days (a day is "past" once it is over)
-    $stmt = $conn->prepare("SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status = 'active' AND duty_date " . ($tab === 'past' ? '<' : '>=') . " ? ORDER BY duty_date $dir LIMIT $limit");
+    $stmt = $conn->prepare("SELECT w.roster_id, w.duty_date, w.vehicle_id, v.plate_number, v.brand, v.model FROM welfare_roster w LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id WHERE w.driver_id = ? AND w.status = 'active' AND w.duty_date " . ($tab === 'past' ? '<' : '>=') . " ? ORDER BY w.duty_date $dir LIMIT $limit");
     $stmt->bind_param('is', $driver_id, $today);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $tasks[] = ['kind' => 'welfare', 'start' => $r['duty_date'] . ' 00:00:00', 'end' => date('Y-m-d H:i:s', strtotime($r['duty_date'] . ' +1 day')), 'type' => 'Welfare duty',
-                    'ref' => '', 'vehicle' => '', 'destination' => '', 'waiting' => '', 'purpose' => 'On duty for 24 hours (12 am to 12 am), ready for emergencies.',
+        $rep = taskReportOf($conn, 'welfare', (int)$r['roster_id']);            // UC024: the welfare duty can be reported too (the vehicle is needed)
+        $tasks[] = ['upd' => $r['vehicle_id'] && ($rep || strtotime($r['duty_date']) <= time()) ? 'welfare=' . (int)$r['roster_id'] : '', 'reported' => (bool)$rep,
+                    'kind' => 'welfare', 'start' => $r['duty_date'] . ' 00:00:00', 'end' => date('Y-m-d H:i:s', strtotime($r['duty_date'] . ' +1 day')), 'type' => 'Welfare duty',
+                    'ref' => '', 'vehicle' => $r['plate_number'] ? vehicleText($r['plate_number'], $r['brand'], $r['model']) : '', 'destination' => '', 'waiting' => '', 'purpose' => 'On duty for 24 hours (12 am to 12 am), ready for emergencies.',
                     'officer' => '', 'phone' => '', 'sheet' => 0];
     }
     $stmt->close();

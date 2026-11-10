@@ -155,6 +155,7 @@ CREATE TABLE `vehicle_requests` (
   `charge` decimal(10,2) DEFAULT NULL COMMENT 'Personal Rental charge = distance x RENTAL_RATE_PER_KM',
   `own_vehicle_plate` varchar(20) DEFAULT NULL COMMENT 'registration number of the own vehicle (Pay and Claim)',
   `is_urgent` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = submitted less than 2 days before departure',
+  `approval_email_at` datetime DEFAULT NULL COMMENT 'when the approval e-mail was sent to the approver',
   `officer_name` varchar(255) DEFAULT NULL,
   `officer_phone` varchar(50) DEFAULT NULL,
   `waiting_place` varchar(150) DEFAULT NULL,
@@ -358,6 +359,7 @@ CREATE TABLE `task_reports` (
   `report_id` int(11) NOT NULL AUTO_INCREMENT,
   `schedule_id` int(11) DEFAULT NULL COMMENT 'the request task reported',
   `internal_task_id` int(11) DEFAULT NULL COMMENT 'or the internal task',
+  `welfare_id` int(11) DEFAULT NULL COMMENT 'or the welfare duty day',
   `driver_id` int(11) NOT NULL,
   `vehicle_id` int(11) NOT NULL,
   `actual_depart` datetime NOT NULL,
@@ -375,12 +377,14 @@ CREATE TABLE `task_reports` (
   PRIMARY KEY (`report_id`),
   UNIQUE KEY `uq_report_schedule` (`schedule_id`),
   UNIQUE KEY `uq_report_internal` (`internal_task_id`),
+  UNIQUE KEY `uq_report_welfare` (`welfare_id`),
   KEY `idx_report_driver` (`driver_id`),
   KEY `idx_report_vehicle` (`vehicle_id`, `created_at`),
   CONSTRAINT `fk_report_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_report_task` FOREIGN KEY (`internal_task_id`) REFERENCES `internal_tasks` (`task_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_report_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
-  CONSTRAINT `fk_report_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
+  CONSTRAINT `fk_report_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`),
+  CONSTRAINT `fk_report_welfare` FOREIGN KEY (`welfare_id`) REFERENCES `welfare_roster` (`roster_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `verification_codes` (
@@ -689,4 +693,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report');

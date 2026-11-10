@@ -120,7 +120,8 @@ if ($_is_admin_role) {
     ] + $_my_requests;
 } elseif ($role === 'supervisor') {
     $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
+              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals'],
+                              [['department_requests.php'], 'supervisor/department_requests.php', 'building', 'Department Requests', null]]] + $_my_requests;
 } elseif ($role === 'staff') {
     $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 } else {

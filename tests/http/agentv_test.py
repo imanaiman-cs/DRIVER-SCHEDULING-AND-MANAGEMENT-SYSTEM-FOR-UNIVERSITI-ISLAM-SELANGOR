@@ -70,10 +70,11 @@ ok('drivers filter by licence GDL', 'Roslan' not in a.get('admin/drivers.php?lic
 # ---- vehicles
 r = a.post('admin/add_vehicle.php', {'plate_number':'bgn 9595','vehicle_type':'Bus','model':'X','capacity':30}); ok('add vehicle duplicate plate error', 'already exists' in r.text and sql("SELECT COUNT(*) FROM vehicles")=='12')
 r = a.post('admin/add_vehicle.php', {'plate_number':'NEW 1','vehicle_type':'Minibus','model':'X','capacity':0}); ok('add vehicle invalid type/capacity', 'Choose the vehicle type' in r.text and 'capacity' in r.text.lower())
-r = a.post('admin/add_vehicle.php', {'plate_number':'new 123','vehicle_type':'Lorry','model':'Isuzu','capacity':3}); ok('add vehicle ok', r.status_code==302)
+r = a.post('admin/add_vehicle.php', {'plate_number':'new 123','vehicle_type':'Lorry','model':'Isuzu','capacity':3}); ok('add vehicle without licence class / mileage / fuel level is refused (UC002 3.2)', r.status_code==200 and sql("SELECT COUNT(*) FROM vehicles WHERE plate_number='NEW 123'")=='0')
+r = a.post('admin/add_vehicle.php', {'plate_number':'new 123','vehicle_type':'Lorry','model':'Isuzu','capacity':3,'license_required':'GDL','mileage':'1200','fuel_level':'half'}); ok('add vehicle ok', r.status_code==302 and sql("SELECT mileage,fuel_level FROM vehicles WHERE plate_number='NEW 123'")=='1200\thalf')
 ok('licence auto GDL, available', sql("SELECT license_required,status,plate_number FROM vehicles WHERE plate_number='NEW 123'") == 'GDL\tavailable\tNEW 123')
 vid = sql("SELECT vehicle_id FROM vehicles WHERE plate_number='NEW 123'")
-r = a.post('admin/edit_vehicle.php', {'id':vid,'plate_number':'NEW 123','vehicle_type':'Bus','model':'Hino','capacity':40}); ok('edit vehicle ok', r.status_code==302 and sql(f"SELECT license_required FROM vehicles WHERE vehicle_id={vid}")=='PSV')
+r = a.post('admin/edit_vehicle.php', {'id':vid,'plate_number':'NEW 123','vehicle_type':'Bus','model':'Hino','capacity':40,'license_required':'PSV'}); ok('edit vehicle ok', r.status_code==302 and sql(f"SELECT license_required FROM vehicles WHERE vehicle_id={vid}")=='PSV')
 r = a.post('admin/edit_vehicle.php', {'id':vid,'plate_number':'BGN 9595','vehicle_type':'Bus','model':'Hino','capacity':40}); ok('edit vehicle duplicate plate error', 'already exists' in r.text)
 
 # maintenance

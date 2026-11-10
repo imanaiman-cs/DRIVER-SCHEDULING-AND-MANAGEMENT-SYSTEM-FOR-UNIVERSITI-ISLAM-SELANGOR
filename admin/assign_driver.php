@@ -31,6 +31,20 @@ if (!$req || !($req['status'] === 'approved' || ($req['status'] === 'pending' &&
     exit();
 }
 
+$warnDriver = null; $confirmPost = [];
+/** UC003 A3: when the chosen outbound driver is not the top recommendation, returns that driver's ranked row (task count) and the top driver; else null. */
+function outsideRecommendation(mysqli $conn, array $req, int $driver, int $chosenVehicle): ?array
+{
+    $vid = (int)($req['vehicle_id'] ?: $chosenVehicle);
+    $lic = null;
+    if ($vid) { $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?'); $q->bind_param('i', $vid); $q->execute(); $lic = $q->get_result()->fetch_row()[0] ?? null; $q->close(); }
+    $win = requestTaskWindows($conn, $req);
+    $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $win['out']['end_dt'], 'licence' => $lic ?: licenceForVehicleType((string)$req['vehicle_type'])]);
+    if (!$rec['ranked'] || (int)$rec['ranked'][0]['driver_id'] === $driver) { return null; }
+    foreach ($rec['ranked'] as $d) { if ((int)$d['driver_id'] === $driver) { return ['chosen' => $d, 'top' => $rec['ranked'][0]]; } }
+    return null;       // not in the list at all: assignRequestDrivers refuses it
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $out = (int)($_POST['out_driver'] ?? 0);
     $mode = (string)($_POST['return_mode'] ?? 'same');
@@ -43,14 +57,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('danger', 'Choose the driver of the outbound trip.');
     } elseif (!$same && !$vendorRet && ($retDriver <= 0 || $retVehicle <= 0)) {
         setFlash('danger', 'Choose the driver and the vehicle of the return trip, or use the same driver and vehicle.');
+    } elseif ($out > 0 && !$vendorOut && empty($_POST['confirmed']) && ($warnDriver = outsideRecommendation($conn, $req, $out, (int)($_POST['vehicle_id'] ?? 0))) !== null) {
+        // UC003 A3: the driver is not the recommended (top ranked) one: warn with the task count first. The page below shows the confirm button.
+        $confirmPost = $_POST;
     } else {
         $res = assignRequestDrivers($conn, $rid, $out, $retDriver, $retVehicle, $vendorOut, $vendorRet, (int)($_POST['vehicle_id'] ?? 0) ?: null, isset($_POST['distance_km']) && $_POST['distance_km'] !== '' ? (float)str_replace(',', '.', (string)$_POST['distance_km']) : null,
             array_map(fn($v, $d) => ['vehicle' => (int)$v, 'driver' => (int)$d], (array)($_POST['extra_vehicle'] ?? []), array_pad(array_values((array)($_POST['extra_driver'] ?? [])), count((array)($_POST['extra_vehicle'] ?? [])), 0)));
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { header('Location: vehicle_requests.php?tab=assigned&open=' . $rid); exit(); }
     }
-    header('Location: assign_driver.php?request_id=' . $rid);
-    exit();
+    if (empty($confirmPost)) { header('Location: assign_driver.php?request_id=' . $rid); exit(); }
 }
 
 $win = requestTaskWindows($conn, $req);
@@ -80,6 +96,18 @@ adminPageStart('Assign Driver');
     <a class="small text-decoration-none" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
     <h4 class="fw-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign driver &mdash; request #<?= $rid ?></h4>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
+
+    <?php if ($warnDriver): ?>
+    <div class="alert alert-warning">
+        <strong>This driver is not the top recommendation.</strong>
+        <?= htmlspecialchars($warnDriver['chosen']['name']) ?> has <?= (int)$warnDriver['chosen']['tasks'] ?> task(s) this month; the recommended driver, <?= htmlspecialchars($warnDriver['top']['name']) ?>, has <?= (int)$warnDriver['top']['tasks'] ?>. Assign anyway?
+        <form method="post" class="mt-2">
+            <?php $flat = function ($a, $pre = '') use (&$flat) { foreach ($a as $k => $v) { $n = $pre === '' ? $k : $pre . '[' . $k . ']'; if (is_array($v)) { $flat($v, $n); } else { echo '<input type="hidden" name="' . htmlspecialchars($n) . '" value="' . htmlspecialchars((string)$v) . '">'; } } }; $flat($confirmPost); ?>
+            <input type="hidden" name="confirmed" value="1">
+            <button class="btn btn-warning btn-sm">Confirm and assign</button> <a class="btn btn-outline-secondary btn-sm" href="assign_driver.php?request_id=<?= $rid ?>">Choose again</a>
+        </form>
+    </div>
+    <?php endif; ?>
 
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
