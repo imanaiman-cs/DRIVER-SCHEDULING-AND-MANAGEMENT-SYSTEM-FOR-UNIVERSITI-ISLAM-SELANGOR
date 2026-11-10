@@ -681,6 +681,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- ── Card footer info ── -->
             <div class="card-footer-info">
+                <p class="mb-2">New staff? <a href="register.php">Register an account</a></p>
                 <p>
                     <i class="fas fa-shield-halved" aria-hidden="true" style="color: var(--uis-primary);"></i>
                     &nbsp;Authorised personnel only &mdash; <strong>UIS</strong> Internal System

@@ -6,7 +6,7 @@ ADMIN_ONLY=[]; PAGES=[]
 for f in sorted(glob.glob(ROOT+'/**/*.php',recursive=True)):
     rel=os.path.relpath(f,ROOT)
     top=rel.split('/')[0]
-    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php') or rel.endswith('fleet_helpers.php'): continue
+    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php','register.php','set_language.php') or rel.endswith('fleet_helpers.php'): continue
     PAGES.append(rel)
 # 1. anonymous visitors get nothing
 bad=[]
@@ -53,7 +53,9 @@ sql("UPDATE settings SET setting_value='1' WHERE setting_key='SESSION_TIMEOUT_MI
 t=user('stf001'); time.sleep(62); r=t.get('staff/dashboard.php'); ok('idle session is signed out', r.status_code==302 and 'login' in r.headers.get('Location',''))
 sql("UPDATE settings SET setting_value='15' WHERE setting_key='SESSION_TIMEOUT_MIN'")
 # no user management left
-ok('no screen to create, edit, delete, reset or unlock users', not os.path.exists(ROOT+'/admin/users.php') and sess['admin'].get('admin/users.php').status_code==404)
+# user accounts (SRS summary 10 Nov): the Assistant manages them, but nothing is ever deleted
+uid_=sql("SELECT user_id FROM users WHERE username='stf003'"); sess['admin'].post('admin/users.php',{'user_id':uid_,'action':'delete'}); sess['admin'].post('admin/edit_user.php',{'id':uid_,'action':'delete'})
+ok('user accounts: managed by the Assistant, no action deletes a user', sess['admin'].get('admin/users.php').status_code==200 and sql("SELECT COUNT(*) FROM users WHERE username='stf003'")=='1' and sess['staff'].get('admin/users.php').status_code==302)
 ok('passwords are stored hashed (bcrypt)', sql("SELECT COUNT(*) FROM users WHERE password NOT LIKE '$2y$%'")=='0')
 # importer
 imp=subprocess_run=__import__('subprocess').run(['php',ROOT+'/tools/import_staff.php'],capture_output=True,text=True,env=dict(os.environ,DSMS_DB=DB))

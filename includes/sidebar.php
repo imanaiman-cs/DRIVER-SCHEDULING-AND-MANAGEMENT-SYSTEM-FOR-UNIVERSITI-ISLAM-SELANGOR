@@ -112,7 +112,10 @@ if ($_is_admin_role) {
             [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
         ],
         'Reports' => [[['reports.php'], 'admin/reports.php', 'chart-column', 'Reports', null]],
-        'System'  => [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]],
+        'System'  => [
+            [['users.php', 'add_user.php', 'edit_user.php'], 'admin/users.php', 'users', 'Users', null],
+            [['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null],
+        ],
     ] + $_my_requests;
 } elseif ($role === 'supervisor') {
     $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],

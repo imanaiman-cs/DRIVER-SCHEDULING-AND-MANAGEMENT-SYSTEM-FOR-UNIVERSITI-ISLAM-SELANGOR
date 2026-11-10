@@ -95,6 +95,7 @@ require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/request_view.php';
 require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
 require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
+require_once __DIR__ . '/../includes/accounts.php';        // user accounts: register, manage
 require_once __DIR__ . '/../includes/i18n.php';            // English / Bahasa Melayu (the pages are written in English and translated on output)
 // Apply new migrations once per session (cheap: one SELECT when nothing is pending)
 if (empty($_SESSION['migrations_checked'])) {

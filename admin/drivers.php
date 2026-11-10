@@ -36,7 +36,7 @@ adminPageStart('Drivers');
         <h4 class="fw-bold mb-0"><i class="fas fa-id-card text-success me-2"></i>Drivers</h4>
         <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add driver</a>
     </div>
-    <p class="text-muted small">Driver accounts come from the UIS staff system. Here you register an existing driver account as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
+    <p class="text-muted small">Create the driver account in <a href="users.php">User accounts</a> first, then register it here as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
 
     <form method="get" class="card border-0 shadow-sm mb-3"><div class="card-body row g-2 align-items-end">
         <div class="col-12 col-md-4"><label class="form-label small mb-1" for="q">Search</label>
