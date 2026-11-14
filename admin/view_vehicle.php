@@ -59,7 +59,7 @@ adminPageStart($v['plate_number']);
         <div class="col-lg-7"><div class="card border-0 shadow-sm"><div class="card-body">
             <h6 class="fw-bold">Upcoming trips</h6>
             <?php if (!$trips): ?><p class="text-muted small mb-0">No upcoming trips. This vehicle can be deactivated.</p>
-            <?php else: ?><?= fleetItemsList($trips) ?><?php endif; ?>
+            <?php else: ?><?= fleetItemsList($trips, false, $id) ?><?php endif; ?>
         </div></div></div>
         <div class="col-12"><div class="card border-0 shadow-sm"><div class="card-body">
             <h6 class="fw-bold">Usage updates by drivers <span class="fw-normal text-muted small">(mileage <?= (int)$v['mileage'] ?> km now)</span></h6>

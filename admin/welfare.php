@@ -117,6 +117,7 @@ adminPageStart('Welfare Duty');
                                 <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= (int)$v['vehicle_id'] === (int)$w['vehicle_id'] ? 'selected' : '' ?>><?= $h($v['plate_number']) ?></option><?php endforeach; ?>
                             </select>
                             <button class="btn btn-sm btn-outline-success" name="action" value="vehicle">Edit</button>
+                            <?php if ($w['status'] === 'active' && $w['driver_id'] && $d > $today): ?><a class="btn btn-sm btn-outline-primary" href="replace_task_driver.php?welfare=<?= (int)$w['roster_id'] ?>">Replace driver</a><?php endif; ?>
                             <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="The vehicle is released<?= $w['driver_id'] ? ' and the driver is told' : '' ?>." data-confirm-title="Delete this duty day?" data-confirm-button="Delete">Delete</button>
                         </form>
                         <?php endif; ?>

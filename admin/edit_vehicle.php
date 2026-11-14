@@ -54,7 +54,7 @@ adminPageStart('Edit Vehicle');
     <h4 class="fw-bold mb-1"><i class="fas fa-pen text-success me-2"></i>Update Vehicle <?= htmlspecialchars($cur['plate_number']) ?></h4>
     <p class="text-muted small">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
         &middot; Deactivate the vehicle in the vehicle list.</p>
-    <?php if ($usageError): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($usageError) ?><?= fleetItemsList($usageItems) ?></div><?php endif; ?>
+    <?php if ($usageError): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($usageError) ?><?= fleetItemsList($usageItems, false, $id) ?></div><?php endif; ?>
     <form method="post" class="card border-0 shadow-sm mb-3" novalidate><div class="card-body">
         <input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="usage">
         <div class="row g-3">

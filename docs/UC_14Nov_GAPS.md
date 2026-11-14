@@ -18,7 +18,8 @@ is not in the use cases; keep cancelling by the Assistant / Head of Admin (a rea
 - Removed because they are not in the use cases: manual Approval Reminders page, Help page, printable task sheets, WhatsApp code and `whatsapp_log`
   (migration `2026_11_remove_whatsapp`), the staff import tool, Add account / reset password by the Assistant.
 
+- UC002.3 3.2 / UC002.4 3.1: *Assign another vehicle to each booking* (`admin/reassign_vehicle.php`, `reassignBookingVehicle()`): requests (same type, seats, driver licence, free in the period), internal tasks and welfare duty days; the people involved are told.
+- UC008: Replace Driver also for approved internal tasks and welfare duty days (`admin/replace_task_driver.php`, `replaceNonRequestDriver()`, migration `2026_11_replace_internal_welfare`); the task returns to Driver Assigned and the Head of Admin approves; the Driver Replacement report lists them.
+
 ## Open / for Iman
-- UC002 3.2 / UC002.4 3.1: "assign another vehicle to each booking" — the system lists the bookings and refuses the change; a screen to move a booking to another vehicle is not built.
-- UC008: Replace Driver is built for request tasks; internal tasks and welfare duty days cannot be replaced yet.
 - The drivers list (`admin/drivers.php`, `view_driver.php`, `edit_driver.php`) is a view of the same accounts as UC001; it was kept.

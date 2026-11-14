@@ -61,9 +61,11 @@ function buildReport(mysqli $conn, string $type, string $month): array
         }
     } elseif ($type === 'replacements') {
         $stmt = $conn->prepare(
-            "SELECT r.changed_at, s.request_id, s.leg_no, s.trip_date, s.destination, o.name AS old_name, n.name AS new_name, r.reason, u.full_name AS by_name
+            "SELECT r.changed_at, s.request_id, s.leg_no, COALESCE(s.trip_date, it.task_date, wr.duty_date) AS trip_date, s.destination, r.internal_task_id, r.welfare_id, o.name AS old_name, n.name AS new_name, r.reason, u.full_name AS by_name
                FROM driver_replacements r
-               JOIN schedules s ON s.schedule_id = r.schedule_id
+               LEFT JOIN schedules s ON s.schedule_id = r.schedule_id
+               LEFT JOIN internal_tasks it ON it.task_id = r.internal_task_id
+               LEFT JOIN welfare_roster wr ON wr.roster_id = r.welfare_id
                LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id
                LEFT JOIN drivers n ON n.driver_id = r.new_driver_id
                LEFT JOIN users u ON u.user_id = r.changed_by
@@ -75,7 +77,7 @@ function buildReport(mysqli $conn, string $type, string $month): array
         $rep['widths']  = [18, 12, 14, 24, 24, 38, 20];
         $rep['note']    = 'Every driver replacement made in the month (UC020), with the reason and who made it. Records are never edited.';
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-            $rep['rows'][] = [date('d M Y H:i', strtotime($r['changed_at'])), '#' . $r['request_id'] . ($r['leg_no'] ? ' (task ' . $r['leg_no'] . ')' : ''),
+            $rep['rows'][] = [date('d M Y H:i', strtotime($r['changed_at'])), $r['internal_task_id'] ? 'Internal task #' . $r['internal_task_id'] : ($r['welfare_id'] ? 'Welfare duty' : '#' . $r['request_id'] . ($r['leg_no'] ? ' (task ' . $r['leg_no'] . ')' : '')),
                               date('d M Y', strtotime($r['trip_date'])), $r['old_name'] ?? '-', $r['new_name'] ?? '-', $r['reason'], $r['by_name'] ?? '-'];
         }
         $stmt->close();

@@ -303,6 +303,7 @@ adminPageStart('Internal Tasks');
                         <?php if ($t['status'] === 'waiting' && $t['reject_reason']): ?><div class="small text-muted mt-1">Rejected by the Head of Admin: <?= $h($t['reject_reason']) ?></div><?php endif; ?><?php endif; ?></td>
                     <td class="text-end text-nowrap">
                         <?php if ($canAssign): ?><a class="btn btn-sm btn-success" href="assign_internal_task.php?id=<?= (int)$t['task_id'] ?>"><i class="fas fa-user-plus"></i><span class="d-none d-md-inline ms-1">Assign driver</span></a><?php endif; ?>
+                        <?php if ($t['status'] === 'active' && $t['driver_id'] && strtotime($t['start_dt']) > time()): ?><a class="btn btn-sm btn-outline-primary" href="replace_task_driver.php?internal=<?= (int)$t['task_id'] ?>"><i class="fas fa-right-left"></i><span class="d-none d-md-inline ms-1">Replace driver</span></a><?php endif; ?>
                         <?php if ($canChange): ?>
                             <a class="btn btn-sm btn-outline-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="d-none d-md-inline ms-1">Update</span></a>
                         <?php endif; ?>

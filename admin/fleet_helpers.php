@@ -61,7 +61,7 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $seen[(int)$r['request_id']] = true;
-        $items[] = ['kind' => 'request', 'request_id' => (int)$r['request_id'],
+        $items[] = ['kind' => 'request', 'id' => (int)$r['request_id'], 'request_id' => (int)$r['request_id'],
             'text' => 'Request #' . $r['request_id'] . ' (' . requestStatusLabel($r['status']) . '): ' . fleetWhen($r['depart_at'], $r['return_at'])
                     . ' to ' . $r['destination'] . ', requested by ' . $r['full_name'],
             'url' => 'vehicle_requests.php'];
@@ -89,9 +89,21 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'internal', 'request_id' => null,
+        $items[] = ['kind' => 'internal', 'id' => (int)$r['task_id'], 'request_id' => null,
             'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt']) . ', driver ' . ($r['name'] ?? 'not assigned yet'),
             'url' => 'internal_tasks.php'];
+    }
+    $stmt->close();
+
+    $stmt = $conn->prepare(
+        "SELECT w.roster_id, w.duty_date, d.name FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id
+          WHERE w.vehicle_id = ? AND w.duty_date >= CURDATE() AND TIMESTAMP(w.duty_date) <= ? ORDER BY w.duty_date"
+    );
+    $stmt->bind_param('is', $vehicle_id, $limit);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['roster_id'], 'request_id' => null,
+            'text' => 'Welfare duty (24 hours): ' . date('D d M Y', strtotime($r['duty_date'])) . ', driver ' . ($r['name'] ?? 'not assigned yet'), 'url' => 'welfare.php'];
     }
     $stmt->close();
     return $items;
@@ -245,7 +257,7 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 // ------------------------------------------------------------
 
 /** A <ul> of the blocking / warning items. Request tasks of a driver link to the replace-driver page. */
-function fleetItemsList(array $items, bool $withReplaceLink = false): string
+function fleetItemsList(array $items, bool $withReplaceLink = false, int $vehicleLink = 0): string
 {
     if (!$items) { return ''; }
     $html = '<ul class="mb-0 mt-2 small">';
@@ -256,7 +268,9 @@ function fleetItemsList(array $items, bool $withReplaceLink = false): string
         }
         $html .= '</li>';
     }
-    return $html . '</ul>';
+    $html .= '</ul>';
+    if ($vehicleLink > 0) { $html .= '<a class="btn btn-sm btn-warning mt-2" href="reassign_vehicle.php?vehicle_id=' . $vehicleLink . '"><i class="fas fa-right-left me-1"></i>Assign another vehicle to each booking</a>'; }
+    return $html;
 }
 
 /**

@@ -2231,6 +2231,8 @@ function assignWelfareWeek(mysqli $conn, string $monday, array $drivers): array
 function approveWelfareWeek(mysqli $conn, string $monday, int $by): array
 {
     $to = date('Y-m-d', strtotime($monday . ' +6 days'));
+    $pending = [];
+    foreach (welfareWeekRows($conn, $monday) as $date => $r) { if ($r['status'] === 'assigned' && $r['driver_id']) { $pending[$date] = (int)$r['driver_id']; } }      // only the days approved now are announced
     $u = $conn->prepare("UPDATE welfare_roster SET status = 'active', approved_by = ?, approved_at = NOW() WHERE status = 'assigned' AND driver_id IS NOT NULL AND duty_date BETWEEN ? AND ?");
     $u->bind_param('iss', $by, $monday, $to);
     $u->execute();
@@ -2239,7 +2241,7 @@ function approveWelfareWeek(mysqli $conn, string $monday, int $by): array
     if ($n < 1) { return ['ok' => false, 'message' => 'That schedule is not waiting for approval.']; }
     auditLog($conn, 'welfare_approve', null, "Welfare duty week $monday approved.");
     $per = [];
-    foreach (welfareWeekRows($conn, $monday) as $date => $r) { if ($r['driver_id']) { $per[(int)$r['driver_id']][] = date('D d M', strtotime($date)); } }
+    foreach ($pending as $date => $did) { $per[$did][] = date('D d M', strtotime($date)); }
     foreach ($per as $did => $dates) {
         if ($uid = userIdOfDriver($conn, $did)) { notifyUsers($conn, [$uid], 'You are on welfare duty (24 hours): ' . implode(', ', $dates) . '.', 'driver/schedules.php'); }
     }
@@ -2262,4 +2264,194 @@ function rejectWelfareWeek(mysqli $conn, string $monday, string $reason): array
     auditLog($conn, 'welfare_reject', null, "Welfare duty week $monday assignment rejected: $reason");
     notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of the welfare duty of the week of ' . date('d M Y', strtotime($monday)) . ' was rejected. Reason: ' . $reason, 'admin/welfare.php');
     return ['ok' => true, 'message' => 'Assignment rejected. The week is Waiting for Driver again.'];
+}
+
+// ------------------------------------------------------------
+// Assign another vehicle to a booking (SRS 14 Nov UC002.3 3.2 / UC002.4 3.1): when a vehicle goes Under Maintenance or is deactivated,
+// each upcoming booking (request, internal task, welfare duty day) gets another vehicle first.
+// ------------------------------------------------------------
+
+/**
+ * Moves one booking from $old to $new vehicle. $kind: 'request' (request_id), 'internal' (task_id), 'welfare' (roster_id).
+ * The new vehicle must be free for the whole period, of the requested type (requests) or a car / van (welfare), have enough seats and be one
+ * that the assigned driver(s) may drive. The people involved are told.
+ * @return array{ok:bool, message:string}
+ */
+function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, int $new): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    if ($old === $new) { return $fail('Choose another vehicle.'); }
+    $q = $conn->prepare('SELECT vehicle_type, capacity, license_required, plate_number, status FROM vehicles WHERE vehicle_id = ?');
+    $q->bind_param('i', $new);
+    $q->execute();
+    $nv = $q->get_result()->fetch_assoc();
+    $q->close();
+    if (!$nv || in_array($nv['status'], ['inactive', 'maintenance'], true)) { return $fail('Choose a vehicle that is in service.'); }
+    $licOk = function (array $driverIds) use ($conn, $nv): ?string {
+        foreach ($driverIds as $d) {
+            if (!$d) { continue; }
+            $s = $conn->prepare('SELECT name, license_class FROM drivers WHERE driver_id = ?');
+            $s->bind_param('i', $d);
+            $s->execute();
+            $r = $s->get_result()->fetch_assoc();
+            $s->close();
+            if ($r && !driverHoldsLicence($r['license_class'], $nv['license_required'])) { return $r['name'] . ' does not hold licence class ' . $nv['license_required'] . ', which ' . $nv['plate_number'] . ' needs.'; }
+        }
+        return null;
+    };
+
+    if ($kind === 'welfare') {
+        $q = $conn->prepare('SELECT driver_id FROM welfare_roster WHERE roster_id = ?');
+        $q->bind_param('i', $id);
+        $q->execute();
+        $w = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$w) { return $fail('The duty day was not found.'); }
+        if (($m = $licOk([(int)$w['driver_id']])) !== null) { return $fail($m); }
+        return updateWelfareVehicle($conn, $id, $new);
+    }
+
+    $conn->begin_transaction();
+    try {
+        $q = $conn->prepare('SELECT vehicle_id FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
+        $q->bind_param('i', $new);
+        $q->execute();
+        $q->get_result();
+        $q->close();
+        if ($kind === 'internal') {
+            $q = $conn->prepare("SELECT * FROM internal_tasks WHERE task_id = ? AND vehicle_id = ? AND status IN ('waiting', 'assigned', 'active') FOR UPDATE");
+            $q->bind_param('ii', $id, $old);
+            $q->execute();
+            $t = $q->get_result()->fetch_assoc();
+            $q->close();
+            if (!$t || strtotime($t['end_dt']) <= time()) { $conn->rollback(); return $fail('That task is not an upcoming booking of this vehicle.'); }
+            if (($m = $licOk([(int)$t['driver_id']])) !== null) { $conn->rollback(); return $fail($m); }
+            if (($why = vehicleUnavailableReason($conn, $new, $t['start_dt'], $t['end_dt'])) !== null) { $conn->rollback(); return $fail($nv['plate_number'] . ' ' . vehicleUnavailableText($why) . ' at that time.'); }
+            $u = $conn->prepare('UPDATE internal_tasks SET vehicle_id = ? WHERE task_id = ?');
+            $u->bind_param('ii', $new, $id);
+            $u->execute();
+            $u->close();
+            auditLog($conn, 'vehicle_reassign', null, "Internal task #$id: vehicle #$old -> #$new");
+            $conn->commit();
+            if ($t['driver_id'] && ($uid = userIdOfDriver($conn, (int)$t['driver_id']))) {
+                notifyUsers($conn, [$uid], 'The vehicle of your internal task on ' . date('d M Y H:i', strtotime($t['start_dt'])) . ' changed to ' . $nv['plate_number'] . '.', 'driver/schedules.php');
+            }
+            return ['ok' => true, 'message' => 'The internal task now uses ' . $nv['plate_number'] . '.'];
+        }
+        // request
+        $q = $conn->prepare("SELECT * FROM vehicle_requests WHERE request_id = ? AND status IN ('pending', 'approved', 'assigned', 'processed') FOR UPDATE");
+        $q->bind_param('i', $id);
+        $q->execute();
+        $req = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$req || strtotime(requestReturnDT($req)) <= time()) { $conn->rollback(); return $fail('That request is not an upcoming booking.'); }
+        if ($req['vehicle_type'] && $nv['vehicle_type'] !== $req['vehicle_type']) { $conn->rollback(); return $fail('Choose a ' . $req['vehicle_type'] . ' for this request.'); }
+        if ((int)$req['quantity'] === 1 && (int)$nv['capacity'] < (int)$req['passenger_count']) { $conn->rollback(); return $fail($nv['plate_number'] . ' has too few seats for ' . (int)$req['passenger_count'] . ' passengers.'); }
+        $q = $conn->prepare('SELECT start_dt, end_dt FROM vehicle_locks WHERE request_id = ? AND vehicle_id = ?');
+        $q->bind_param('ii', $id, $old);
+        $q->execute();
+        $locks = $q->get_result()->fetch_all(MYSQLI_ASSOC);
+        $q->close();
+        $q = $conn->prepare("SELECT DISTINCT driver_id FROM schedules WHERE request_id = ? AND vehicle_id = ? AND status <> 'cancelled' AND driver_id IS NOT NULL");
+        $q->bind_param('ii', $id, $old);
+        $q->execute();
+        $driverIds = array_map('intval', array_column($q->get_result()->fetch_all(MYSQLI_ASSOC), 'driver_id'));
+        $q->close();
+        if (!$locks && (int)$req['vehicle_id'] !== $old) { $conn->rollback(); return $fail('That request does not use this vehicle.'); }
+        if (($m = $licOk($driverIds)) !== null) { $conn->rollback(); return $fail($m); }
+        foreach ($locks ?: [['start_dt' => requestDepartDT($req), 'end_dt' => reservationEnd(requestReturnDT($req))]] as $l) {
+            if (($why = vehicleUnavailableReason($conn, $new, $l['start_dt'], $l['end_dt'], $id)) !== null) { $conn->rollback(); return $fail($nv['plate_number'] . ' ' . vehicleUnavailableText($why) . ' in that period.'); }
+        }
+        foreach (['UPDATE vehicle_locks SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?', 'UPDATE vehicle_requests SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?',
+                  'UPDATE schedules SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?', 'UPDATE vehicle_reservations SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?'] as $sql) {
+            $u = $conn->prepare($sql);
+            $u->bind_param('iii', $new, $id, $old);
+            $u->execute();
+            $u->close();
+        }
+        auditLog($conn, 'vehicle_reassign', $id, "Request #$id: vehicle #$old -> #$new");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('reassignBookingVehicle: ' . $e->getMessage());
+        return $fail('Database error. Nothing was changed.');
+    }
+    $msg = "The vehicle of request #$id ({$req['destination']}, " . date('d M Y H:i', strtotime(requestDepartDT($req))) . ') changed to ' . $nv['plate_number'] . '.';
+    notifyUsers($conn, array_merge([(int)$req['staff_id']], driverUserIdsFromDriverIds($conn, $driverIds)), $msg, 'staff/my_requests.php');
+    return ['ok' => true, 'message' => "Request #$id now uses {$nv['plate_number']}."];
+}
+
+// ------------------------------------------------------------
+// Replace Driver for an internal task or a welfare duty day (SRS 14 Nov UC008)
+// The task must be Approved and not started. The new driver is checked like in the recommendation (active, licence of the vehicle, no clash, not
+// unavailable); a reason is required; the replacement is recorded; the task goes back to Driver Assigned so the Head of Admin approves (UC026).
+// ------------------------------------------------------------
+
+/** @param string $kind 'internal' (task_id) or 'welfare' (roster_id) @return array{ok:bool, message:string} */
+function replaceNonRequestDriver(mysqli $conn, string $kind, int $id, int $new_driver, string $reason): array
+{
+    $fail = fn(string $m) => ['ok' => false, 'message' => $m];
+    $reason = trim($reason);
+    if (mb_strlen($reason) < 3) { return $fail('Please give a reason for replacing the driver.'); }
+    $conn->begin_transaction();
+    try {
+        if ($kind === 'internal') {
+            $q = $conn->prepare("SELECT * FROM internal_tasks WHERE task_id = ? AND status = 'active' FOR UPDATE");
+            $start = 'start_dt'; $end = 'end_dt';
+        } else {
+            $q = $conn->prepare("SELECT w.*, TIMESTAMP(w.duty_date) AS start_dt, DATE_ADD(TIMESTAMP(w.duty_date), INTERVAL 1 DAY) AS end_dt FROM welfare_roster w WHERE w.roster_id = ? AND w.status = 'active' FOR UPDATE");
+        }
+        $q->bind_param('i', $id);
+        $q->execute();
+        $t = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$t || !$t['driver_id']) { $conn->rollback(); return $fail('Only an Approved task can have its driver replaced.'); }
+        if (strtotime($t['start_dt']) <= time()) { $conn->rollback(); return $fail('The task has already started, so its driver cannot be replaced.'); }
+        $old = (int)$t['driver_id'];
+        if ($old === $new_driver) { $conn->rollback(); return $fail('The new driver is the same as the current driver.'); }
+        $d = $conn->prepare('SELECT name, license_class, status FROM drivers WHERE driver_id = ? FOR UPDATE');
+        $d->bind_param('i', $new_driver);
+        $d->execute();
+        $nd = $d->get_result()->fetch_assoc();
+        $d->close();
+        if (!$nd || $nd['status'] !== 'active') { $conn->rollback(); return $fail('The new driver is not an active driver.'); }
+        $need = 'D';
+        if ($t['vehicle_id']) {
+            $v = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
+            $v->bind_param('i', $t['vehicle_id']);
+            $v->execute();
+            $need = (string)($v->get_result()->fetch_row()[0] ?? 'D');
+            $v->close();
+        }
+        if (!driverHoldsLicence($nd['license_class'], $need)) { $conn->rollback(); return $fail($nd['name'] . ' does not hold licence class ' . $need . '.'); }
+        $clash = $kind === 'internal' ? driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], 0, $id) : driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt']);
+        if (($why = driverUnavailableReason($conn, $new_driver, $t['start_dt'], $t['end_dt']) ?? $clash) !== null) { $conn->rollback(); return $fail($nd['name'] . ' cannot be chosen: ' . $why . '.'); }
+        $table = $kind === 'internal' ? 'internal_tasks' : 'welfare_roster';
+        $key = $kind === 'internal' ? 'task_id' : 'roster_id';
+        $u = $conn->prepare("UPDATE $table SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE $key = ?");
+        $u->bind_param('ii', $new_driver, $id);
+        $u->execute();
+        $u->close();
+        $by = (int)($_SESSION['user_id'] ?? 0);
+        $col = $kind === 'internal' ? 'internal_task_id' : 'welfare_id';
+        $log = $conn->prepare("INSERT INTO driver_replacements ($col, previous_driver_id, new_driver_id, reason, changed_by) VALUES (?, ?, ?, ?, ?)");
+        $log->bind_param('iiisi', $id, $old, $new_driver, $reason, $by);
+        $log->execute();
+        $log->close();
+        $on = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
+        $on->bind_param('i', $old);
+        $on->execute();
+        $oldN = (string)($on->get_result()->fetch_row()[0] ?? '');
+        $on->close();
+        auditLog($conn, 'replace_driver', null, ($kind === 'internal' ? "Internal task #$id" : "Welfare duty #$id") . ": $oldN -> {$nd['name']}. Reason: $reason");
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('replaceNonRequestDriver: ' . $e->getMessage());
+        return $fail('Database error. Please try again.');
+    }
+    $what = $kind === 'internal' ? internalTaskLine($conn, $t) : 'welfare duty on ' . date('d M Y', strtotime($t['duty_date']));
+    notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$old]), "You were replaced on $what. Reason: $reason", 'driver/schedules.php');
+    notifyUsers($conn, headAdminUserIds($conn), "The driver of $what was replaced ($oldN -> {$nd['name']}). Reason: $reason. Please approve the new assignment.", 'admin/approve_assignments.php');
+    return ['ok' => true, 'message' => 'Driver replaced. The Head of Admin must approve the change.'];
 }
