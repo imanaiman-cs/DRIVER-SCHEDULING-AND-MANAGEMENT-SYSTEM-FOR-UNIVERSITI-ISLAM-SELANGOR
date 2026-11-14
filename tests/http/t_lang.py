@@ -21,7 +21,7 @@ pg = ad.get('admin/dashboard.php'); t = text(pg)
 ok('dashboard in Bahasa Melayu: html lang=ms, menu, greeting, buttons', '<html lang="ms"' in pg.text and 'Papan pemuka' in t and 'Permohonan Kenderaan' in t and 'Log Keluar' in t and not errs(pg))
 ok('the menu no longer shows the English labels', 'Vehicle Requests' not in t and 'Internal Tasks' not in t)
 ok('dates use Malay day and month names', re.search(r'(Isnin|Selasa|Rabu|Khamis|Jumaat|Sabtu|Ahad), \d+ (Januari|Februari|Mac|April|Mei|Jun|Julai|Ogos|September|Oktober|November|Disember) \d{4}', t) is not None)
-for p in ['admin/vehicle_requests.php?tab=all', 'admin/drivers.php', 'admin/vehicles.php', 'admin/internal_tasks.php', 'admin/welfare.php', 'admin/calendar.php', 'admin/reports.php', 'admin/settings.php', 'help.php', 'notifications.php', 'admin/add_driver.php', 'staff/request_vehicle.php']:
+for p in ['admin/vehicle_requests.php?tab=all', 'admin/drivers.php', 'admin/vehicles.php', 'admin/internal_tasks.php', 'admin/welfare.php', 'admin/calendar.php', 'admin/reports.php', 'admin/settings.php', 'notifications.php', 'admin/add_driver.php', 'staff/request_vehicle.php']:
     q = ad.get(p)
     ok('%s opens in Bahasa Melayu without PHP errors' % p, q.status_code == 200 and not errs(q) and '<html lang="ms"' in q.text)
 st = text(ad.get('admin/settings.php'))

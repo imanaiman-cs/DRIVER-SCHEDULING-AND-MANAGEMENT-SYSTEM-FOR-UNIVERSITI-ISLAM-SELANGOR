@@ -93,7 +93,6 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/request_view.php';
-require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
 require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
 require_once __DIR__ . '/../includes/verification.php';    // verification codes (register, reset password)
 require_once __DIR__ . '/../includes/accounts.php';        // user accounts: register, manage

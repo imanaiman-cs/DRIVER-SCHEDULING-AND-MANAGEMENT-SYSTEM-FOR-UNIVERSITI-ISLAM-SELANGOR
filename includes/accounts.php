@@ -6,7 +6,6 @@
 //     account (the Assistant then registers it as a driver in Add Driver), change details, reset a password,
 //     make an account Inactive. Accounts are never deleted; the history stays.
 //   * Only the Head of Admin may create or change Administrative Assistant and Head of Admin accounts.
-// The staff import (tools/import_staff.php) is kept for loading many accounts at once.
 // ============================================================
 
 const ACCOUNT_ROLES = ['staff' => 'Staff', 'driver' => 'Driver', 'supervisor' => 'Head of Department', 'admin' => 'Administrative Assistant', 'head_admin' => 'Head of Admin'];

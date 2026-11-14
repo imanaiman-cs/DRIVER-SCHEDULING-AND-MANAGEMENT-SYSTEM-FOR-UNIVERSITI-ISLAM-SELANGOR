@@ -120,7 +120,6 @@ adminPageStart('My Tasks');
                 </dl>
                 <?php if ($t['kind'] === 'trip' && $t['sheet']): ?><a class="btn btn-sm btn-outline-warning mt-2 me-1" href="schedule_change.php?type=withdraw&schedule_id=<?= (int)$t['sheet'] ?>"><i class="fas fa-calendar-xmark me-1"></i>Request Schedule Change</a><?php endif; ?>
                 <?php if (!empty($t['upd'])): ?><a class="btn btn-sm btn-outline-success mt-2 me-1" href="task_report.php?<?= $h($t['upd']) ?>"><i class="fas fa-clipboard-check me-1"></i><?= !empty($t['reported']) ? 'View Report' : 'Create Report' ?></a><?php endif; ?>
-                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
             </div></div>
         </div>
     <?php endforeach; ?>

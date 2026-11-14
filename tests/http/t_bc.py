@@ -134,24 +134,6 @@ sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHE
 # the manual tests below start clean
 sql("DELETE FROM reminders WHERE request_id=1"); sql("DELETE FROM notifications WHERE message LIKE 'Reminder: request #1 %'"); sql("DELETE FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'")
 sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE request_id=1")
-# manual reminder
-r=hos2.get('admin/reminders.php'); ok('Head of Department cannot open the reminder page', r.status_code==302)
-page=ad.get('admin/reminders.php'); ok('reminder list shows pending requests with days pending', page.status_code==200 and 'Days pending' in page.text and 'Send Reminder' in page.text)
-sql("UPDATE vehicle_requests SET created_at = DATE_SUB(NOW(), INTERVAL 30 HOUR) WHERE request_id=1")
-r=ad.post('admin/reminders.php',{'request_id':1}); ok('Send Reminder', r.status_code==302)
-ok('reminder recorded', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='1')
-ok('reminder went to the staff member AND the Head of Department', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username IN ('stf001','hos002') AND n.message LIKE 'Reminder: request #1 %'"))==2)
-ok('and by e-mail (logged)', int(sql("SELECT COUNT(*) FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'"))>=2)
-# mail failure: the reminder is still saved
-cfg=ROOT+'/config/mail.php'
-open(cfg,'w').write("<?php return ['enabled'=>true,'host'=>'127.0.0.1','port'=>1,'auth'=>false,'encryption'=>'','from_email'=>'noreply@uis.edu.my','from_name'=>'UIS'];")
-try:
-    r=ad.post('admin/reminders.php',{'request_id':1}); ok('with a broken mail server the reminder is still saved', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='2' and sql("SELECT COUNT(*) FROM reminders WHERE request_id=1 AND email_error IS NOT NULL")=='1')
-    ok('and the failure is logged in email_log', int(sql("SELECT COUNT(*) FROM email_log WHERE status='failed'"))>=1)
-    ok('and the in-system notification exists', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='hos002' AND n.message LIKE 'Reminder: request #1 %'"))==2)
-finally:
-    __import__('os').remove(cfg)
-
 # ================= cancel (UC012) =================
 # staff cancels own request, reason optional
 r=submit(s3,dep_h=400,dur_h=2,vehicle=6,pax=1); rS=last()

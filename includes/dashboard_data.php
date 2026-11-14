@@ -153,9 +153,7 @@ function dashAlerts(mysqli $conn): array
                 'text' => "{$r['name']}'s licence " . ($past ? 'expired on ' : 'expires on ') . date('d M Y', strtotime($r['license_expiry']))];
     }
     $mail = (int)dashValue($conn, "SELECT COUNT(*) FROM email_log WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
-    $wa = (int)dashValue($conn, "SELECT COUNT(*) FROM whatsapp_log WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
     if ($mail > 0) { $a[] = ['tone' => 'warning', 'icon' => 'envelope', 'href' => '../notifications.php', 'text' => "$mail e-mail(s) failed to send in the last 7 days (table email_log)"]; }
-    if ($wa > 0) { $a[] = ['tone' => 'warning', 'icon' => 'comment-dots', 'href' => '../notifications.php', 'text' => "$wa WhatsApp message(s) failed in the last 7 days"]; }
     return $a;
 }
 

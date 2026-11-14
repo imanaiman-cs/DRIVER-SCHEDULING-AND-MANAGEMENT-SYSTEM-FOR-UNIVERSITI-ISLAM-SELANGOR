@@ -236,11 +236,6 @@ ok('legacy schedules without a request are hidden', 'Request #' not in main_html
 r = drv[1].get('driver/dashboard.php'); ok('driver dashboard is its own page (today, next 7 days) and links to My Tasks', r.status_code == 200 and 'dash-hero' in r.text and 'driver/schedules.php' not in r.url and 'schedules.php' in r.text)
 dates = re.findall(r'class="when">[A-Za-z]{3}, (\d\d [A-Za-z]{3} \d{4})', main_html(drv[1].get('driver/schedules.php')))
 ds = [datetime.datetime.strptime(d, '%d %b %Y') for d in dates]; ok('upcoming sorted by date', ds == sorted(ds) and len(ds) >= 3)
-# task sheet
-ok('driver opens own confirmed task sheet', drv[1].get('driver/task_sheet.php', id=3).status_code == 200 and 'PERSIARAN MASJID' in drv[1].get('driver/task_sheet.php', id=3).text)
-ok('driver cannot open unconfirmed request task sheet', drv[3].get('driver/task_sheet.php', id=2).status_code == 302)
-ok('driver cannot open another driver task sheet', drv[2].get('driver/task_sheet.php', id=3).status_code == 302)
-ok('admin opens any task sheet', admin.get('admin/task_sheet.php', id=2).status_code == 200 and not errs(admin.get('admin/task_sheet.php', id=2)))
 
 # ---------------- notifications ----------------
 sql("delete from notifications where user_id=8")
@@ -357,6 +352,6 @@ ok('csrf not injected into download', b'csrf_token' not in rep('tasks', export='
 import os
 gone = 'admin/messages.php driver/messages.php ajax/send_message.php admin/driver_leaves.php admin/audit_log.php admin/schedules.php admin/add_schedule.php admin/edit_schedule.php admin/view_schedule.php admin/auto_assign.php admin/report_driver.php admin/report_workload.php admin/report_vehicle.php admin/report_monthly.php driver/calendar.php ajax/delete_schedule.php ajax/update_schedule_status.php ajax/check_conflict.php ajax/get_busy_resources.php ajax/check_vehicles_free.php assets/js/schedule-busy.js'.split()
 ok('out-of-scope files deleted', not any(os.path.exists(lib.ROOT + '/' + g) for g in gone))
-ok('php -l on my files', all(subprocess.run(['php', '-l', lib.ROOT + '/' + f], capture_output=True).returncode == 0 for f in 'admin/internal_tasks.php admin/welfare.php admin/calendar.php admin/reports.php admin/task_sheet.php driver/schedules.php driver/dashboard.php driver/task_sheet.php notifications.php ajax/calendar_events.php includes/report_export.php includes/schedule_view.php'.split()))
+ok('php -l on my files', all(subprocess.run(['php', '-l', lib.ROOT + '/' + f], capture_output=True).returncode == 0 for f in 'admin/internal_tasks.php admin/welfare.php admin/calendar.php admin/reports.php driver/schedules.php driver/dashboard.php notifications.php ajax/calendar_events.php includes/report_export.php includes/schedule_view.php'.split()))
 print(lib._n)
 sys.exit(0 if lib.summary() else 1)

@@ -59,7 +59,7 @@ adminPageStart('Dashboard');
         <div class="col-6 col-xl-3"><?= dashKpi('Waiting for the Head of Admin', $status['assigned'] ?? 0, 'stamp', 'info', $queueLink, null, true, 'Driver Assigned') ?></div>
         <div class="col-6 col-xl-3"><?= dashKpi('Rejected + lapsed this month', $badNow, 'ban', 'danger', 'vehicle_requests.php', dashTrend($badNow, $badBefore), false) ?></div>
         <div class="col-6 col-xl-3"><?= dashKpi('Confirmed trips', $status['processed'] ?? 0, 'circle-check', 'primary', 'vehicle_requests.php?tab=processed') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Pending with Heads of Department', $status['pending'] ?? 0, 'hourglass-half', 'warning', 'reminders.php', null, true, count($stalePending) . ' waiting over 24 h') ?></div>
+        <div class="col-6 col-xl-3"><?= dashKpi('Pending with Heads of Department', $status['pending'] ?? 0, 'hourglass-half', 'warning', 'vehicle_requests.php?tab=pending', null, true, count($stalePending) . ' waiting over 24 h') ?></div>
         <div class="col-6 col-xl-3"><?= dashKpi('Active drivers', $activeDrivers, 'id-badge', 'secondary', 'drivers.php', null, true, ($welfare ? 'Welfare today: ' . $welfare : 'No welfare duty set today')) ?></div>
         <div class="col-6 col-xl-3"><?= dashKpi('Vehicles available now', $fleet['available'], 'car-side', 'success', 'vehicles.php', null, true, $fleet['in_use'] . ' in use, ' . $fleet['maintenance'] . ' in maintenance') ?></div>
     </div>
@@ -69,7 +69,7 @@ adminPageStart('Dashboard');
             <div class="dash-card">
                 <h6><span><i class="fas fa-bolt text-warning me-1"></i>Needs your action</span></h6>
                 <?php if (!$needDriver && !$noDriver && !$waitingHead && !$stalePending): ?><?= dashEmpty('Nothing is waiting. Well done.', 'circle-check') ?><?php endif; ?>
-                <?php foreach ([['Assign a driver', $needDriver, 'vehicle_requests.php?tab=approved', 'success'], ['Without driver: send to the Head of Admin', $noDriver, 'vehicle_requests.php?tab=approved', 'info'], ['Waiting for the Head of Admin', $waitingHead, $queueLink, 'info'], ['Pending over 24 hours (send a reminder)', $stalePending, 'reminders.php', 'warning']] as [$title, $list, $href, $tone]): if (!$list) { continue; } ?>
+                <?php foreach ([['Assign a driver', $needDriver, 'vehicle_requests.php?tab=approved', 'success'], ['Without driver: send to the Head of Admin', $noDriver, 'vehicle_requests.php?tab=approved', 'info'], ['Waiting for the Head of Admin', $waitingHead, $queueLink, 'info'], ['Pending over 24 hours (send a reminder)', $stalePending, 'vehicle_requests.php?tab=pending', 'warning']] as [$title, $list, $href, $tone]): if (!$list) { continue; } ?>
                     <div class="dash-group <?= $tone === 'warning' ? 'warn' : ($tone === 'info' ? 'info' : '') ?>"><?= dh($title) ?></div>
                     <?php foreach ($list as $r): ?>
                         <a class="dash-row text-decoration-none text-dark" href="<?= dh($href) ?>">

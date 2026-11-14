@@ -22,20 +22,19 @@ ok('anonymous visitors cannot use any page or endpoint (%d checked)'%len(PAGES),
 # 2. role matrix for pages
 sess={'staff':user('stf001'),'hod':user('hos002'),'driver':user('drv001'),'admin':user('admin'),'head':user('head001')}
 for rel in PAGES:
-    if rel.startswith('ajax/') or rel in ('notifications.php','help.php','change_password.php'): continue
+    if rel.startswith('ajax/') or rel in ('notifications.php','change_password.php'): continue
     top=rel.split('/')[0]
     allowed={'admin':{'admin','head'},'staff':{'staff','hod','driver','admin','head'},'supervisor':{'hod'},'driver':{'driver'}}.get(top)
     if rel=='admin/approve_assignments.php': allowed={'head'}
     if allowed is None: continue
     for role,c in sess.items():
-        if rel.endswith(('view_driver.php','edit_driver.php','view_vehicle.php','edit_vehicle.php','replace_driver.php','assign_driver.php','task_sheet.php')): url=rel+'?id=1&schedule_id=1&request_id=1'
+        if rel.endswith(('view_driver.php','edit_driver.php','view_vehicle.php','edit_vehicle.php','replace_driver.php','assign_driver.php')): url=rel+'?id=1&schedule_id=1&request_id=1'
         else: url=rel
         r=c.get(url)
         is_ok = r.status_code==200
         if role in allowed: continue
         ok('%s is NOT open to %s'%(rel,role), not is_ok)
 # 3. CSRF on every POST
-r=sess['admin'].post('admin/reminders.php',{'request_id':1},csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code==419)
 r=sess['staff'].post('ajax/cancel_request.php',{'request_id':1},csrf=False); ok('AJAX POST without a CSRF token is refused (419)', r.status_code==419)
 # 4. login rules
 c=C()
@@ -58,9 +57,6 @@ uid_=sql("SELECT user_id FROM users WHERE username='stf003'"); sess['admin'].pos
 ok('user accounts: managed by the Assistant, no action deletes a user', sess['admin'].get('admin/users.php').status_code==200 and sql("SELECT COUNT(*) FROM users WHERE username='stf003'")=='1' and sess['staff'].get('admin/users.php').status_code==302)
 ok('passwords are stored hashed (bcrypt)', sql("SELECT COUNT(*) FROM users WHERE password NOT LIKE '$2y$%'")=='0')
 # importer
-imp=subprocess_run=__import__('subprocess').run(['php',ROOT+'/tools/import_staff.php'],capture_output=True,text=True,env=dict(os.environ,DSMS_DB=DB))
-ok('tools/import_staff.php imports the sample file', 'Done:' in imp.stdout and imp.returncode==0)
-ok('imported user exists with the staff-system fields', sql("SELECT CONCAT(role,'/',department,'/',is_active) FROM users WHERE username='stf099'")=='staff/Faculty of Education/1')
 # 5. response times on the demo data (about 3 seconds at most)
 def timed(fn):
     t=time.time(); fn(); return time.time()-t

@@ -15,8 +15,7 @@ Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5. No framework, no build step.
 | Head of Department (HoD) | `supervisor` | Approve / reject (reason required) / cancel requests of **their own PTJ**, add comments |
 | Administrative Assistant | `admin` | Process Approved requests (recommended driver), Replace Driver, vehicles + maintenance, drivers, internal tasks, welfare duty, calendar, manual reminders, reports, settings |
 | Head of Admin | `head_admin` | Everything the Assistant can do, plus **approve / reject every driver assignment** |
-
-Every role is also Staff and can request a vehicle. Accounts are synchronised from the UIS staff system
+Every role is also Staff and can request a vehicle. Staff and Heads of Department register themselves; the Administrative Assistant creates driver accounts.
 (`tools/import_staff.php`); there is no user management, temporary password or manual unlock.
 Demo accounts: `LOGIN_ACCOUNTS.txt`.
 
@@ -70,7 +69,6 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **User accounts (SRS summary of 10 Nov 2026)** — The Administrative Assistant and the Head of Admin manage accounts in *Users* (`admin/users.php`, `add_user.php`, `edit_user.php`): create the driver account (then register it as a driver in *Add Driver*), change details/PTJ/role, reset a password, make an account Inactive or Active again. Accounts are never deleted. Only the Head of Admin creates or changes Administrative Assistant and Head of Admin accounts; nobody can deactivate or change the role of their own account; an active driver is made Inactive on the Drivers page first; a Head of Department with pending requests cannot be made Inactive (handle them first, UC001 A3.2). Passwords are never logged. `tools/import_staff.php` stays for loading many accounts at once. This replaces the v1.1 rule that accounts only come from the UIS staff system; `docs/SRS.md` still says v1.1.
 - **Look and feel** — `assets/css/uis-theme-premium.css` (design system export) with `assets/css/uis-polish.css` on top: deep UIS green sidebar, gradient hero banners with readable white text, tinted KPI icon tiles, soft rounded cards, pill status badges, dark-mode toggle (header on desktop, top bar on phone). All three CSS files are loaded after `style.css` in `includes/header.php`, `includes/admin_page.php` and `admin/settings.php`; remove the two extra `<link>` lines to go back to the plain look.
 - **Bilingual interface: English / Bahasa Melayu (outside the SRS)** — the *EN | BM* switch is in the sidebar, the mobile top bar and the login page. The choice is kept in the cookie `dsms_lang` and on the account (`users.language`, migration `2026_11_user_language`); a language chosen on the login page is saved at login, and a new browser gets the language of the account. The pages stay written in English: `includes/i18n.php` translates the finished page (text, placeholders, titles, texts in scripts, AJAX answers) with the dictionary `includes/lang/ms.php`. A text that is missing from the dictionary simply stays English. To add or fix a translation, edit `includes/lang/ms.php` (English text => Malay); entries with a space also work as fragments of longer messages. Notification e-mails are sent in the language of the receiver; in-system notifications are stored in English and shown in the viewer's language. PDF/Excel exports, the printed task sheet header and the user's own data (names, destinations, comments) are not translated.
-- **WhatsApp (optional, outside the SRS)** — SRS v1.1 lists only in-system and e-mail notifications. The code stays but is **off by default**: while `enabled` is false nothing is sent and nothing is written to `whatsapp_log`. If it is switched on, drivers are also told on WhatsApp through an OpenWA server (setup: `docs/OPENWA_SETUP.md`). Copy `config/whatsapp.sample.php` to `config/whatsapp.php`, fill in the server address, API key and session id, set `enabled` to true. Attempts are written to `whatsapp_log`; a failure never stops the in-system notification or the e-mail. OpenWA is not an official WhatsApp API, so the sending number may be blocked: use a dedicated number.
 - **Reports** (UC031/UC032) — six monthly reports, each on screen, printed, PDF or Excel: tasks per driver, weekend tasks per driver, outside working hours per driver (kept in addition to the SRS list), welfare duty days per driver, driver replacements (with reason and who made it) and vehicle usage. A month without data shows "No data for the selected month".
 - **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
@@ -103,7 +101,6 @@ E-mail: copy `config/mail.sample.php` to `config/mail.php` and fill in the SMTP 
 ## Importing staff
 
 ```
-php tools/import_staff.php path/to/staff.csv       # see tools/staff_sample.csv for the columns
 ```
 
 Add Driver (Admin → Drivers) picks an existing user with the Driver role and records the licence classes D / GDL / PSV.

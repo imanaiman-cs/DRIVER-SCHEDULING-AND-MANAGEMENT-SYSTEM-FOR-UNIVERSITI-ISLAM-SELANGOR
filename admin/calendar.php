@@ -86,7 +86,7 @@ adminPageStart('Schedule Calendar');
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
             <div class="modal-header"><h5 class="modal-title" id="calModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body"><dl class="row mb-0" id="calModalBody"></dl></div>
-            <div class="modal-footer"><a class="btn btn-outline-secondary btn-sm d-none" id="calSheet" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button></div>
         </div></div>
     </div>
@@ -221,7 +221,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (ev.kind === 'welfare' && ev.purpose) { rows[7] = ['Replacement reason', ev.purpose]; }
         rows.forEach(function (r) { if (!r[1]) { return; } dl.appendChild(el('dt', 'col-4 col-sm-3', r[0])); dl.appendChild(el('dd', 'col-8 col-sm-9', r[1])); });
         var sheet = document.getElementById('calSheet');
-        if (ev.schedule_id) { sheet.href = 'task_sheet.php?id=' + ev.schedule_id; sheet.classList.remove('d-none'); } else { sheet.classList.add('d-none'); }
         modal = modal || new bootstrap.Modal(document.getElementById('calModal'));
         modal.show();
     }

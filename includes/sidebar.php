@@ -100,8 +100,7 @@ if ($_is_admin_role) {
         'Requests' => array_merge(
             [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
             $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
-            $role === 'head_admin' ? [[['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Changes', 'changes']] : [],
-            [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
+            $role === 'head_admin' ? [[['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Changes', 'changes']] : []
         ),
         'Schedule' => [
             [['calendar.php'],       'admin/calendar.php',       'calendar-days', 'Schedule Calendar', null],
@@ -126,7 +125,7 @@ if ($_is_admin_role) {
     $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 } else {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
+              'My Tasks' => [[['schedules.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
                              [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null]]] + $_my_requests;
 }
 $_menu['My Account'] = [[['profile.php'], 'profile.php', 'id-card', 'My Profile', null]];      // UC016: every role
@@ -205,12 +204,6 @@ $_menu['My Account'] = [[['profile.php'], 'profile.php', 'id-card', 'My Profile'
     <!-- ── Sidebar Footer / Logout ───────────────────────────────── -->
     <div class="sidebar-footer">
         <?= languageSwitcher('mb-2') ?>
-        <a href="<?php echo SITE_URL; ?>/help.php"
-           class="sidebar-logout-btn mb-1 <?php echo $current_page === 'help.php' ? 'active' : ''; ?>"
-           style="background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);">
-            <span class="sidebar-icon"><i class="fas fa-circle-question" aria-hidden="true"></i></span>
-            <span class="sidebar-label">Help &amp; Guide</span>
-        </a>
         <a href="<?php echo SITE_URL; ?>/logout.php" class="sidebar-logout-btn"
            data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
             <span class="sidebar-icon"><i class="fas fa-right-from-bracket" aria-hidden="true"></i></span>
@@ -349,12 +342,7 @@ $_menu['My Account'] = [[['profile.php'], 'profile.php', 'id-card', 'My Profile'
                         <span class="badge bg-secondary ms-1" style="font-size:.65rem;"><?php echo $role_label; ?></span>
                     </span>
                 </li>
-                <li><hr class="dropdown-divider my-1"></li>
-                <li>
-                    <a class="dropdown-item" href="<?php echo SITE_URL; ?>/help.php" style="font-size:.84rem;">
-                        <i class="fas fa-circle-question me-2"></i>Help
-                    </a>
-                </li>
+
                 <li>
                     <a class="dropdown-item" href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket"
