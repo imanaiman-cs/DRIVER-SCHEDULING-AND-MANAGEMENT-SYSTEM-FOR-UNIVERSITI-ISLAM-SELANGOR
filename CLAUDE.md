@@ -33,10 +33,11 @@ exceptions, notes) before changing code, and follow it step by step. Anything th
   `docs/SRS_ALIGNMENT_PLAN.md`). Do not write a second version of an existing helper.
 - Status changes go through `changeRequestStatus()`; notifications through `notifyUsers()` (in-system + email, always).
 - Vehicle lock per time period, overlap rule `start < other_end AND end > other_start`, taken inside a transaction with `SELECT … FOR UPDATE`.
-- Request timing: less than 1 day before the trip → rejected (paper form BPTK/BPI/2025/PIN.5); less than 2 days → warning.
-  Pending after 1 day → automatic reminder email to the HoD (UC012); pending after 2 days → Lapsed, lock released.
+- Request timing (UC018): a trip less than 2 days away is accepted with a warning and marked Urgent (Urgent requests are listed first). There is
+  no paper form any more: all requests are made in the system. Pending after 1 day → automatic reminder email to the HoD (UC020);
+  pending after 2 days → Lapsed, reservation released. A vehicle is reserved from departure until 1 hour after the return.
 - Drivers and vehicles are deactivated, never deleted. Every approval, rejection, cancellation, assignment and replacement is
-  recorded with user, time and reason (`auditLog()`), and these records are never edited.
+  recorded with user, time and reason (`auditLog()`), and these records are never edited. Users are deactivated and never activated again (UC001.4).
 - Uploads: PDF/JPG/PNG only, max 5 MB.
 - New pages use `includes/admin_page.php` (`adminPageStart()` / `adminPageEnd()`) and are added to `includes/sidebar.php` for the right roles.
 
