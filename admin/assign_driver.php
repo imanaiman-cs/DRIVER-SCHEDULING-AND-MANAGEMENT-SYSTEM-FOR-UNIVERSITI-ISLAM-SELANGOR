@@ -86,9 +86,8 @@ $vendorOutAllowed = $licence === 'PSV' && !$rec['ranked'];          // UC017 A2:
 $vendorRetAllowed = $licence === 'PSV';                             // checked again on the server for the return window
 $vendorBox = function (string $p): string {
     return '<div class="row g-2 mt-1">'
-        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_name">Vendor name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_name" name="' . $p . '_vendor_name" maxlength="150"></div>'
-        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_plate">Bus registration number *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_plate" name="' . $p . '_vendor_plate" maxlength="20"></div>'
-        . '<div class="col-md-4"><label class="form-label small" for="' . $p . '_vendor_driver">Vendor driver name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_driver" name="' . $p . '_vendor_driver" maxlength="100"></div></div>';
+        . '<div class="col-md-6"><label class="form-label small" for="' . $p . '_vendor_name">Vendor name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_name" name="' . $p . '_vendor_name" maxlength="150"></div>'
+        . '<div class="col-md-6"><label class="form-label small" for="' . $p . '_vendor_plate">Bus plate number *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_plate" name="' . $p . '_vendor_plate" maxlength="20"></div></div>';
 };
 
 adminPageStart('Assign Driver');

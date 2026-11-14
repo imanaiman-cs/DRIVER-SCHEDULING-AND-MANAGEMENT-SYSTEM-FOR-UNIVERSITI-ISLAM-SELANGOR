@@ -212,7 +212,7 @@ function recommendDrivers(mysqli $conn, array $task): array
     $sum = $w['tasks'] + $w['weekend'] + $w['experience'];
     if ($sum > 0 && abs($sum - 1.0) > 0.0001) { foreach ($w as $k => $x) { $w[$k] = $x / $sum; } }      // always on a 0-100 scale, whatever the weights are
 
-    $drivers = $conn->query("SELECT driver_id, name, employee_id, phone, license_class, status, date_joined FROM drivers ORDER BY name")->fetch_all(MYSQLI_ASSOC);
+    $drivers = $conn->query("SELECT driver_id, name, employee_id, phone, license_class, license_expiry, status, date_joined FROM drivers ORDER BY name")->fetch_all(MYSQLI_ASSOC);
     $counts  = driverMonthCounts($conn, substr($start, 0, 7));
     $welfare = [];
     for ($d = strtotime(substr($start, 0, 10)); $d <= strtotime(substr($end, 0, 10)); $d += 86400) {
@@ -227,6 +227,8 @@ function recommendDrivers(mysqli $conn, array $task): array
             $why = 'Not an active driver';
         } elseif ($need !== null && !driverHoldsLicence($d['license_class'], $need)) {
             $why = 'Licence class ' . $need . ' needed';
+        } elseif (!empty($d['license_expiry']) && $d['license_expiry'] < substr($end, 0, 10)) {
+            $why = 'Licence expired on ' . date('d M Y', strtotime($d['license_expiry']));      // UC009: a driver whose licence has expired is not recommended
         } else {
             $why = driverUnavailableReason($conn, $id, $start, $end) ?? driverClashReason($conn, $id, $start, $end, $except);   // UC018 1.3: marked unavailable (UC030)
         }

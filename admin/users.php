@@ -1,12 +1,13 @@
 <?php
 // ============================================================
-// admin/users.php  -  User accounts (SRS summary of 10 Nov 2026): list, search, make Inactive / Active again.
+// admin/users.php  -  User accounts (SRS summary of 10 Nov 2026): list, search, deactivate.
 // Administrative Assistant and Head of Admin. Accounts are never deleted. Only the Head of Admin changes
 // Administrative Assistant and Head of Admin accounts.
 // ============================================================
 $current_page = 'users.php';
 require_once '../config/database.php';
 require_once '../includes/admin_page.php';
+require_once 'fleet_helpers.php';
 requireAdmin();
 
 $me = (int)$_SESSION['user_id'];
@@ -26,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $u = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if (!$u || !in_array($act, ['deactivate', 'activate'], true)) {
+    if (!$u || $act !== 'deactivate') {
         setFlash('danger', 'That account was not found.');
     } elseif (!canManageUser($u, $actorRole, $me)) {
         setFlash('danger', 'Only the Head of Admin can change an Administrative Assistant or Head of Admin account.');
@@ -35,8 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($act === 'deactivate') {
         if ((int)$u['is_active'] === 0) {
             setFlash('warning', $u['full_name'] . ' is already Inactive.');
-        } elseif ((int)$u['active_driver'] > 0) {
-            setFlash('danger', $u['full_name'] . ' is an active driver. Make the driver Inactive first (Drivers page).');
+        } elseif ((int)$u['active_driver'] > 0) {                                                                   // UC001.4: a driver account is deactivated with the driver record
+            $res = setDriverActive($conn, (int)$u['driver_id'], false);
+            setFlash($res['ok'] ? 'success' : 'danger', $res['message'] . ($res['items'] ? ' ' . implode(' | ', array_map(fn($i) => $i['text'], $res['items'])) : ''));   // 3.1: the upcoming tasks are listed
         } else {
             if ($u['role'] === 'supervisor' && pendingRequestsOfApprover($conn, $id) > 0) {                       // UC001 A3.2
                 setFlash('danger', $u['full_name'] . ' is a Head of Department with pending requests. The pending requests must be handled first.');
@@ -48,12 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 setFlash('success', $u['full_name'] . ' is now Inactive and cannot sign in. The history is kept.');
             }
         }
-    } else {
-        $stmt = $conn->prepare('UPDATE users SET is_active = 1, failed_attempts = 0, locked_until = NULL WHERE user_id = ?');
-        $stmt->bind_param('i', $id); $stmt->execute(); $stmt->close();
-        if ($u['role'] === 'supervisor') { refreshApprovers($conn, $u['department']); }
-        auditLog($conn, 'user_activate', null, $u['full_name'] . ' (' . $u['username'] . ') made Active again');
-        setFlash('success', $u['full_name'] . ' is Active again.');
     }
     header('Location: users.php' . (!empty($_POST['back']) && preg_match('/^[a-z0-9=&_%.\-+ ]*$/i', $_POST['back']) ? '?' . $_POST['back'] : ''));
     exit();
@@ -80,9 +76,9 @@ adminPageStart('Users');
 ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
         <h4 class="fw-bold mb-0"><i class="fas fa-users text-success me-2"></i>User accounts</h4>
-        <a href="add_user.php" class="btn btn-success btn-sm"><i class="fas fa-user-plus me-1"></i>Add account</a>
+        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-user-plus me-1"></i>Create driver account</a>
     </div>
-    <p class="text-muted small">Staff register their own account. Here you create driver and other accounts, change details, reset a password and make an account Inactive. Accounts are never deleted. After you create a driver account, register it as a driver in <a href="add_driver.php">Add Driver</a>.</p>
+    <p class="text-muted small">Staff and Heads of Department register their own accounts. Here you create driver accounts, view and update accounts (department, role, licence details) and deactivate an account. Accounts are never deleted.</p>
     <form method="get" class="row g-2 mb-3">
         <div class="col-12 col-md-4"><input class="form-control form-control-sm" name="q" value="<?= $h($q) ?>" placeholder="Name, staff ID, e-mail or PTJ" aria-label="Search"></div>
         <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="role" aria-label="Role"><option value="">All roles</option>
@@ -111,8 +107,6 @@ adminPageStart('Users');
                                 <input type="hidden" name="user_id" value="<?= (int)$u['user_id'] ?>"><input type="hidden" name="back" value="<?= $h($back) ?>">
                                 <?php if ((int)$u['is_active']): ?>
                                     <button class="btn btn-sm btn-outline-danger" name="action" value="deactivate" data-confirm="<?= $h($u['full_name']) ?> will not be able to sign in. The history is kept." data-confirm-title="Make this account Inactive?" data-confirm-button="Make Inactive" data-confirm-tone="danger"><i class="fas fa-user-slash"></i><span class="d-none d-md-inline ms-1">Deactivate</span></button>
-                                <?php else: ?>
-                                    <button class="btn btn-sm btn-success" name="action" value="activate"><i class="fas fa-user-check"></i><span class="d-none d-md-inline ms-1">Activate</span></button>
                                 <?php endif; ?>
                             </form>
                             <?php endif; ?>

@@ -107,20 +107,15 @@ function closeVehicleMaintenance(mysqli $conn, int $vehicle_id): void
 }
 
 /**
- * UC008 / UC009: sets the status an administrator may choose.
- * @return array{ok:bool, message:string, items:array}  items = trips to list (warning, or the reason it is refused)
+ * SRS 14 Nov UC002.3 / UC002.4: sets the status of a vehicle: Active ('available'), Under Maintenance ('maintenance') or Inactive (deactivated).
+ * Under Maintenance and Inactive are refused while the vehicle has upcoming bookings: they are listed so that another vehicle can be assigned
+ * to each booking first. An inactive vehicle cannot be activated again.
+ * @return array{ok:bool, message:string, items:array}  items = the bookings that block the change
  */
-function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string $workshop = '', string $return_date = ''): array
+function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status): array
 {
     if (!in_array($status, VEHICLE_ADMIN_STATUSES, true)) {
-        return ['ok' => false, 'message' => 'Choose Available, Under Maintenance or Inactive. "In Use" is set by the system.', 'items' => []];
-    }
-    $workshop = mb_substr(trim($workshop), 0, 120);
-    $items = [];
-    if ($status === 'maintenance') {
-        if ($workshop === '') { return ['ok' => false, 'message' => 'Enter the workshop name.', 'items' => []]; }
-        if ($return_date === '' || !isValidDate($return_date)) { return ['ok' => false, 'message' => 'Enter the expected return date.', 'items' => []]; }
-        if ($return_date < date('Y-m-d')) { return ['ok' => false, 'message' => 'The expected return date cannot be in the past.', 'items' => []]; }
+        return ['ok' => false, 'message' => 'Choose Active or Under Maintenance. "In Use" is set by the system.', 'items' => []];
     }
     $conn->begin_transaction();
     try {
@@ -130,24 +125,15 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string 
         $v = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         if (!$v) { $conn->rollback(); return ['ok' => false, 'message' => 'Vehicle not found.', 'items' => []]; }
-
-        if ($status === 'inactive') {
+        if ($v['status'] === 'inactive') { $conn->rollback(); return ['ok' => false, 'message' => $v['plate_number'] . ' is inactive and cannot be changed.', 'items' => []]; }
+        if ($status === 'inactive' || $status === 'maintenance') {
             $items = vehicleUpcomingTrips($conn, $vehicle_id);
             if ($items) {
                 $conn->rollback();
-                return ['ok' => false, 'message' => $v['plate_number'] . ' has upcoming trips, so it cannot be made Inactive. Replace the vehicle on these trips or wait until they are over.', 'items' => $items];
+                return ['ok' => false, 'message' => $v['plate_number'] . ' has upcoming bookings, so it cannot be ' . ($status === 'inactive' ? 'made Inactive' : 'set Under Maintenance') . '. Assign another vehicle to each booking first.', 'items' => $items];
             }
         }
-        if ($status === 'maintenance') {
-            $items = vehicleUpcomingTrips($conn, $vehicle_id, $return_date);
-            closeVehicleMaintenance($conn, $vehicle_id);
-            $stmt = $conn->prepare('INSERT INTO vehicle_maintenance (vehicle_id, start_date, end_date, workshop) VALUES (?, CURDATE(), ?, ?)');
-            $stmt->bind_param('iss', $vehicle_id, $return_date, $workshop);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            closeVehicleMaintenance($conn, $vehicle_id);
-        }
+        if ($status !== 'maintenance') { closeVehicleMaintenance($conn, $vehicle_id); }
         $stmt = $conn->prepare('UPDATE vehicles SET status = ? WHERE vehicle_id = ?');
         $stmt->bind_param('si', $status, $vehicle_id);
         $stmt->execute();
@@ -158,12 +144,8 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string 
         error_log('setVehicleStatus: ' . $e->getMessage());
         return ['ok' => false, 'message' => 'Database error. Please try again.', 'items' => []];
     }
-    auditLog($conn, 'vehicle_status', null, $v['plate_number'] . ': ' . $v['status'] . ' -> ' . $status . ($status === 'maintenance' ? " ($workshop, back $return_date)" : ''));
-    $msg = $v['plate_number'] . ' is now ' . vehicleStatusLabel($status) . '.';
-    if ($status === 'maintenance' && $items) {
-        $msg .= ' Warning: ' . count($items) . ' upcoming trip(s) fall in the maintenance period.';
-    }
-    return ['ok' => true, 'message' => $msg, 'items' => $items];
+    auditLog($conn, 'vehicle_status', null, $v['plate_number'] . ': ' . $v['status'] . ' -> ' . $status);
+    return ['ok' => true, 'message' => $v['plate_number'] . ' is now ' . vehicleStatusLabel($status) . '.', 'items' => []];
 }
 
 // ------------------------------------------------------------
@@ -221,6 +203,7 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
 /** UC004: deactivate ($active=false) or reactivate a driver. @return array{ok:bool, message:string, items:array} */
 function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 {
+    if ($active) { return ['ok' => false, 'message' => 'A deactivated driver cannot be activated again (SRS 14 Nov UC001.4).', 'items' => []]; }
     $conn->begin_transaction();
     try {
         $stmt = $conn->prepare('SELECT name, status FROM drivers WHERE driver_id = ? FOR UPDATE');
@@ -241,6 +224,12 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
         $stmt->bind_param('si', $to, $driver_id);
         $stmt->execute();
         $stmt->close();
+        if (!$active) {                                                  // UC001.4: a deactivated driver cannot log in
+            $stmt = $conn->prepare('UPDATE users SET is_active = 0 WHERE driver_id = ?');
+            $stmt->bind_param('i', $driver_id);
+            $stmt->execute();
+            $stmt->close();
+        }
         $conn->commit();
     } catch (Throwable $e) {
         $conn->rollback();
@@ -416,18 +405,9 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null, bool 
             <select class="form-select" id="fuel_level" name="fuel_level" required><option value="">Choose...</option>
                 <?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($v['fuel_level'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select><?= $err('fuel_level') ?></div>
         <?php endif; ?>
-        <div class="col-12"><a class="small text-decoration-none" data-bs-toggle="collapse" href="#moreFields" role="button"><i class="fas fa-chevron-down me-1"></i>More details (optional)</a></div>
-        <div class="col-12 collapse <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'show' : '' ?>" id="moreFields"><div class="row g-3">
-            <div class="col-12 col-md-4"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
-            <div class="col-6 col-md-4"><label class="form-label" for="year">Year</label><input class="form-control" id="year" name="year" inputmode="numeric" maxlength="4" value="<?= $val('year') ?>"><?= $err('year') ?></div>
-            <div class="col-6 col-md-4"><label class="form-label" for="fuel_type">Fuel</label>
-                <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
-            <div class="col-12"><label class="form-label" for="notes">Notes</label><textarea class="form-control" id="notes" name="notes" rows="2" maxlength="1000"><?= $val('notes') ?></textarea></div>
-            <div class="col-12"><label class="form-label" for="photo">Photo</label>
-                <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(vehiclePhotoUrl($photo)) ?>" alt="Vehicle photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>
-                <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-                <div class="form-text">JPG, PNG or WebP, up to 2 MB.</div></div>
-        </div></div>
+        <div class="col-12 col-md-6"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
+        <div class="col-12 col-md-6"><label class="form-label" for="fuel_type">Fuel type <span class="text-danger">*</span></label>
+            <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
     </div>
     <script>
     (function () {

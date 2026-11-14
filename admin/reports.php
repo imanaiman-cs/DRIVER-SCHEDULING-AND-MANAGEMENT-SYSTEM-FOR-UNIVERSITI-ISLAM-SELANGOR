@@ -10,7 +10,7 @@ require_once '../includes/report_export.php';
 requireAdmin();
 
 $types = reportTypes();
-$type  = array_key_exists($_GET['type'] ?? '', $types) ? $_GET['type'] : 'tasks';
+$type  = array_key_exists($_GET['type'] ?? '', $types) ? $_GET['type'] : 'workload';
 $month = (string)($_GET['month'] ?? '');
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) { $month = date('Y-m'); }
 $rep = buildReport($conn, $type, $month);
@@ -37,7 +37,6 @@ adminPageStart('Reports');
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
             <div><h5 class="fw-bold mb-0"><?= $h($rep['title']) ?></h5><div class="text-muted"><?= $h(date('F Y', strtotime($month . '-01'))) ?></div></div>
             <div class="d-flex flex-wrap gap-2 no-print">
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
                 <a class="btn btn-sm btn-outline-danger" href="?<?= $q ?>&amp;export=pdf"><i class="fas fa-file-pdf me-1"></i>PDF</a>
                 <a class="btn btn-sm btn-outline-success" href="?<?= $q ?>&amp;export=xlsx"><i class="fas fa-file-excel me-1"></i>Excel</a>
             </div>

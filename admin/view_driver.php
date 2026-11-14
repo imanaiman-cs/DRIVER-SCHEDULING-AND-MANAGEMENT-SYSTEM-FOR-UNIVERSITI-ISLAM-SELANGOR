@@ -28,8 +28,6 @@ adminPageStart($d['name']);
             <a class="btn btn-outline-secondary btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <?php if ($d['status'] === 'active'): ?>
                 <button class="btn btn-outline-danger btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this driver Inactive?">Deactivate</button>
-            <?php else: ?>
-                <button class="btn btn-success btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
             <?php endif; ?>
             <a class="btn btn-outline-secondary btn-sm" href="drivers.php">Back</a>
         </div>

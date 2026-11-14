@@ -25,7 +25,7 @@ for name, c in (('staff', stf), ('hod', hod), ('driver', drv[1])):
     for p in ('admin/internal_tasks.php', 'admin/welfare.php', 'admin/calendar.php', 'admin/reports.php'):
         r = c.get(p); ok(f'{name} cannot open {p}', r.status_code == 302 and 'Selangor' not in r.text)
     r = c.get('ajax/calendar_events.php', start=D(0), end=D(7)); ok(f'{name} calendar json 403', r.status_code == 403 and json.loads(r.text)['success'] is False)
-    r = c.get('admin/reports.php', type='tasks', month=D(0)[:7], export='pdf'); ok(f'{name} cannot export report', r.status_code == 302)
+    r = c.get('admin/reports.php', type='workload', month=D(0)[:7], export='pdf'); ok(f'{name} cannot export report', r.status_code == 302)
 anon = lib.C()
 r = anon.get('ajax/calendar_events.php', start=D(0), end=D(7)); ok('anon calendar json 403', r.status_code == 403)
 for p in ('admin/internal_tasks.php', 'driver/schedules.php', 'notifications.php', 'admin/reports.php'):
@@ -269,49 +269,30 @@ M = D(0)[:7]
 ws, we = '08:00:00', '17:30:00'
 a, b = M + '-01', sql(f"select last_day('{M}-01')")
 def rep(t, **kw): return admin.get('admin/reports.php', type=t, month=M, **kw)
-r = rep('tasks'); tb = table(main_html(r))
-exp = {int(x[0]): x for x in rows(f"""select d.driver_id, d.name, d.employee_id,
+r = rep('workload'); tb = table(main_html(r))
+expd = {x[1]: x for x in rows(f"""select d.driver_id, d.name,
    (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}'),
-   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}') from drivers d""")}
-ok('tasks per driver table', r.status_code == 200 and not errs(r) and tb[0][:5] == ['Driver', 'Employee ID', 'Request tasks', 'Internal tasks', 'Total tasks'])
-good = True; seen = 0
-for line in tb[1:-1]:
-    e = [x for x in exp.values() if x[1] == line[0]][0]
-    if line[2:] != [e[3], e[4], str(int(e[3]) + int(e[4]))]: good = False; print('  mismatch', line, e)
-    seen += 1
-ok('tasks per driver numbers match SQL', good and seen >= 10)
-tot = sum(int(x[3]) + int(x[4]) for x in exp.values() if any(l[0] == x[1] for l in tb[1:-1]))
-ok('tasks totals row', tb[-1][0] == 'Total' and tb[-1][4] == str(tot))
-r = rep('outside'); tb = table(main_html(r))
-expo = {x[0]: x for x in rows(f"""select d.name,
-   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}') + (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}'),
-   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}' and (dayofweek(s.trip_date) in (1,7) or s.start_time<'{ws}' or s.end_time>'{we}')) +
-   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}' and (dayofweek(t.task_date) in (1,7) or t.start_time<'{ws}' or t.end_time>'{we}')) from drivers d""")}
-good = all(l[2] == expo[l[0]][1] and l[3] == expo[l[0]][2] for l in tb[1:-1]); ok('outside working hours numbers match SQL', good and len(tb) > 5 and any(l[3] != '0' for l in tb[1:-1]))
-r = rep('weekend'); tb = table(main_html(r))
-expk = {x[0]: x for x in rows(f"""select d.name,
-   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}') + (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}'),
+   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}'),
+   (select count(*) from welfare_roster w where w.driver_id=d.driver_id and w.status='active' and w.duty_date between '{a}' and '{b}'),
    (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}' and dayofweek(s.trip_date) in (1,7)) +
    (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}' and dayofweek(t.task_date) in (1,7)) from drivers d""")}
-ok('weekend tasks per driver: headers', tb[0][:4] == ['Driver', 'Employee ID', 'Total tasks', 'Weekend tasks'])
-ok('weekend tasks numbers match SQL (Saturday and Sunday only)', len(tb) > 5 and all(l[2] == expk[l[0]][1] and l[3] == expk[l[0]][2] for l in tb[1:-1]))
-ok('weekend tasks totals row', tb[-1][0] == 'Total' and tb[-1][3] == str(sum(int(l[3]) for l in tb[1:-1])))
-r = rep('welfare'); tb = table(main_html(r))
-expw = {x[0]: x[1] for x in rows(f"select d.name, (select count(*) from welfare_roster w where w.driver_id=d.driver_id and w.duty_date between '{a}' and '{b}') from drivers d")}
-ok('welfare days numbers match SQL', all(l[2] == expw[l[0]] for l in tb[1:-1]) and tb[-1][2] == str(sum(int(l[2]) for l in tb[1:-1])) and int(tb[-1][2]) == count(f"select count(*) from welfare_roster where duty_date between '{a}' and '{b}'"))
+ok('Driver Workload: headers', r.status_code == 200 and not errs(r) and tb[0][:6] == ['Driver', 'Employee ID', 'Request tasks', 'Internal tasks', 'Welfare duties', 'Weekend tasks'])
+good = True; seen = 0
+for line in tb[1:-1]:
+    e = expd[line[0]]
+    if line[2:6] != [e[2], e[3], e[4], e[5]]: good = False; print('  mismatch', line, e)
+    seen += 1
+ok('Driver Workload numbers match SQL (request, internal, welfare, weekend)', good and seen >= 10)
+ok('Driver Workload totals row', tb[-1][0] == 'Total' and tb[-1][2] == str(sum(int(l[2]) for l in tb[1:-1])) and int(tb[-1][4]) > 0)
+r = rep('vehicle'); tb = table(main_html(r))
+sql("INSERT INTO task_reports (schedule_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition) SELECT schedule_id, driver_id, vehicle_id, CONCAT(trip_date,' 08:00:00'), CONCAT(trip_date,' 12:00:00'), 1000, 1250, 'half', 'ok' FROM schedules WHERE driver_id IS NOT NULL AND vehicle_id IS NOT NULL AND status<>'cancelled' AND trip_date BETWEEN '%s' AND '%s' LIMIT 1" % (a, b))
 r = rep('vehicle'); tb = table(main_html(r))
 expv = {x[0]: x for x in rows(f"""select concat_ws(' ', v.plate_number, v.brand, v.model),
    (select count(*) from schedules s where s.vehicle_id=v.vehicle_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}'),
-   round(coalesce((select sum(timestampdiff(minute,s.start_dt,s.end_dt)) from schedules s where s.vehicle_id=v.vehicle_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}'),0)/60,2),
-   round(coalesce((select sum(timestampdiff(minute,t.start_dt,t.end_dt)) from internal_tasks t where t.vehicle_id=v.vehicle_id and t.status='active' and t.task_date between '{a}' and '{b}'),0)/60,2),
-   coalesce((select sum(greatest(0, datediff(least(m.end_date,'{b}'), greatest(m.start_date,'{a}'))+1)) from vehicle_maintenance m where m.vehicle_id=v.vehicle_id and m.start_date<='{b}' and m.end_date>='{a}'),0) from vehicles v""")}
-num = lambda s: float(s)
-good = True
-for l in tb[1:-1]:
-    e = expv[l[0]]
-    if not (int(l[2]) == int(e[1]) and abs(num(l[3]) - num(e[2])) < .01 and abs(num(l[4]) - num(e[3])) < .01 and int(l[5]) == int(float(e[4]))): good = False; print('  mismatch', l, e)
-ok('vehicle usage numbers match SQL (trips, hours, internal hours, maintenance days)', good and len(tb) > 5)
-ok('maintenance days counted for WB 3322 D', any(l[0].startswith('WB 3322') and int(l[5]) > 0 for l in tb[1:-1]))
+   coalesce((select sum(r.end_mileage-r.start_mileage) from task_reports r where r.vehicle_id=v.vehicle_id and date(r.actual_depart) between '{a}' and '{b}'),0) from vehicles v""")}
+ok('Vehicle Usage: headers', tb[0][:4] == ['Vehicle', 'Type', 'Trips', 'Total mileage (km)'])
+good = all(int(l[2]) == int(expv[l[0]][1]) and int(l[3]) == int(float(expv[l[0]][2])) for l in tb[1:-1])
+ok('Vehicle Usage numbers match SQL (number of trips and total mileage)', good and len(tb) > 5 and any(int(l[3]) == 250 for l in tb[1:-1]))
 # driver replacements (UC020 records, UC031)
 sql("DELETE FROM driver_replacements")
 sid = sql("SELECT schedule_id FROM schedules WHERE driver_id IS NOT NULL AND status<>'cancelled' LIMIT 1")
@@ -326,11 +307,11 @@ for ex in ('pdf', 'xlsx'):
     ok('driver replacements export %s works' % ex, rr.status_code == 200 and (rr.content[:5] == b'%PDF-' if ex == 'pdf' else rr.content[:2] == b'PK'))
 # no data for the month (UC031 exception 3.1)
 e = admin.get('admin/reports.php', type='replacements', month='2020-01'); ok('no data: the message is shown, no PHP errors', 'No data for the selected month' in e.text and not errs(e))
-ok('no data: PDF and Excel still download', admin.get('admin/reports.php', type='replacements', month='2020-01', export='pdf').content[:5] == b'%PDF-' and admin.get('admin/reports.php', type='tasks', month='2020-01', export='xlsx').content[:2] == b'PK')
-ok('the six report types of UC031 (tasks, weekend, outside hours, welfare, replacements, vehicle)', len(re.findall(r'<option value="(tasks|weekend|outside|welfare|replacements|vehicle)"', rep('tasks').text)) == 6 and 'report_driver' not in rep('tasks').text)
+ok('no data: PDF and Excel still download', admin.get('admin/reports.php', type='replacements', month='2020-01', export='pdf').content[:5] == b'%PDF-' and admin.get('admin/reports.php', type='workload', month='2020-01', export='xlsx').content[:2] == b'PK')
+ok('the three report types of UC011 (Driver Workload, Driver Replacement, Vehicle Usage), no Print button', len(re.findall(r'<option value="(workload|replacements|vehicle)"', rep('workload').text)) == 3 and 'window.print' not in rep('workload').text)
 ok('bad type falls back', admin.get('admin/reports.php', type='zzz', month='bad').status_code == 200)
 # export pdf / xlsx
-for t in ('tasks', 'weekend', 'outside', 'welfare', 'replacements', 'vehicle'):
+for t in ('workload', 'replacements', 'vehicle'):
     r = rep(t, export='pdf'); good, info = pdfcheck.check_pdf(r.content)
     ok(f'{t} PDF valid (header, xref offsets, stream lengths)', r.headers['Content-Type'] == 'application/pdf' and 'attachment' in r.headers['Content-Disposition'] and good, ) 
     if not good: print('  ', info)
@@ -346,8 +327,8 @@ for t in ('tasks', 'weekend', 'outside', 'welfare', 'replacements', 'vehicle'):
     first = [rr for rr in sheetrows.values() if rr.get('A') and rr.get('A') == (scr[0].replace('&', '&amp;'))]
     ok(f'{t} XLSX has headers, data and a numeric total', bool(hdr) and bool(first) and any((rr.get('A') or '').startswith('Total') for rr in sheetrows.values()))
     ok(f'{t} export starts with file bytes only (no HTML before)', r.content[:2] == b'PK' and rep(t, export='pdf').content[:5] == b'%PDF-')
-ok('xlsx numbers are real numbers', re.search(r'<c r="C5"[^>]*><v>\d+</v>', zipfile.ZipFile(io.BytesIO(rep('tasks', export='xlsx').content)).read('xl/worksheets/sheet1.xml').decode()) is not None)
-ok('csrf not injected into download', b'csrf_token' not in rep('tasks', export='pdf').content and b'csrf_token' not in rep('tasks', export='xlsx').content)
+ok('xlsx numbers are real numbers', re.search(r'<c r="C5"[^>]*><v>\d+</v>', zipfile.ZipFile(io.BytesIO(rep('workload', export='xlsx').content)).read('xl/worksheets/sheet1.xml').decode()) is not None)
+ok('csrf not injected into download', b'csrf_token' not in rep('workload', export='pdf').content and b'csrf_token' not in rep('workload', export='xlsx').content)
 
 # ---------------- cleanup of removed things ----------------
 import os

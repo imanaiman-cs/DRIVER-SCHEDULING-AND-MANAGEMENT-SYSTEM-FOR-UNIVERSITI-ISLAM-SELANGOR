@@ -654,7 +654,7 @@ function taskSummaryText(mysqli $conn, int $request_id): string
     $parts = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $parts[] = ((int)$r['leg_no'] === 2 ? 'Return' : 'Outbound') . ': ' . ($r['vendor_name'] !== null
-            ? 'vendor bus ' . $r['vendor_bus_plate'] . ' (' . $r['vendor_name'] . ', driver ' . $r['vendor_driver_name'] . ')'
+            ? 'vendor bus ' . $r['vendor_bus_plate'] . ' (' . $r['vendor_name'] . ')'
             : ($r['driver'] ?? 'no driver') . ' with ' . ($r['plate_number'] ?? 'no vehicle') . ($r['model'] ? ' (' . $r['model'] . ')' : ''));
     }
     $stmt->close();
@@ -1033,10 +1033,10 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
 
         // UC017 A2: a vendor bus is allowed only when no UIS driver with the PSV licence is available for that task
         $vendorOk = function (array $v, array $w, string $label) use ($conn, $mainVehicle, $req): ?string {
-            if (trim((string)($v['name'] ?? '')) === '' || trim((string)($v['plate'] ?? '')) === '' || trim((string)($v['driver'] ?? '')) === '') {
-                return 'Enter the vendor name, the bus registration number and the vendor driver name.';
+            if (trim((string)($v['name'] ?? '')) === '' || trim((string)($v['plate'] ?? '')) === '') {
+                return 'Enter the vendor name and the bus plate number.';
             }
-            if (mb_strlen((string)$v['name']) > 150 || mb_strlen((string)$v['plate']) > 20 || mb_strlen((string)$v['driver']) > 100) { return 'The vendor details are too long.'; }
+            if (mb_strlen((string)$v['name']) > 150 || mb_strlen((string)$v['plate']) > 20) { return 'The vendor details are too long.'; }
             $q = $conn->prepare('SELECT license_required FROM vehicles WHERE vehicle_id = ?');
             $q->bind_param('i', $mainVehicle);
             $q->execute();
@@ -1347,6 +1347,15 @@ const APPROVAL_REMINDER_HOURS = 24;
  * $automatic = false (the Administrative Assistant): the Head of Department AND the staff member are reminded.
  * @return array{ok:bool, message:string, email_error:?string}
  */
+/** UC020 step 1.3: the time left before a Pending request lapses (the lapse window counts from the day it was submitted). */
+function lapseTimeLeftText(mysqli $conn, array $req): string
+{
+    $left = strtotime($req['created_at']) + max(1, getSettingInt($conn, 'LAPSE_HOURS')) * 3600 - time();
+    if ($left <= 0) { return 'less than 1 hour'; }
+    $h = (int)ceil($left / 3600);
+    return $h >= 24 ? floor($h / 24) . ' day(s) ' . ($h % 24) . ' hour(s)' : $h . ' hour(s)';
+}
+
 function sendApprovalReminder(mysqli $conn, int $request_id, bool $automatic = false): array
 {
     $stmt = $conn->prepare("SELECT vr.*, u.full_name AS staff_name FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id WHERE vr.request_id = ?");
@@ -1361,7 +1370,7 @@ function sendApprovalReminder(mysqli $conn, int $request_id, bool $automatic = f
     if ($automatic && $hod === 0) { return ['ok' => false, 'message' => 'The request has no Head of Department.', 'email_error' => null]; }
     $err = null;
     $res = notifyUsers($conn, $automatic ? [$hod] : array_filter([(int)$req['staff_id'], $hod]),
-        "Reminder: request #$request_id from {$req['staff_name']} to {$req['destination']} has been waiting for approval for $days day(s) and will lapse after " . lapseWindowText($conn) . '.',
+        "Reminder: request #$request_id from {$req['staff_name']} to {$req['destination']} has been waiting for approval for $days day(s). Time left before it lapses: " . lapseTimeLeftText($conn, $req) . '.',
         'supervisor/approvals.php', 'reminder');
     if ($res['failed'] > 0) { $err = 'The e-mail could not be sent (' . ($res['errors'][0] ?? 'unknown error') . '). The reminder is saved in the system.'; }
     $stmt = $conn->prepare('INSERT INTO reminders (request_id, sent_by, sent_at, email_error) VALUES (?, ?, NOW(), ?)');

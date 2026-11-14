@@ -1,10 +1,11 @@
 # CLAUDE.md — DSMS (Driver Scheduling and Management System, UIS Vehicle Section)
 
-Final year project (UiTM) by Muhammad Nur Iman Aiman. The requirements are in **`docs/SRS.md`** (SRS version 1.1, 22 October 2026).
-The SRS is the source of truth: every feature is a use case UC001–UC032. Read the matching use case (normal flow, alternatives,
-exceptions, notes) before changing code, and follow it step by step.
+Final year project (UiTM) by Muhammad Nur Iman Aiman. The requirements are in **`docs/DSMS_Use_Case_Description_14Nov.pdf`**
+(Use Case Descriptions, revised 14 November 2026, UC001–UC028 with sub use cases). It is the source of truth and replaces
+`docs/SRS.md` (v1.1) and `docs/SRS_dev_10Nov.md`, which are kept only as history. Read the matching use case (normal flow, alternatives,
+exceptions, notes) before changing code, and follow it step by step. Anything the use cases do not describe is out of scope.
 
-Outstanding differences between this code and SRS v1.1 are listed in **`docs/SRS_v1.1_GAPS.md`**. Work through that list.
+`docs/UC_14Nov_GAPS.md` lists what was changed for the 14 Nov revision and what is still open.
 `docs/SRS_ALIGNMENT_PLAN.md` describes the earlier alignment work and the shared API; it is still valid for the API.
 
 ## Stack and running

@@ -75,10 +75,7 @@ adminPageStart('Vehicles');
                         <td class="text-end text-nowrap">
                             <a class="btn btn-sm btn-outline-success" href="view_vehicle.php?id=<?= $id ?>" title="View"><i class="fas fa-eye"></i></a>
                             <a class="btn btn-sm btn-outline-secondary" href="edit_vehicle.php?id=<?= $id ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                            <a class="btn btn-sm btn-outline-warning" href="vehicle_maintenance.php?id=<?= $id ?>" title="Maintenance"><i class="fas fa-screwdriver-wrench"></i></a>
-                            <?php if ($v['status'] === 'inactive'): ?>
-                                <button class="btn btn-sm btn-outline-success" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
-                            <?php else: ?>
+                            <?php if ($v['status'] !== 'inactive'): ?>
                                 <button class="btn btn-sm btn-outline-danger" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($v['plate_number'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
                             <?php endif; ?>
                         </td>
@@ -99,10 +96,7 @@ adminPageStart('Vehicles');
                     <div class="mt-2 d-flex flex-wrap gap-1">
                         <a class="btn btn-sm btn-outline-success" href="view_vehicle.php?id=<?= $id ?>">View</a>
                         <a class="btn btn-sm btn-outline-secondary" href="edit_vehicle.php?id=<?= $id ?>">Edit</a>
-                        <a class="btn btn-sm btn-outline-warning" href="vehicle_maintenance.php?id=<?= $id ?>">Maintenance</a>
-                        <?php if ($v['status'] === 'inactive'): ?>
-                            <button class="btn btn-sm btn-outline-success" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
-                        <?php else: ?>
+                        <?php if ($v['status'] !== 'inactive'): ?>
                             <button class="btn btn-sm btn-outline-danger" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($v['plate_number'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
                         <?php endif; ?>
                     </div>

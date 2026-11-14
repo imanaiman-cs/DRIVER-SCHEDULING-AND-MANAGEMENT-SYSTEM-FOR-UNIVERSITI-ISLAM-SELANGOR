@@ -109,11 +109,11 @@ if ($_is_admin_role) {
         ],
         'Fleet' => [
             [['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'],          'admin/drivers.php',  'id-card', 'Drivers', null],
-            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
+            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
         ],
         'Reports' => [[['reports.php'], 'admin/reports.php', 'chart-column', 'Reports', null]],
         'System'  => [
-            [['users.php', 'add_user.php', 'edit_user.php'], 'admin/users.php', 'users', 'Users', null],
+            [['users.php', 'edit_user.php'], 'admin/users.php', 'users', 'Users', null],
             [['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null],
         ],
     ] + $_my_requests;

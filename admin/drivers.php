@@ -70,8 +70,6 @@ adminPageStart('Drivers');
                             <a class="btn btn-sm btn-outline-secondary" href="edit_driver.php?id=<?= $id ?>" title="Edit"><i class="fas fa-pen"></i></a>
                             <?php if ($d['status'] === 'active'): ?>
                                 <button class="btn btn-sm btn-outline-danger" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($d['name'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
-                            <?php else: ?>
-                                <button class="btn btn-sm btn-outline-success" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -93,8 +91,6 @@ adminPageStart('Drivers');
                         <a class="btn btn-sm btn-outline-secondary" href="edit_driver.php?id=<?= $id ?>">Edit</a>
                         <?php if ($d['status'] === 'active'): ?>
                             <button class="btn btn-sm btn-outline-danger" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($d['name'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
-                        <?php else: ?>
-                            <button class="btn btn-sm btn-outline-success" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
                         <?php endif; ?>
                     </div>
                 </div>

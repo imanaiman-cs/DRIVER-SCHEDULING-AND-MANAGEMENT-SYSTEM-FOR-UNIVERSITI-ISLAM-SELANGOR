@@ -32,10 +32,7 @@ adminPageStart($v['plate_number']);
             <span class="badge <?= vehicleStatusBadgeClass($shown) ?> fs-6 ms-2"><?= vehicleStatusLabel($shown) ?></span></h4>
         <div class="d-flex flex-wrap gap-1">
             <a class="btn btn-outline-secondary btn-sm" href="edit_vehicle.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
-            <a class="btn btn-outline-warning btn-sm" href="vehicle_maintenance.php?id=<?= $id ?>"><i class="fas fa-screwdriver-wrench me-1"></i>Maintenance</a>
-            <?php if ($v['status'] === 'inactive'): ?>
-                <button class="btn btn-success btn-sm" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
-            <?php else: ?>
+            <?php if ($v['status'] !== 'inactive'): ?>
                 <button class="btn btn-outline-danger btn-sm" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this vehicle Inactive?">Deactivate</button>
             <?php endif; ?>
             <a class="btn btn-outline-secondary btn-sm" href="vehicles.php">Back</a>

@@ -11,12 +11,9 @@
 function reportTypes(): array
 {
     return [
-        'tasks'   => 'Tasks per driver',
-        'weekend' => 'Weekend tasks per driver',
-        'outside' => 'Outside working hours per driver',
-        'welfare' => 'Welfare duty days per driver',
-        'replacements' => 'Driver replacements',
-        'vehicle' => 'Vehicle usage',
+        'workload'     => 'Driver Workload',
+        'replacements' => 'Driver Replacement',
+        'vehicle'      => 'Vehicle Usage',
     ];
 }
 
@@ -32,66 +29,35 @@ function buildReport(mysqli $conn, string $type, string $month): array
     $to   = date('Y-m-t', strtotime($from));
     $rep  = ['title' => $types[$type] ?? $type, 'month' => $month, 'headers' => [], 'rows' => [], 'totals' => [], 'widths' => [], 'note' => ''];
 
-    if (in_array($type, ['tasks', 'weekend', 'outside', 'welfare'], true)) {
-        // drivers that are active, or that have something in the month
+    if ($type === 'workload') {
+        // Driver Workload (UC011): the request tasks, internal tasks, welfare duties and weekend tasks of each driver in the month
         $counts = driverMonthCounts($conn, $month);
         $drivers = $conn->query('SELECT driver_id, name, employee_id, status FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC);
-    }
-
-    if ($type === 'tasks') {
         $split = [];
         $stmt = $conn->prepare("SELECT driver_id, SUM(k = 'r') AS req, SUM(k = 'i') AS internal FROM (
                                    SELECT driver_id, 'r' AS k FROM schedules WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND trip_date BETWEEN ? AND ?
                                    UNION ALL
-                                   SELECT driver_id, 'i' FROM internal_tasks WHERE status = 'active' AND task_date BETWEEN ? AND ?
+                                   SELECT driver_id, 'i' FROM internal_tasks WHERE driver_id IS NOT NULL AND status = 'active' AND task_date BETWEEN ? AND ?
                                 ) x GROUP BY driver_id");
         $stmt->bind_param('ssss', $from, $to, $from, $to);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $split[(int)$r['driver_id']] = [(int)$r['req'], (int)$r['internal']]; }
         $stmt->close();
-        $rep['headers'] = ['Driver', 'Employee ID', 'Request tasks', 'Internal tasks', 'Total tasks'];
-        $rep['widths']  = [40, 16, 15, 15, 14];
-        $rep['note']    = 'Request tasks and internal tasks that are not cancelled. Welfare duty days are not counted here.';
-        foreach ($drivers as $d) {
-            [$r, $i] = $split[(int)$d['driver_id']] ?? [0, 0];
-            if ($d['status'] !== 'active' && $r + $i === 0) { continue; }
-            $rep['rows'][] = [$d['name'], $d['employee_id'], $r, $i, $r + $i];
-        }
-    } elseif ($type === 'weekend') {
-        $rep['headers'] = ['Driver', 'Employee ID', 'Total tasks', 'Weekend tasks', 'Share'];
-        $rep['widths']  = [36, 14, 14, 22, 14];
-        $rep['note']    = 'Tasks that fall on a Saturday or Sunday (request tasks and internal tasks that are not cancelled). Welfare duty days are not counted.';
-        foreach ($drivers as $d) {
-            $c = $counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
-            $t = $c['tasks'] - $c['welfare'];
-            if ($d['status'] !== 'active' && $t === 0) { continue; }
-            $rep['rows'][] = [$d['name'], $d['employee_id'], $t, $c['weekend'], $t ? round($c['weekend'] * 100 / $t) . '%' : '-'];
-        }
-    } elseif ($type === 'outside') {
-        $ws = substr(getSetting($conn, 'WORK_START'), 0, 5); $we = substr(getSetting($conn, 'WORK_END'), 0, 5);
-        $rep['headers'] = ['Driver', 'Employee ID', 'Total tasks', 'Outside working hours', 'Share'];
-        $rep['widths']  = [36, 14, 14, 22, 14];
-        $rep['note']    = "Tasks that start before $ws, end after $we or fall on a Saturday or Sunday. Welfare duty days are not counted.";
-        foreach ($drivers as $d) {
-            $c = $counts[(int)$d['driver_id']] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
-            $t = $c['tasks'] - $c['welfare'];
-            if ($d['status'] !== 'active' && $t === 0) { continue; }
-            $rep['rows'][] = [$d['name'], $d['employee_id'], $t, $c['outside'], $t ? round($c['outside'] * 100 / $t) . '%' : '-'];
-        }
-    } elseif ($type === 'welfare') {
-        $days = [];
-        $stmt = $conn->prepare("SELECT driver_id, DAY(duty_date) AS d FROM welfare_roster WHERE driver_id IS NOT NULL AND status = 'active' AND duty_date BETWEEN ? AND ? ORDER BY duty_date");
+        $wel = [];
+        $stmt = $conn->prepare("SELECT driver_id, COUNT(*) AS n FROM welfare_roster WHERE driver_id IS NOT NULL AND status = 'active' AND duty_date BETWEEN ? AND ? GROUP BY driver_id");
         $stmt->bind_param('ss', $from, $to);
         $stmt->execute();
-        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $days[(int)$r['driver_id']][] = (int)$r['d']; }
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $wel[(int)$r['driver_id']] = (int)$r['n']; }
         $stmt->close();
-        $rep['headers'] = ['Driver', 'Employee ID', 'Welfare duty days', 'Dates'];
-        $rep['widths']  = [34, 14, 16, 36];
-        $rep['note']    = 'Days on welfare duty (24 hours each).';
+        $rep['headers'] = ['Driver', 'Employee ID', 'Request tasks', 'Internal tasks', 'Welfare duties', 'Weekend tasks'];
+        $rep['widths']  = [36, 14, 14, 14, 14, 14];
+        $rep['note']    = 'Request tasks and approved internal tasks that are not cancelled, approved welfare duty days, and the tasks that fall on a Saturday or Sunday.';
         foreach ($drivers as $d) {
-            $list = $days[(int)$d['driver_id']] ?? [];
-            if ($d['status'] !== 'active' && !$list) { continue; }
-            $rep['rows'][] = [$d['name'], $d['employee_id'], count($list), implode(', ', $list)];
+            $id = (int)$d['driver_id'];
+            [$r, $i] = $split[$id] ?? [0, 0];
+            $w = $wel[$id] ?? 0;
+            if ($d['status'] !== 'active' && $r + $i + $w === 0) { continue; }
+            $rep['rows'][] = [$d['name'], $d['employee_id'], $r, $i, $w, (int)($counts[$id]['weekend'] ?? 0)];
         }
     } elseif ($type === 'replacements') {
         $stmt = $conn->prepare(
@@ -114,23 +80,20 @@ function buildReport(mysqli $conn, string $type, string $month): array
         }
         $stmt->close();
     } else {
+        // Vehicle Usage (UC011): the number of trips and the total mileage of each vehicle in the month (mileage from the driver task reports)
         $stmt = $conn->prepare(
             "SELECT v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.status,
                     COALESCE((SELECT COUNT(*) FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND s.status <> 'cancelled' AND s.trip_date BETWEEN ? AND ?), 0) AS trips,
-                    COALESCE((SELECT SUM(TIMESTAMPDIFF(MINUTE, s.start_dt, s.end_dt)) FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND s.status <> 'cancelled' AND s.trip_date BETWEEN ? AND ?), 0) AS trip_min,
-                    COALESCE((SELECT SUM(TIMESTAMPDIFF(MINUTE, t.start_dt, t.end_dt)) FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status = 'active' AND t.task_date BETWEEN ? AND ?), 0) AS int_min,
-                    COALESCE((SELECT SUM(GREATEST(0, DATEDIFF(LEAST(m.end_date, COALESCE(DATE(m.closed_at), m.end_date), ?), GREATEST(m.start_date, ?)) + 1))
-                                FROM vehicle_maintenance m WHERE m.vehicle_id = v.vehicle_id AND m.start_date <= ? AND m.end_date >= ?), 0) AS maint_days
+                    COALESCE((SELECT SUM(r.end_mileage - r.start_mileage) FROM task_reports r WHERE r.vehicle_id = v.vehicle_id AND DATE(r.actual_depart) BETWEEN ? AND ?), 0) AS km
                FROM vehicles v ORDER BY v.plate_number");
-        $stmt->bind_param('ssssssssss', $from, $to, $from, $to, $from, $to, $to, $from, $to, $from);
+        $stmt->bind_param('ssss', $from, $to, $from, $to);
         $stmt->execute();
-        $rep['headers'] = ['Vehicle', 'Type', 'Trips', 'Hours used', 'Internal task hours', 'Maintenance days'];
-        $rep['widths']  = [26, 10, 10, 16, 18, 20];
-        $rep['note']    = 'Trips and hours come from request tasks that are not cancelled. Internal task hours are active internal tasks. Maintenance days are the days of the month the vehicle was in the workshop.';
+        $rep['headers'] = ['Vehicle', 'Type', 'Trips', 'Total mileage (km)'];
+        $rep['widths']  = [44, 14, 14, 28];
+        $rep['note']    = 'Trips are request tasks that are not cancelled. The mileage is the distance the drivers reported in their task reports.';
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-            if ($r['status'] === 'inactive' && !$r['trips'] && !$r['int_min'] && !$r['maint_days']) { continue; }
-            $rep['rows'][] = [trim($r['plate_number'] . ' ' . $r['brand'] . ' ' . $r['model']), $r['vehicle_type'], (int)$r['trips'],
-                              round($r['trip_min'] / 60, 2), round($r['int_min'] / 60, 2), (int)$r['maint_days']];
+            if ($r['status'] === 'inactive' && !$r['trips'] && !$r['km']) { continue; }
+            $rep['rows'][] = [trim($r['plate_number'] . ' ' . $r['brand'] . ' ' . $r['model']), $r['vehicle_type'], (int)$r['trips'], (int)$r['km']];
         }
         $stmt->close();
     }

@@ -167,7 +167,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
                         <td class="text-nowrap"><?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?></td>
                         <td class="text-nowrap"><?= date('d M H:i', strtotime($t['trip_date'] . ' ' . $t['start_time'])) ?>-<?= substr($t['end_time'], 0, 5) ?></td>
                         <?php if ($t['vendor_name'] !== null): ?>
-                        <td><?= reqH($t['vendor_driver_name']) ?> <span class="badge bg-warning text-dark">Vendor bus</span></td>
+                        <td><?= reqH($t['vendor_driver_name'] ?: $t['vendor_name']) ?> <span class="badge bg-warning text-dark">Vendor bus</span></td>
                         <td><?= reqH($t['vendor_bus_plate']) ?> <span class="text-muted"><?= reqH($t['vendor_name']) ?></span></td>
                         <?php else: ?>
                         <td><?= reqH($t['driver'] ?: 'no driver') ?><?= $t['driver_phone'] ? ' <span class="text-muted">' . reqH($t['driver_phone']) . '</span>' : '' ?></td>

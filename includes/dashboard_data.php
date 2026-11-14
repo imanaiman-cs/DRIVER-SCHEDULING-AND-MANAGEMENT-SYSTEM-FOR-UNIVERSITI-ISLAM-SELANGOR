@@ -143,7 +143,7 @@ function dashAlerts(mysqli $conn): array
     }
     foreach (dashRows($conn, "SELECT v.plate_number, m.end_date FROM vehicle_maintenance m JOIN vehicles v ON v.vehicle_id = m.vehicle_id
                                WHERE m.closed_at IS NULL AND m.end_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY m.end_date LIMIT 5") as $r) {
-        $a[] = ['tone' => 'info', 'icon' => 'screwdriver-wrench', 'href' => 'vehicle_maintenance.php',
+        $a[] = ['tone' => 'info', 'icon' => 'screwdriver-wrench', 'href' => 'vehicles.php',
                 'text' => "{$r['plate_number']} is due back from maintenance on " . date('d M Y', strtotime($r['end_date']))];
     }
     foreach (dashRows($conn, "SELECT name, license_expiry FROM drivers WHERE status = 'active' AND license_expiry IS NOT NULL

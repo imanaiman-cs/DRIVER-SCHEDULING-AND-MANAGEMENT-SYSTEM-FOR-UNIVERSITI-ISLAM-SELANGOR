@@ -103,7 +103,7 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
         $out[] = [
             'id' => 't' . $r['schedule_id'], 'kind' => 'trip', 'title' => legLabel($leg) . ($r['request_id'] ? ' - request #' . $r['request_id'] : ''),
             'start' => $iso($r['start_dt']), 'end' => $iso($r['end_dt']),
-            'driver_id' => (int)$r['driver_id'], 'driver' => $r['vendor_name'] !== null ? 'Vendor bus: ' . $r['vendor_driver_name'] . ' (' . $r['vendor_name'] . ')' : ($r['driver_name'] ?? ''), 'vehicle_id' => $r['vendor_name'] !== null ? 0 : (int)$r['vehicle_id'],
+            'driver_id' => (int)$r['driver_id'], 'driver' => $r['vendor_name'] !== null ? 'Vendor bus: ' . $r['vendor_name'] : ($r['driver_name'] ?? ''), 'vehicle_id' => $r['vendor_name'] !== null ? 0 : (int)$r['vehicle_id'],
             'vehicle' => $r['vendor_name'] !== null ? 'Vendor bus ' . $r['vendor_bus_plate'] : vehicleText($r['plate_number'], $r['brand'], $r['model']),
             'request_id' => $r['request_id'] ? (int)$r['request_id'] : null,
             'request_status' => $r['req_status'] ? requestStatusLabel($r['req_status']) : '',

@@ -27,13 +27,13 @@ Tunjuk juga: kuantiti 2 kenderaan (Assign driver ada "Other vehicles"), **Pay an
 `admin`: *Welfare Duty* → Create schedule (pilih minggu, satu kereta/van setiap hari) → Assign drivers (tujuh hari) → Submit. `head001`: *Approve Assignments* → Approve. Pemandu nampak harinya di *My Tasks*.
 
 ## 4. Akaun dan kenderaan
-- `admin`: *Drivers* → **Register driver** (kata laluan lalai dijana dan dihantar; lihat `email_log` jika e-mel mati). *Users* untuk senarai/ubah akaun.
-- `admin`: *Vehicles* → Add (kelas lesen, perbatuan, bahan api wajib) → Edit: kemas kini bahan api, perbatuan, status Active/Under Maintenance.
+- `admin`: *Drivers* → **Register driver** (kata laluan lalai dijana dan dihantar; lihat `email_log` jika e-mel mati). *Users* untuk cari akaun, kemas kini jabatan/peranan dan nyahaktif.
+- `admin`: *Vehicles* → Add (kelas lesen, perbatuan, bahan api wajib) → Edit: hanya bahan api, perbatuan dan status Active/Under Maintenance (ditolak jika ada tempahan akan datang).
 - Daftar sendiri staf: `register.php` (hanya e-mel `@uis.edu.my`, kod pengesahan 6 digit; kod dalam `email_log`). Lupa kata laluan: `forgot_password.php`.
 
 ## 5. Senarai dan laporan
 - *My Requests* (penapis status/tarikh), *Department Requests* (`hos002`), *All Request* (`admin`/`head001`, tab "All Request" + penapis jabatan).
-- *Calendar*/*Reports*: enam jenis laporan (PDF, Excel, cetak).
+- *Calendar*/*Reports*: tiga jenis laporan (Driver Workload, Driver Replacement, Vehicle Usage; eksport PDF dan Excel).
 - Pemandu: *Schedule Change* (tarikh tidak tersedia / tarik diri) → `head001` Approve.
 
 ## Nota untuk madam

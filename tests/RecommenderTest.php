@@ -111,4 +111,15 @@ return [
         assert_true(count($d3) === 1 && $d3[0]['welfare'] === true, 'driver 3 is listed with the welfare flag');
         foreach ($rec['ranked'] as $x) { assert_true(array_key_exists('tasks', $x) && array_key_exists('outside', $x), 'task count and outside-hours count are shown'); }
     },
+    'UC009 a driver whose licence has expired is not recommended' => function () {
+        global $conn;
+        $dr = (int)$conn->query("SELECT driver_id FROM drivers WHERE status = 'active' AND FIND_IN_SET('D', license_class) ORDER BY driver_id LIMIT 1")->fetch_row()[0];
+        $task = ['start' => '2034-10-04 09:00:00', 'end' => '2034-10-04 11:00:00', 'licence' => 'D'];
+        $conn->query("UPDATE drivers SET license_expiry = '2034-12-31' WHERE driver_id = $dr");
+        assert_true(in_array($dr, array_column(recommendDrivers($conn, $task)['ranked'], 'driver_id'), true), 'valid licence: recommended');
+        $conn->query("UPDATE drivers SET license_expiry = '2034-10-03' WHERE driver_id = $dr");
+        $r = recommendDrivers($conn, $task);
+        assert_true(!in_array($dr, array_column($r['ranked'], 'driver_id'), true), 'expired licence: not recommended');
+        assert_true(in_array($dr, array_column($r['excluded'], 'driver_id'), true), 'it is listed with the reason');
+    },
 ];
