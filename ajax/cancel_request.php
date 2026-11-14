@@ -3,7 +3,7 @@
 // ajax/cancel_request.php  -  UC012 Cancel Request
 //
 // POST request_id [, reason] [, comment] [, return_to]
-//   Staff (any role, own request): the reason is optional.
+//   Staff (any role, own request): the reason is required too (UC021).
 //   Head of Department (his requests) and Administrative Assistant / Head of Admin (any): the reason is REQUIRED.
 //   Not after the trip has started. The request is never deleted: the status becomes Cancelled, the vehicle lock is
 //   released, any assigned driver is removed, and the staff member, the Head of Department, the Administrative

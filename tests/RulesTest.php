@@ -156,7 +156,7 @@ return [
         assert_true(isOutsideWorkingHours($conn, '2034-06-10', '10:00:00', '11:00:00'), 'Saturday');
         assert_true(isOutsideWorkingHours($conn, '2034-06-11', '10:00:00', '11:00:00'), 'Sunday');
     },
-    'cancel rules: staff reason optional, Head of Department and administrators must give a reason, never after the trip started' => function () {
+    'cancel rules (UC021): a reason is required for everyone, never after the trip started' => function () {
         global $conn;
         $staff = t_user(); $hod = t_user('supervisor'); $adm = t_user('admin'); $other = t_user();
         $v = t_vehicle();
@@ -164,7 +164,7 @@ return [
         $conn->query("UPDATE vehicle_requests SET supervisor_id = $hod WHERE request_id = $future");
         $req = $conn->query("SELECT * FROM vehicle_requests WHERE request_id = $future")->fetch_assoc();
         $_SESSION = ['user_id' => $staff, 'role' => 'staff'];
-        $r = cancelRulesFor($req); assert_true($r['allowed'] && !$r['reason_required'], 'staff: own request, reason optional');
+        $r = cancelRulesFor($req); assert_true($r['allowed'] && $r['reason_required'], 'staff: own request, reason required');
         $_SESSION = ['user_id' => $other, 'role' => 'staff'];
         assert_true(!cancelRulesFor($req)['allowed'], "staff cannot cancel someone else's request");
         $_SESSION = ['user_id' => $hod, 'role' => 'supervisor'];

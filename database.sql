@@ -238,7 +238,7 @@ CREATE TABLE `email_log` (
 
 CREATE TABLE `internal_tasks` (
   `task_id` int(11) NOT NULL AUTO_INCREMENT,
-  `task_type` enum('workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','other') NOT NULL,
+  `task_type` enum('workshop','workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','other') NOT NULL,
   `task_date` date NOT NULL,
   `start_time` time NOT NULL,
   `end_time` time NOT NULL,
@@ -659,14 +659,14 @@ SELECT ELT(1 + (i * 5) MOD 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
   FROM n;
 
 -- ============================================================
--- SEED: internal tasks (workshop runs, refuelling, test drives, document delivery)
+-- SEED: internal tasks (workshop runs, refuelling, test drives)
 -- ============================================================
 INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, location, description, created_by, status, cancel_reason, cancelled_at) VALUES
- ('workshop_send',     DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00:00', '11:00:00', 4, 2, 'Auto Service Klang Sdn Bhd', 'Send the Urvan for the gearbox repair', 6, 'active', NULL, NULL),
+ ('workshop',          DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00:00', '11:00:00', 4, 2, 'Auto Service Klang Sdn Bhd', 'Send the Urvan for the gearbox repair', 6, 'active', NULL, NULL),
  ('refuel',            DATE_SUB(CURDATE(), INTERVAL 1 DAY), '08:00:00', '09:00:00', 1, 6, 'Petronas Seksyen 15',       'Refuel the bus before the faculty trip', 6, 'active', NULL, NULL),
  ('test_drive',        DATE_ADD(CURDATE(), INTERVAL 2 DAY), '10:00:00', '11:00:00', 12, 9, 'Shah Alam',                'Test drive after the brake service', 6, 'active', NULL, NULL),
- ('document_delivery', DATE_ADD(CURDATE(), INTERVAL 1 DAY), '14:00:00', '16:00:00', 6, 10, 'Putrajaya',               'Deliver the vehicle insurance documents', 6, 'active', NULL, NULL),
- ('workshop_collect',  DATE_ADD(CURDATE(), INTERVAL 9 DAY), '09:00:00', '10:30:00', 4, 12, 'Auto Service Klang Sdn Bhd', 'Collect the Urvan after the repair', 6, 'active', NULL, NULL),
+ ('workshop',          DATE_ADD(CURDATE(), INTERVAL 1 DAY), '14:00:00', '16:00:00', 6, 10, 'Putrajaya',               'Take the car for the road tax inspection', 6, 'active', NULL, NULL),
+ ('workshop',          DATE_ADD(CURDATE(), INTERVAL 9 DAY), '09:00:00', '10:30:00', 4, 12, 'Auto Service Klang Sdn Bhd', 'Collect the Urvan after the repair', 6, 'active', NULL, NULL),
  ('refuel',            DATE_ADD(CURDATE(), INTERVAL 6 DAY), '17:45:00', '18:30:00', 3, 4, 'Petronas Seksyen 9',        'Refuel the van before the long trip', 6, 'cancelled', 'The van was refuelled earlier.', NOW());
 
 -- ============================================================
@@ -680,4 +680,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types');

@@ -135,9 +135,10 @@ sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHE
 sql("DELETE FROM reminders WHERE request_id=1"); sql("DELETE FROM notifications WHERE message LIKE 'Reminder: request #1 %'"); sql("DELETE FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'")
 sql("UPDATE vehicle_requests SET created_at=DATE_SUB(NOW(), INTERVAL 2 HOUR) WHERE request_id=1")
 # ================= cancel (UC012) =================
-# staff cancels own request, reason optional
+# staff cancels own request, reason required (UC021)
 r=submit(s3,dep_h=400,dur_h=2,vehicle=6,pax=1); rS=last()
-r=s3.post('ajax/cancel_request.php',{'request_id':rS}); ok('staff can cancel own request without a reason', json.loads(r.text)['success'] and st(rS)=='cancelled')
+r=s3.post('ajax/cancel_request.php',{'request_id':rS}); ok('UC021 3.1: staff cannot cancel without a reason', json.loads(r.text)['success'] is False and st(rS)!='cancelled')
+r=s3.post('ajax/cancel_request.php',{'request_id':rS,'reason':'Trip no longer needed'}); ok('staff can cancel own request with a reason', json.loads(r.text)['success'] and st(rS)=='cancelled')
 ok('cancel releases the lock and keeps the row', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d"%rS)=='0' and sql("SELECT COUNT(*) FROM vehicle_requests WHERE request_id=%d"%rS)=='1')
 r=s3.post('ajax/cancel_request.php',{'request_id':rB}); ok("staff cannot cancel someone else's request", json.loads(r.text)['success'] is False and st(rB)=='approved')
 r=hos2.post('ajax/cancel_request.php',{'request_id':rB}); ok('Head of Department must give a reason', json.loads(r.text)['success'] is False and st(rB)=='approved')

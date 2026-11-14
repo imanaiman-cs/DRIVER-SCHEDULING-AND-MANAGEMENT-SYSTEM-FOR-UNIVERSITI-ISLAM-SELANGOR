@@ -1103,4 +1103,5 @@ return [
     'Create Report' => 'Cipta Laporan',
     'View Report' => 'Lihat Laporan',
     'Welfare duty (24 hours)' => 'Tugas kebajikan (24 jam)',
+    'Test Drive' => 'Pandu Uji',
 ];

@@ -887,7 +887,7 @@ function cancelRulesFor(array $req): array
     }
     if (isAdmin()) { return ['allowed' => true, 'reason_required' => true, 'message' => '']; }
     if (isSupervisor() && (int)($req['supervisor_id'] ?? 0) === $uid) { return ['allowed' => true, 'reason_required' => true, 'message' => '']; }
-    if ((int)$req['staff_id'] === $uid) { return ['allowed' => true, 'reason_required' => false, 'message' => '']; }
+    if ((int)$req['staff_id'] === $uid) { return ['allowed' => true, 'reason_required' => true, 'message' => '']; }      // UC021: a reason is required for every cancellation
     return ['allowed' => false, 'reason_required' => false, 'message' => 'You are not allowed to cancel this request.'];
 }
 

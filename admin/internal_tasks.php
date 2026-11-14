@@ -74,12 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $t = loadInternalTask($conn, $id);
         if (!$t || !in_array($t['status'], ['waiting', 'assigned', 'active'], true)) {
             setFlash('danger', 'That task is not active.');
-        } elseif (strtotime($t['start_dt']) <= time()) {
-            setFlash('danger', 'This task has already started and cannot be deleted.');   // UC024 exception 1.1
+        } elseif (strtotime($t['end_dt']) <= time()) {
+            setFlash('danger', 'A completed task cannot be deleted because it is counted in the driver\'s task count.');   // UC004.4 note
         } elseif (mb_strlen($reason) < 3) {
             setFlash('danger', 'Please give the reason for deleting the task.');
         } else {
-            $stmt = $conn->prepare("UPDATE internal_tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND status IN ('waiting', 'assigned', 'active') AND start_dt > NOW()");
+            $stmt = $conn->prepare("UPDATE internal_tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND status IN ('waiting', 'assigned', 'active') AND end_dt > NOW()");
             $stmt->bind_param('si', $reason, $id);
             $stmt->execute();
             $stmt->close();
@@ -290,7 +290,7 @@ adminPageStart('Internal Tasks');
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light"><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
-            <?php foreach ($tasks as $t): $live = in_array($t['status'], ['waiting', 'assigned', 'active'], true); $canChange = $live && strtotime($t['end_dt']) >= time(); $canDelete = $live && strtotime($t['start_dt']) > time(); $canAssign = $t['status'] === 'waiting' && strtotime($t['start_dt']) > time(); ?>
+            <?php foreach ($tasks as $t): $live = in_array($t['status'], ['waiting', 'assigned', 'active'], true); $canChange = $live && strtotime($t['end_dt']) >= time(); $canDelete = $live && strtotime($t['end_dt']) > time(); $canAssign = $t['status'] === 'waiting' && strtotime($t['start_dt']) > time(); ?>
                 <tr>
                     <td class="text-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="small text-muted"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
                     <td><strong><?= $h(internalTaskTypeLabel($t['task_type'])) ?></strong>

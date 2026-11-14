@@ -97,10 +97,10 @@ ok('update keeps the assigned driver', sql(f"select driver_id from internal_task
 ok('update did not add a row', count('select count(*) from internal_tasks') == nb)
 r = admin.get('admin/internal_tasks.php', edit=tid); ok('edit form shows values', r.status_code == 200 and 'Update task #%d' % tid in r.text and 'Fill up' not in r.text or 'Changed note' in r.text)
 # delete (soft delete with a reason)
-sql("INSERT INTO internal_tasks (task_type,task_date,start_time,end_time,vehicle_id,driver_id,description,status) VALUES ('refuel',CURDATE(),'00:00:00','23:59:00',5,8,'started task','active')")
+sql("INSERT INTO internal_tasks (task_type,task_date,start_time,end_time,vehicle_id,driver_id,description,status) VALUES ('refuel',DATE_SUB(CURDATE(), INTERVAL 2 DAY),'09:00:00','10:00:00',5,8,'completed task','active')")
 st_id = int(sql("select max(task_id) from internal_tasks"))
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=st_id, reason='too late to delete')); ok('a task that has already started cannot be deleted', sql(f"select status from internal_tasks where task_id={st_id}") == 'active')
-ok('the Delete button is not offered for a started task', 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php', when='today').text and 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php').text)
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=st_id, reason='too late to delete')); ok('a completed task cannot be deleted (UC004.4)', sql(f"select status from internal_tasks where task_id={st_id}") == 'active')
+ok('the Delete button is not offered for a completed task', 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php', when='today').text and 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php').text)
 r = hod.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='not allowed')); ok('Head of Department cannot delete (role check)', sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
 r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='no csrf'), csrf=False); ok('delete without CSRF token is refused (419)', r.status_code == 419 and sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
 r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='')); ok('delete needs a reason', sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
@@ -113,8 +113,8 @@ sql(f"update internal_tasks set status='cancelled' where task_id={st_id}")
 r = add(admin, vehicle_id=5, start_time='09:00', end_time='09:50'); ok('vehicle slot free again after delete (overlaps cancelled tasks only)', r.status_code == 302)
 r = admin.get('admin/internal_tasks.php', status='cancelled', when='upcoming'); ok('list shows the Deleted badge and reason', 'Deleted' in r.text and 'Vehicle not needed' in r.text and not errs(r))
 r = admin.get('admin/internal_tasks.php', status='waiting', when='upcoming'); ok('list shows Waiting for Driver and the Assign driver button', 'Waiting for Driver' in r.text and 'assign_internal_task.php' in r.text and not errs(r))
-r = admin.get('admin/internal_tasks.php', when='past'); ok('past tab lists past tasks', 'Workshop - send vehicle' in r.text)
-r = admin.get('admin/internal_tasks.php', driver_id=9, from_=D(0)); fl = table(admin.get('admin/internal_tasks.php', driver_id=9).text); ok('driver filter lists their task only', len(fl) == 2 and 'Test drive' in fl[1][1])
+r = admin.get('admin/internal_tasks.php', when='past'); ok('past tab lists past tasks', 'Workshop' in r.text)
+r = admin.get('admin/internal_tasks.php', driver_id=9, from_=D(0)); fl = table(admin.get('admin/internal_tasks.php', driver_id=9).text); ok('driver filter lists their task only', len(fl) == 2 and 'Test Drive' in fl[1][1])
 
 # an approved refuelling task for driver 5 (used by the driver schedule checks below)
 add(admin, start_time='10:00', end_time='11:00'); t5 = int(sql("select max(task_id) from internal_tasks"))
@@ -182,6 +182,7 @@ r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=sq
 sql("delete from welfare_roster where duty_date='%s'" % dp)
 
 # ---------------- calendar ----------------
+sql("UPDATE welfare_roster SET driver_id=1 WHERE duty_date=CURDATE()")   # the demo roster rotates by day of the month: make today's duty driver 1
 def cal(c, s, e, **kw):
     r = c.get('ajax/calendar_events.php', start=s, end=e, **kw); assert r.status_code == 200, r.text[:200]; return json.loads(r.text)['events']
 ev = cal(admin, D(0), D(8))
@@ -192,7 +193,7 @@ ok('trip: both legs of request #4 with Outbound/Return and status', sorted(e['le
 ok('trip details: destination + address, officer, waiting', 'Masjid Sultan Salahuddin' in t4[0]['destination'] and 'Shah Alam' in t4[0]['destination'] and 'Norliza' in t4[0]['officer'] and t4[0]['purpose'] and t4[0]['vehicle'] and t4[0]['driver'])
 t3 = [e for e in ev if e.get('request_id') == 3]
 ok('assigned request #3 shown to the admin with status Driver Assigned', t3 and t3[0]['request_status'] == 'Driver Assigned' and any('Lobby of Block B' in e['waiting'] for e in t3))
-ok('internal task in calendar (document delivery D+1)', any(e['kind'] == 'internal' and e['title'] == 'Document delivery' for e in ev))
+ok('internal task in calendar (workshop D+1)', any(e['kind'] == 'internal' and e['title'] == 'Workshop' for e in ev))
 ok('cancelled internal task not in calendar', not any(e['kind'] == 'internal' and e['id'] == 'i%d' % tid for e in ev))
 ok('welfare day in calendar', any(e['kind'] == 'welfare' and e['start'].startswith(D(0)) and e['driver_id'] == 1 for e in ev))
 f = cal(admin, D(0), D(8), driver_id=1)
@@ -225,13 +226,13 @@ ok('driver5 sees only own return trip', 'Return trip' in h5 and 'Outbound trip' 
 ok('driver1 still does not see request #3', 'Request #3' not in main_html(drv[1].get('driver/schedules.php')))
 sql("update vehicle_requests set status='assigned' where request_id=3")
 h9 = main_html(drv[9].get('driver/schedules.php'))
-ok('driver9 sees own internal task (test drive), not others', 'Test drive' in h9 and 'Document delivery' not in h9 and 'Request #' not in h9)
+ok('driver9 sees own internal task (test drive), not others', 'Test Drive' in h9 and 'Workshop' not in h9 and 'Request #' not in h9)
 ok('driver5 sees the refuelling task given by admin', 'Refuelling' in main_html(drv[5].get('driver/schedules.php')) and 'Petronas' in main_html(drv[5].get('driver/schedules.php')))
 ok('cancelled internal task not shown to driver 8', 'Vehicle not needed' not in main_html(drv[8].get('driver/schedules.php')))
 hp = main_html(drv[8].get('driver/schedules.php', tab='past'))
 ok('past tab shows completed request #8 tasks for driver 8', 'Past Tasks' in hp and 'Request #8' in hp and 'Outbound trip' in hp)
 ok('past tab hides upcoming', 'Request #4' not in main_html(drv[1].get('driver/schedules.php', tab='past')))
-ok('past tab shows past internal task (workshop send, driver 2)', 'Workshop - send vehicle' in main_html(drv[2].get('driver/schedules.php', tab='past')))
+ok('past tab shows past internal task (workshop send, driver 2)', 'Workshop' in main_html(drv[2].get('driver/schedules.php', tab='past')))
 ok('legacy schedules without a request are hidden', 'Request #' not in main_html(drv[6].get('driver/schedules.php', tab='past')))
 r = drv[1].get('driver/dashboard.php'); ok('driver dashboard is its own page (today, next 7 days) and links to My Tasks', r.status_code == 200 and 'dash-hero' in r.text and 'driver/schedules.php' not in r.url and 'schedules.php' in r.text)
 dates = re.findall(r'class="when">[A-Za-z]{3}, (\d\d [A-Za-z]{3} \d{4})', main_html(drv[1].get('driver/schedules.php')))

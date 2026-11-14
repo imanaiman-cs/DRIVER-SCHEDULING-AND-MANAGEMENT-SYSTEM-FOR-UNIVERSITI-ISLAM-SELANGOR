@@ -5,13 +5,11 @@
 // Pure reading code, no output.
 // ============================================================
 
-/** Internal task types a user can choose (UC022). Older rows may hold 'road_tax' / 'other'. */
+/** Internal task types (SRS 14 Nov UC004): Workshop, Refuelling, Test Drive. Older rows may hold the retired values (see internalTaskTypeLabel). */
 const INTERNAL_TASK_TYPES = [
-    'workshop_send'     => 'Workshop - send vehicle',
-    'workshop_collect'  => 'Workshop - collect vehicle',
-    'refuel'            => 'Refuelling',
-    'test_drive'        => 'Test drive',
-    'document_delivery' => 'Document delivery',
+    'workshop'  => 'Workshop',
+    'refuel'    => 'Refuelling',
+    'test_drive' => 'Test Drive',
 ];
 
 /** The words people see for the status of an internal task (SRS 10 Nov: Waiting for Driver, Driver Assigned, Approved; a deleted task is kept). */
@@ -27,7 +25,7 @@ function welfareStatusLabel(string $status): string
 
 function internalTaskTypeLabel(string $type): string
 {
-    return INTERNAL_TASK_TYPES[$type] ?? ['road_tax' => 'Road tax / inspection', 'other' => 'Other'][$type] ?? ucfirst(str_replace('_', ' ', $type));
+    return INTERNAL_TASK_TYPES[$type] ?? ['workshop_send' => 'Workshop', 'workshop_collect' => 'Workshop', 'document_delivery' => 'Document delivery', 'road_tax' => 'Road tax / inspection', 'other' => 'Other'][$type] ?? ucfirst(str_replace('_', ' ', $type));
 }
 
 /** "Outbound trip" / "Return trip" from schedules.leg_no. */

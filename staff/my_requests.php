@@ -70,9 +70,9 @@ adminPageStart('My Requests');
             <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">
                 <input type="hidden" name="request_id" value="<?= (int)$r['request_id'] ?>">
                 <input type="hidden" name="return_to" value="staff/my_requests.php?open=<?= (int)$r['request_id'] ?>">
-                <label class="form-label small" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (the reason is optional)</label>
+                <label class="form-label small" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (a reason is required)</label>
                 <div class="input-group input-group-sm">
-                    <input class="form-control" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" placeholder="Reason">
+                    <input class="form-control" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" required placeholder="Reason">
                     <button class="btn btn-outline-danger" data-confirm="The request will be cancelled and the vehicle released." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
             </form>
