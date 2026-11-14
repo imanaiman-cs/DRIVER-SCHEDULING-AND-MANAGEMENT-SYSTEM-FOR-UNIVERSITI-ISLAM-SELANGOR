@@ -103,7 +103,7 @@ adminPageStart('Vehicles');
                 </div>
             <?php endforeach; ?>
         </div>
-        <?php if (!$vehicles): ?><div class="text-center text-muted py-4">No vehicle matches your search.</div><?php endif; ?>
+        <?php if (!$vehicles): ?><div class="text-center text-muted py-4">No record is found.</div><?php endif; ?>
     </div>
     <p class="text-muted small mt-2"><?= count($vehicles) ?> vehicle(s)</p>
 <?php fleetActionScript(); adminPageEnd(); ?>

@@ -2455,3 +2455,16 @@ function replaceNonRequestDriver(mysqli $conn, string $kind, int $id, int $new_d
     notifyUsers($conn, headAdminUserIds($conn), "The driver of $what was replaced ($oldN -> {$nd['name']}). Reason: $reason. Please approve the new assignment.", 'admin/approve_assignments.php');
     return ['ok' => true, 'message' => 'Driver replaced. The Head of Admin must approve the change.'];
 }
+
+/** SRS 14 Nov UC022 notes: the driver cancels a schedule change request of their own that is still Pending. */
+function cancelScheduleChangeRequest(mysqli $conn, int $change_id, int $driver_id): array
+{
+    $q = $conn->prepare("UPDATE schedule_change_requests SET status = 'cancelled' WHERE change_id = ? AND driver_id = ? AND status = 'pending'");
+    $q->bind_param('ii', $change_id, $driver_id);
+    $q->execute();
+    $done = $q->affected_rows > 0;
+    $q->close();
+    if (!$done) { return ['ok' => false, 'message' => 'Only your own request that is still Pending can be cancelled.']; }
+    auditLog($conn, 'schedule_change_cancel', null, "Schedule change request #$change_id cancelled by the driver.");
+    return ['ok' => true, 'message' => 'The request was cancelled.'];
+}

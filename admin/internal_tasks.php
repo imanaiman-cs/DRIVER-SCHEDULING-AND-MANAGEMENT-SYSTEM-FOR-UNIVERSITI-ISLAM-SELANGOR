@@ -190,11 +190,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $when   = ($_GET['when'] ?? 'upcoming') === 'past' ? 'past' : 'upcoming';
 $fStat  = in_array($_GET['status'] ?? '', ['waiting', 'assigned', 'active', 'cancelled'], true) ? $_GET['status'] : '';
 $fDrv   = (int)($_GET['driver_id'] ?? 0);
+$fType  = isset(INTERNAL_TASK_TYPES[$_GET['task_type'] ?? '']) ? $_GET['task_type'] : '';
 $fFrom  = isValidDate((string)($_GET['from'] ?? '')) ? $_GET['from'] : '';
 $fTo    = isValidDate((string)($_GET['to'] ?? '')) ? $_GET['to'] : '';
 $where = [$when === 'past' ? 't.end_dt < ?' : 't.end_dt >= ?']; $p = [date('Y-m-d H:i:s')];
 if ($fStat) { $where[] = 't.status = ?'; $p[] = $fStat; }
 if ($fDrv)  { $where[] = 't.driver_id = ?'; $p[] = $fDrv; }
+if ($fType) { $where[] = 't.task_type = ?'; $p[] = $fType; }
 if ($fFrom) { $where[] = 't.task_date >= ?'; $p[] = $fFrom; }
 if ($fTo)   { $where[] = 't.task_date <= ?'; $p[] = $fTo; }
 $W = implode(' AND ', $where);
@@ -209,7 +211,7 @@ $stmt = $conn->prepare("SELECT t.*, d.name AS driver_name, v.plate_number, v.bra
 $p2 = array_merge($p, [$pg['rows_per_page'], $pg['offset']]);
 bindDynamic($stmt, $p2); $stmt->execute();
 $tasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
-$qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['when' => $when, 'status' => $fStat, 'driver_id' => $fDrv ?: '', 'from' => $fFrom, 'to' => $fTo], $o), fn($v) => $v !== '' && $v !== null));
+$qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['when' => $when, 'status' => $fStat, 'task_type' => $fType, 'driver_id' => $fDrv ?: '', 'from' => $fFrom, 'to' => $fTo], $o), fn($v) => $v !== '' && $v !== null));
 
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Internal Tasks');
@@ -278,6 +280,8 @@ adminPageStart('Internal Tasks');
         <input type="hidden" name="when" value="<?= $h($when) ?>">
         <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_status">Status</label>
             <select class="form-select form-select-sm" id="f_status" name="status"><option value="">All</option><?php foreach (['waiting', 'assigned', 'active', 'cancelled'] as $stt): ?><option value="<?= $stt ?>" <?= $fStat === $stt ? 'selected' : '' ?>><?= $h(internalTaskStatusLabel($stt)) ?></option><?php endforeach; ?></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_type">Task type</label>
+            <select class="form-select form-select-sm" id="f_type" name="task_type"><option value="">All</option><?php foreach (INTERNAL_TASK_TYPES as $k => $lbl): ?><option value="<?= $k ?>" <?= $fType === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select></div>
         <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_driver">Driver</label>
             <select class="form-select form-select-sm" id="f_driver" name="driver_id"><option value="">All drivers</option>
                 <?php foreach ($conn->query('SELECT driver_id, name FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC) as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDrv === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
@@ -313,7 +317,7 @@ adminPageStart('Internal Tasks');
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-muted py-4">No <?= $when ?> tasks found.</td></tr><?php endif; ?>
+            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-muted py-4">No record is found.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>

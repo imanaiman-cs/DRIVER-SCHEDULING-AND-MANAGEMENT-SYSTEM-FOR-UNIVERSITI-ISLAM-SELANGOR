@@ -59,6 +59,10 @@ adminPageStart('Approve Assignments');
             <span><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= isPersonalRental($r) ? '<span class="badge bg-info text-dark me-1">Personal Rental</span>' : '' ?><?= isPayClaimRequest($r) ? '<span class="badge bg-warning text-dark me-1">Pay and Claim</span>' : (isRequestWithoutDriver($r) ? '<span class="badge bg-secondary me-1">Without driver</span>' : '') ?><?= requestStatusBadge($r['status']) ?></span>
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
+        <?php $cnt = driverMonthCounts($conn, substr(requestDepartDT($r), 0, 7));          // UC026 step 2.1: each driver's task count this month
+              $dq = $conn->prepare("SELECT DISTINCT d.driver_id, d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'");
+              $dq->bind_param('i', $rid); $dq->execute(); $ds = $dq->get_result()->fetch_all(MYSQLI_ASSOC); $dq->close(); ?>
+        <?php if ($ds): ?><div class="small text-muted mt-2">Tasks this month: <?php foreach ($ds as $d): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($d['name']) ?>: <?= (int)($cnt[(int)$d['driver_id']]['tasks'] ?? 0) ?></span><?php endforeach; ?></div><?php endif; ?>
         <div class="row g-3 mt-1 border-top pt-3">
             <form method="post" class="col-md-5">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="approve">
@@ -82,7 +86,7 @@ adminPageStart('Approve Assignments');
             <div class="fw-bold">Internal task #<?= $tid ?> &middot; <?= htmlspecialchars(internalTaskTypeLabel($t['task_type'])) ?></div>
             <span class="badge bg-info text-dark">Driver Assigned</span>
         </div>
-        <div class="small text-muted mb-2"><?= date('D, d M Y', strtotime($t['task_date'])) ?> <?= substr($t['start_time'], 0, 5) ?>&ndash;<?= substr($t['end_time'], 0, 5) ?> &middot; <?= htmlspecialchars((string)($t['plate_number'] ?: 'no vehicle')) ?> &middot; Driver: <strong><?= htmlspecialchars($t['driver_name']) ?></strong><?= $t['location'] ? ' &middot; ' . htmlspecialchars($t['location']) : '' ?></div>
+        <div class="small text-muted mb-2"><?= date('D, d M Y', strtotime($t['task_date'])) ?> <?= substr($t['start_time'], 0, 5) ?>&ndash;<?= substr($t['end_time'], 0, 5) ?> &middot; <?= htmlspecialchars((string)($t['plate_number'] ?: 'no vehicle')) ?> &middot; Driver: <strong><?= htmlspecialchars($t['driver_name']) ?></strong> (<?= (int)(driverMonthCounts($conn, substr($t['task_date'], 0, 7))[(int)$t['driver_id']]['tasks'] ?? 0) ?> tasks this month)<?= $t['location'] ? ' &middot; ' . htmlspecialchars($t['location']) : '' ?></div>
         <div class="row g-3 border-top pt-3">
             <form method="post" class="col-md-5">
                 <input type="hidden" name="task_id" value="<?= $tid ?>"><input type="hidden" name="action" value="approve">

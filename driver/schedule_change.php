@@ -26,6 +26,12 @@ $stmt->execute();
 $myTasks = $driver_id > 0 ? $stmt->get_result()->fetch_all(MYSQLI_ASSOC) : [];
 $stmt->close();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'cancel') {          // UC022 notes: cancel a Pending request
+    $res = cancelScheduleChangeRequest($conn, (int)($_POST['change_id'] ?? 0), $driver_id);
+    setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
+    header('Location: schedule_change.php');
+    exit();
+}
 $f = ['type' => in_array($_GET['type'] ?? '', ['withdraw'], true) ? 'withdraw' : 'unavailable', 'from' => '', 'to' => '', 'schedule_id' => (string)(int)($_GET['schedule_id'] ?? 0), 'reason' => ''];
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -78,13 +84,14 @@ adminPageStart('Schedule Change');
 
     <h5 class="fw-bold mb-2">My requests</h5>
     <?php if (!$mine): ?><div class="text-muted small">You have not made a request yet.</div><?php endif; ?>
-    <?php foreach ($mine as $r): $cls = ['pending' => 'warning text-dark', 'approved' => 'success', 'rejected' => 'danger'][$r['status']]; ?>
+    <?php foreach ($mine as $r): $cls = ['pending' => 'warning text-dark', 'approved' => 'success', 'rejected' => 'danger', 'cancelled' => 'secondary'][$r['status']]; ?>
         <div class="card border-0 shadow-sm mb-2"><div class="card-body py-2">
             <div class="d-flex justify-content-between gap-2">
                 <div><strong><?= $r['change_type'] === 'withdraw' ? 'Withdraw from task' : 'Unavailable' ?></strong> &middot;
                     <?= $r['d1'] === $r['d2'] ? $h(date('d M Y', strtotime($r['d1']))) : $h(date('d M', strtotime($r['d1'])) . ' - ' . date('d M Y', strtotime($r['d2']))) ?></div>
                 <span class="badge bg-<?= $cls ?>"><?= $h(ucfirst($r['status'])) ?></span></div>
             <div class="small text-muted">Reason: <?= $h($r['reason']) ?></div>
+            <?php if ($r['status'] === 'pending'): ?><form method="post" class="mt-1"><input type="hidden" name="action" value="cancel"><input type="hidden" name="change_id" value="<?= (int)$r['change_id'] ?>"><button class="btn btn-sm btn-outline-danger" data-confirm="The Head of Admin will no longer see this request." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request">Cancel request</button></form><?php endif; ?>
             <?php if ($r['decision_comment']): ?><div class="small">Head of Admin: <?= $h($r['decision_comment']) ?></div><?php endif; ?>
         </div></div>
     <?php endforeach; ?>

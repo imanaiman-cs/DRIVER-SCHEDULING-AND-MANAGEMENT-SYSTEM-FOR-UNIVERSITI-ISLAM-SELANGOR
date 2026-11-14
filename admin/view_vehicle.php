@@ -48,7 +48,9 @@ adminPageStart($v['plate_number']);
                 <dt class="col-5">Passenger capacity</dt><dd class="col-7"><?= (int)$v['capacity'] ?></dd>
                 <dt class="col-5">Licence required</dt><dd class="col-7"><span class="badge bg-light text-dark border"><?= htmlspecialchars($v['license_required']) ?></span></dd>
                 <?php if ($v['year']): ?><dt class="col-5">Year</dt><dd class="col-7"><?= (int)$v['year'] ?></dd><?php endif; ?>
-                <dt class="col-5">Fuel</dt><dd class="col-7"><?= htmlspecialchars($v['fuel_type']) ?></dd>
+                <dt class="col-5">Fuel type</dt><dd class="col-7"><?= htmlspecialchars($v['fuel_type']) ?></dd>
+                <dt class="col-5">Current mileage</dt><dd class="col-7"><?= (int)$v['mileage'] ?> km</dd>
+                <dt class="col-5">Current fuel level</dt><dd class="col-7"><?= htmlspecialchars((string)(VEHICLE_FUEL_LEVELS[$v['fuel_level']] ?? '-')) ?></dd>
                 <?php if ($v['notes']): ?><dt class="col-5">Notes</dt><dd class="col-7"><?= nl2br(htmlspecialchars($v['notes'])) ?></dd><?php endif; ?>
             </dl>
             <?php if ($v['status'] === 'maintenance' && $v['back_on']): ?>

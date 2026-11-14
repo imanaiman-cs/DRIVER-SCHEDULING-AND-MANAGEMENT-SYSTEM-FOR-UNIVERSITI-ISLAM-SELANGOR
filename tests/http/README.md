@@ -23,6 +23,7 @@ UIST_BASE=http://127.0.0.1:8201 UIST_DB=dsms_test python3 t_bc.py
 | `t_welreport.py` | UC024: task report of a welfare duty day |
 | `t_demo.py` | the whole docs/DEMO_GUIDE.md walk-through with the demo accounts |
 | `t_replace.py` | UC008 replace driver (internal task, welfare day), assign another vehicle to each booking |
+| `t_uc14.py` | gaps found by the line-by-line check of the 14 Nov use cases |
 | `t_report.py` | UC024: the driver's task report (create, view, update, problem, vehicle updated, internal task) |
 | `t_reset.py` | UC015 Reset Password with a verification code |
 | `t_profile.py` | UC016 My Profile for every role: view, update, change password |

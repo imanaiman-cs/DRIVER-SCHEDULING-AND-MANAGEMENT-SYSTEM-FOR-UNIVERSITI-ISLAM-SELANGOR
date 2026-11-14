@@ -185,20 +185,20 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
     }
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status IN ('assigned', 'active') AND end_dt > NOW() ORDER BY start_dt");
+    $stmt = $conn->prepare("SELECT task_id, status, task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status IN ('assigned', 'active') AND end_dt > NOW() ORDER BY start_dt");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'internal', 'request_id' => null, 'schedule_id' => null,
+        $items[] = ['kind' => 'internal', 'id' => (int)$r['task_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null,
             'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt'])];
     }
     $stmt->close();
 
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date > CURDATE() ORDER BY duty_date');
+    $stmt = $conn->prepare('SELECT roster_id, status, duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date > CURDATE() ORDER BY duty_date');
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'welfare', 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['roster_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
     }
     $stmt->close();
     // today's welfare duty (24 h) also still counts
@@ -265,6 +265,8 @@ function fleetItemsList(array $items, bool $withReplaceLink = false, int $vehicl
         $html .= '<li>' . htmlspecialchars($i['text']);
         if ($withReplaceLink && !empty($i['schedule_id']) && $i['kind'] === 'request') {
             $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="fw-semibold">Replace driver</a>';
+        } elseif ($withReplaceLink && in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'active') {     // UC008 A1
+            $html .= ' <a href="replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] . '" class="fw-semibold">Replace driver</a>';
         }
         $html .= '</li>';
     }

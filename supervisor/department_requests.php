@@ -36,7 +36,15 @@ adminPageStart('Department Requests');
                 <div><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= requestStatusBadge($r['status']) ?></div>
             </div>
         </summary>
-        <div class="card-body border-top pt-3"><?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?></div>
+        <div class="card-body border-top pt-3"><?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?>
+            <?php $rules = cancelRulesFor($r); if ($rules['allowed']): ?>
+            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">          <!-- UC021 A1: the Head of Department cancels a request of the department -->
+                <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="supervisor/department_requests.php?open=<?= $rid ?>">
+                <label class="form-label small fw-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-danger">(reason required)</span></label>
+                <div class="input-group input-group-sm"><input class="form-control" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline-danger" data-confirm="The request is cancelled, the reservation is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button></div>
+            </form>
+            <?php endif; ?></div>
     </details>
     <?php endforeach; ?>
 <?php adminPageEnd(); ?>

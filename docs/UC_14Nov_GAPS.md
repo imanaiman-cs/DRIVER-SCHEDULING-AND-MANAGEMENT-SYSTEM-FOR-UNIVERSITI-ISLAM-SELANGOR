@@ -21,5 +21,10 @@ is not in the use cases; keep cancelling by the Assistant / Head of Admin (a rea
 - UC002.3 3.2 / UC002.4 3.1: *Assign another vehicle to each booking* (`admin/reassign_vehicle.php`, `reassignBookingVehicle()`): requests (same type, seats, driver licence, free in the period), internal tasks and welfare duty days; the people involved are told.
 - UC008: Replace Driver also for approved internal tasks and welfare duty days (`admin/replace_task_driver.php`, `replaceNonRequestDriver()`, migration `2026_11_replace_internal_welfare`); the task returns to Driver Assigned and the Head of Admin approves; the Driver Replacement report lists them.
 
+- Line-by-line check against the PDF (gaps found and closed): UC022 the driver can cancel a Pending schedule change request (migration `2026_11_schedule_change_cancel`);
+  UC002.2 vehicle details show the current mileage and fuel level; UC004.2 filter by task type; UC001.2 a driver account shows licence class, expiry and start date;
+  UC026 the approval page shows each driver's task count this month; UC021 A1 the Head of Department cancels from Department Request;
+  UC008 A1 deactivating a driver links to Replace driver for internal tasks and welfare days; "No record is found" messages (accounts, vehicles, internal tasks, welfare week).
+
 ## Open / for Iman
 - The drivers list (`admin/drivers.php`, `view_driver.php`, `edit_driver.php`) is a view of the same accounts as UC001; it was kept.

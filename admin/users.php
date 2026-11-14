@@ -68,6 +68,11 @@ $stmt = $conn->prepare($sql);
 if ($args) { $stmt->bind_param($types, ...$args); }
 $stmt->execute();
 $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($users as &$uu) {                                  // UC001.2 step 3.1: a driver also shows the licence class, licence expiry date and start date of service
+    $uu['drv'] = null;
+    if ($uu['driver_id']) { $dq = $conn->prepare('SELECT license_class, license_expiry, date_joined FROM drivers WHERE driver_id = ?'); $dq->bind_param('i', $uu['driver_id']); $dq->execute(); $uu['drv'] = $dq->get_result()->fetch_assoc(); $dq->close(); }
+}
+unset($uu);
 $stmt->close();
 $back = http_build_query(array_filter(['q' => $q, 'role' => $role, 'status' => $status]));
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
@@ -93,7 +98,8 @@ adminPageStart('Users');
             <tbody>
             <?php foreach ($users as $u): $manage = canManageUser($u, $actorRole, $me); ?>
                 <tr>
-                    <td><strong><?= $h($u['full_name']) ?></strong><div class="small text-muted"><?= $h($u['email']) ?><?= $u['phone'] ? ' &middot; ' . $h($u['phone']) : '' ?></div></td>
+                    <td><strong><?= $h($u['full_name']) ?></strong><div class="small text-muted"><?= $h($u['email']) ?><?= $u['phone'] ? ' &middot; ' . $h($u['phone']) : '' ?></div>
+                        <?php if ($u['drv']): ?><div class="small text-muted">Licence <?= $h($u['drv']['license_class']) ?> &middot; expires <?= $u['drv']['license_expiry'] ? $h(date('d M Y', strtotime($u['drv']['license_expiry']))) : '-' ?> &middot; in service since <?= $u['drv']['date_joined'] ? $h(date('d M Y', strtotime($u['drv']['date_joined']))) : '-' ?></div><?php endif; ?></td>
                     <td class="text-nowrap"><?= $h($u['username']) ?></td>
                     <td><?= $h(ACCOUNT_ROLES[$u['role']] ?? $u['role']) ?></td>
                     <td><?= $h($u['department'] ?? '-') ?></td>
@@ -114,7 +120,7 @@ adminPageStart('Users');
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$users): ?><tr><td colspan="7" class="text-center text-muted py-4">No account found.</td></tr><?php endif; ?>
+            <?php if (!$users): ?><tr><td colspan="7" class="text-center text-muted py-4">No record is found.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>

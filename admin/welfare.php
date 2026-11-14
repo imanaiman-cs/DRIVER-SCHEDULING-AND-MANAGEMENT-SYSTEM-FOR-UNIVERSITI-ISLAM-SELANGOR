@@ -98,6 +98,7 @@ adminPageStart('Welfare Duty');
 
     <?php if ($week): ?>
     <h6 class="fw-bold">Week of <?= $h(date('d M Y', strtotime($week))) ?></h6>
+    <?php if (!$rows): ?><div class="alert alert-light border">No record is found: there is no schedule for this week.</div><?php endif; ?>
     <div class="card border-0 shadow-sm"><div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead class="table-light"><tr><th>Date</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Action</th></tr></thead>
