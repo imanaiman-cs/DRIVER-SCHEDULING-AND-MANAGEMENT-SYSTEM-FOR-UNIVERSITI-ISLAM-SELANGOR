@@ -588,6 +588,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn-login::after { content: none; }
         .card-footer-info { background: #f6f7f6; border-top: 1px solid #e6e9e7; }
         .page-footer { color: #8a968f; }
+
+        /* ============================================================
+           RICH THEME (v3): green patterned page, gold crest ring
+        ============================================================ */
+        body {
+            background:
+                radial-gradient(600px 360px at 85% 10%, rgba(212,160,23,.30), transparent 70%),
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.07' stroke-width='1'%3E%3Crect x='14' y='14' width='28' height='28'/%3E%3Crect x='14' y='14' width='28' height='28' transform='rotate(45 28 28)'/%3E%3Ccircle cx='28' cy='28' r='5'/%3E%3Cpath d='M0 28h8M48 28h8M28 0v8M28 48v8'/%3E%3C/g%3E%3C/svg%3E"),
+                linear-gradient(135deg, #062e21 0%, #0b5d3b 55%, #15804f 100%);
+            background-size: auto, 56px 56px, auto;
+        }
+        .login-card { border: none; border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.55); }
+        .university-crest { background: #fff; border-radius: 50%; box-shadow: 0 0 0 4px #fff, 0 0 0 7px rgba(212,160,23,.55), 0 10px 24px -8px rgba(0,0,0,.25); }
+        .divider-gold { display: block; background: linear-gradient(90deg, transparent, #d4a017, transparent); }
+        .btn-login { background: linear-gradient(135deg, #15804f, #0b5d3b); box-shadow: 0 10px 20px -8px rgba(11,93,59,.7); }
+        .btn-login:hover { background: linear-gradient(135deg, #12723f, #094c31); transform: translateY(-1px); }
+        .page-footer { color: rgba(255,255,255,.65); }
     </style>
 </head>
 <body>
