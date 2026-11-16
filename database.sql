@@ -413,30 +413,28 @@ CREATE TABLE `vehicle_usage_log` (
   CONSTRAINT `fk_usage_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `schedule_change_requests` (
+CREATE TABLE `schedule_changes` (
   `change_id` int(11) NOT NULL AUTO_INCREMENT,
   `driver_id` int(11) NOT NULL,
   `change_type` enum('unavailable','withdraw') NOT NULL,
   `task_id` int(11) DEFAULT NULL COMMENT 'the task of a withdraw request',
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
   `reason` varchar(500) NOT NULL,
   `status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
-  `decision_comment` varchar(500) DEFAULT NULL,
-  `decided_by` int(11) DEFAULT NULL,
-  `decided_at` datetime DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `reject_reason` varchar(500) DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`change_id`),
   KEY `idx_change_driver` (`driver_id`,`status`),
   KEY `idx_change_status` (`status`,`created_at`),
   KEY `idx_change_task` (`task_id`),
+  KEY `idx_change_dates` (`driver_id`,`start_date`,`end_date`),
   CONSTRAINT `fk_change_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
   CONSTRAINT `fk_change_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-CREATE TABLE `schedule_change_dates` (
-  `change_id` int(11) NOT NULL,
-  `change_date` date NOT NULL,
-  PRIMARY KEY (`change_id`,`change_date`),
-  KEY `idx_change_date` (`change_date`),
-  CONSTRAINT `fk_change_dates` FOREIGN KEY (`change_id`) REFERENCES `schedule_change_requests` (`change_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -664,4 +662,4 @@ SELECT 'welfare', w.duty_id, 'welfare', ELT(1 + (DAYOFMONTH(d.day_date) MOD 10),
  ORDER BY d.day_date;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change');

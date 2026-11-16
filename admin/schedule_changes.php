@@ -3,8 +3,8 @@
 // UIS Driver Scheduling and Management System
 // admin/schedule_changes.php  -  UC030 Approve/Reject Schedule Change (Head of Admin only)
 //
-// Shows the Pending requests of the drivers with the driver's tasks on the selected dates. Approve (with an optional comment, UC016) or
-// Reject (the comment is required; the task stays with the driver). Approving marks the driver unavailable on the dates and tells the
+// Shows the Pending requests of the drivers with the driver's tasks on the selected dates. Approve (no comment, UC027) or
+// Reject (the reason is required, UC028; the task stays with the driver). Approving marks the driver unavailable on the dates and tells the
 // driver and the Administrative Assistant. When the driver has Confirmed tasks to give up, Replace Driver (UC020) opens for each of them
 // with the reason "Driver Request"; because the Head of Admin does it, the task stays Confirmed.
 // ============================================================
@@ -26,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-$pending = $conn->query("SELECT r.*, d.name AS driver_name FROM schedule_change_requests r JOIN drivers d ON d.driver_id = r.driver_id WHERE r.status = 'pending' ORDER BY r.created_at")->fetch_all(MYSQLI_ASSOC);
-$decided = $conn->query("SELECT r.*, d.name AS driver_name FROM schedule_change_requests r JOIN drivers d ON d.driver_id = r.driver_id WHERE r.status <> 'pending' ORDER BY r.decided_at DESC LIMIT 15")->fetch_all(MYSQLI_ASSOC);
+$pending = $conn->query("SELECT r.*, d.name AS driver_name FROM schedule_changes r JOIN drivers d ON d.driver_id = r.driver_id WHERE r.status = 'pending' ORDER BY r.created_at")->fetch_all(MYSQLI_ASSOC);
+$decided = $conn->query("SELECT r.*, d.name AS driver_name FROM schedule_changes r JOIN drivers d ON d.driver_id = r.driver_id WHERE r.status <> 'pending' ORDER BY COALESCE(r.approved_at, r.rejected_at, r.created_at) DESC LIMIT 15")->fetch_all(MYSQLI_ASSOC);
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Schedule Changes');
 ?>
@@ -46,7 +46,7 @@ adminPageStart('Schedule Changes');
         <?php foreach ($tasks as $t): ?><div class="small">&bull; <?= $h(date('D, d M H:i', strtotime($t['start_dt']))) ?> &middot; <?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?> (request #<?= (int)$t['request_id'] ?>, <?= $h(requestStatusLabel($t['req_status'])) ?>)</div><?php endforeach; ?>
         <form method="post" class="row g-2 mt-2">
             <input type="hidden" name="change_id" value="<?= $cid ?>">
-            <div class="col-12 col-md-7"><input class="form-control form-control-sm" name="comment" maxlength="500" placeholder="Comment (required when rejecting)"></div>
+            <div class="col-12 col-md-7"><input class="form-control form-control-sm" name="comment" maxlength="500" placeholder="Reason (required when rejecting)"></div>
             <div class="col-12 col-md-5 d-flex gap-2">
                 <button class="btn btn-success btn-sm" name="decision" value="approve" data-confirm="The driver is marked unavailable and told. <?= $tasks ? 'You will replace the driver on the tasks above.' : '' ?>" data-confirm-title="Approve request #<?= $cid ?>?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve</button>
                 <button class="btn btn-outline-danger btn-sm" name="decision" value="reject"><i class="fas fa-xmark me-1"></i>Reject</button></div>
@@ -55,6 +55,6 @@ adminPageStart('Schedule Changes');
     <?php endforeach; ?>
     <?php if ($decided): ?>
     <h6 class="fw-bold mt-4">Decided recently</h6>
-    <?php foreach ($decided as $r): ?><div class="small border-top py-1">#<?= (int)$r['change_id'] ?> &middot; <?= $h($r['driver_name']) ?> &middot; <?= $r['change_type'] === 'withdraw' ? 'withdraw' : 'unavailable' ?> &middot; <strong><?= $h(ucfirst($r['status'])) ?></strong> <?= $h(date('d M H:i', strtotime((string)$r['decided_at']))) ?><?= $r['decision_comment'] ? ' &middot; ' . $h($r['decision_comment']) : '' ?></div><?php endforeach; ?>
+    <?php foreach ($decided as $r): ?><div class="small border-top py-1">#<?= (int)$r['change_id'] ?> &middot; <?= $h($r['driver_name']) ?> &middot; <?= $r['change_type'] === 'withdraw' ? 'withdraw' : 'unavailable' ?> &middot; <strong><?= $h(ucfirst($r['status'])) ?></strong> <?= $h(date('d M H:i', strtotime((string)($r['approved_at'] ?? $r['rejected_at'] ?? $r['created_at'])))) ?><?= $r['reject_reason'] ? ' &middot; ' . $h($r['reject_reason']) : '' ?></div><?php endforeach; ?>
     <?php endif; ?>
 <?php adminPageEnd(); ?>

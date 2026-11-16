@@ -35,9 +35,9 @@ $canReplace = $task['req_status'] === 'processed' && strtotime($task['start_dt']
 $change_id = (int)($_GET['change_id'] ?? $_POST['change_id'] ?? 0);
 $driverRequest = false;
 if ($change_id > 0 && isHeadAdmin()) {
-    $cs = $conn->prepare("SELECT 1 FROM schedule_change_requests r WHERE r.change_id = ? AND r.status = 'approved' AND r.driver_id = ?
-                             AND (r.task_id = ? OR (r.change_type = 'unavailable' AND EXISTS (SELECT 1 FROM schedule_change_dates d WHERE d.change_id = r.change_id AND d.change_date BETWEEN DATE(?) AND DATE(?))))");
-    $cs->bind_param('iiiss', $change_id, $task['driver_id'], $sid, $task['start_dt'], $task['end_dt']);
+    $cs = $conn->prepare("SELECT 1 FROM schedule_changes r WHERE r.change_id = ? AND r.status = 'approved' AND r.driver_id = ?
+                             AND (r.task_id = ? OR (r.change_type = 'unavailable' AND r.start_date <= DATE(?) AND r.end_date >= DATE(?)))");
+    $cs->bind_param('iiiss', $change_id, $task['driver_id'], $sid, $task['end_dt'], $task['start_dt']);
     $cs->execute();
     $driverRequest = (bool)$cs->get_result()->fetch_row();
     $cs->close();

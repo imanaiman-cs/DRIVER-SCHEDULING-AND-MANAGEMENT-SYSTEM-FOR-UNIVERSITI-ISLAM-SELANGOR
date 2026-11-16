@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $conn->prepare('SELECT r.*, (SELECT MIN(change_date) FROM schedule_change_dates WHERE change_id = r.change_id) AS d1, (SELECT MAX(change_date) FROM schedule_change_dates WHERE change_id = r.change_id) AS d2 FROM schedule_change_requests r WHERE r.driver_id = ? ORDER BY r.change_id DESC LIMIT 20');
+$stmt = $conn->prepare('SELECT r.*, r.start_date AS d1, r.end_date AS d2 FROM schedule_changes r WHERE r.driver_id = ? ORDER BY r.change_id DESC LIMIT 20');
 $stmt->bind_param('i', $driver_id);
 $stmt->execute();
 $mine = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -93,7 +93,7 @@ adminPageStart('Schedule Change');
                 <span class="badge bg-<?= $cls ?>"><?= $h(ucfirst($r['status'])) ?></span></div>
             <div class="small text-muted">Reason: <?= $h($r['reason']) ?></div>
             <?php if ($r['status'] === 'pending'): ?><form method="post" class="mt-1"><input type="hidden" name="action" value="cancel"><input type="hidden" name="change_id" value="<?= (int)$r['change_id'] ?>"><button class="btn btn-sm btn-outline-danger" data-confirm="The Head of Admin will no longer see this request." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request">Cancel request</button></form><?php endif; ?>
-            <?php if ($r['decision_comment']): ?><div class="small">Head of Admin: <?= $h($r['decision_comment']) ?></div><?php endif; ?>
+            <?php if ($r['reject_reason']): ?><div class="small">Head of Admin: <?= $h($r['reject_reason']) ?></div><?php endif; ?>
         </div></div>
     <?php endforeach; ?>
 <script>
