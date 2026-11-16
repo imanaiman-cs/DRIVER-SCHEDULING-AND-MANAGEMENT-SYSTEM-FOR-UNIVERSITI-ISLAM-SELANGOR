@@ -237,7 +237,7 @@ function dispatchBoardHtml(mysqli $conn, string $date): string
         if ($e['kind'] === 'welfare') { continue; }
         $s = strtotime($e['start']); $en = strtotime($e['end']);
         $from = min($from, $s < $dayStart ? 0 : (int)date('G', $s));
-        $to = max($to, $en > $dayEnd ? 24 : (int)ceil(((int)date('G', $en) * 60 + (int)date('i', $en)) / 60));
+        $to = max($to, $en >= $dayEnd ? 24 : (int)ceil(((int)date('G', $en) * 60 + (int)date('i', $en)) / 60));
     }
     $t0 = $dayStart + $from * 3600; $span = ($to - $from) * 3600;
     $pos = fn(int $ts) => max(0, min(100, ($ts - $t0) / $span * 100));
