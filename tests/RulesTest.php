@@ -263,4 +263,15 @@ return [
         assert_same('', tripCountdownHtml(date('Y-m-d H:i:s', time() - 60)), 'no countdown for a trip that started');
         assert_true(str_contains(tripCountdownHtml(date('Y-m-d H:i:s', time() + 3 * 86400 + 60)), 'in 3 days'));
     },
+    'WhatsApp: numbers are normalised; switched off nothing is sent or logged; roles come from the config' => function () {
+        global $conn;
+        assert_same('60123456789', whatsappNumber('012-345 6789'));
+        assert_same('60123456789', whatsappNumber('+60 12-345 6789'));
+        assert_same(null, whatsappNumber('123'));
+        $before = (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0];
+        assert_same('skipped', sendWhatsApp($conn, null, '0123456789', 'x')['status']);
+        assert_true(!whatsappEnabled(), 'WhatsApp is off in the test setup');
+        assert_same($before, (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0], 'switched off: no row is written');
+        assert_true(whatsappForRole('supervisor') && whatsappForRole('driver') && !whatsappForRole('nobody'), 'all five roles by default');
+    },
 ];

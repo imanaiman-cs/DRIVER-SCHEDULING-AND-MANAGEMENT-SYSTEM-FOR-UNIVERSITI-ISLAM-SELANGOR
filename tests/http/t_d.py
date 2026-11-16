@@ -81,7 +81,8 @@ ok('reject: reason recorded', sql("SELECT reason FROM audit_log WHERE request_id
 ok('reject: Administrative Assistant notified with the reason', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='admin' AND n.message LIKE '%%#%d%%rejected%%Use a more experienced driver%%'"%r1))==1)
 ok('reject: the vehicle stays locked', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d"%r1)=='1')
 # assign again, separate return driver + vehicle
-retv=json.loads(ad.get('ajax/get_free_vehicles.php',depart_date=ret[:10],depart_time=ret[11:16],return_date=ret[:10],return_time=(datetime.datetime.strptime(ret,'%Y-%m-%d %H:%M:%S')+datetime.timedelta(hours=2)).strftime('%H:%M'),passengers=2,request_id=r1,for_assignment=1).text)['vehicles']
+ret2=datetime.datetime.strptime(ret,'%Y-%m-%d %H:%M:%S')+datetime.timedelta(hours=2)   # may cross midnight
+retv=json.loads(ad.get('ajax/get_free_vehicles.php',depart_date=ret[:10],depart_time=ret[11:16],return_date=ret2.strftime('%Y-%m-%d'),return_time=ret2.strftime('%H:%M'),passengers=2,request_id=r1,for_assignment=1).text)['vehicles']
 vids=[v['vehicle_id'] for v in retv if v['vehicle_id']!=6 and v['license_required']=='D']
 ok('return vehicle list is time-aware and for the Vehicle Section not bound by the timing rule', len(vids)>0)
 rv=vids[0]

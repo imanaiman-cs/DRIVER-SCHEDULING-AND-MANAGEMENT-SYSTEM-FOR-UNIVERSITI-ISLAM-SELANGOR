@@ -1,8 +1,13 @@
-# Setting up OpenWA for driver WhatsApp messages
+# Setting up OpenWA for WhatsApp notifications
 
-OpenWA (https://github.com/rmyndharis/OpenWA) is an unofficial WhatsApp gateway. The DSMS uses it only to send a short WhatsApp message
-to **drivers**, in addition to the in-system notification and the e-mail. If OpenWA is off or fails, nothing else is affected
-(the attempt is written to the table `whatsapp_log`).
+OpenWA (https://github.com/rmyndharis/OpenWA) is an unofficial WhatsApp gateway. When it is switched on, **every notification the DSMS
+sends for a use case event** (new request to the Head of Department, approval, rejection, driver assigned, task approved, 1-day reminder,
+lapse, cancellation, schedule change, replacement ...) also goes to WhatsApp, next to the in-system notification and the e-mail, for the
+roles listed in `config/whatsapp.php` (`roles`, all five by default). If OpenWA is off or fails, nothing else is affected
+(the attempt is written to the table `whatsapp_log`). WhatsApp is an addition decided by Iman; it is not in the 14 Nov use cases.
+
+**Hosting:** OpenWA needs Docker and a process that stays on, so it runs on a **Hostinger VPS** (see `docs/VPS_SETUP.md`), not on
+Hostinger web hosting (Premium / Business), where Node apps are stopped when idle.
 
 **Read first:** WhatsApp can restrict a number that is used by unofficial software. Use a **dedicated number** (never a personal or
 main office number), keep volume low (a few messages per trip), and keep e-mail as the guaranteed channel. OpenWA's own README says it
@@ -42,10 +47,11 @@ Copy `config/whatsapp.sample.php` to `config/whatsapp.php` (this file is not upl
 'session_id' => '<session id>',
 'redirect_to'=> '60123456789',   // first test: everything goes to your own number; empty it afterwards
 ```
-Driver numbers come from the driver's phone number (users.phone, or drivers.phone). `012-345 6789` becomes `60123456789`.
+The number comes from the user's phone number (users.phone; for a driver also drivers.phone). `012-345 6789` becomes `60123456789`.
+To send to fewer people, shorten `roles`, for example `['driver', 'supervisor']`.
 
 ## 6. Check
-Confirm a request (Head of Admin) so a driver is assigned, then look at `whatsapp_log`:
+Submit a request as staff (the Head of Department gets a WhatsApp), then look at `whatsapp_log`:
 `sent` = delivered to OpenWA, `failed` = OpenWA unreachable or refused (see `error_message`), `skipped` = disabled or no valid number.
 
 ## Operations
