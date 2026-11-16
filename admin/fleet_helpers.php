@@ -434,7 +434,7 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null, bool 
         <?php endif; ?>
         <div class="col-12 col-md-6"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
         <div class="col-12 col-md-6"><label class="form-label" for="fuel_type">Fuel type <span class="text-danger">*</span></label>
-            <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
+            <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option value="<?= $f ?>" <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
     </div>
     <script>
     (function () {
@@ -498,8 +498,8 @@ function driverFormFields(array $v, array $errors, bool $withPhone, ?string $pho
         <div class="col-12"><label class="form-label" for="address">Address</label><textarea class="form-control" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
         <div class="col-12"><label class="form-label" for="photo">Photo</label>
             <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>
-            <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-            <div class="form-text">JPG, PNG or WebP, up to 2 MB.</div></div>
+            <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png"><?= $err('photo') ?>
+            <div class="form-text">JPG or PNG, up to 2 MB.</div></div>
     </div>
     <?php
 }

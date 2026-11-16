@@ -174,7 +174,7 @@ ok('welfare duty counts in the driver workload', int(sql("select count(*) from t
 # A3 delete
 rid3 = sql("select task_id from tasks where task_source='welfare' and task_date='%s'" % days7[6])
 r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=rid3), csrf=False); ok('delete without CSRF refused (419)', r.status_code == 419 and count("select count(*) from tasks where task_id=%s" % rid3) == 1)
-r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=rid3)); ok('A3: a duty day is deleted and the vehicle released', count("select count(*) from tasks where task_id=%s" % rid3) == 0)
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=rid3)); ok('A3: a duty day is deleted (kept as history, status cancelled) and the vehicle and the date are released', count("select count(*) from tasks where task_id=%s and status='cancelled' and welfare_date is null" % rid3) == 1)
 ok('the deletion is in the history log', count("select count(*) from audit_log where action='welfare_delete'") == 1)
 dp = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
 added_dp = count("select count(*) from tasks where task_source='welfare' and task_date='%s'" % dp) == 0   # the demo roster may already have yesterday

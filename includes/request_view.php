@@ -59,7 +59,7 @@ function requestFilterForm(array $f, array $keep = [], ?array $departments = nul
         <?php if ($departments !== null): ?>
         <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_dept">Department</label>
             <select class="form-select form-select-sm" id="f_dept" name="department"><option value="">All</option>
-                <?php foreach ($departments as $d): ?><option <?= $f['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select></div>
+                <?php foreach ($departments as $d): ?><option value="<?= $h($d) ?>" <?= $f['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select></div>
         <?php endif; ?>
         <div class="col-auto"><button class="btn btn-sm btn-outline-success">Filter</button> <a class="btn btn-sm btn-outline-secondary" href="?<?= $h(http_build_query($keep)) ?>">Clear</a></div>
     </form>

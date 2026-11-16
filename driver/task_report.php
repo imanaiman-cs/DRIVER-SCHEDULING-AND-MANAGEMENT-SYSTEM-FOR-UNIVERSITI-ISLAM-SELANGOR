@@ -97,9 +97,9 @@ adminPageStart('Task Report');
             <div class="row g-3">
                 <div class="col-12 col-md-6"><label class="form-label" for="problem_type">Problem type *</label>
                     <select class="form-select" id="problem_type" name="problem_type"><option value="">Choose...</option>
-                        <?php foreach (REPORT_PROBLEM_TYPES as $t): ?><option <?= $f['problem_type'] === $t ? 'selected' : '' ?>><?= $h($t) ?></option><?php endforeach; ?></select></div>
+                        <?php foreach (REPORT_PROBLEM_TYPES as $t): ?><option value="<?= htmlspecialchars($t) ?>" <?= $f['problem_type'] === $t ? 'selected' : '' ?>><?= $h($t) ?></option><?php endforeach; ?></select></div>
                 <div class="col-12"><label class="form-label" for="problem_desc">Description *</label><textarea class="form-control" id="problem_desc" name="problem_desc" rows="3" maxlength="500"><?= $h($f['problem_desc']) ?></textarea></div>
-                <div class="col-12 col-md-6"><label class="form-label" for="photo">Photo <span class="text-muted">(JPG, PNG or WebP, up to 5 MB)</span></label><input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"></div>
+                <div class="col-12 col-md-6"><label class="form-label" for="photo">Photo <span class="text-muted">(JPG or PNG, up to 5 MB)</span></label><input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"></div>
                 <div class="col-12"><span class="form-label d-block">Can the vehicle still be used? *</span>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="can_be_used" id="cu1" value="1" <?= $f['can_be_used'] === '1' ? 'checked' : '' ?>><label class="form-check-label" for="cu1">Yes, it can still be used</label></div>
                     <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="can_be_used" id="cu0" value="0" <?= $f['can_be_used'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="cu0">No (the vehicle becomes Under Maintenance)</label></div></div>

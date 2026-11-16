@@ -83,5 +83,22 @@ ad.s.get(B + '/set_language.php', params={'lang': 'ms', 'back': back}, allow_red
 for pth, words in (('admin/welfare.php', ['Tugas Kebajikan', 'Cipta jadual']), ('admin/add_driver.php', ['Daftar Pemandu', 'E-mel UIS']), ('admin/add_vehicle.php', ['Kelas lesen diperlukan', 'Tahap bahan api semasa'])):
     tx = text(ad.get(pth))
     ok('%s is in Bahasa Melayu' % pth, all(w in tx for w in words))
+# Bahasa Melayu: the values a form sends back stay the identifiers (review of PR #2: "Kereta" / "Pintu masuk utama" were submitted)
+import datetime as _dt, json as _json
+sm = user('stf001')
+sm.s.get(B + '/set_language.php', params={'lang': 'ms', 'back': B + '/staff/dashboard.php'}, allow_redirects=False)
+pg = sm.get('staff/request_vehicle.php')
+ok('BM request form: the waiting location options keep their English values', 'value="Main entrance"' in pg.text and '<html lang="ms"' in pg.text)
+t0 = now() + _dt.timedelta(days=9); t1 = t0 + _dt.timedelta(hours=3)
+vt = _json.loads(sm.get('ajax/get_vehicle_types.php', depart_date=t0.strftime('%Y-%m-%d'), depart_time='09:00', return_date=t1.strftime('%Y-%m-%d'), return_time='12:00', passengers=2).text)
+car = [x for x in vt.get('types', []) if x['type'] == 'Car']
+ok('BM vehicle types: the type stays "Car", only the label is translated', len(car) == 1 and car[0]['label'] == 'Kereta')
+n0 = int(sql("SELECT COUNT(*) FROM vehicle_requests"))
+r = sm.post('staff/request_vehicle.php', {'request_type': 'uis', 'depart_date': t0.strftime('%Y-%m-%d'), 'depart_time': '09:00', 'return_date': t1.strftime('%Y-%m-%d'), 'return_time': '12:00',
+    'passengers': '2', 'vehicle_type': car[0]['type'] if car else 'Car', 'quantity': '1', 'destination': 'Putrajaya', 'destination_address': 'Presint 5',
+    'purpose': 'Attend the national higher education forum', 'purpose_type': 'official', 'passenger_names': 'A', 'phone': '012-3456789',
+    'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '1'})
+ok('BM: a request sent with the values of the Malay form is saved', int(sql("SELECT COUNT(*) FROM vehicle_requests")) == n0 + 1 and sql("SELECT CONCAT(vehicle_type, '|', waiting_place) FROM vehicle_requests ORDER BY request_id DESC LIMIT 1") == 'Car|Main entrance')
+sm.s.get(B + '/set_language.php', params={'lang': 'en', 'back': B + '/staff/dashboard.php'}, allow_redirects=False)
 import subprocess, os
 sys.exit(0 if summary() else 1)

@@ -63,7 +63,7 @@ ok('the vehicle is no longer offered for new requests of its type in that period
 r = drv.post('driver/task_report.php', dict(base, end_mileage=str(last0 + 170), vehicle_condition='problem', problem_type='Engine', problem_desc='Checked: it is fine to drive', can_be_used='1'))
 ok('an update that says it can be used puts the vehicle back to Available', sql("SELECT status FROM vehicles WHERE vehicle_id=%d" % vid) == 'available')
 r = drv.post('driver/task_report.php', dict(base, end_mileage=str(last0 + 175), vehicle_condition='problem', problem_type='Tyre', problem_desc='A tyre needs replacing', can_be_used='1'), files=[('photo', ('x.pdf', b'%PDF-1.4', 'application/pdf'))])
-ok('a photo that is not an image is refused', 'JPG, PNG or WebP' in r.text or cnt("SELECT end_mileage FROM task_reports") == last0 + 170)
+ok('a photo that is not an image is refused', 'JPG or PNG' in r.text or cnt("SELECT end_mileage FROM task_reports") == last0 + 170)
 # an internal task report
 sql("INSERT INTO tasks (task_source,task_type,start_dt,end_dt,vehicle_id,driver_id,description,status) VALUES ('internal', 'refuel', TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '07:00:00'), TIMESTAMP(CURDATE() - INTERVAL 1 DAY, '08:00:00'), 6, 1, 'Fill up', 'approved')")
 tid = cnt("SELECT MAX(task_id) FROM tasks WHERE task_source='internal'")

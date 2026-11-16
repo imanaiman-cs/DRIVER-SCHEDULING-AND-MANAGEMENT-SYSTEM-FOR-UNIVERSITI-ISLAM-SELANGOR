@@ -39,7 +39,31 @@ $conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with
 // page is opened, so "git pull" is enough. It can also be run by hand:
 //     mysql -uroot uis_driver_db < migrations/2026_10_align_srs.sql
 // A migration is written so that running it twice does no harm.
+// The files run in the order they were written (MIGRATION_ORDER), NOT in name order: a later migration needs the columns and tables of
+// the earlier ones (e.g. approval_email needs is_urgent from urgent). ADD EVERY NEW MIGRATION AT THE END OF THE LIST. A file missing
+// from the list runs after the listed ones, in name order. A failed migration stops the run; it is tried again on the next session.
 // ============================================================
+const MIGRATION_ORDER = [
+    '2026_10_align_srs', '2026_11_whatsapp_log', '2026_11_need_driver', '2026_11_vehicle_usage_log', '2026_11_schedule_changes',
+    '2026_11_vendor_bus', '2026_11_date_joined_weights', '2026_11_user_language', '2026_11_pay_claim', '2026_11_urgent',
+    '2026_11_purpose_type', '2026_11_vehicle_reservations', '2026_11_personal_rental', '2026_11_task_reports',
+    '2026_11_verification_codes', '2026_11_internal_task_approval', '2026_11_welfare_weekly', '2026_11_approval_email',
+    '2026_11_welfare_report', '2026_11_remove_whatsapp', '2026_11_internal_task_types', '2026_11_replace_internal_welfare',
+    '2026_11_schedule_change_cancel', '2026_11_whatsapp_openwa', '2026_11_class_diagram_tasks', '2026_11_class_diagram_schedule_change',
+    '2026_11_class_diagram_departments', '2026_11_class_diagram_attributes', '2026_11_class_diagram_welfare_history',
+];
+
+/** The order in which the migration files run (see MIGRATION_ORDER). */
+function migrationOrder(array $files): array
+{
+    $key = function (string $f): array {
+        $i = array_search(basename($f, '.sql'), MIGRATION_ORDER, true);
+        return [$i === false ? PHP_INT_MAX : $i, basename($f)];
+    };
+    usort($files, fn($a, $b) => $key($a) <=> $key($b));
+    return $files;
+}
+
 function applyPendingMigrations(mysqli $conn): void
 {
     try {
@@ -47,8 +71,7 @@ function applyPendingMigrations(mysqli $conn): void
         $done = [];
         $r = $conn->query('SELECT name FROM schema_migrations');
         while ($r && ($row = $r->fetch_row())) { $done[$row[0]] = true; }
-        $files = glob(__DIR__ . '/../migrations/*.sql') ?: [];
-        sort($files);
+        $files = migrationOrder(glob(__DIR__ . '/../migrations/*.sql') ?: []);
         foreach ($files as $file) {
             $name = basename($file, '.sql');
             if (isset($done[$name])) { continue; }
@@ -59,8 +82,9 @@ function applyPendingMigrations(mysqli $conn): void
             if ($conn->multi_query($sql)) {
                 do { if ($res = $conn->store_result()) { $res->free(); } } while ($conn->more_results() && $conn->next_result());
             }
-            if ($conn->errno) { error_log("Migration $name failed: " . $conn->error); }
+            $failed = $conn->errno ? $conn->error : null;
             $conn->query("SELECT RELEASE_LOCK('uis_migrate')");
+            if ($failed !== null) { error_log("Migration $name failed: " . $failed); return; }   // the next ones may need this one
         }
     } catch (Throwable $e) {
         error_log('Migration skipped: ' . $e->getMessage());

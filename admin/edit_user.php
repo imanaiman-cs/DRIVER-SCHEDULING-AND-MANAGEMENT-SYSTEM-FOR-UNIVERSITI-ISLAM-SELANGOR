@@ -105,7 +105,7 @@ $have = array_filter(explode(',', (string)$v['license_class']));
             <div class="row g-3">
                 <div class="col-12 col-md-6"><label class="form-label" for="department">Department <span class="text-danger">*</span></label>
                     <select class="form-select" id="department" name="department" required><option value="">Choose...</option>
-                        <?php foreach ($departments as $d): ?><option <?= $v['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
+                        <?php foreach ($departments as $d): ?><option value="<?= $h($d) ?>" <?= $v['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
                 <div class="col-12 col-md-6"><label class="form-label" for="role">Role <span class="text-danger">*</span></label>
                     <select class="form-select" id="role" name="role" <?= $lockRole ? 'disabled' : 'required' ?>>
                         <?php foreach ($roles as $k => $lbl): ?><option value="<?= $k ?>" <?= $v['role'] === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select>

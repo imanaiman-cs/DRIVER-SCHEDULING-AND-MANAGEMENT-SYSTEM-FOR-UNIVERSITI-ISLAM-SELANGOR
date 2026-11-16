@@ -252,7 +252,7 @@ adminPageStart('Request a Vehicle');
                     <input class="form-control" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
                 <div class="col-md-4"><label class="form-label small" for="waiting_place">Waiting location *</label>
                     <select class="form-select" id="waiting_place" name="waiting_place">
-                        <?php foreach (WAITING_LOCATIONS as $w): ?><option <?= $f['waiting_place'] === $w ? 'selected' : '' ?>><?= htmlspecialchars($w) ?></option><?php endforeach; ?>
+                        <?php foreach (WAITING_LOCATIONS as $w): ?><option value="<?= htmlspecialchars($w) ?>" <?= $f['waiting_place'] === $w ? 'selected' : '' ?>><?= htmlspecialchars($w) ?></option><?php endforeach; ?>
                     </select></div>
                 <div class="col-md-4" id="otherRow" style="display:none;"><label class="form-label small" for="waiting_address">Address of the waiting location *</label>
                     <input class="form-control" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>

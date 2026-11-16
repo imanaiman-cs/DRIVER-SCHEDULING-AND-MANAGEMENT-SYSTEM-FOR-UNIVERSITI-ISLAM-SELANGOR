@@ -155,7 +155,7 @@ CREATE TABLE `tasks` (
   `created_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `welfare_date` date GENERATED ALWAYS AS (if(`task_source` = 'welfare',cast(`start_dt` as date),NULL)) STORED COMMENT 'one welfare duty per day',
+  `welfare_date` date GENERATED ALWAYS AS (if(`task_source` = 'welfare' and `status` <> 'cancelled',cast(`start_dt` as date),NULL)) STORED COMMENT 'one welfare duty per day (cancelled days do not count)',
   PRIMARY KEY (`task_id`),
   UNIQUE KEY `uq_task_welfare_date` (`welfare_date`),
   KEY `idx_task_request` (`request_id`,`trip_type`),
@@ -166,7 +166,7 @@ CREATE TABLE `tasks` (
   KEY `fk_task_created_by` (`created_by`),
   CONSTRAINT `fk_task_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_task_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_task_duty` FOREIGN KEY (`duty_id`) REFERENCES `welfare_duties` (`duty_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_task_duty` FOREIGN KEY (`duty_id`) REFERENCES `welfare_duties` (`duty_id`),
   CONSTRAINT `fk_task_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_task_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Class Task: request tasks, internal tasks and welfare duty days';
@@ -250,7 +250,7 @@ CREATE TABLE `driver_replacements` (
   `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'approved' COMMENT 'pending until the Head of Admin approves the new assignment',
   PRIMARY KEY (`replacement_id`),
   KEY `idx_repl_task` (`task_id`),
-  CONSTRAINT `fk_repl_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`) ON DELETE CASCADE
+  CONSTRAINT `fk_repl_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `whatsapp_log` (
@@ -383,7 +383,7 @@ CREATE TABLE `task_reports` (
   `updated_at` datetime DEFAULT NULL,
   PRIMARY KEY (`report_id`),
   UNIQUE KEY `uq_report_task` (`task_id`),
-  CONSTRAINT `fk_report_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`) ON DELETE CASCADE
+  CONSTRAINT `fk_report_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `verification_codes` (
@@ -689,4 +689,4 @@ SELECT 'welfare', w.duty_id, 'welfare', ELT(1 + (DAYOFMONTH(d.day_date) MOD 10),
  ORDER BY d.day_date;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments'), ('2026_11_class_diagram_attributes');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments'), ('2026_11_class_diagram_attributes'), ('2026_11_class_diagram_welfare_history');

@@ -184,20 +184,28 @@ function translateTagAttributes(string $tag, string $lang): string
     return preg_replace_callback('/\b(' . $attrs . ')=(["\'])(.*?)\2/s', fn($m) => $m[1] . '=' . $m[2] . translateText($m[3], $lang) . $m[2], $tag);
 }
 
-/** JSON answers (AJAX): every string value is translated. */
+/**
+ * Keys of JSON answers whose values are identifiers sent back to the server (enum values, codes): never translated,
+ * otherwise a Malay page would submit e.g. "Kereta" instead of the vehicle type "Car".
+ */
+const JSON_KEEP_KEYS = ['type', 'vehicle_type', 'value', 'status', 'key', 'code', 'timing', 'kind', 'role', 'task_source', 'trip_type',
+                        'license_required', 'license_class', 'fuel_type', 'fuel_level', 'waiting_place', 'purpose_type', 'request_type', 'plate_number'];
+
+/** JSON answers (AJAX): every string value is translated, except the identifiers in JSON_KEEP_KEYS. */
 function translateJson(string $json, string $lang): string
 {
     $data = json_decode($json);
     if ($data === null && json_last_error() !== JSON_ERROR_NONE) { return $json; }
     $changed = false;
-    $walk = function ($v) use (&$walk, &$changed, $lang) {
+    $walk = function ($v, $key = null) use (&$walk, &$changed, $lang) {
+        if (is_string($key) && in_array($key, JSON_KEEP_KEYS, true)) { return $v; }
         if (is_string($v)) {
             $t = strpos($v, '<') !== false ? translateHtml($v, $lang) : translateText($v, $lang);
             if ($t !== $v) { $changed = true; }
             return $t;
         }
-        if (is_array($v)) { return array_map($walk, $v); }
-        if (is_object($v)) { foreach ($v as $k => $x) { $v->$k = $walk($x); } }
+        if (is_array($v)) { return array_map(fn($x) => $walk($x), $v); }
+        if (is_object($v)) { foreach ($v as $k => $x) { $v->$k = $walk($x, (string)$k); } }
         return $v;
     };
     $out = $walk($data);

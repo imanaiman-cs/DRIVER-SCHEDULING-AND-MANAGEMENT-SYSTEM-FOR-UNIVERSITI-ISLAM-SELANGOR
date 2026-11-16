@@ -73,10 +73,9 @@ function saveUploadedImage(array $file, string $subdir, int $maxBytes = 2097152)
     $extensions = [
         'image/jpeg' => 'jpg',
         'image/png'  => 'png',
-        'image/webp' => 'webp',
-    ];
+    ];                                                   // CLAUDE.md: uploads are PDF / JPG / PNG only
     if (!is_string($mime) || !isset($extensions[$mime])) {
-        return $fail('Only JPG, PNG or WebP images are allowed.');
+        return $fail('Only JPG or PNG images are allowed.');
     }
 
     $info = @getimagesize($tmp);

@@ -303,9 +303,17 @@ return [
         try { $conn->query("INSERT INTO tasks (task_source, task_type, start_dt, end_dt) VALUES ('welfare', 'welfare', '2034-10-02 00:00:00', '2034-10-03 00:00:00')"); }
         catch (mysqli_sql_exception $e) { $dup = true; }
         assert_true($dup, 'only one welfare duty per day');
-        $conn->query("DELETE FROM tasks WHERE duty_id = $duty");
+        // a deleted day is a soft delete: it stays (with its history) but no longer counts, and the date is free again
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE duty_id = $duty");
         syncWelfareDutyStatus($conn, $duty);
-        assert_same('gone', $st(), 'a week without days is removed, so it can be created again');
+        assert_same('waiting', $st(), 'a week whose days were all deleted is kept and counts as Waiting');
+        assert_same(0, count(welfareWeekRows($conn, $monday)), 'deleted days are not shown');
+        $conn->query("INSERT INTO tasks (task_source, duty_id, task_type, start_dt, end_dt, status) VALUES ('welfare', $duty, 'welfare', '2034-10-02 00:00:00', '2034-10-03 00:00:00', 'waiting')");
+        assert_true((int)$conn->insert_id > 0, 'the date of a deleted day can be scheduled again');
+        $kept = false;
+        try { $conn->query("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason) VALUES ((SELECT MIN(task_id) FROM tasks WHERE duty_id = $duty), 1, 2, 'x')"); $conn->query("DELETE FROM tasks WHERE duty_id = $duty"); }
+        catch (mysqli_sql_exception $e) { $kept = true; }
+        assert_true($kept, 'the database refuses to delete a task that has a replacement (history is never deleted)');
         // DriverReplacement.status: pending until the Head of Admin decides
         $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, vehicle_id, start_dt, end_dt, status) VALUES ('internal', 'refuel', 4, 5, '2034-10-09 09:00:00', '2034-10-09 10:00:00', 'assigned')");
         $t1 = (int)$conn->insert_id;
@@ -324,5 +332,13 @@ return [
         assert_same([3, 5], $drivers, 'the drivers of request 3 are returned for the notice');
         $t = $conn->query("SELECT COUNT(*), MIN(status), MIN(reject_reason), MIN(rejected_by), SUM(rejected_at IS NULL), SUM(driver_id IS NULL) FROM tasks WHERE request_id = 3")->fetch_row();
         assert_same(['2', 'cancelled', 'Use a more experienced driver', '7', '0', '2'], $t);
+    },
+    'migrations run in the order they were written (MIGRATION_ORDER); every file is listed' => function () {
+        $names = array_map(fn($f) => basename($f, '.sql'), migrationOrder(glob(dirname(__DIR__) . '/migrations/*.sql')));
+        assert_same(MIGRATION_ORDER, $names, 'every migration file is in MIGRATION_ORDER, and they run in that order');
+        $pos = array_flip($names);
+        assert_true($pos['2026_11_urgent'] < $pos['2026_11_approval_email'], 'approval_email needs is_urgent');
+        assert_true($pos['2026_11_class_diagram_tasks'] < $pos['2026_11_class_diagram_schedule_change'], 'the schedule change conversion needs tasks');
+        assert_same('2026_11_class_diagram_welfare_history', end($names));
     },
 ];

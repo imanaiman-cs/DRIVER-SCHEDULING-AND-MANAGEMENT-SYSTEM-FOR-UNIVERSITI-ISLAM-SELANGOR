@@ -22,7 +22,11 @@ $usageError = null; $usageItems = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'usage') {
     $km = trim((string)($_POST['mileage'] ?? '')); $fuel = (string)($_POST['fuel_level'] ?? ''); $to = (string)($_POST['status'] ?? '');
-    $cur0 = $conn->query('SELECT status, mileage FROM vehicles WHERE vehicle_id = ' . $id)->fetch_assoc();
+    $q0 = $conn->prepare('SELECT status, mileage FROM vehicles WHERE vehicle_id = ?');
+    $q0->bind_param('i', $id);
+    $q0->execute();
+    $cur0 = $q0->get_result()->fetch_assoc();
+    $q0->close();
     if (!preg_match('/^\d{1,7}$/', $km)) { $usageError = 'Fill in the current mileage.'; }
     elseif ((int)$km < (int)$cur0['mileage']) { $usageError = 'The mileage is not valid: it is lower than the current mileage (' . (int)$cur0['mileage'] . ' km).'; }       // A2.1
     elseif (!isset(VEHICLE_FUEL_LEVELS[$fuel])) { $usageError = 'Choose the current fuel level.'; }

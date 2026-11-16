@@ -155,7 +155,7 @@ $tok = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfT
                     <select class="form-select" id="role" name="role"><option value="staff" <?= $v['role'] === 'staff' ? 'selected' : '' ?>>Staff</option><option value="supervisor" <?= $v['role'] === 'supervisor' ? 'selected' : '' ?>>Head of Department</option></select><?= $err('role') ?></div>
                 <div class="col-12"><label class="form-label" for="department">PTJ (department) *</label>
                     <select class="form-select" id="department" name="department" required><option value="">Choose...</option>
-                        <?php foreach ($departments as $d): ?><option <?= $v['department'] === $d ? 'selected' : '' ?>><?= htmlspecialchars($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
+                        <?php foreach ($departments as $d): ?><option value="<?= htmlspecialchars($d) ?>" <?= $v['department'] === $d ? 'selected' : '' ?>><?= htmlspecialchars($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
                 <div class="col-sm-6"><label class="form-label" for="password">Password *</label>
                     <input type="password" class="form-control" id="password" name="password" required autocomplete="new-password" maxlength="72"><?= $err('password') ?>
                     <div class="form-text">At least 8 characters, with letters and digits.</div></div>

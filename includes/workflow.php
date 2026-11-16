@@ -2057,7 +2057,7 @@ function welfareWeekRows(mysqli $conn, string $monday): array
     $to = date('Y-m-d', strtotime($monday . ' +6 days'));
     $q = $conn->prepare("SELECT t.*, t.task_date AS duty_date, d.name AS driver_name, v.plate_number, v.model
                            FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-                          WHERE t.task_source = 'welfare' AND t.task_date BETWEEN ? AND ? ORDER BY t.task_date");
+                          WHERE t.task_source = 'welfare' AND t.status <> 'cancelled' AND t.task_date BETWEEN ? AND ? ORDER BY t.task_date");
     $q->bind_param('ss', $monday, $to);
     $q->execute();
     $out = [];
@@ -2080,19 +2080,13 @@ function welfareDay(mysqli $conn, int $task_id, bool $forUpdate = false): ?array
 /** The WelfareDuty status follows its days: waiting if a day has no driver, assigned if a day waits for the Head of Admin, else approved. */
 function syncWelfareDutyStatus(mysqli $conn, int $duty_id): void
 {
-    $q = $conn->prepare("SELECT COUNT(*) AS n, SUM(status = 'waiting') AS w, SUM(status = 'assigned') AS a FROM tasks WHERE task_source = 'welfare' AND duty_id = ?");
+    $q = $conn->prepare("SELECT COUNT(*) AS n, SUM(status = 'waiting') AS w, SUM(status = 'assigned') AS a FROM tasks WHERE task_source = 'welfare' AND duty_id = ? AND status <> 'cancelled'");
     $q->bind_param('i', $duty_id);
     $q->execute();
     $c = $q->get_result()->fetch_assoc();
     $q->close();
-    if ((int)$c['n'] === 0) {                               // no day left: the week is gone too, so it can be created again
-        $d = $conn->prepare('DELETE FROM welfare_duties WHERE duty_id = ?');
-        $d->bind_param('i', $duty_id);
-        $d->execute();
-        $d->close();
-        return;
-    }
-    $status = (int)$c['w'] > 0 ? 'waiting' : ((int)$c['a'] > 0 ? 'assigned' : 'approved');
+    // a week whose days were all deleted keeps its row (history) and counts as Waiting; it can be scheduled again (createWelfareWeek)
+    $status = ((int)$c['n'] === 0 || (int)$c['w'] > 0) ? 'waiting' : ((int)$c['a'] > 0 ? 'assigned' : 'approved');
     $u = $conn->prepare('UPDATE welfare_duties SET status = ? WHERE duty_id = ?');
     $u->bind_param('si', $status, $duty_id);
     $u->execute();
@@ -2126,16 +2120,23 @@ function createWelfareWeek(mysqli $conn, string $monday, array $vehicles): array
     $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
     $conn->begin_transaction();
     try {
-        $q = $conn->prepare('SELECT COUNT(*) FROM welfare_duties WHERE week_start_date = ? FOR UPDATE');
+        $q = $conn->prepare("SELECT d.duty_id, (SELECT COUNT(*) FROM tasks t WHERE t.duty_id = d.duty_id AND t.status <> 'cancelled') AS days
+                               FROM welfare_duties d WHERE d.week_start_date = ? FOR UPDATE");
         $q->bind_param('s', $monday);
         $q->execute();
-        $exists = (int)$q->get_result()->fetch_row()[0];
+        $old = $q->get_result()->fetch_assoc();
         $q->close();
-        if ($exists > 0) { $conn->rollback(); return $fail('A welfare duty schedule already exists for that week.'); }       // 2.1
-        $q = $conn->prepare("INSERT INTO welfare_duties (week_start_date, status, created_by) VALUES (?, 'waiting', ?)");
-        $q->bind_param('si', $monday, $by);
+        if ($old && (int)$old['days'] > 0) { $conn->rollback(); return $fail('A welfare duty schedule already exists for that week.'); }       // 2.1
+        if ($old) {                                                   // every day of it was deleted: the week is scheduled again
+            $duty = (int)$old['duty_id'];
+            $q = $conn->prepare("UPDATE welfare_duties SET status = 'waiting' WHERE duty_id = ?");
+            $q->bind_param('i', $duty);
+        } else {
+            $q = $conn->prepare("INSERT INTO welfare_duties (week_start_date, status, created_by) VALUES (?, 'waiting', ?)");
+            $q->bind_param('si', $monday, $by);
+        }
         $q->execute();
-        $duty = (int)$q->insert_id;
+        if (!$old) { $duty = (int)$q->insert_id; }
         $q->close();
         foreach ($days as $d) {
             if (($why = welfareVehicleProblem($conn, (int)$vehicles[$d], $d)) !== null) { $conn->rollback(); return $fail($why); }   // 3.1
@@ -2165,7 +2166,7 @@ function updateWelfareVehicle(mysqli $conn, int $task_id, int $vehicle_id): arra
     $conn->begin_transaction();
     try {
         $w = welfareDay($conn, $task_id, true);
-        if (!$w || $w['duty_date'] < date('Y-m-d')) { $conn->rollback(); return $fail('Only a duty day from today onward can be changed.'); }
+        if (!$w || $w['status'] === 'cancelled' || $w['duty_date'] < date('Y-m-d')) { $conn->rollback(); return $fail('Only a duty day from today onward can be changed.'); }
         if ((int)$w['vehicle_id'] === $vehicle_id) { $conn->rollback(); return $fail('That vehicle is already set for the day.'); }
         if (($why = welfareVehicleProblem($conn, $vehicle_id, $w['duty_date'], $task_id)) !== null) { $conn->rollback(); return $fail($why); }
         $u = $conn->prepare('UPDATE tasks SET vehicle_id = ? WHERE task_id = ?');
@@ -2188,8 +2189,9 @@ function updateWelfareVehicle(mysqli $conn, int $task_id, int $vehicle_id): arra
 function deleteWelfareDay(mysqli $conn, int $task_id): array
 {
     $w = welfareDay($conn, $task_id);
-    if (!$w || $w['duty_date'] < date('Y-m-d')) { return ['ok' => false, 'message' => 'Only a duty day from today onward can be deleted.']; }
-    $d = $conn->prepare("DELETE FROM tasks WHERE task_id = ? AND task_source = 'welfare'");
+    if (!$w || $w['status'] === 'cancelled' || $w['duty_date'] < date('Y-m-d')) { return ['ok' => false, 'message' => 'Only a duty day from today onward can be deleted.']; }
+    // soft delete: the day, its replacements and its report stay as history; the vehicle and the date are free again
+    $d = $conn->prepare("UPDATE tasks SET status = 'cancelled', cancel_reason = 'Deleted from the welfare duty schedule', cancelled_at = NOW() WHERE task_id = ? AND task_source = 'welfare' AND status <> 'cancelled'");
     $d->bind_param('i', $task_id);
     $d->execute();
     $d->close();

@@ -48,7 +48,8 @@ method to its table, column and function. Keep them in line when the schema chan
 ## How to work in this repo
 
 - One use case (or one gap item) per change. Mention the UC number in the commit message, e.g. `UC029 Request Schedule Change`.
-- Database change → update `database.sql` **and** add a new file in `migrations/` (never edit an old migration).
+- Database change → update `database.sql` **and** add a new file in `migrations/` (never edit an old migration), and add its name at the end of
+  `MIGRATION_ORDER` in `config/database.php` (migrations run in that order, not in name order).
 - After each change: run `php tests/run.php`, add a test for the new rule, and check the use case exceptions by hand.
 - Update `README.md` when a business rule changes.
 - If the SRS and the real procedure seem to disagree, do not guess: stop and write the question down for Iman.
