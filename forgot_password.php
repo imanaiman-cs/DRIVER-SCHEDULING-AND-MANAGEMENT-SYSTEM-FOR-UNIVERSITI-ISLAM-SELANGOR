@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         else {
             $res = sendVerificationCode($conn, $email, $staffId, 'reset');
             if ($res['ok']) { $_SESSION['pwreset'] = ['staff_id' => $staffId, 'email' => $email, 'step' => 'code']; $state = $_SESSION['pwreset']; $step = 'code'; $info = $res['message']; }
-            else { $errors['email'] = $res['message']; }
+            else { $errors[$step === 'code' ? 'code' : 'email'] = $res['message']; }   // on the code step the message shows under the code
         }
     } elseif ($action === 'verify' && $step === 'code') {
         $res = checkVerificationCode($conn, $state['email'], 'reset', (string)($_POST['code'] ?? ''));

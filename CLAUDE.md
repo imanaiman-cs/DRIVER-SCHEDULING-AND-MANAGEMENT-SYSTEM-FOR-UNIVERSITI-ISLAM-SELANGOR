@@ -4,7 +4,8 @@ Final year project (UiTM) by Muhammad Nur Iman Aiman. The requirements are in **
 (Use Case Descriptions, revised 14 November 2026, UC001–UC028 with sub use cases). It is the source of truth and replaces
 `docs/SRS.md` (v1.1) and `docs/SRS_dev_10Nov.md`, which are kept only as history. Read the matching use case (normal flow, alternatives,
 exceptions, notes) before changing code, and follow it step by step. Anything the use cases do not describe is out of scope,
-except what Iman asked for on top: the optional WhatsApp (OpenWA) channel in `notifyUsers()`, for drivers only (`docs/OPENWA_SETUP.md`).
+except what Iman asked for on top: the optional WhatsApp (OpenWA) channel in `notifyUsers()`, for drivers only (`docs/OPENWA_SETUP.md`), and the limit on
+verification codes (one a minute, five an hour per e-mail, `includes/verification.php`).
 
 The database follows Iman's class diagram (`docs/class_diagram.png`); `docs/CLASS_DIAGRAM_MAPPING.md` maps every class, attribute and
 method to its table, column and function. Keep them in line when the schema changes.

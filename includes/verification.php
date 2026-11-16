@@ -8,6 +8,24 @@
 
 const VERIFICATION_MINUTES   = 15;
 const VERIFICATION_MAX_TRIES = 5;
+// Iman's decision (16 Nov, review of PR #2): limit the codes per e-mail, so nobody can flood a mailbox or keep cancelling someone's code
+const VERIFICATION_MIN_GAP_SECONDS = 60;      // at most one code a minute
+const VERIFICATION_MAX_PER_HOUR    = 5;       // and at most five an hour
+
+/** Why a new code cannot be sent to this e-mail now, or null. Counted from email_log, where every verification e-mail is written. */
+function verificationLimitMessage(mysqli $conn, string $email): ?string
+{
+    $stmt = $conn->prepare("SELECT COUNT(*) AS hour_n, COALESCE(MAX(created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)), 0) AS recent
+                              FROM email_log WHERE kind = 'verification' AND to_email = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+    $gap = VERIFICATION_MIN_GAP_SECONDS;
+    $stmt->bind_param('is', $gap, $email);
+    $stmt->execute();
+    $r = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ((int)$r['recent'] === 1) { return 'A code was just sent. Please wait one minute before asking for a new code.'; }
+    if ((int)$r['hour_n'] >= VERIFICATION_MAX_PER_HOUR) { return 'Too many codes were asked for this e-mail. Please try again in one hour.'; }
+    return null;
+}
 
 /** UC013 exception 2.2: only an e-mail of the UIS domain (setting UIS_EMAIL_DOMAIN) is accepted. */
 function isUisEmail(mysqli $conn, string $email): bool
@@ -23,6 +41,7 @@ function isUisEmail(mysqli $conn, string $email): bool
  */
 function sendVerificationCode(mysqli $conn, string $email, string $staffId, string $purpose): array
 {
+    if (($limit = verificationLimitMessage($conn, $email)) !== null) { return ['ok' => false, 'message' => $limit]; }   // the earlier code stays valid
     $code = (string)random_int(100000, 999999);
     $hash = password_hash($code, PASSWORD_DEFAULT);
     $stmt = $conn->prepare('DELETE FROM verification_codes WHERE email = ? AND purpose = ?');   // a new code replaces any earlier one

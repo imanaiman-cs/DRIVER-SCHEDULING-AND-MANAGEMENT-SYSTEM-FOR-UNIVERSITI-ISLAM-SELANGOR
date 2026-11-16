@@ -55,7 +55,12 @@ class C:
         return _post(s, path, data, files, csrf, p)
     def login(s, u, pw):
         return s.s.post(B + '/login.php', data={'username': u, 'password': pw, 'csrf_token': s.token()}, allow_redirects=False)
+def age_codes():
+    """move earlier verification e-mails two hours back, so the limit (1 a minute, 5 an hour per e-mail) does not stop the next test step"""
+    sql("UPDATE email_log SET created_at = DATE_SUB(created_at, INTERVAL 2 HOUR) WHERE kind='verification'")
 def _post(s, path, data, files, csrf, p):
+    if isinstance(data, dict) and data.get('action') in ('request_code', 'resend'):
+        if data.pop('keep_limit', None) is None: age_codes()      # pass keep_limit=1 to test the limit itself
     h = {'X-CSRF-Token': s.token()} if csrf else {}
     return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
 PW = {'admin': 'admin123', 'head001': 'head001@uis'}

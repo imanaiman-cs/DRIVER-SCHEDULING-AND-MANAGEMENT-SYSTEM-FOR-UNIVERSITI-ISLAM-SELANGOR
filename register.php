@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($res['ok']) {
                 $_SESSION['reg'] = ['staff_id' => $staffId, 'email' => $email, 'step' => 'code'];
                 $state = $_SESSION['reg']; $step = 'code'; $info = $res['message'];
-            } else { $errors['email'] = $res['message']; }
+            } else { $errors[$step === 'code' ? 'code' : 'email'] = $res['message']; }   // on the code step the message shows under the code
         }
     } elseif ($action === 'verify' && $step === 'code') {                                      // step 3
         $res = checkVerificationCode($conn, $state['email'], 'register', (string)($_POST['code'] ?? ''));

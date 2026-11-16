@@ -356,6 +356,8 @@ return [
     'On duty for 24 hours (12 am to 12 am), ready for emergencies.' => 'Bertugas 24 jam (12 tengah malam hingga 12 tengah malam), bersedia untuk kecemasan.',
     'One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver\'s workload. Days before today are never changed.' => 'Seorang pemandu bertugas kebajikan selama 24 jam (12 tengah malam hingga 12 tengah malam) setiap hari. Hari kebajikan dikira dalam beban kerja pemandu. Hari sebelum hari ini tidak akan diubah.',
     'Only JPG or PNG images are allowed.' => 'Hanya imej JPG atau PNG dibenarkan.',
+    'A code was just sent. Please wait one minute before asking for a new code.' => 'Kod baru sahaja dihantar. Sila tunggu satu minit sebelum meminta kod baharu.',
+    'Too many codes were asked for this e-mail. Please try again in one hour.' => 'Terlalu banyak kod diminta untuk e-mel ini. Sila cuba lagi selepas satu jam.',
     'Only PDF, JPG or PNG files are allowed.' => 'Hanya fail PDF, JPG atau PNG dibenarkan.',
     'Only a Confirmed task can have its driver replaced.' => 'Hanya tugasan yang Disahkan boleh ditukar pemandunya.',
     'Only a Confirmed task that has not started can have its driver replaced.' => 'Hanya tugasan Disahkan yang belum bermula boleh ditukar pemandunya.',
