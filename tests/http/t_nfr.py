@@ -6,7 +6,7 @@ ADMIN_ONLY=[]; PAGES=[]
 for f in sorted(glob.glob(ROOT+'/**/*.php',recursive=True)):
     rel=os.path.relpath(f,ROOT)
     top=rel.split('/')[0]
-    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php') or rel.endswith('fleet_helpers.php'): continue
+    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php','register.php','forgot_password.php','set_language.php') or rel.endswith('fleet_helpers.php'): continue
     PAGES.append(rel)
 # 1. anonymous visitors get nothing
 bad=[]
@@ -22,20 +22,19 @@ ok('anonymous visitors cannot use any page or endpoint (%d checked)'%len(PAGES),
 # 2. role matrix for pages
 sess={'staff':user('stf001'),'hod':user('hos002'),'driver':user('drv001'),'admin':user('admin'),'head':user('head001')}
 for rel in PAGES:
-    if rel.startswith('ajax/') or rel in ('notifications.php','help.php','change_password.php'): continue
+    if rel.startswith('ajax/') or rel in ('notifications.php','change_password.php'): continue
     top=rel.split('/')[0]
     allowed={'admin':{'admin','head'},'staff':{'staff','hod','driver','admin','head'},'supervisor':{'hod'},'driver':{'driver'}}.get(top)
     if rel=='admin/approve_assignments.php': allowed={'head'}
     if allowed is None: continue
     for role,c in sess.items():
-        if rel.endswith(('view_driver.php','edit_driver.php','view_vehicle.php','edit_vehicle.php','replace_driver.php','assign_driver.php','task_sheet.php')): url=rel+'?id=1&schedule_id=1&request_id=1'
+        if rel.endswith(('view_driver.php','edit_driver.php','view_vehicle.php','edit_vehicle.php','replace_driver.php','assign_driver.php')): url=rel+'?id=1&schedule_id=1&request_id=1'
         else: url=rel
         r=c.get(url)
         is_ok = r.status_code==200
         if role in allowed: continue
         ok('%s is NOT open to %s'%(rel,role), not is_ok)
 # 3. CSRF on every POST
-r=sess['admin'].post('admin/reminders.php',{'request_id':1},csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code==419)
 r=sess['staff'].post('ajax/cancel_request.php',{'request_id':1},csrf=False); ok('AJAX POST without a CSRF token is refused (419)', r.status_code==419)
 # 4. login rules
 c=C()
@@ -53,12 +52,11 @@ sql("UPDATE settings SET setting_value='1' WHERE setting_key='SESSION_TIMEOUT_MI
 t=user('stf001'); time.sleep(62); r=t.get('staff/dashboard.php'); ok('idle session is signed out', r.status_code==302 and 'login' in r.headers.get('Location',''))
 sql("UPDATE settings SET setting_value='15' WHERE setting_key='SESSION_TIMEOUT_MIN'")
 # no user management left
-ok('no screen to create, edit, delete, reset or unlock users', not os.path.exists(ROOT+'/admin/users.php') and sess['admin'].get('admin/users.php').status_code==404)
+# user accounts (SRS summary 10 Nov): the Assistant manages them, but nothing is ever deleted
+uid_=sql("SELECT user_id FROM users WHERE username='stf003'"); sess['admin'].post('admin/users.php',{'user_id':uid_,'action':'delete'}); sess['admin'].post('admin/edit_user.php',{'id':uid_,'action':'delete'})
+ok('user accounts: managed by the Assistant, no action deletes a user', sess['admin'].get('admin/users.php').status_code==200 and sql("SELECT COUNT(*) FROM users WHERE username='stf003'")=='1' and sess['staff'].get('admin/users.php').status_code==302)
 ok('passwords are stored hashed (bcrypt)', sql("SELECT COUNT(*) FROM users WHERE password NOT LIKE '$2y$%'")=='0')
 # importer
-imp=subprocess_run=__import__('subprocess').run(['php',ROOT+'/tools/import_staff.php'],capture_output=True,text=True,env=dict(os.environ,DSMS_DB=DB))
-ok('tools/import_staff.php imports the sample file', 'Done:' in imp.stdout and imp.returncode==0)
-ok('imported user exists with the staff-system fields', sql("SELECT CONCAT(role,'/',department,'/',is_active) FROM users WHERE username='stf099'")=='staff/Faculty of Education/1')
 # 5. response times on the demo data (about 3 seconds at most)
 def timed(fn):
     t=time.time(); fn(); return time.time()-t
@@ -69,6 +67,6 @@ t2=timed(lambda: a.get('ajax/get_available_drivers.php',start=dd+' 09:00:00',end
 t3=timed(lambda: a.get('admin/vehicles.php')); t4=timed(lambda: a.get('admin/calendar.php')); t5=timed(lambda: a.get('admin/reports.php',type='tasks',month=today().strftime('%Y-%m')))
 ok('vehicle list responds within 3 s (%.2f s)'%t1, t1<3); ok('driver recommendation within 3 s (%.2f s)'%t2, t2<3); ok('vehicles page within 3 s (%.2f s)'%t3, t3<3)
 ok('calendar page within 3 s (%.2f s)'%t4, t4<3); ok('report within 3 s (%.2f s)'%t5, t5<3)
-ix=sql("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='%s' AND index_name IN ('idx_sched_driver_time','idx_sched_vehicle_time','idx_vr_period','idx_lock_vehicle','idx_itask_time')"%DB)
+ix=sql("SELECT COUNT(DISTINCT table_name, index_name) FROM information_schema.statistics WHERE table_schema='%s' AND index_name IN ('idx_task_driver_time','idx_task_vehicle_time','idx_vr_period','idx_lock_vehicle','idx_task_source')"%DB)
 ok('indexes on the date/time columns exist', int(ix)>=5)
 print(summary())

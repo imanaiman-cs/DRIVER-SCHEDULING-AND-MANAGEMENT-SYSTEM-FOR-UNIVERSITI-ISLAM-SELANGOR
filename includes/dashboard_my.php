@@ -18,9 +18,13 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
     foreach ($active as $r) { if (in_array($r['status'], ['approved', 'assigned', 'processed'], true)) { $next = $r; break; } }
     $next ??= $active[0] ?? null;
     $sum = fn(array $keys) => array_sum(array_map(fn($k) => $counts[$k] ?? 0, $keys));
-    $crew = [];
-    if ($next && $next['status'] === 'processed') {
-        $crew = array_column(dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]), 'name');
+    $crew = []; $plates = [];
+    if ($next && $next['status'] === 'processed') {          // the driver(s) and vehicle(s) of the Confirmed tasks
+        $rows = dashRows($conn, "SELECT d.name, COALESCE(s.vendor_bus_plate, v.plate_number) AS plate FROM tasks s LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+                                  WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.trip_type, s.task_id", 'i', [(int)$next['request_id']]);
+        $crew = array_values(array_unique(array_filter(array_column($rows, 'name'))));
+        $plates = array_values(array_unique(array_filter(array_column($rows, 'plate'))));
+        if (!$plates && !empty($next['plate_number'])) { $plates = [$next['plate_number']]; }
     }
     ?>
     <?= dashStats([
@@ -42,13 +46,14 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
                 <article class="dash-card">
                     <h6><span>Next trip</span><span class="font-mono font-normal text-base-content/60">#<?= (int)$next['request_id'] ?></span></h6>
                     <p class="text-xl font-medium leading-snug"><?= dh($next['destination']) ?></p>
-                    <p class="font-mono text-sm text-base-content/70"><?= requestPeriodText($next) ?></p>
+                    <p class="font-mono text-sm text-base-content/70"><?= requestPeriodText($next) ?> <?= tripCountdownHtml(requestDepartDT($next), in_array($next['status'], REQUEST_ACTIVE_STATUSES, true)) ?></p>
                     <dl class="mt-5 grid grid-cols-[6rem_1fr] gap-x-4 gap-y-3 text-sm">
                         <dt class="text-base-content/60">Passengers</dt><dd><?= (int)$next['passenger_count'] ?></dd>
-                        <dt class="text-base-content/60">Status</dt><dd><?= dashStepper($next['status']) ?></dd>
+                        <dt class="text-base-content/60">Vehicle type</dt><dd><?= dh(((int)($next['quantity'] ?? 1) > 1 ? (int)$next['quantity'] . ' x ' : '') . ($next['vehicle_type'] ?: (isPayClaimRequest($next) ? 'Pay and Claim' : '-'))) ?></dd>
+                        <dt class="text-base-content/60">Status</dt><dd><?= requestJourneyHtml($next, true) ?></dd>
                         <?php if ($next['status'] === 'processed'): ?>
-                            <dt class="text-base-content/60">Driver</dt><dd><?= dh(implode(', ', $crew) ?: '-') ?></dd>
-                            <dt class="text-base-content/60">Vehicle</dt><dd><?= plate($next['plate_number'] ?? '') ?: '-' ?></dd>
+                            <dt class="text-base-content/60">Driver</dt><dd><?= dh(implode(', ', $crew) ?: (isRequestWithoutDriver($next) ? 'Without driver' : '-')) ?></dd>
+                            <dt class="text-base-content/60">Vehicle</dt><dd><?= implode(' ', array_map('plate', $plates)) ?: '-' ?></dd>
                         <?php else: ?>
                             <dt class="text-base-content/60">Driver</dt><dd class="text-base-content/60">Shown once Confirmed</dd>
                         <?php endif; ?>
@@ -65,7 +70,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
                 <?php foreach ($active as $r): ?>
                     <a class="dash-row block" href="<?= $base ?>my_requests.php?open=<?= (int)$r['request_id'] ?>">
                         <span class="block"><span class="font-mono text-base-content/60">#<?= (int)$r['request_id'] ?></span> <?= dh($r['destination']) ?> <span class="text-base-content/60">&middot; <?= requestPeriodText($r) ?></span></span>
-                        <?= dashStepper($r['status']) ?>
+                        <span class="mt-1 flex flex-wrap items-center gap-2"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></span>
                     </a>
                 <?php endforeach; ?>
                 </div>

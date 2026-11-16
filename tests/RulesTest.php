@@ -9,7 +9,7 @@ function t_user(string $role = 'staff', ?string $dept = 'Test PTJ'): int
     global $conn;
     static $n = 0; $n++;
     $u = 't_' . $role . '_' . $n . '_' . mt_rand(1000, 9999);
-    $stmt = $conn->prepare("INSERT INTO users (username, password, email, full_name, role, department) VALUES (?, 'x', ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO users (username, password, email, full_name, role, department_id) VALUES (?, 'x', ?, ?, ?, (SELECT department_id FROM departments WHERE department_name = ?))");
     $mail = $u . '@test.test';
     $stmt->bind_param('sssss', $u, $mail, $u, $role, $dept);
     $stmt->execute();
@@ -60,22 +60,19 @@ return [
         assert_same('Head of Admin', roleLabel('head_admin'));
         assert_same('Staff', roleLabel('staff'));
         assert_same('Driver', roleLabel('driver'));
-        assert_same(['Pending', 'Approved', 'Driver Assigned', 'Confirmed', 'Rejected', 'Cancelled', 'Lapsed'],
+        assert_same(['Pending', 'Approved by Head of Department', 'Driver Assigned', 'Approved', 'Rejected', 'Cancelled', 'Lapsed'],
             array_map('requestStatusLabel', ['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed']));
     },
     'a request that is rejected, cancelled, lapsed or completed no longer needs its vehicle' => function () {
         foreach (['rejected', 'cancelled', 'lapsed', 'completed'] as $s) { assert_true(!in_array($s, REQUEST_ACTIVE_STATUSES, true)); }
         foreach (['pending', 'approved', 'assigned', 'processed'] as $s) { assert_true(in_array($s, REQUEST_ACTIVE_STATUSES, true)); }
     },
-    'timing rule: under 1 day is refused, under 2 days warns, otherwise ok' => function () {
+    'timing rule (SRS 10 Nov): under 2 days is accepted and marked Urgent, otherwise ok; nothing is refused' => function () {
         $at = fn(float $h) => date('Y-m-d H:i:s', time() + (int)($h * 3600));
-        assert_same('reject', requestTimingRule($at(5))['level']);
-        assert_same('reject', requestTimingRule($at(23.5))['level']);
-        assert_same('warn', requestTimingRule($at(24.5))['level']);
-        assert_same('warn', requestTimingRule($at(47))['level']);
-        assert_same('ok', requestTimingRule($at(49))['level'], 'no hard rejection at 2 days');
-        assert_same('Please use the paper form BPTK/BPI/2025/PIN.5', requestTimingRule($at(2))['message']);
-        assert_same('reject', requestTimingRule($at(-3))['level'], 'a past departure');
+        foreach ([5, 23.5, 24.5, 47] as $h) { assert_same('urgent', requestTimingRule($at($h))['level'], "$h hours"); }
+        assert_same('ok', requestTimingRule($at(49))['level']);
+        assert_true(strpos(requestTimingRule($at(2))['message'], 'Urgent') !== false);
+        assert_same('ok', requestTimingRule($at(300))['level']);
     },
     'strict date and time checks' => function () {
         assert_true(isValidDate('2026-02-28')); assert_true(!isValidDate('2026-02-31')); assert_true(!isValidDate('26-2-3'));
@@ -138,17 +135,17 @@ return [
     },
     'driver clash: tasks and internal tasks overlap, adjacent and cancelled ones do not' => function () {
         global $conn;
-        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (3, 5, '2034-06-01', '09:00', '11:00', 'T', 'approved')");
+        $conn->query("INSERT INTO tasks (driver_id, vehicle_id, task_source, task_type, start_dt, end_dt, location, status) VALUES (3, 5, 'request', 'trip', '2034-06-01 09:00', '2034-06-01 11:00', 'T', 'approved')");
         $sid = (int)$conn->insert_id;
         assert_true(driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00') !== null, 'overlap');
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 11:00:00', '2034-06-01 13:00:00'), 'adjacent');
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00', $sid), 'the task itself is excluded (replace driver)');
-        $conn->query("UPDATE schedules SET status = 'cancelled' WHERE schedule_id = $sid");
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE task_id = $sid");
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00'), 'cancelled task');
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description) VALUES ('refuel', '2034-06-02', '14:00', '15:00', 5, 4, 'x')");
+        $conn->query("INSERT INTO tasks (task_type, task_source, start_dt, end_dt, vehicle_id, driver_id, description, status) VALUES ('refuel', 'internal', '2034-06-02 14:00', '2034-06-02 15:00', 5, 4, 'x', 'approved')");
         $tid = (int)$conn->insert_id;
         assert_true(driverClashReason($conn, 4, '2034-06-02 14:30:00', '2034-06-02 16:00:00') !== null, 'internal task overlaps');
-        $conn->query("UPDATE internal_tasks SET status = 'cancelled' WHERE task_id = $tid");
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE task_id = $tid");
         assert_same(null, driverClashReason($conn, 4, '2034-06-02 14:30:00', '2034-06-02 16:00:00'), 'cancelled internal task');
     },
     'outside working hours: before 08:00, after 17:30 and weekends' => function () {
@@ -159,7 +156,7 @@ return [
         assert_true(isOutsideWorkingHours($conn, '2034-06-10', '10:00:00', '11:00:00'), 'Saturday');
         assert_true(isOutsideWorkingHours($conn, '2034-06-11', '10:00:00', '11:00:00'), 'Sunday');
     },
-    'cancel rules: staff reason optional, Head of Department and administrators must give a reason, never after the trip started' => function () {
+    'cancel rules (UC021): a reason is required for everyone, never after the trip started' => function () {
         global $conn;
         $staff = t_user(); $hod = t_user('supervisor'); $adm = t_user('admin'); $other = t_user();
         $v = t_vehicle();
@@ -167,7 +164,7 @@ return [
         $conn->query("UPDATE vehicle_requests SET supervisor_id = $hod WHERE request_id = $future");
         $req = $conn->query("SELECT * FROM vehicle_requests WHERE request_id = $future")->fetch_assoc();
         $_SESSION = ['user_id' => $staff, 'role' => 'staff'];
-        $r = cancelRulesFor($req); assert_true($r['allowed'] && !$r['reason_required'], 'staff: own request, reason optional');
+        $r = cancelRulesFor($req); assert_true($r['allowed'] && $r['reason_required'], 'staff: own request, reason required');
         $_SESSION = ['user_id' => $other, 'role' => 'staff'];
         assert_true(!cancelRulesFor($req)['allowed'], "staff cannot cancel someone else's request");
         $_SESSION = ['user_id' => $hod, 'role' => 'supervisor'];
@@ -194,12 +191,154 @@ return [
         assert_true(driverHoldsLicence('D,PSV', 'PSV')); assert_true(!driverHoldsLicence('D,PSV', 'GDL')); assert_true(!driverHoldsLicence(null, 'D'));
         assert_same('D,GDL,PSV', normaliseLicenceList(['psv', 'D', 'gdl', 'X'])); assert_same('', normaliseLicenceList(['X']));
     },
-    'WhatsApp numbers are normalised and a missing number is skipped, not an error' => function () {
+    'UC012 automatic reminder: only the Head of Department is told, the sender is the system, the date is recorded' => function () {
+        global $conn;
+        $hod = t_user('supervisor'); $staff = t_user(); $v = t_vehicle();
+        $rid = t_request($staff, $v, '2034-07-10 09:00:00', '2034-07-10 12:00:00');
+        $conn->query("UPDATE vehicle_requests SET supervisor_id = $hod, created_at = DATE_SUB(NOW(), INTERVAL 26 HOUR) WHERE request_id = $rid");
+        $res = sendApprovalReminder($conn, $rid, true);
+        assert_true($res['ok'], 'reminder sent');
+        $n = $conn->query("SELECT user_id FROM notifications WHERE message LIKE 'Reminder: request #$rid %'")->fetch_all(MYSQLI_ASSOC);
+        assert_same(1, count($n), 'one in-system notification');
+        assert_same($hod, (int)$n[0]['user_id'], 'it goes to the Head of Department, not the staff member');
+        $row = $conn->query("SELECT sent_by FROM reminders WHERE request_id = $rid")->fetch_assoc();
+        assert_same(null, $row['sent_by'], 'no sender: the system sent it');
+        assert_same(1, (int)$conn->query("SELECT COUNT(*) FROM email_log WHERE user_id = $hod AND subject LIKE '%Reminder: request #$rid%'")->fetch_row()[0], 'the e-mail is logged even when sending is switched off');
+        $conn->query("UPDATE vehicle_requests SET status = 'approved' WHERE request_id = $rid");
+        assert_true(!sendApprovalReminder($conn, $rid, true)['ok'], 'no reminder for a request that is not Pending');
+    },
+    'UC010 A3 without driver: the flag is read from the request row' => function () {
+        assert_true(isRequestWithoutDriver(['need_driver' => 0]));
+        assert_true(isRequestWithoutDriver(['need_driver' => '0']));
+        assert_true(!isRequestWithoutDriver(['need_driver' => 1]));
+        assert_true(!isRequestWithoutDriver([]), 'a row without the column counts as With driver');
+    },
+    'UC030 unavailable dates: only an APPROVED Unavailable Date request blocks the driver on those days' => function () {
+        global $conn;
+        $dr = (int)$conn->query("SELECT driver_id FROM drivers WHERE status = 'active' ORDER BY driver_id LIMIT 1")->fetch_row()[0];
+        $stmt = $conn->prepare("INSERT INTO schedule_changes (driver_id, change_type, start_date, end_date, reason, status) VALUES (?, 'unavailable', '2034-08-02', '2034-08-03', 'test', 'pending')");
+        $stmt->bind_param('i', $dr); $stmt->execute(); $cid = (int)$stmt->insert_id; $stmt->close();
+        assert_same(['2034-08-02', '2034-08-03'], scheduleChangeDatesOf($conn, $cid), 'the days of the range');
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'pending: not unavailable');
+        $conn->query("UPDATE schedule_changes SET status = 'rejected' WHERE change_id = $cid");
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'rejected: not unavailable');
+        $conn->query("UPDATE schedule_changes SET status = 'approved' WHERE change_id = $cid");
+        assert_true(driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00') !== null, 'approved: unavailable that day');
+        assert_true(driverUnavailableReason($conn, $dr, '2034-08-03 23:00:00', '2034-08-04 02:00:00') !== null, 'a task that runs into an unavailable day');
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-04 09:00:00', '2034-08-04 11:00:00'), 'the next day is free');
+        assert_same('Marked unavailable on 03 Aug 2034', driverUnavailableReason($conn, $dr, '2034-08-03 09:00:00', '2034-08-05 11:00:00'), 'a longer task: the first unavailable day is named');
+        assert_same(null, driverUnavailableReason($conn, $dr + 1000, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'another driver is not affected');
+        $conn->query("UPDATE schedule_changes SET change_type = 'withdraw' WHERE change_id = $cid");
+        assert_same(null, driverUnavailableReason($conn, $dr, '2034-08-02 09:00:00', '2034-08-02 11:00:00'), 'a withdraw request never makes the driver unavailable');
+    },
+    'UC029 the days of a request' => function () {
+        assert_same(['2034-08-02', '2034-08-03', '2034-08-04'], scheduleChangeDates('2034-08-02', '2034-08-04'));
+        assert_same(['2034-08-02'], scheduleChangeDates('2034-08-02', '2034-08-02'));
+        assert_same([], scheduleChangeDates('2034-08-04', '2034-08-02'), 'backwards');
+        assert_same([], scheduleChangeDates('nonsense', '2034-08-02'));
+        assert_true(count(scheduleChangeDates('2034-01-01', '2034-12-31')) > SCHEDULE_CHANGE_MAX_DAYS, 'a long range is cut so the caller can refuse it');
+    },
+    'UC019 the time the approval e-mail was sent is recorded; nothing is retried while e-mail is off' => function () {
+        global $conn;
+        $staff = t_user('staff'); $veh = t_vehicle();
+        $rid = t_request($staff, $veh, '2034-09-02 09:00:00', '2034-09-02 12:00:00');
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] === null, 'new request: not sent yet');
+        markApprovalEmail($conn, $rid, ['sent' => 0, 'skipped' => 1]);
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] === null, 'skipped: still empty (it will be tried again)');
+        markApprovalEmail($conn, $rid, ['sent' => 1]);
+        assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] !== null, 'sent: date and time recorded');
+        assert_same(0, retryApprovalEmails($conn), 'e-mail sending is switched off: no retry');
+    },
+    'request journey: the stepper follows the status and the kind of request' => function () {
+        $base = ['request_type' => 'uis', 'purpose_type' => 'official', 'need_driver' => 1, 'reviewed_at' => null];
+        $st = fn(array $r) => implode(',', array_map(fn($s) => $s['label'] . ':' . $s['state'], requestJourney($r)['steps']));
+        assert_same('Submitted:done,Head of Department:current,Vehicle Section:todo,Head of Admin:todo,Trip:todo,Completed:todo', $st($base + ['status' => 'pending']));
+        assert_same('Submitted:done,Head of Department:done,Vehicle Section:current,Head of Admin:todo,Trip:todo,Completed:todo', $st($base + ['status' => 'approved']));
+        assert_same('Submitted:done,Head of Department:done,Vehicle Section:done,Head of Admin:done,Trip:current,Completed:todo', $st($base + ['status' => 'processed']));
+        assert_true(!str_contains($st($base + ['status' => 'completed']), 'todo') && !str_contains($st($base + ['status' => 'completed']), 'current'), 'completed: every step is done');
+        $j = requestJourney($base + ['status' => 'lapsed']);
+        assert_same('lapsed', $j['ended']); assert_same('failed', $j['steps'][1]['state'], 'a lapsed request stopped at the Head of Department');
+        assert_same('Submitted:done,Head of Department:current,Head of Admin:todo,Trip:todo,Completed:todo', $st(['request_type' => 'pay_claim', 'status' => 'pending'] + $base), 'Pay and Claim has no Vehicle Section step');
+        assert_same('Submitted:done,Vehicle Section:current,Head of Admin:todo,Trip:todo,Completed:todo', $st(['purpose_type' => 'personal_rental', 'status' => 'pending'] + $base), 'a Personal Rental has no Head of Department step');
+        assert_true(str_contains(requestJourneyHtml($base + ['status' => 'assigned'], true), 'Now: Head of Admin'), 'the rail names the stage');
+        assert_same('', tripCountdownHtml(date('Y-m-d H:i:s', time() - 60)), 'no countdown for a trip that started');
+        assert_true(str_contains(tripCountdownHtml(date('Y-m-d H:i:s', time() + 3 * 86400 + 60)), 'in 3 days'));
+    },
+    'WhatsApp: numbers are normalised; switched off nothing is sent or logged; only drivers get WhatsApp' => function () {
         global $conn;
         assert_same('60123456789', whatsappNumber('012-345 6789'));
         assert_same('60123456789', whatsappNumber('+60 12-345 6789'));
         assert_same(null, whatsappNumber('123'));
-        $res = sendWhatsApp($conn, null, '', 'x');
-        assert_same('skipped', $res['status']);
+        $before = (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0];
+        assert_same('skipped', sendWhatsApp($conn, null, '0123456789', 'x')['status']);
+        assert_true(!whatsappEnabled(), 'WhatsApp is off in the test setup');
+        assert_same($before, (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0], 'switched off: no row is written');
+        assert_true(whatsappForRole('driver'), 'drivers get WhatsApp');
+        foreach (['staff', 'supervisor', 'admin', 'head_admin', null] as $r) { assert_true(!whatsappForRole($r), ($r ?? 'null') . ' gets e-mail only'); }
+    },
+    'class diagram: one tasks table; a WelfareDuty week follows its days; a replacement waits for the Head of Admin' => function () {
+        global $conn;
+        // one Task class: request tasks, internal tasks and welfare days live in one table
+        $src = array_column($conn->query("SELECT DISTINCT task_source FROM tasks ORDER BY task_source")->fetch_all(), 0);
+        assert_same(['request', 'internal', 'welfare'], $src, 'the demo data has the three task sources');
+        // WelfareDuty: one row per week, status follows the days, a week with no day left is removed
+        $monday = '2034-10-02';
+        assert_same($monday, welfareWeekStart('2034-10-05'));
+        $conn->query("INSERT INTO welfare_duties (week_start_date, status) VALUES ('$monday', 'waiting')");
+        $duty = (int)$conn->insert_id;
+        $conn->query("INSERT INTO tasks (task_source, duty_id, task_type, vehicle_id, start_dt, end_dt, status) VALUES
+                      ('welfare', $duty, 'welfare', 5, '2034-10-02 00:00:00', '2034-10-03 00:00:00', 'waiting'),
+                      ('welfare', $duty, 'welfare', 6, '2034-10-03 00:00:00', '2034-10-04 00:00:00', 'approved')");
+        $st = fn() => (string)($conn->query("SELECT status FROM welfare_duties WHERE duty_id = $duty")->fetch_row()[0] ?? 'gone');
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('waiting', $st(), 'a day without a driver');
+        $conn->query("UPDATE tasks SET status = 'assigned', driver_id = 3 WHERE duty_id = $duty AND status = 'waiting'");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('assigned', $st(), 'a day waits for the Head of Admin');
+        $conn->query("UPDATE tasks SET status = 'approved' WHERE duty_id = $duty");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('approved', $st());
+        assert_same(2, count(welfareWeekRows($conn, $monday)), 'the week has its days (1..7)');
+        $dup = false;
+        try { $conn->query("INSERT INTO tasks (task_source, task_type, start_dt, end_dt) VALUES ('welfare', 'welfare', '2034-10-02 00:00:00', '2034-10-03 00:00:00')"); }
+        catch (mysqli_sql_exception $e) { $dup = true; }
+        assert_true($dup, 'only one welfare duty per day');
+        // a deleted day is a soft delete: it stays (with its history) but no longer counts, and the date is free again
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE duty_id = $duty");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('waiting', $st(), 'a week whose days were all deleted is kept and counts as Waiting');
+        assert_same(0, count(welfareWeekRows($conn, $monday)), 'deleted days are not shown');
+        $conn->query("INSERT INTO tasks (task_source, duty_id, task_type, start_dt, end_dt, status) VALUES ('welfare', $duty, 'welfare', '2034-10-02 00:00:00', '2034-10-03 00:00:00', 'waiting')");
+        assert_true((int)$conn->insert_id > 0, 'the date of a deleted day can be scheduled again');
+        $kept = false;
+        try { $conn->query("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason) VALUES ((SELECT MIN(task_id) FROM tasks WHERE duty_id = $duty), 1, 2, 'x')"); $conn->query("DELETE FROM tasks WHERE duty_id = $duty"); }
+        catch (mysqli_sql_exception $e) { $kept = true; }
+        assert_true($kept, 'the database refuses to delete a task that has a replacement (history is never deleted)');
+        // DriverReplacement.status: pending until the Head of Admin decides
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, vehicle_id, start_dt, end_dt, status) VALUES ('internal', 'refuel', 4, 5, '2034-10-09 09:00:00', '2034-10-09 10:00:00', 'assigned')");
+        $t1 = (int)$conn->insert_id;
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, vehicle_id, start_dt, end_dt, status) VALUES ('internal', 'refuel', 5, 5, '2034-10-10 09:00:00', '2034-10-10 10:00:00', 'assigned')");
+        $t2 = (int)$conn->insert_id;
+        $conn->query("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, status) VALUES ($t1, 2, 4, 'Sick', 'pending'), ($t2, 2, 5, 'Leave', 'pending')");
+        settleDriverReplacements($conn, [$t1], 'approved');
+        settleDriverReplacements($conn, [$t2], 'rejected');
+        $rs = $conn->query("SELECT task_id, status FROM driver_replacements WHERE task_id IN ($t1, $t2) ORDER BY task_id")->fetch_all();
+        assert_same([[(string)$t1, 'approved'], [(string)$t2, 'rejected']], $rs);
+        // a rejected request assignment: the tasks are cancelled and keep who rejected them, when and why
+        $_SESSION = ['user_id' => 7, 'role' => 'head_admin'];
+        $drivers = cancelRequestTasks($conn, 3, 'Use a more experienced driver');
+        $_SESSION = [];
+        sort($drivers);
+        assert_same([3, 5], $drivers, 'the drivers of request 3 are returned for the notice');
+        $t = $conn->query("SELECT COUNT(*), MIN(status), MIN(reject_reason), MIN(rejected_by), SUM(rejected_at IS NULL), SUM(driver_id IS NULL) FROM tasks WHERE request_id = 3")->fetch_row();
+        assert_same(['2', 'cancelled', 'Use a more experienced driver', '7', '0', '2'], $t);
+    },
+    'migrations run in the order they were written (MIGRATION_ORDER); every file is listed' => function () {
+        $names = array_map(fn($f) => basename($f, '.sql'), migrationOrder(glob(dirname(__DIR__) . '/migrations/*.sql')));
+        assert_same(MIGRATION_ORDER, $names, 'every migration file is in MIGRATION_ORDER, and they run in that order');
+        $pos = array_flip($names);
+        assert_true($pos['2026_11_urgent'] < $pos['2026_11_approval_email'], 'approval_email needs is_urgent');
+        assert_true($pos['2026_11_class_diagram_tasks'] < $pos['2026_11_class_diagram_schedule_change'], 'the schedule change conversion needs tasks');
+        assert_same('2026_11_class_diagram_welfare_history', end($names));
     },
 ];

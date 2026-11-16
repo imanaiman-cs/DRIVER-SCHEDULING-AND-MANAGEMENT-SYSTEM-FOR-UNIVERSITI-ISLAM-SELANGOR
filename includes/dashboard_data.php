@@ -114,7 +114,7 @@ function dashFleet(mysqli $conn): array
 }
 
 /** Requests that need the Vehicle Section: by status, oldest first, with hours waiting. */
-function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanHours = 0): array
+function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanHours = 0, ?int $needDriver = null): array
 {
     $cutoff = date('Y-m-d H:i:s', time() - $olderThanHours * 3600);
     return dashRows(
@@ -122,7 +122,7 @@ function dashQueue(mysqli $conn, string $status, int $limit = 5, int $olderThanH
         "SELECT vr.request_id, vr.destination, vr.trip_date, vr.start_time, vr.return_date, vr.end_time, vr.status, u.full_name AS staff_name,
                 TIMESTAMPDIFF(HOUR, COALESCE(vr.reviewed_at, vr.created_at), NOW()) AS waiting_h
            FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-          WHERE vr.status = ? AND COALESCE(vr.reviewed_at, vr.created_at) <= ?
+          WHERE vr.status = ? AND COALESCE(vr.reviewed_at, vr.created_at) <= ?" . ($needDriver !== null ? ' AND vr.need_driver = ' . (int)$needDriver : '') . "
           ORDER BY COALESCE(vr.reviewed_at, vr.created_at) LIMIT $limit",
         'ss', [$status, $cutoff]
     );
@@ -143,7 +143,7 @@ function dashAlerts(mysqli $conn): array
     }
     foreach (dashRows($conn, "SELECT v.plate_number, m.end_date FROM vehicle_maintenance m JOIN vehicles v ON v.vehicle_id = m.vehicle_id
                                WHERE m.closed_at IS NULL AND m.end_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY m.end_date LIMIT 5") as $r) {
-        $a[] = ['tone' => 'info', 'icon' => 'screwdriver-wrench', 'href' => 'vehicle_maintenance.php',
+        $a[] = ['tone' => 'info', 'icon' => 'screwdriver-wrench', 'href' => 'vehicles.php',
                 'text' => "{$r['plate_number']} is due back from maintenance on " . date('d M Y', strtotime($r['end_date']))];
     }
     foreach (dashRows($conn, "SELECT name, license_expiry FROM drivers WHERE status = 'active' AND license_expiry IS NOT NULL
@@ -154,40 +154,9 @@ function dashAlerts(mysqli $conn): array
     }
     $mail = (int)dashValue($conn, "SELECT COUNT(*) FROM email_log WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
     $wa = (int)dashValue($conn, "SELECT COUNT(*) FROM whatsapp_log WHERE status = 'failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+    if ($wa > 0) { $a[] = ['tone' => 'warning', 'icon' => 'comment-dots', 'href' => '../notifications.php', 'text' => "$wa WhatsApp message(s) failed in the last 7 days (table whatsapp_log)"]; }
     if ($mail > 0) { $a[] = ['tone' => 'warning', 'icon' => 'envelope', 'href' => '../notifications.php', 'text' => "$mail e-mail(s) failed to send in the last 7 days (table email_log)"]; }
-    if ($wa > 0) { $a[] = ['tone' => 'warning', 'icon' => 'comment-dots', 'href' => '../notifications.php', 'text' => "$wa WhatsApp message(s) failed in the last 7 days"]; }
     return $a;
-}
-
-/** Today's request tasks (outbound / return) and internal tasks, by time. */
-function dashToday(mysqli $conn): array
-{
-    $today = date('Y-m-d');
-    $rows = dashRows(
-        $conn,
-        "SELECT s.start_dt, s.end_dt, s.leg_no, s.destination, d.name AS driver, v.plate_number, vr.status AS req_status
-           FROM schedules s LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-           LEFT JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.status <> 'cancelled' AND s.trip_date = ?", 's', [$today]
-    );
-    $items = [];
-    foreach ($rows as $t) {
-        $items[] = ['start' => $t['start_dt'], 'end' => $t['end_dt'], 'kind' => (int)$t['leg_no'] === 2 ? 'Return' : ((int)$t['leg_no'] === 1 ? 'Outbound' : 'Trip'),
-                    'title' => $t['destination'], 'who' => (string)$t['driver'], 'vehicle' => (string)$t['plate_number'], 'status' => $t['req_status']];
-    }
-    foreach (dashRows($conn, "SELECT t.task_type, t.start_dt, t.end_dt, d.name AS driver, v.plate_number FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id
-                               LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.status = 'active' AND t.task_date = ?", 's', [$today]) as $t) {
-        $items[] = ['start' => $t['start_dt'], 'end' => $t['end_dt'], 'kind' => 'Internal', 'title' => ucfirst(str_replace('_', ' ', $t['task_type'])),
-                    'who' => $t['driver'], 'vehicle' => (string)$t['plate_number'], 'status' => null];
-    }
-    usort($items, fn($a, $b) => strcmp($a['start'], $b['start']));
-    return $items;
-}
-
-function dashWelfareToday(mysqli $conn): ?string
-{
-    $n = dashValue($conn, 'SELECT d.name FROM welfare_roster w JOIN drivers d ON d.driver_id = w.driver_id WHERE w.duty_date = ?', 's', [date('Y-m-d')]);
-    return $n !== null ? (string)$n : null;
 }
 
 /** Latest steps of the requests of one person (their own requests, or those they approve), without the Vehicle Section's internal steps. */
@@ -212,7 +181,7 @@ function dashHodPending(mysqli $conn, int $hodId, ?string $department, int $limi
         "SELECT vr.request_id, vr.destination, vr.trip_date, vr.start_time, vr.return_date, vr.end_time, vr.status, u.full_name AS staff_name,
                 TIMESTAMPDIFF(HOUR, vr.created_at, NOW()) AS waiting_h
            FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-          WHERE vr.status = 'pending' AND vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department IS NULL OR u.department <=> ?)
+          WHERE vr.status = 'pending' AND vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department_id IS NULL OR (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) <=> ?)
           ORDER BY vr.created_at LIMIT $limit",
         'is', [$hodId, $department]
     );

@@ -41,7 +41,7 @@ if (strtotime($end) <= strtotime($start)) {
 
 // the timing rule is for requesters; the Vehicle Section choosing a RETURN vehicle (for_assignment=1) is not bound by it
 $timing = (isAdmin() && !empty($_GET['for_assignment'])) ? ['level' => 'ok', 'message' => null] : requestTimingRule($start);
-$vehicles = $timing['level'] === 'reject' ? [] : availableVehicles($conn, $start, $end, $pax, (int)($_GET['request_id'] ?? 0));
+$vehicles = availableVehicles($conn, $start, $end, $pax, (int)($_GET['request_id'] ?? 0));
 
 echo json_encode([
     'success'  => true,

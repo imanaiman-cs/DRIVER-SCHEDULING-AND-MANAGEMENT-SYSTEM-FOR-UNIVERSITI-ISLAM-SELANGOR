@@ -7,6 +7,7 @@ $current_page = 'dashboard.php';
 require_once '../config/database.php';
 require_once '../includes/admin_page.php';
 require_once '../includes/dashboard_ui.php';
+require_once '../includes/schedule_view.php';
 requireAdmin();
 
 $thisMonth = date('Y-m');
@@ -18,16 +19,18 @@ $badBefore = dashRequestsInMonth($conn, $lastMonth, ['rejected', 'lapsed']);
 
 $status = [];
 foreach (dashRows($conn, 'SELECT status, COUNT(*) AS n FROM vehicle_requests GROUP BY status') as $r) { $status[$r['status']] = (int)$r['n']; }
-$needDriver = dashQueue($conn, 'approved');
+$needDriver = dashQueue($conn, 'approved', 5, 0, 1);
+$noDriver = dashQueue($conn, 'approved', 5, 0, 0);          // without driver: only to be sent to the Head of Admin
+$needDriverCount = (int)dashValue($conn, "SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved' AND need_driver = 1");
 $waitingHead = dashQueue($conn, 'assigned');
 $stalePending = dashQueue($conn, 'pending', 5, 24);
 $fleet = dashFleet($conn);
 $alerts = dashAlerts($conn);
-$welfare = dashWelfareToday($conn);
 $workload = array_slice(dashDriverWorkload($conn), 0, 10);
 $util = dashVehicleUtilisation($conn);
 $monthly = dashMonthlyRequests($conn, 6);
 $byStatus = dashStatusCounts($conn, 6);
+$boardDate = isValidDate((string)($_GET['board'] ?? '')) ? $_GET['board'] : date('Y-m-d');
 
 $statusRows = [];
 foreach ($byStatus as $k => $n) { if ($n > 0) { $statusRows[requestStatusLabel($k)] = $n; } }
@@ -35,8 +38,7 @@ foreach ($byStatus as $k => $n) { if ($n > 0) { $statusRows[requestStatusLabel($
 $queueLink = isHeadAdmin() ? 'approve_assignments.php' : 'vehicle_requests.php?tab=assigned';
 adminPageStart('Dashboard');
 ?>
-    <?= dashHeader('Today, ' . date('l j F'),
-        '<a class="btn btn-primary btn-sm" href="vehicle_requests.php?tab=approved">Assign drivers<span class="font-mono">' . count($needDriver) . '</span></a>'
+    <?= dashHeader('<a class="btn btn-primary btn-sm" href="vehicle_requests.php?tab=approved">Assign drivers<span class="font-mono">' . $needDriverCount . '</span></a>'
       . '<a class="btn btn-sm" href="calendar.php">Calendar</a>') ?>
 
     <?= dashStats([
@@ -46,18 +48,14 @@ adminPageStart('Dashboard');
         ['label' => 'Vehicles free now', 'value' => $fleet['available'], 'href' => 'vehicles.php', 'hint' => $fleet['in_use'] . ' in use, ' . $fleet['maintenance'] . ' in maintenance'],
     ]) ?>
 
-    <section class="dash-card mb-6" aria-labelledby="boardTitle">
-        <h6><span id="boardTitle">Vehicles today</span><a href="calendar.php">Open calendar</a></h6>
-        <?= dashBoard($conn) ?>
-        <p class="mt-1 text-xs text-base-content/60">Welfare duty today: <span class="font-medium text-base-content"><?= dh($welfare ?? 'not set') ?></span></p>
-    </section>
+    <?= dispatchBoardHtml($conn, $boardDate) ?>
 
     <div class="grid-12 mb-6 grid grid-cols-12 gap-6">
         <div class="col-span-12 lg:col-span-7">
             <div class="dash-card">
                 <h6>Needs your action</h6>
-                <?php if (!$needDriver && !$waitingHead && !$stalePending): ?><?= dashEmpty('No requests waiting for you') ?><?php endif; ?>
-                <?php foreach ([['Assign a driver', $needDriver, 'vehicle_requests.php?tab=approved', 'success'], ['Waiting for the Head of Admin', $waitingHead, $queueLink, 'info'], ['Pending over 24 hours (send a reminder)', $stalePending, 'reminders.php', 'warning']] as [$title, $list, $href, $tone]): if (!$list) { continue; } ?>
+                <?php if (!$needDriver && !$noDriver && !$waitingHead && !$stalePending): ?><?= dashEmpty('No requests waiting for you') ?><?php endif; ?>
+                <?php foreach ([['Assign a driver', $needDriver, 'vehicle_requests.php?tab=approved'], ['Without driver: send to the Head of Admin', $noDriver, 'vehicle_requests.php?tab=approved'], ['Waiting for the Head of Admin', $waitingHead, $queueLink], ['Pending over 24 hours (send a reminder)', $stalePending, 'vehicle_requests.php?tab=pending']] as [$title, $list, $href]): if (!$list) { continue; } ?>
                     <div class="dash-group"><?= dh($title) ?></div>
                     <?php foreach ($list as $r): ?>
                         <a class="dash-row" href="<?= dh($href) ?>">

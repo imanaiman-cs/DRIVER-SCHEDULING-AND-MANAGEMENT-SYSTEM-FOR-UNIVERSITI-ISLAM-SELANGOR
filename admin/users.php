@@ -1,0 +1,130 @@
+<?php
+// ============================================================
+// admin/users.php  -  User accounts (SRS summary of 10 Nov 2026): list, search, deactivate.
+// Administrative Assistant and Head of Admin. Accounts are never deleted. Only the Head of Admin changes
+// Administrative Assistant and Head of Admin accounts.
+// ============================================================
+$current_page = 'users.php';
+require_once '../config/database.php';
+require_once '../includes/admin_page.php';
+require_once 'fleet_helpers.php';
+requireAdmin();
+
+$me = (int)$_SESSION['user_id'];
+$actorRole = (string)$_SESSION['role'];
+
+/** May the signed-in person change this account? */
+function canManageUser(array $u, string $actorRole, int $me): bool
+{
+    return $actorRole === 'head_admin' || !in_array($u['role'], ['admin', 'head_admin'], true);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id  = (int)($_POST['user_id'] ?? 0);
+    $act = (string)($_POST['action'] ?? '');
+    $stmt = $conn->prepare('SELECT u.*, (SELECT COUNT(*) FROM drivers d WHERE d.driver_id = u.driver_id AND d.status = \'active\') AS active_driver, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    $u = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$u || $act !== 'deactivate') {
+        setFlash('danger', 'That account was not found.');
+    } elseif (!canManageUser($u, $actorRole, $me)) {
+        setFlash('danger', 'Only the Head of Admin can change an Administrative Assistant or Head of Admin account.');
+    } elseif ($id === $me) {
+        setFlash('danger', 'You cannot make your own account Inactive.');
+    } elseif ($act === 'deactivate') {
+        if ((int)$u['is_active'] === 0) {
+            setFlash('warning', $u['full_name'] . ' is already Inactive.');
+        } elseif ((int)$u['active_driver'] > 0) {                                                                   // UC001.4: a driver account is deactivated with the driver record
+            $res = setDriverActive($conn, (int)$u['driver_id'], false);
+            setFlash($res['ok'] ? 'success' : 'danger', $res['message'] . ($res['items'] ? ' ' . implode(' | ', array_map(fn($i) => $i['text'], $res['items'])) : ''));   // 3.1: the upcoming tasks are listed
+        } else {
+            if ($u['role'] === 'supervisor' && pendingRequestsOfApprover($conn, $id) > 0) {                       // UC001 A3.2
+                setFlash('danger', $u['full_name'] . ' is a Head of Department with pending requests. The pending requests must be handled first.');
+            } else {
+                $stmt = $conn->prepare('UPDATE users SET is_active = 0 WHERE user_id = ?');
+                $stmt->bind_param('i', $id); $stmt->execute(); $stmt->close();
+                if ($u['role'] === 'supervisor') { setDepartmentHead($conn, null, $id); refreshApprovers($conn, $u['department']); }
+                auditLog($conn, 'user_deactivate', null, $u['full_name'] . ' (' . $u['username'] . ') made Inactive');
+                setFlash('success', $u['full_name'] . ' is now Inactive and cannot sign in. The history is kept.');
+            }
+        }
+    }
+    header('Location: users.php' . (!empty($_POST['back']) && preg_match('/^[a-z0-9=&_%.\-+ ]*$/i', $_POST['back']) ? '?' . $_POST['back'] : ''));
+    exit();
+}
+
+$q      = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
+$role   = isset(ACCOUNT_ROLES[$_GET['role'] ?? '']) ? $_GET['role'] : '';
+$status = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? $_GET['status'] : '';
+$sql = 'SELECT u.*, dp.department_name AS department, a.full_name AS approver_name FROM users u LEFT JOIN departments dp ON dp.department_id = u.department_id
+                  LEFT JOIN departments pd ON pd.department_id = dp.parent_department_id
+                  LEFT JOIN users a ON a.user_id = IF(dp.head_user_id <=> u.user_id, pd.head_user_id, dp.head_user_id) AND a.user_id <> u.user_id WHERE 1=1';
+$types = ''; $args = [];
+if ($q !== '') { $sql .= ' AND (u.full_name LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR dp.department_name LIKE ?)'; $like = '%' . $q . '%'; $types .= 'ssss'; array_push($args, $like, $like, $like, $like); }
+if ($role !== '')   { $sql .= ' AND u.role = ?'; $types .= 's'; $args[] = $role; }
+if ($status !== '') { $sql .= ' AND u.is_active = ?'; $types .= 'i'; $args[] = $status === 'active' ? 1 : 0; }
+$sql .= ' ORDER BY u.is_active DESC, u.full_name';
+$stmt = $conn->prepare($sql);
+if ($args) { $stmt->bind_param($types, ...$args); }
+$stmt->execute();
+$users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($users as &$uu) {                                  // UC001.2 step 3.1: a driver also shows the licence class, licence expiry date and start date of service
+    $uu['drv'] = null;
+    if ($uu['driver_id']) { $dq = $conn->prepare('SELECT license_class, license_expiry, date_joined FROM drivers WHERE driver_id = ?'); $dq->bind_param('i', $uu['driver_id']); $dq->execute(); $uu['drv'] = $dq->get_result()->fetch_assoc(); $dq->close(); }
+}
+unset($uu);
+$stmt->close();
+$back = http_build_query(array_filter(['q' => $q, 'role' => $role, 'status' => $status]));
+$h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+adminPageStart('Users');
+?>
+    <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
+        <h1 class="text-2xl font-medium mb-0">User accounts</h1>
+        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-user-plus me-1"></i>Create driver account</a>
+    </div>
+    <p class="text-base-content/60 text-sm">Staff and Heads of Department register their own accounts. Here you create driver accounts, view and update accounts (department, role, licence details) and deactivate an account. Accounts are never deleted.</p>
+    <form method="get" class="grid-12 grid grid-cols-12 gap-2 mb-3">
+        <div class="col-span-12 md:col-span-4"><input class="input w-full input-sm" name="q" value="<?= $h($q) ?>" placeholder="Name, staff ID, e-mail or PTJ" aria-label="Search"></div>
+        <div class="col-span-6 md:col-span-3"><select class="select w-full select-sm" name="role" aria-label="Role"><option value="">All roles</option>
+            <?php foreach (ACCOUNT_ROLES as $k => $lbl): ?><option value="<?= $k ?>" <?= $role === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select></div>
+        <div class="col-span-6 md:col-span-2"><select class="select w-full select-sm" name="status" aria-label="Status"><option value="">All</option>
+            <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option><option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option></select></div>
+        <div class="col-span-12 md:col-span-2"><button class="btn btn-sm btn-success w-full" type="submit"><i class="fas fa-search me-1"></i>Search</button></div>
+    </form>
+    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Name</th><th>Staff ID</th><th>Role</th><th>PTJ</th><th>Approver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            <?php foreach ($users as $u): $manage = canManageUser($u, $actorRole, $me); ?>
+                <tr>
+                    <td><strong><?= $h($u['full_name']) ?></strong><div class="text-sm text-base-content/60"><?= $h($u['email']) ?><?= $u['phone'] ? ' &middot; ' . $h($u['phone']) : '' ?></div>
+                        <?php if ($u['drv']): ?><div class="text-sm text-base-content/60">Licence <?= $h($u['drv']['license_class']) ?> &middot; expires <?= $u['drv']['license_expiry'] ? $h(date('d M Y', strtotime($u['drv']['license_expiry']))) : '-' ?> &middot; in service since <?= $u['drv']['date_joined'] ? $h(date('d M Y', strtotime($u['drv']['date_joined']))) : '-' ?></div><?php endif; ?></td>
+                    <td class="whitespace-nowrap"><?= $h($u['username']) ?></td>
+                    <td><?= $h(ACCOUNT_ROLES[$u['role']] ?? $u['role']) ?></td>
+                    <td><?= $h($u['department'] ?? '-') ?></td>
+                    <td class="text-sm"><?= $h($u['approver_name'] ?? '-') ?></td>
+                    <td><span class="badge <?= (int)$u['is_active'] ? 'badge-soft badge-success' : 'badge-ghost' ?>"><?= (int)$u['is_active'] ? 'Active' : 'Inactive' ?></span></td>
+                    <td class="text-end whitespace-nowrap">
+                        <?php if ($manage): ?>
+                            <a class="btn btn-sm btn-outline btn-success" href="edit_user.php?id=<?= (int)$u['user_id'] ?>"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Edit</span></a>
+                            <?php if ((int)$u['user_id'] !== $me): ?>
+                            <form method="post" class="inline">
+                                <input type="hidden" name="user_id" value="<?= (int)$u['user_id'] ?>"><input type="hidden" name="back" value="<?= $h($back) ?>">
+                                <?php if ((int)$u['is_active']): ?>
+                                    <button class="btn btn-sm btn-outline btn-error" name="action" value="deactivate" data-confirm="<?= $h($u['full_name']) ?> will not be able to sign in. The history is kept." data-confirm-title="Make this account Inactive?" data-confirm-button="Make Inactive" data-confirm-tone="danger"><i class="fas fa-user-slash"></i><span class="hidden md:inline ms-1">Deactivate</span></button>
+                                <?php endif; ?>
+                            </form>
+                            <?php endif; ?>
+                        <?php else: ?><span class="text-sm text-base-content/60">Head of Admin only</span><?php endif; ?>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (!$users): ?><tr><td colspan="7" class="text-center text-base-content/60 py-4">No record is found.</td></tr><?php endif; ?>
+            </tbody>
+        </table>
+    </div></div>
+    <p class="text-base-content/60 text-sm mt-2"><?= count($users) ?> account(s)</p>
+<?php adminPageEnd(); ?>

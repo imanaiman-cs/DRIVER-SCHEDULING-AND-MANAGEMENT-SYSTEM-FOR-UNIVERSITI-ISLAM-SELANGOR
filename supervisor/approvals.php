@@ -22,8 +22,8 @@ $where = match ($tab) {
     default   => "vr.status IN ('rejected', 'cancelled', 'lapsed', 'completed')",
 };
 // own PTJ: requests of people in his department, or of the Heads of Department he heads
-$stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) AND $where
-                        ORDER BY vr.depart_at, vr.request_id");
+$stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR udp.department_name <=> ?) AND $where
+                        ORDER BY vr.is_urgent DESC, vr.depart_at, vr.request_id");
 $stmt->bind_param('is', $uid, $dept);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -32,7 +32,7 @@ $stmt->close();
 $n = [];
 $cs = $conn->prepare("SELECT CASE WHEN status = 'pending' THEN 'pending' WHEN status IN ('approved','assigned','processed') THEN 'active' ELSE 'history' END AS grp, COUNT(*) AS c
                         FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-                       WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) GROUP BY grp");
+                       WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) <=> ?) GROUP BY grp");
 $cs->bind_param('is', $uid, $dept);
 $cs->execute();
 foreach ($cs->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $n[$r['grp']] = (int)$r['c']; }
@@ -60,6 +60,7 @@ adminPageStart('Vehicle Approvals');
                     <span class="font-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
                     <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax
                         <?php if ($r['status'] === 'pending'): ?> &middot; submitted <?= max(0, (int)floor((time() - strtotime($r['created_at'])) / 86400)) ?> day(s) ago<?php endif; ?></div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
                 <div><?= requestStatusBadge($r['status']) ?></div>
             </div>
@@ -90,8 +91,8 @@ adminPageStart('Vehicle Approvals');
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
                 <label class="mb-1 block text-sm font-medium" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
                 <div class="join w-full">
-                    <input class="input w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
-                    <button class="btn btn-outline btn-error" data-confirm="The request is cancelled, the vehicle is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
+                    <input class="input join-item w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline btn-error join-item" data-confirm="The request is cancelled, the vehicle is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
             </form>
             <?php endif; ?>
@@ -101,8 +102,8 @@ adminPageStart('Vehicle Approvals');
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
                 <label class="mb-1 block text-sm font-medium" for="cm<?= $rid ?>">Add a comment <span class="text-base-content/60 font-normal">(the staff member is told)</span></label>
                 <div class="join w-full">
-                    <input class="input w-full" id="cm<?= $rid ?>" name="comment" maxlength="1000" required>
-                    <button class="btn btn-outline">Add comment</button>
+                    <input class="input join-item w-full" id="cm<?= $rid ?>" name="comment" maxlength="1000" required>
+                    <button class="btn btn-outline join-item">Add comment</button>
                 </div>
             </form>
             <?php endif; ?>

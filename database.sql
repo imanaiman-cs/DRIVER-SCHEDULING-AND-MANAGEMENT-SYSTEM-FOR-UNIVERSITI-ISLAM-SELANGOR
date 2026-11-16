@@ -31,6 +31,7 @@ CREATE TABLE `drivers` (
   `license_number` varchar(50) DEFAULT NULL,
   `license_class` varchar(10) DEFAULT NULL COMMENT 'comma list: B2,D,E',
   `license_expiry` date DEFAULT NULL,
+  `date_joined` date DEFAULT NULL COMMENT 'date the driver joined the Vehicle Section (experience is calculated from it)',
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/drivers/',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -47,22 +48,39 @@ CREATE TABLE `users` (
   `full_name` varchar(100) NOT NULL,
   `role` enum('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff',
   `driver_id` int(11) DEFAULT NULL,
-  `department` varchar(100) DEFAULT NULL,
-  `supervisor_id` int(11) DEFAULT NULL,
+  `department_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `phone` varchar(30) DEFAULT NULL,
+  `address` text DEFAULT NULL COMMENT 'own address (UC016)',
   `failed_attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `last_login_at` datetime DEFAULT NULL,
   `locked_until` datetime DEFAULT NULL,
+  `language` varchar(5) NOT NULL DEFAULT 'en' COMMENT 'interface language: en or ms',
   PRIMARY KEY (`user_id`),
-  UNIQUE KEY `uq_users_username` (`username`)
+  UNIQUE KEY `uq_users_username` (`username`),
+  KEY `idx_users_department` (`department_id`),
+  CONSTRAINT `fk_users_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Synced from the UIS staff system (tools/import_staff.php). The Vehicle Section does not create, edit or delete users.';
+
+CREATE TABLE `departments` (
+  `department_id` int(11) NOT NULL AUTO_INCREMENT,
+  `department_name` varchar(100) NOT NULL,
+  `head_user_id` int(11) DEFAULT NULL COMMENT 'the Head of Department',
+  `parent_department_id` int(11) DEFAULT NULL COMMENT 'a request of the Head of Department goes to the head of this department',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`department_id`),
+  UNIQUE KEY `uq_department_name` (`department_name`),
+  UNIQUE KEY `uq_department_head` (`head_user_id`),
+  KEY `idx_department_parent` (`parent_department_id`),
+  CONSTRAINT `fk_department_head` FOREIGN KEY (`head_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_department_parent` FOREIGN KEY (`parent_department_id`) REFERENCES `departments` (`department_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Class Department (PTJ)';
 
 CREATE TABLE `vehicles` (
   `vehicle_id` int(11) NOT NULL AUTO_INCREMENT,
   `plate_number` varchar(20) NOT NULL,
-  `vehicle_type` enum('Bus','Van','Car','Minibus','Lorry','Motorcycle') NOT NULL,
+  `vehicle_type` enum('Bus','Van','Car','Minibus','Lorry','Motorcycle','MPV') NOT NULL,
   `brand` varchar(50) DEFAULT NULL,
   `model` varchar(50) DEFAULT NULL,
   `year` int(11) DEFAULT NULL,
@@ -72,6 +90,7 @@ CREATE TABLE `vehicles` (
   `last_maintenance` date DEFAULT NULL,
   `next_maintenance` date DEFAULT NULL,
   `mileage` int(11) NOT NULL DEFAULT 0,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') DEFAULT NULL COMMENT 'current fuel level',
   `notes` text DEFAULT NULL,
   `photo` varchar(255) DEFAULT NULL COMMENT 'relative path under uploads/vehicles/',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -96,49 +115,82 @@ CREATE TABLE `schema_migrations` (
   PRIMARY KEY (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `schedules` (
-  `schedule_id` int(11) NOT NULL AUTO_INCREMENT,
+CREATE TABLE `welfare_duties` (
+  `duty_id` int(11) NOT NULL AUTO_INCREMENT,
+  `week_start_date` date NOT NULL COMMENT 'Monday of the week',
+  `status` enum('waiting','assigned','approved') NOT NULL DEFAULT 'waiting' COMMENT 'follows its days: waiting if a day has no driver, assigned if a day waits for the Head of Admin, else approved',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`duty_id`),
+  UNIQUE KEY `uq_duty_week` (`week_start_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `tasks` (
+  `task_id` int(11) NOT NULL AUTO_INCREMENT,
+  `task_source` enum('request','internal','welfare') NOT NULL,
+  `request_id` int(11) DEFAULT NULL COMMENT 'task_source request',
+  `duty_id` int(11) DEFAULT NULL COMMENT 'task_source welfare',
+  `task_type` enum('trip','workshop','workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','welfare','other') NOT NULL,
+  `trip_type` enum('outbound','return') DEFAULT NULL COMMENT 'request tasks: outbound or return trip',
   `driver_id` int(11) DEFAULT NULL,
   `vehicle_id` int(11) DEFAULT NULL,
-  `trip_date` date NOT NULL,
-  `start_time` time NOT NULL,
-  `end_time` time NOT NULL,
-  `destination` varchar(255) NOT NULL,
-  `purpose` varchar(255) DEFAULT NULL,
-  `passenger_count` int(11) NOT NULL DEFAULT 1,
-  `officer_name` varchar(255) DEFAULT NULL COMMENT 'Officer(s) the driver serves',
-  `officer_phone` varchar(50) DEFAULT NULL COMMENT 'Officer contact number',
-  `waiting_place` varchar(150) DEFAULT NULL COMMENT 'Where the driver waits (tempat menunggu)',
-  `status` enum('pending','approved','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
+  `start_dt` datetime NOT NULL,
+  `end_dt` datetime NOT NULL,
+  `task_date` date GENERATED ALWAYS AS (cast(`start_dt` as date)) STORED,
+  `location` varchar(255) DEFAULT NULL COMMENT 'destination of a trip or place of an internal task',
+  `description` varchar(255) DEFAULT NULL,
+  `vendor_name` varchar(150) DEFAULT NULL COMMENT 'vendor bus: company',
+  `vendor_bus_plate` varchar(20) DEFAULT NULL COMMENT 'vendor bus: registration number',
+  `vendor_driver_name` varchar(100) DEFAULT NULL COMMENT 'vendor bus: driver',
+  `status` enum('waiting','assigned','approved','completed','cancelled') NOT NULL DEFAULT 'waiting',
+  `assigned_by` int(11) DEFAULT NULL,
+  `assigned_at` datetime DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `reject_reason` varchar(255) DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
+  `cancel_reason` varchar(255) DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
-  `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `request_id` int(11) DEFAULT NULL,
-  `leg_no` tinyint(4) DEFAULT NULL,
-  `start_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
-  `end_dt` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`end_time`)) STORED,
-  PRIMARY KEY (`schedule_id`),
-  KEY `fk_schedules_created_by` (`created_by`),
-  KEY `idx_schedules_request` (`request_id`),
-  KEY `idx_sched_driver_time` (`driver_id`,`start_dt`,`end_dt`),
-  KEY `idx_sched_vehicle_time` (`vehicle_id`,`start_dt`,`end_dt`),
-  KEY `idx_sched_request` (`request_id`),
-  CONSTRAINT `fk_schedules_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_schedules_driver_id` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_schedules_vehicle_id` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `welfare_date` date GENERATED ALWAYS AS (if(`task_source` = 'welfare' and `status` <> 'cancelled',cast(`start_dt` as date),NULL)) STORED COMMENT 'one welfare duty per day (cancelled days do not count)',
+  PRIMARY KEY (`task_id`),
+  UNIQUE KEY `uq_task_welfare_date` (`welfare_date`),
+  KEY `idx_task_request` (`request_id`,`trip_type`),
+  KEY `idx_task_duty` (`duty_id`),
+  KEY `idx_task_driver_time` (`driver_id`,`start_dt`,`end_dt`),
+  KEY `idx_task_vehicle_time` (`vehicle_id`,`start_dt`,`end_dt`),
+  KEY `idx_task_source` (`task_source`,`status`,`task_date`),
+  KEY `fk_task_created_by` (`created_by`),
+  CONSTRAINT `fk_task_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_task_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_task_duty` FOREIGN KEY (`duty_id`) REFERENCES `welfare_duties` (`duty_id`),
+  CONSTRAINT `fk_task_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_task_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Class Task: request tasks, internal tasks and welfare duty days';
 
 CREATE TABLE `vehicle_requests` (
   `request_id` int(11) NOT NULL AUTO_INCREMENT,
   `staff_id` int(11) NOT NULL,
   `vehicle_id` int(11) DEFAULT NULL,
+  `vehicle_type` varchar(20) DEFAULT NULL COMMENT 'type requested (Car, MPV, Van, Bus, Lorry); NULL for Pay and Claim',
+  `quantity` tinyint(3) unsigned NOT NULL DEFAULT 1 COMMENT 'number of vehicles of that type',
   `trip_date` date NOT NULL,
   `start_time` time NOT NULL,
   `end_time` time NOT NULL,
   `destination` varchar(255) NOT NULL,
   `purpose` text NOT NULL,
   `passenger_count` int(11) NOT NULL DEFAULT 1,
+  `need_driver` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = with driver, 0 = without driver',
+  `request_type` enum('uis','pay_claim') NOT NULL DEFAULT 'uis' COMMENT 'uis = a UIS vehicle (with or without driver), pay_claim = own vehicle, claim the cost',
+  `purpose_type` enum('official','unofficial','personal_rental') NOT NULL DEFAULT 'official' COMMENT 'Official and Unofficial need a supporting letter',
+  `distance_km` decimal(8,1) DEFAULT NULL COMMENT 'round-trip distance of a Personal Rental',
+  `charge` decimal(10,2) DEFAULT NULL COMMENT 'Personal Rental charge = distance x RENTAL_RATE_PER_KM',
+  `own_vehicle_plate` varchar(20) DEFAULT NULL COMMENT 'registration number of the own vehicle (Pay and Claim)',
+  `is_urgent` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = submitted less than 2 days before departure',
+  `approval_email_at` datetime DEFAULT NULL COMMENT 'when the approval e-mail was sent to the approver',
   `officer_name` varchar(255) DEFAULT NULL,
   `officer_phone` varchar(50) DEFAULT NULL,
   `waiting_place` varchar(150) DEFAULT NULL,
@@ -146,8 +198,11 @@ CREATE TABLE `vehicle_requests` (
   `supervisor_id` int(11) DEFAULT NULL,
   `supervisor_notes` text DEFAULT NULL,
   `reviewed_at` timestamp NULL DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL COMMENT 'the Head of Department who approved',
+  `reject_reason` varchar(500) DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
   `cancelled_at` timestamp NULL DEFAULT NULL,
-  `schedule_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `status_reason` varchar(500) DEFAULT NULL,
@@ -164,10 +219,8 @@ CREATE TABLE `vehicle_requests` (
   KEY `fk_vr_staff` (`staff_id`),
   KEY `fk_vr_vehicle` (`vehicle_id`),
   KEY `fk_vr_supervisor` (`supervisor_id`),
-  KEY `fk_vr_schedule` (`schedule_id`),
   KEY `idx_vr_period` (`depart_at`,`return_at`),
   KEY `idx_vr_status` (`status`,`created_at`),
-  CONSTRAINT `fk_vr_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vr_staff` FOREIGN KEY (`staff_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
   CONSTRAINT `fk_vr_supervisor` FOREIGN KEY (`supervisor_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vr_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
@@ -188,15 +241,29 @@ CREATE TABLE `audit_log` (
 
 CREATE TABLE `driver_replacements` (
   `replacement_id` int(11) NOT NULL AUTO_INCREMENT,
-  `schedule_id` int(11) NOT NULL,
+  `task_id` int(11) NOT NULL,
   `previous_driver_id` int(11) DEFAULT NULL,
-  `new_driver_id` int(11) DEFAULT NULL,
+  `driver_id` int(11) DEFAULT NULL COMMENT 'the new driver',
   `reason` varchar(500) NOT NULL,
-  `changed_by` int(11) DEFAULT NULL,
-  `changed_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `replaced_by` int(11) DEFAULT NULL,
+  `replaced_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'approved' COMMENT 'pending until the Head of Admin approves the new assignment',
   PRIMARY KEY (`replacement_id`),
-  KEY `idx_repl_schedule` (`schedule_id`),
-  CONSTRAINT `fk_repl_schedule` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`schedule_id`) ON DELETE CASCADE
+  KEY `idx_repl_task` (`task_id`),
+  CONSTRAINT `fk_repl_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `whatsapp_log` (
+  `log_id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `to_number` varchar(20) DEFAULT NULL,
+  `message` text NOT NULL,
+  `status` enum('sent','failed','skipped') NOT NULL,
+  `error_message` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`log_id`),
+  KEY `idx_wa_created` (`created_at`),
+  KEY `idx_wa_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `email_log` (
@@ -219,43 +286,6 @@ CREATE TABLE `email_log` (
   CONSTRAINT `fk_email_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `whatsapp_log` (
-  `log_id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) DEFAULT NULL,
-  `to_number` varchar(20) DEFAULT NULL,
-  `message` text NOT NULL,
-  `status` enum('sent','failed','skipped') NOT NULL,
-  `error_message` varchar(500) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`log_id`),
-  KEY `idx_wa_created` (`created_at`),
-  KEY `idx_wa_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE `internal_tasks` (
-  `task_id` int(11) NOT NULL AUTO_INCREMENT,
-  `task_type` enum('workshop_send','workshop_collect','refuel','test_drive','road_tax','document_delivery','other') NOT NULL,
-  `task_date` date NOT NULL,
-  `start_time` time NOT NULL,
-  `end_time` time NOT NULL,
-  `vehicle_id` int(11) DEFAULT NULL,
-  `driver_id` int(11) NOT NULL,
-  `location` varchar(150) DEFAULT NULL,
-  `description` varchar(255) DEFAULT NULL,
-  `created_by` int(11) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `status` enum('active','cancelled') NOT NULL DEFAULT 'active',
-  `cancel_reason` varchar(255) DEFAULT NULL,
-  `cancelled_at` datetime DEFAULT NULL,
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `start_dt` datetime GENERATED ALWAYS AS (timestamp(`task_date`,`start_time`)) STORED,
-  `end_dt` datetime GENERATED ALWAYS AS (timestamp(`task_date`,`end_time`)) STORED,
-  PRIMARY KEY (`task_id`),
-  KEY `idx_itask_driver` (`driver_id`,`task_date`),
-  KEY `idx_itask_time` (`driver_id`,`start_dt`,`end_dt`),
-  KEY `idx_itask_vehicle_time` (`vehicle_id`,`start_dt`,`end_dt`),
-  CONSTRAINT `fk_itask_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `notifications` (
   `notification_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -263,6 +293,7 @@ CREATE TABLE `notifications` (
   `message` varchar(500) NOT NULL,
   `link` varchar(255) DEFAULT NULL,
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `email_sent` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = the e-mail of this notification was sent',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`notification_id`),
   KEY `idx_notif_user` (`user_id`,`is_read`,`created_at`),
@@ -321,6 +352,54 @@ CREATE TABLE `vehicle_locks` (
   CONSTRAINT `fk_lock_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `vehicle_reservations` (
+  `reservation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `request_id` int(11) NOT NULL,
+  `vehicle_type` varchar(20) NOT NULL,
+  `vehicle_id` int(11) DEFAULT NULL COMMENT 'set when the Assistant chooses the specific vehicle',
+  `start_dt` datetime NOT NULL,
+  `end_dt` datetime NOT NULL COMMENT 'return time + 1 hour',
+  PRIMARY KEY (`reservation_id`),
+  KEY `idx_res_type` (`vehicle_type`,`start_dt`,`end_dt`),
+  KEY `idx_res_request` (`request_id`),
+  CONSTRAINT `fk_res_request` FOREIGN KEY (`request_id`) REFERENCES `vehicle_requests` (`request_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_res_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `task_reports` (
+  `report_id` int(11) NOT NULL AUTO_INCREMENT,
+  `task_id` int(11) NOT NULL,
+  `actual_depart` datetime NOT NULL,
+  `actual_return` datetime NOT NULL,
+  `start_mileage` int(11) NOT NULL COMMENT 'mileage of the vehicle before the report',
+  `end_mileage` int(11) NOT NULL,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') NOT NULL,
+  `vehicle_condition` enum('ok','problem') NOT NULL DEFAULT 'ok',
+  `problem_type` enum('Plate Number','Tyre','Lights','Body Damage','Engine','Others') DEFAULT NULL,
+  `problem_desc` varchar(500) DEFAULT NULL,
+  `photo` varchar(255) DEFAULT NULL,
+  `can_be_used` tinyint(1) DEFAULT NULL COMMENT 'with a problem: 1 = the vehicle can still be used, 0 = Under Maintenance',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`report_id`),
+  UNIQUE KEY `uq_report_task` (`task_id`),
+  CONSTRAINT `fk_report_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `verification_codes` (
+  `code_id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(100) NOT NULL,
+  `staff_id` varchar(50) NOT NULL,
+  `purpose` enum('register','reset') NOT NULL,
+  `code_hash` varchar(255) NOT NULL COMMENT 'hash of the 6-digit code',
+  `expiry_time` datetime NOT NULL,
+  `attempts` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `verified_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`code_id`),
+  KEY `idx_vc_lookup` (`email`, `purpose`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `vehicle_maintenance` (
   `maintenance_id` int(11) NOT NULL AUTO_INCREMENT,
   `vehicle_id` int(11) NOT NULL,
@@ -335,17 +414,47 @@ CREATE TABLE `vehicle_maintenance` (
   CONSTRAINT `fk_maint_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `welfare_roster` (
-  `roster_id` int(11) NOT NULL AUTO_INCREMENT,
-  `duty_date` date NOT NULL,
+
+CREATE TABLE `vehicle_usage_log` (
+  `log_id` int(11) NOT NULL AUTO_INCREMENT,
+  `vehicle_id` int(11) NOT NULL,
   `driver_id` int(11) NOT NULL,
-  `replaced_from_driver_id` int(11) DEFAULT NULL,
-  `replacement_reason` varchar(500) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`roster_id`),
-  UNIQUE KEY `uq_welfare_date` (`duty_date`),
-  KEY `idx_welfare_driver` (`driver_id`,`duty_date`),
-  CONSTRAINT `fk_welfare_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE CASCADE
+  `task_id` int(11) DEFAULT NULL,
+  `mileage` int(11) NOT NULL,
+  `fuel_level` enum('empty','quarter','half','three_quarters','full') NOT NULL,
+  `condition_issue` varchar(500) DEFAULT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`log_id`),
+  KEY `idx_usage_vehicle` (`vehicle_id`,`recorded_at`),
+  KEY `idx_usage_driver` (`driver_id`),
+  KEY `idx_usage_task` (`task_id`),
+  CONSTRAINT `fk_usage_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `fk_usage_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_usage_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `schedule_changes` (
+  `change_id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` int(11) NOT NULL,
+  `change_type` enum('unavailable','withdraw') NOT NULL,
+  `task_id` int(11) DEFAULT NULL COMMENT 'the task of a withdraw request',
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `reason` varchar(500) NOT NULL,
+  `status` enum('pending','approved','rejected','cancelled') NOT NULL DEFAULT 'pending',
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `reject_reason` varchar(500) DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`change_id`),
+  KEY `idx_change_driver` (`driver_id`,`status`),
+  KEY `idx_change_status` (`status`,`created_at`),
+  KEY `idx_change_task` (`task_id`),
+  KEY `idx_change_dates` (`driver_id`,`start_date`,`end_date`),
+  CONSTRAINT `fk_change_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `fk_change_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`task_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -374,35 +483,39 @@ INSERT INTO drivers (driver_id, employee_id, name, phone, email, experience_year
 (10,'UIS-DRV-010','Nurul Ain binti Saharuddin','011-0123456','nurulain.saharuddin@uis.edu.my',4.0,'D0123456','D,GDL','2027-10-30','No. 18, Jalan Seroja 5, Taman Seroja, 41000 Klang, Selangor','active'),
 (11,'UIS-DRV-011','Hairul Nizam bin Kamaruddin','013-1234567','hairul.kamaruddin@uis.edu.my',6.0,'D1345678','D','2026-12-01','No. 27, Jalan Teratai 8, Taman Sri Andalas, 41200 Klang, Selangor','inactive'),
 (12,'UIS-DRV-012','Azhari bin Mahmud','017-2345670','azhari.mahmud@uis.edu.my',9.0,'D2456789','D,PSV','2028-03-20','No. 9, Jalan Dahlia 3, Taman Meru Jaya, 41050 Klang, Selangor','active');
+UPDATE drivers SET date_joined = DATE_SUB(CURDATE(), INTERVAL ROUND(experience_years * 12) MONTH) WHERE experience_years > 0;
 
 
 -- ============================================================
 -- SEED: user accounts  (in the real system these are synced from the UIS staff system, see tools/import_staff.php)
 --   Staff -> their Head of Department; a Head of Department -> hos005; drivers and the Vehicle Section -> hos001 (Transport Unit)
 -- ============================================================
-INSERT INTO users (user_id, username, password, email, full_name, role, driver_id, department, supervisor_id, phone) VALUES
-(1,'hos005','$2y$12$xzBlgF5MRUwZFocb9IhoLeCpdZgnGELJiYO.VbYaGQAFqx1Rl8E0e','zaki.mansor@uis.edu.my','Prof. Dr. Ahmad Zaki bin Mansor','supervisor',NULL,'Rectory',NULL,'03-5543 0001'),
-(2,'hos001','$2y$12$H6WgmaP4zlDLChQYdYJBhuQcP6fcI4tmjS9pqvoRItzdpziGaSaWm','hafizi@uis.edu.my','Mohd Hafizi bin Harun','supervisor',NULL,'Transport Unit',1,'03-5543 0002'),
-(3,'hos002','$2y$12$XeyHfK6Rf9NbOczoyh6t0uhe7/aEz0j3INBbgg6AyyX/FhaE.pkO.','rohana@uis.edu.my','Hajah Rohana binti Ismail','supervisor',NULL,'Faculty of Education',1,'03-5543 0003'),
-(4,'hos003','$2y$12$eciXr.HeEw4AlHHvdDo9M.IoJKCHrTK0nAGg5QbLj7kx6Q/jrKKAK','azlina@uis.edu.my','Dr. Nor Azlina binti Hashim','supervisor',NULL,'Registrar Office',1,'03-5543 0004'),
-(5,'hos004','$2y$12$fu1qLIgsoXP0sGf5kNh3weU7sQ2Kdl//TxtuNrEml1eud7Vtvxw1e','azman@uis.edu.my','Azman bin Yusof','supervisor',NULL,'Student Affairs Division',1,'03-5543 0005'),
-(6,'admin','$2y$12$Ky8cs04nGk0MN.JmVm5ZMOY3C7mi3JFgmm130RHK6/lYUI4tfoRAu','rozaimi@uis.edu.my','Rozaimi bin Kamaruzzaman','admin',NULL,'Transport Unit',2,'03-5543 0010'),
-(7,'head001','$2y$12$D/sduuDhSKUWG2PTlqRMqu8ga8o4GpV7/24VSLUIvaex0v/cMzh6a','zulkifli@uis.edu.my','Haji Zulkifli bin Awang','head_admin',NULL,'Transport Unit',2,'03-5543 0011'),
-(8,'stf001','$2y$12$c7wQzp3KQoe30AH0WfKG9OSYlsJ8HDZsdnvL7R/DInzO1W3DcPtCe','norliza@uis.edu.my','Norliza binti Abdul Rahman','staff',NULL,'Faculty of Education',3,'012-300 0001'),
-(9,'stf002','$2y$12$NrH1dWsfKKMOqDCJ8Z9ULuTZU6KrxNcI3ZoszEeYbdWLvT94EaCuC','syafiq@uis.edu.my','Muhammad Syafiq bin Zainal','staff',NULL,'Registrar Office',4,'012-300 0002'),
-(10,'stf003','$2y$12$fQW.21e97zb4kA2zQNZhQeMGuos.lHLTqSL8Wcjb9rAirHFD6CUIi','aishah@uis.edu.my','Siti Aishah binti Mohd Yusof','staff',NULL,'Student Affairs Division',5,'012-300 0003'),
-(11,'drv001','$2y$12$/4THfhaG2FpWKyDQBr3xUONs88LKyQT4b.H9P05oPy9GMGZahj91e','faizal.rashid@uis.edu.my','Ahmad Faizal bin Mohd Rashid','driver',1,'Transport Unit',2,'012-3456789'),
-(12,'drv002','$2y$12$X8fkpo6nK6JeMJJDpA5f9.rYBiNzxwaP0xTR9hl3IY/kfY0J/enQy','hafizuddin.zulkifli@uis.edu.my','Mohd Hafizuddin bin Zulkifli','driver',2,'Transport Unit',2,'013-2345678'),
-(13,'drv003','$2y$12$BwTwPgmpl1afd1.YwGtWiujeqv.ylIe7t0zMFMN2xcdL9V2uGK9.2','haslinda.karim@uis.edu.my','Norhaslinda binti Abdul Karim','driver',3,'Transport Unit',2,'011-34567890'),
-(14,'drv004','$2y$12$p2H563tPWhI39CMCWmoej.uqy4GU8rEXgyyFqSiKLzyWdXjIFFunO','khairul.ismail@uis.edu.my','Khairul Anuar bin Ismail','driver',4,'Transport Unit',2,'019-4567890'),
-(15,'drv005','$2y$12$B./snxxaNOQW/m3nGHCzOu6.vE1yBboSYw6e0T2YGLgk/nhkrCQTO','zaharah.othman@uis.edu.my','Siti Norzaharah binti Othman','driver',5,'Transport Unit',2,'017-5678901'),
-(16,'drv006','$2y$12$OuCs.OS3tn3/5AL7kSteL.Km2tU5Ga6VshDDyY7EQ2RgK7/7BV/U6','zulkarnain.hamzah@uis.edu.my','Zulkarnain bin Hamzah','driver',6,'Transport Unit',2,'014-6789012'),
-(17,'drv007','$2y$12$4gBoRqyK5PGgPMBsm3bM4e7Bg8lTj9HM7x3VMZLc7.z236n5Nmj7q','roslan.wahab@uis.edu.my','Roslan bin Abdul Wahab','driver',7,'Transport Unit',2,'016-7890123'),
-(18,'drv008','$2y$12$2j8fE3JFEUG3wrBFkp7hpumdKq1sf102wonp1UsFh2vZvsxilUAli','asyraf.hassan@uis.edu.my','Muhammad Asyraf bin Che Hassan','driver',8,'Transport Unit',2,'018-8901234'),
-(19,'drv009','$2y$12$VMQUX6UE0FcTKPrxrHH3NusJSIgX0hVpMwIS8hK2JzDe8al17I2/S','fadzillah.noor@uis.edu.my','Fadzillah bin Mohd Noor','driver',9,'Transport Unit',2,'012-9012345'),
-(20,'drv010','$2y$12$MO6xE.fogb.zXnSre2u6weaI.j9fT/4Uioq5z0ODbdeytufUm676a','nurulain.saharuddin@uis.edu.my','Nurul Ain binti Saharuddin','driver',10,'Transport Unit',2,'011-0123456'),
-(21,'drv011','$2y$12$wJ0eYOKAGOoyZ1C5x/RJLuk8JaeN4JqP0Xl9TWt5BZisC5pgWne0K','hairul.kamaruddin@uis.edu.my','Hairul Nizam bin Kamaruddin','driver',11,'Transport Unit',2,'013-1234567'),
-(22,'drv012','$2y$12$DhemtMeLYiDwg6jlS6sjt.LVqYokH7e06j43TrfXY6GcEpzmGeDC6','azhari.mahmud@uis.edu.my','Azhari bin Mahmud','driver',12,'Transport Unit',2,'017-2345670');
+INSERT INTO users (user_id, username, password, email, full_name, role, driver_id, department_id, phone) VALUES
+(1,'hos005','$2y$12$xzBlgF5MRUwZFocb9IhoLeCpdZgnGELJiYO.VbYaGQAFqx1Rl8E0e','zaki.mansor@uis.edu.my','Prof. Dr. Ahmad Zaki bin Mansor','supervisor',NULL,1,'03-5543 0001'),
+(2,'hos001','$2y$12$H6WgmaP4zlDLChQYdYJBhuQcP6fcI4tmjS9pqvoRItzdpziGaSaWm','hafizi@uis.edu.my','Mohd Hafizi bin Harun','supervisor',NULL,2,'03-5543 0002'),
+(3,'hos002','$2y$12$XeyHfK6Rf9NbOczoyh6t0uhe7/aEz0j3INBbgg6AyyX/FhaE.pkO.','rohana@uis.edu.my','Hajah Rohana binti Ismail','supervisor',NULL,3,'03-5543 0003'),
+(4,'hos003','$2y$12$eciXr.HeEw4AlHHvdDo9M.IoJKCHrTK0nAGg5QbLj7kx6Q/jrKKAK','azlina@uis.edu.my','Dr. Nor Azlina binti Hashim','supervisor',NULL,4,'03-5543 0004'),
+(5,'hos004','$2y$12$fu1qLIgsoXP0sGf5kNh3weU7sQ2Kdl//TxtuNrEml1eud7Vtvxw1e','azman@uis.edu.my','Azman bin Yusof','supervisor',NULL,5,'03-5543 0005'),
+(6,'admin','$2y$12$Ky8cs04nGk0MN.JmVm5ZMOY3C7mi3JFgmm130RHK6/lYUI4tfoRAu','rozaimi@uis.edu.my','Rozaimi bin Kamaruzzaman','admin',NULL,2,'03-5543 0010'),
+(7,'head001','$2y$12$D/sduuDhSKUWG2PTlqRMqu8ga8o4GpV7/24VSLUIvaex0v/cMzh6a','zulkifli@uis.edu.my','Haji Zulkifli bin Awang','head_admin',NULL,2,'03-5543 0011'),
+(8,'stf001','$2y$12$c7wQzp3KQoe30AH0WfKG9OSYlsJ8HDZsdnvL7R/DInzO1W3DcPtCe','norliza@uis.edu.my','Norliza binti Abdul Rahman','staff',NULL,3,'012-300 0001'),
+(9,'stf002','$2y$12$NrH1dWsfKKMOqDCJ8Z9ULuTZU6KrxNcI3ZoszEeYbdWLvT94EaCuC','syafiq@uis.edu.my','Muhammad Syafiq bin Zainal','staff',NULL,4,'012-300 0002'),
+(10,'stf003','$2y$12$fQW.21e97zb4kA2zQNZhQeMGuos.lHLTqSL8Wcjb9rAirHFD6CUIi','aishah@uis.edu.my','Siti Aishah binti Mohd Yusof','staff',NULL,5,'012-300 0003'),
+(11,'drv001','$2y$12$/4THfhaG2FpWKyDQBr3xUONs88LKyQT4b.H9P05oPy9GMGZahj91e','faizal.rashid@uis.edu.my','Ahmad Faizal bin Mohd Rashid','driver',1,2,'012-3456789'),
+(12,'drv002','$2y$12$X8fkpo6nK6JeMJJDpA5f9.rYBiNzxwaP0xTR9hl3IY/kfY0J/enQy','hafizuddin.zulkifli@uis.edu.my','Mohd Hafizuddin bin Zulkifli','driver',2,2,'013-2345678'),
+(13,'drv003','$2y$12$BwTwPgmpl1afd1.YwGtWiujeqv.ylIe7t0zMFMN2xcdL9V2uGK9.2','haslinda.karim@uis.edu.my','Norhaslinda binti Abdul Karim','driver',3,2,'011-34567890'),
+(14,'drv004','$2y$12$p2H563tPWhI39CMCWmoej.uqy4GU8rEXgyyFqSiKLzyWdXjIFFunO','khairul.ismail@uis.edu.my','Khairul Anuar bin Ismail','driver',4,2,'019-4567890'),
+(15,'drv005','$2y$12$B./snxxaNOQW/m3nGHCzOu6.vE1yBboSYw6e0T2YGLgk/nhkrCQTO','zaharah.othman@uis.edu.my','Siti Norzaharah binti Othman','driver',5,2,'017-5678901'),
+(16,'drv006','$2y$12$OuCs.OS3tn3/5AL7kSteL.Km2tU5Ga6VshDDyY7EQ2RgK7/7BV/U6','zulkarnain.hamzah@uis.edu.my','Zulkarnain bin Hamzah','driver',6,2,'014-6789012'),
+(17,'drv007','$2y$12$4gBoRqyK5PGgPMBsm3bM4e7Bg8lTj9HM7x3VMZLc7.z236n5Nmj7q','roslan.wahab@uis.edu.my','Roslan bin Abdul Wahab','driver',7,2,'016-7890123'),
+(18,'drv008','$2y$12$2j8fE3JFEUG3wrBFkp7hpumdKq1sf102wonp1UsFh2vZvsxilUAli','asyraf.hassan@uis.edu.my','Muhammad Asyraf bin Che Hassan','driver',8,2,'018-8901234'),
+(19,'drv009','$2y$12$VMQUX6UE0FcTKPrxrHH3NusJSIgX0hVpMwIS8hK2JzDe8al17I2/S','fadzillah.noor@uis.edu.my','Fadzillah bin Mohd Noor','driver',9,2,'012-9012345'),
+(20,'drv010','$2y$12$MO6xE.fogb.zXnSre2u6weaI.j9fT/4Uioq5z0ODbdeytufUm676a','nurulain.saharuddin@uis.edu.my','Nurul Ain binti Saharuddin','driver',10,2,'011-0123456'),
+(21,'drv011','$2y$12$wJ0eYOKAGOoyZ1C5x/RJLuk8JaeN4JqP0Xl9TWt5BZisC5pgWne0K','hairul.kamaruddin@uis.edu.my','Hairul Nizam bin Kamaruddin','driver',11,2,'013-1234567'),
+(22,'drv012','$2y$12$DhemtMeLYiDwg6jlS6sjt.LVqYokH7e06j43TrfXY6GcEpzmGeDC6','azhari.mahmud@uis.edu.my','Azhari bin Mahmud','driver',12,2,'017-2345670');
+-- Departments (PTJ): the head approves the requests of its people; the request of a head goes to the head of the parent department
+INSERT INTO departments (department_id, department_name, head_user_id, parent_department_id) VALUES
+ (1, 'Rectory', 1, NULL), (2, 'Transport Unit', 2, 1), (3, 'Faculty of Education', 3, 1), (4, 'Registrar Office', 4, 1), (5, 'Student Affairs Division', 5, 1);
 
 
 -- ============================================================
@@ -430,15 +543,18 @@ VALUES (4, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 9 D
 -- SEED: settings
 -- ============================================================
 INSERT INTO settings (setting_key, setting_value, description) VALUES
- ('W_TASKS',             '0.6',   'Weight of the number of tasks this month in the driver score'),
- ('W_AFTER_HOURS',       '0.4',   'Weight of the number of tasks outside working hours in the driver score'),
+ ('W_TASKS',             '0.5',   'Weight of the number of tasks this month in the driver score (the highest weight)'),
+ ('W_WEEKEND',           '0.3',   'Weight of the number of weekend tasks (Saturday and Sunday) this month in the driver score'),
+ ('W_EXPERIENCE',        '0.2',   'Weight of the experience (years since the date joined) in the driver score'),
  ('LAPSE_HOURS',         '48',    'A request still Pending after this many hours becomes Lapsed'),
  ('WORK_START',          '08:00', 'Working hours start (a task before this is outside working hours)'),
  ('WORK_END',            '17:30', 'Working hours end (a task after this is outside working hours)'),
  ('SESSION_TIMEOUT_MIN', '15',    'Minutes without activity before a user is signed out'),
  ('MAX_FAILED_ATTEMPTS', '5',     'Failed logins before the login is blocked'),
  ('LOCKOUT_MINUTES',     '15',    'Minutes a login is blocked after too many failed attempts'),
- ('TASK_DURATION_HOURS', '2',     'Length of the outbound and the return task of a trip (hours)');
+ ('TASK_DURATION_HOURS', '2',     'Length of the outbound and the return task of a trip (hours)'),
+ ('RENTAL_RATE_PER_KM',  '3.00',  'Personal Rental charge per kilometre of the round trip (RM)'),
+ ('UIS_EMAIL_DOMAIN',    'uis.edu.my', 'Only e-mail addresses of this domain can register (UC013)');
 
 -- ============================================================
 -- SEED: demo requests (relative to today) in every status
@@ -473,24 +589,30 @@ VALUES
   'Norliza binti Abdul Rahman', '012-300 0001', 'Main entrance', NULL, 'completed', 3, NULL, DATE_SUB(NOW(), INTERVAL 17 DAY), DATE_SUB(NOW(), INTERVAL 18 DAY));
 UPDATE vehicle_requests SET cancelled_at = DATE_SUB(NOW(), INTERVAL 2 DAY), cancelled_by = 8, cancelled_by_role = 'staff' WHERE request_id = 7;
 
+-- Who approved / rejected the demo requests (class Request: approvedBy, rejectReason, rejectedBy, rejectedDate)
+UPDATE vehicle_requests SET approved_by = supervisor_id WHERE status IN ('approved', 'assigned', 'processed', 'cancelled', 'completed') AND reviewed_at IS NOT NULL;
+UPDATE vehicle_requests SET rejected_by = supervisor_id, rejected_at = reviewed_at, reject_reason = status_reason WHERE status = 'rejected';
+
 -- Vehicle locks of the active requests (the requested period)
 INSERT INTO vehicle_locks (request_id, vehicle_id, start_dt, end_dt)
 SELECT request_id, vehicle_id, depart_at, return_at FROM vehicle_requests WHERE status IN ('pending','approved','assigned','processed');
+UPDATE vehicle_requests vr JOIN vehicles v ON v.vehicle_id = vr.vehicle_id SET vr.vehicle_type = v.vehicle_type;
+INSERT INTO vehicle_reservations (request_id, vehicle_type, vehicle_id, start_dt, end_dt)
+SELECT l.request_id, v.vehicle_type, l.vehicle_id, l.start_dt, l.end_dt FROM vehicle_locks l JOIN vehicles v ON v.vehicle_id = l.vehicle_id;
 
--- Tasks of request 3 (Driver Assigned), 4 (Confirmed) and 8 (Completed): outbound (leg 1) + return (leg 2)
-INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, purpose, passenger_count, officer_name, officer_phone, waiting_place,
-                       status, created_by, notes, request_id, leg_no)
-SELECT t.driver, vr.vehicle_id, t.d, t.s, t.e, vr.destination, LEFT(vr.purpose, 255), vr.passenger_count, vr.officer_name, vr.officer_phone,
-       COALESCE(vr.waiting_address, vr.waiting_place), t.st, 6, CONCAT('e-Kenderaan request #', vr.request_id), vr.request_id, t.leg
+-- Tasks of request 3 (Driver Assigned), 4 (Confirmed) and 8 (Completed): outbound + return trip
+INSERT INTO tasks (task_source, request_id, task_type, trip_type, driver_id, vehicle_id, start_dt, end_dt, location, description, status,
+                   assigned_by, assigned_at, approved_by, approved_at, created_by)
+SELECT 'request', vr.request_id, 'trip', t.leg, t.driver, vr.vehicle_id, TIMESTAMP(t.d, t.s), TIMESTAMP(t.d, t.e), vr.destination, LEFT(vr.purpose, 255), t.st,
+       6, DATE_SUB(NOW(), INTERVAL 1 DAY), IF(t.st = 'assigned', NULL, 7), IF(t.st = 'assigned', NULL, DATE_SUB(NOW(), INTERVAL 12 HOUR)), 6
   FROM vehicle_requests vr
-  JOIN (SELECT 3 AS rid, 1 AS leg, 3 AS driver, DATE_ADD(CURDATE(), INTERVAL 4 DAY) AS d, '10:00:00' AS s, '12:00:00' AS e, 'approved' AS st
-        UNION ALL SELECT 3, 2, 5, DATE_ADD(CURDATE(), INTERVAL 4 DAY), '16:00:00', '18:00:00', 'approved'
-        UNION ALL SELECT 4, 1, 1, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '07:30:00', '09:30:00', 'approved'
-        UNION ALL SELECT 4, 2, 1, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '17:30:00', '19:30:00', 'approved'
-        UNION ALL SELECT 8, 1, 8, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '08:00:00', '10:00:00', 'completed'
-        UNION ALL SELECT 8, 2, 8, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '15:00:00', '17:00:00', 'completed') t ON t.rid = vr.request_id;
-UPDATE vehicle_requests SET schedule_id = (SELECT MIN(schedule_id) FROM schedules WHERE schedules.request_id = vehicle_requests.request_id)
- WHERE request_id IN (3, 4, 8);
+  JOIN (SELECT 3 AS rid, 'outbound' AS leg, 3 AS driver, DATE_ADD(CURDATE(), INTERVAL 4 DAY) AS d, '10:00:00' AS s, '12:00:00' AS e, 'assigned' AS st
+        UNION ALL SELECT 3, 'return', 5, DATE_ADD(CURDATE(), INTERVAL 4 DAY), '16:00:00', '18:00:00', 'assigned'
+        UNION ALL SELECT 4, 'outbound', 1, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '07:30:00', '09:30:00', 'approved'
+        UNION ALL SELECT 4, 'return', 1, DATE_ADD(CURDATE(), INTERVAL 3 DAY), '17:30:00', '19:30:00', 'approved'
+        UNION ALL SELECT 8, 'outbound', 8, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '08:00:00', '10:00:00', 'completed'
+        UNION ALL SELECT 8, 'return', 8, DATE_SUB(CURDATE(), INTERVAL 12 DAY), '15:00:00', '17:00:00', 'completed') t ON t.rid = vr.request_id
+ ORDER BY vr.request_id, t.leg;
 
 -- History of the demo requests (who, what, when, reason)
 INSERT INTO audit_log (user_id, user_role, action, request_id, reason, created_at) VALUES
@@ -522,37 +644,49 @@ VALUES (4, 3, 'supervisor', 'Please make sure the bus leaves on time; students m
 -- SEED: past tasks (completed) so the recommender and the reports have something to show
 --   about 45 tasks over the last two months, spread over the drivers, some in the evening or at the weekend
 -- ============================================================
-INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, purpose, passenger_count, officer_name, officer_phone, waiting_place, status, created_by, notes)
+INSERT INTO tasks (task_source, task_type, trip_type, driver_id, vehicle_id, start_dt, end_dt, location, description, status, created_by)
 WITH RECURSIVE n (i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 45)
-SELECT ELT(1 + (i * 5) MOD 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+SELECT 'request', 'trip', 'outbound',
+       ELT(1 + (i * 5) MOD 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
        ELT(1 + (i MOD 3), 5, 6, 3),
-       DATE_SUB(CURDATE(), INTERVAL (3 + (i * 4) MOD 58) DAY),
-       ELT(1 + (i MOD 5), '07:00:00', '09:00:00', '13:00:00', '18:30:00', '08:30:00'),
-       ELT(1 + (i MOD 5), '09:00:00', '11:30:00', '16:00:00', '21:00:00', '12:00:00'),
+       TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL (3 + (i * 4) MOD 58) DAY), ELT(1 + (i MOD 5), '07:00:00', '09:00:00', '13:00:00', '18:30:00', '08:30:00')),
+       TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL (3 + (i * 4) MOD 58) DAY), ELT(1 + (i MOD 5), '09:00:00', '11:30:00', '16:00:00', '21:00:00', '12:00:00')),
        ELT(1 + (i MOD 6), 'Putrajaya', 'Kuala Lumpur Sentral', 'Bangi', 'Universiti Malaya', 'KLIA', 'Shah Alam'),
-       'Official duty', 2, 'Vehicle Section', '03-5543 0010', 'Main entrance', 'completed', 6, 'Imported past task'
+       'Imported past task', 'completed', 6
   FROM n;
 
+-- SEED: current mileage and fuel level of the vehicles (shown in the vehicle list and updated by the task reports)
+UPDATE vehicles SET mileage = 38000 + vehicle_id * 7350, fuel_level = ELT(1 + (vehicle_id MOD 4), 'full', 'three_quarters', 'half', 'quarter');
+
 -- ============================================================
--- SEED: internal tasks (workshop runs, refuelling, test drives, document delivery)
+-- SEED: internal tasks (workshop runs, refuelling, test drives)
 -- ============================================================
-INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, location, description, created_by, status, cancel_reason, cancelled_at) VALUES
- ('workshop_send',     DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00:00', '11:00:00', 4, 2, 'Auto Service Klang Sdn Bhd', 'Send the Urvan for the gearbox repair', 6, 'active', NULL, NULL),
- ('refuel',            DATE_SUB(CURDATE(), INTERVAL 1 DAY), '08:00:00', '09:00:00', 1, 6, 'Petronas Seksyen 15',       'Refuel the bus before the faculty trip', 6, 'active', NULL, NULL),
- ('test_drive',        DATE_ADD(CURDATE(), INTERVAL 2 DAY), '10:00:00', '11:00:00', 12, 9, 'Shah Alam',                'Test drive after the brake service', 6, 'active', NULL, NULL),
- ('document_delivery', DATE_ADD(CURDATE(), INTERVAL 1 DAY), '14:00:00', '16:00:00', 6, 10, 'Putrajaya',               'Deliver the vehicle insurance documents', 6, 'active', NULL, NULL),
- ('workshop_collect',  DATE_ADD(CURDATE(), INTERVAL 9 DAY), '09:00:00', '10:30:00', 4, 12, 'Auto Service Klang Sdn Bhd', 'Collect the Urvan after the repair', 6, 'active', NULL, NULL),
- ('refuel',            DATE_ADD(CURDATE(), INTERVAL 6 DAY), '17:45:00', '18:30:00', 3, 4, 'Petronas Seksyen 9',        'Refuel the van before the long trip', 6, 'cancelled', 'The van was refuelled earlier.', NOW());
+INSERT INTO tasks (task_source, task_type, start_dt, end_dt, vehicle_id, driver_id, location, description, created_by, status, cancel_reason, cancelled_at) VALUES
+ ('internal', 'workshop', TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '09:00:00'), TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 3 DAY), '11:00:00'), 4, 2, 'Auto Service Klang Sdn Bhd', 'Send the Urvan for the gearbox repair', 6, 'approved', NULL, NULL),
+ ('internal', 'refuel', TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '08:00:00'), TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '09:00:00'), 1, 6, 'Petronas Seksyen 15', 'Refuel the bus before the faculty trip', 6, 'approved', NULL, NULL),
+ ('internal', 'test_drive', TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 2 DAY), '10:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 2 DAY), '11:00:00'), 12, 9, 'Shah Alam', 'Test drive after the brake service', 6, 'approved', NULL, NULL),
+ ('internal', 'workshop', TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '14:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '16:00:00'), 6, 10, 'Putrajaya', 'Take the car for the road tax inspection', 6, 'approved', NULL, NULL),
+ ('internal', 'workshop', TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 9 DAY), '09:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 9 DAY), '10:30:00'), 4, 12, 'Auto Service Klang Sdn Bhd', 'Collect the Urvan after the repair', 6, 'approved', NULL, NULL),
+ ('internal', 'refuel', TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 6 DAY), '17:45:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 6 DAY), '18:30:00'), 3, 4, 'Petronas Seksyen 9', 'Refuel the van before the long trip', 6, 'cancelled', 'The van was refuelled earlier.', NOW());
 
 -- ============================================================
 -- SEED: welfare duty roster for this month (one driver per day, 24 hours, in rotation)
 -- ============================================================
-INSERT INTO welfare_roster (duty_date, driver_id)
+INSERT INTO welfare_duties (week_start_date, status)
 WITH RECURSIVE d (day_date) AS (
     SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01')
     UNION ALL SELECT DATE_ADD(day_date, INTERVAL 1 DAY) FROM d WHERE day_date < LAST_DAY(CURDATE())
 )
-SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
+SELECT DISTINCT DATE_SUB(day_date, INTERVAL WEEKDAY(day_date) DAY), 'approved' FROM d;
+INSERT INTO tasks (task_source, duty_id, task_type, driver_id, start_dt, end_dt, description, status)
+WITH RECURSIVE d (day_date) AS (
+    SELECT DATE_FORMAT(CURDATE(), '%Y-%m-01')
+    UNION ALL SELECT DATE_ADD(day_date, INTERVAL 1 DAY) FROM d WHERE day_date < LAST_DAY(CURDATE())
+)
+SELECT 'welfare', w.duty_id, 'welfare', ELT(1 + (DAYOFMONTH(d.day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+       TIMESTAMP(d.day_date), TIMESTAMP(DATE_ADD(d.day_date, INTERVAL 1 DAY)), 'Welfare duty (24 hours)', 'approved'
+  FROM d JOIN welfare_duties w ON w.week_start_date = DATE_SUB(d.day_date, INTERVAL WEEKDAY(d.day_date) DAY)
+ ORDER BY d.day_date;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments'), ('2026_11_class_diagram_attributes'), ('2026_11_class_diagram_welfare_history');

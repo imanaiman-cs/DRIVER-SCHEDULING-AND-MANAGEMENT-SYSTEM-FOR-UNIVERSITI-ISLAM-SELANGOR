@@ -10,27 +10,28 @@ require_once '../includes/upload.php';
 require_once 'fleet_helpers.php';
 requireAdmin();
 
-$v = ['plate_number' => '', 'vehicle_type' => '', 'brand' => '', 'model' => '', 'year' => '', 'capacity' => '', 'fuel_type' => 'Petrol', 'notes' => ''];
+$v = ['plate_number' => '', 'vehicle_type' => '', 'brand' => '', 'model' => '', 'year' => '', 'capacity' => '', 'fuel_type' => 'Petrol', 'notes' => '', 'license_required' => '', 'mileage' => '', 'fuel_level' => ''];
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $v = vehicleInput($_POST);
-    $errors = validateVehicle($conn, $v);
+    $errors = validateVehicle($conn, $v, 0, true);
     $photo = null;
     if (!$errors) {
         $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'vehicles');
         if (!$up['ok']) { $errors['photo'] = $up['error']; } else { $photo = $up['path']; }
     }
     if (!$errors) {
-        $lic  = licenceForVehicleType($v['vehicle_type']);
+        $lic  = $v['license_required'];
+        $km   = (int)$v['mileage'];
         $year = $v['year'] === '' ? null : (int)$v['year'];
         $cap  = (int)$v['capacity'];
         $brand = $v['brand'] === '' ? null : $v['brand'];
         $notes = $v['notes'] === '' ? null : $v['notes'];
         try {
-            $stmt = $conn->prepare("INSERT INTO vehicles (plate_number, vehicle_type, brand, model, year, capacity, fuel_type, status, license_required, notes, photo)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?)");
-            $stmt->bind_param('ssssiissss', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo);
+            $stmt = $conn->prepare("INSERT INTO vehicles (plate_number, vehicle_type, brand, model, year, capacity, fuel_type, status, license_required, notes, photo, mileage, fuel_level)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?)");
+            $stmt->bind_param('ssssiissssis', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo, $km, $v['fuel_level']);
             $stmt->execute();
             $stmt->close();
             auditLog($conn, 'vehicle_add', null, $v['plate_number']);
@@ -47,9 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 adminPageStart('Add Vehicle');
 ?>
     <h1 class="text-2xl font-medium mb-4">Add Vehicle</h1>
-    <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error mb-4" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
-        <?php vehicleFormFields($v, $errors); ?>
+        <?php vehicleFormFields($v, $errors, null, true); ?>
         <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save vehicle</button><a class="btn btn-outline" href="vehicles.php">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

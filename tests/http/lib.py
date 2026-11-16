@@ -20,6 +20,7 @@ def reseed():
     subprocess.run(['mysql', '-uroot'], input=src, text=True, check=True)
     for f in glob.glob('/tmp/uis_jobs_last_run_*'):
         os.remove(f)
+INTENDED = {}
 class C:
     def __init__(s):
         s.s = requests.Session(); s.tok = None
@@ -30,16 +31,49 @@ class C:
             s.tok = m.group(1) if m else ''
         return s.tok
     def post(s, path, data=None, files=None, csrf=True, **p):
-        h = {'X-CSRF-Token': s.token()} if csrf else {}
-        return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
+        # SRS 10 Nov: every request needs a purpose type and a supporting letter; add them for the older tests that do not care
+        if path == 'staff/request_vehicle.php' and data is not None and 'destination' in data:
+            data = dict(data); data.setdefault('purpose_type', 'official')
+            if files is None: files = [('docs[]', ('letter.pdf', b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n', 'application/pdf'))]
+        # SRS 10 Nov: a request reserves a vehicle TYPE; the Assistant chooses the vehicle later. Older tests name the vehicle they want:
+        # turn it into a type + quantity 1 and remember the vehicle, then hand it to the assign / send pages.
+        if path == 'staff/request_vehicle.php' and data is not None and data.get('vehicle_id') and not data.get('vehicle_type'):
+            data = dict(data); vid = data.pop('vehicle_id')
+            data['vehicle_type'] = sql("SELECT vehicle_type FROM vehicles WHERE vehicle_id=%s" % vid); data.setdefault('quantity', '1')
+            r = _post(s, path, data, files, csrf, p)
+            if r.status_code == 302:
+                INTENDED[int(sql("SELECT MAX(request_id) FROM vehicle_requests"))] = vid
+            return r
+        if path in ('admin/assign_driver.php', 'admin/vehicle_requests.php') and data is not None and 'vehicle_id' not in data:
+            rid = int(data.get('request_id', 0) or 0)
+            if rid in INTENDED and sql("SELECT vehicle_id IS NULL FROM vehicle_requests WHERE request_id=%d" % rid) == '1':
+                data = dict(data); data['vehicle_id'] = INTENDED[rid]
+        # SRS 10 Nov UC003 A3: a driver outside the top recommendation needs a confirmation; older tests confirm it, unless they ask for the warning
+        if path == 'admin/assign_driver.php' and data is not None:
+            data = dict(data)
+            if data.pop('warn', None) is None: data.setdefault('confirmed', '1')
+        return _post(s, path, data, files, csrf, p)
     def login(s, u, pw):
         return s.s.post(B + '/login.php', data={'username': u, 'password': pw, 'csrf_token': s.token()}, allow_redirects=False)
+def age_codes():
+    """move earlier verification e-mails two hours back, so the limit (1 a minute, 5 an hour per e-mail) does not stop the next test step"""
+    sql("UPDATE email_log SET created_at = DATE_SUB(created_at, INTERVAL 2 HOUR) WHERE kind='verification'")
+def _post(s, path, data, files, csrf, p):
+    if isinstance(data, dict) and data.get('action') in ('request_code', 'resend'):
+        if data.pop('keep_limit', None) is None: age_codes()      # pass keep_limit=1 to test the limit itself
+    h = {'X-CSRF-Token': s.token()} if csrf else {}
+    return s.s.post(B + '/' + path, params=p, data=data or {}, files=files, headers=h, allow_redirects=False)
 PW = {'admin': 'admin123', 'head001': 'head001@uis'}
 for i in range(1, 6): PW['hos%03d' % i] = 'hos%03d@uis' % i
 for i in range(1, 4): PW['stf%03d' % i] = 'staff%03d@uis' % i
 for i in range(1, 13): PW['drv%03d' % i] = 'driver%03d@uis' % i
 def user(u):
     c = C(); r = c.login(u, PW[u]); assert r.status_code == 302, (u, r.status_code); return c
+def last_code(email):
+    """the verification code of the last e-mail to this address (with e-mail sending off it is only in email_log)"""
+    body = sql("SELECT body_html FROM email_log WHERE to_email='%s' AND kind='verification' ORDER BY log_id DESC LIMIT 1" % email)
+    m = re.search(r'<strong>(\d{6})</strong>', body)
+    return m.group(1) if m else ''
 def errs(r): return bool(re.search(r'Warning:|Notice:|Fatal error|Parse error|Undefined|Deprecated:', r.text))
 def run_jobs():
     env = dict(os.environ, DSMS_DB=DB)

@@ -1,10 +1,11 @@
 <?php
 // ============================================================
-// admin/internal_tasks.php  -  Internal tasks (SRS UC022 Add, UC023 View, UC024 Update, UC025 Cancel)
+// admin/internal_tasks.php  -  Manage Internal Task (SRS 10 Nov UC004): add, view, update, delete
 //
-// Workshop runs, refuelling, test drives and document delivery. A task is never deleted: it is
-// CANCELLED with a reason. Drivers and vehicles are checked with the overlap rule
-// (start < other_end AND end > other_start). The driver is notified of every add / change / cancel.
+// Workshop runs, refuelling and test drives. A new task has NO driver: it is Waiting for Driver and the vehicle is reserved for the
+// period. The driver is assigned in Assign Internal Task (UC005, assign_internal_task.php) and the Head of Admin approves (UC026).
+// Delete (A3) is a soft delete with a reason: the vehicle is released, the assigned driver is told, nothing is counted any more.
+// Vehicles are checked with the overlap rule (start < other_end AND end > other_start).
 // ============================================================
 $current_page = 'internal_tasks.php';
 require_once '../config/database.php';
@@ -12,15 +13,14 @@ require_once '../includes/admin_page.php';
 require_once '../includes/schedule_view.php';
 requireAdmin();
 
-$drivers  = activeDrivers($conn);
 $vehicles = $conn->query("SELECT vehicle_id, plate_number, brand, model, license_required FROM vehicles WHERE status <> 'inactive' ORDER BY plate_number")->fetch_all(MYSQLI_ASSOC);
 
 /** One internal task (with driver / vehicle names), or null. */
 function loadInternalTask(mysqli $conn, int $id): ?array
 {
-    $stmt = $conn->prepare("SELECT t.*, d.name AS driver_name, v.plate_number, v.brand, v.model
-                              FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id
-                              LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.task_id = ?");
+    $stmt = $conn->prepare("SELECT t.*, TIME(t.start_dt) AS start_time, TIME(t.end_dt) AS end_time, d.name AS driver_name, v.plate_number, v.brand, v.model
+                              FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id
+                              LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.task_id = ? AND t.task_source = 'internal'");
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -34,7 +34,7 @@ function internalVehicleReason(mysqli $conn, int $vehicle_id, string $start, str
     $why = vehicleUnavailableReason($conn, $vehicle_id, $start, $end);
     if ($why !== 'internal') { return $why; }
     // 'internal' is the last check: recheck it without the task itself
-    $stmt = $conn->prepare("SELECT 1 FROM internal_tasks WHERE vehicle_id = ? AND task_id <> ? AND status = 'active' AND start_dt < ? AND end_dt > ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT 1 FROM tasks WHERE task_source = 'internal' AND vehicle_id = ? AND task_id <> ? AND status IN ('waiting', 'assigned', 'approved') AND start_dt < ? AND end_dt > ? LIMIT 1");
     $stmt->bind_param('iiss', $vehicle_id, $except_task, $end, $start);
     $stmt->execute();
     $hit = (bool)$stmt->get_result()->fetch_row();
@@ -49,13 +49,13 @@ function taskText(array $t): string
 }
 
 $editId = (int)($_GET['edit'] ?? 0);
-$form = ['task_type' => 'refuel', 'task_date' => date('Y-m-d'), 'start_time' => '09:00', 'end_time' => '10:00', 'driver_id' => 0, 'vehicle_id' => 0, 'location' => '', 'description' => ''];
+$form = ['task_type' => 'refuel', 'task_date' => date('Y-m-d'), 'start_time' => '09:00', 'end_time' => '10:00', 'vehicle_id' => 0, 'location' => '', 'description' => ''];
 $errors = [];
 
 if ($editId) {
     $et = loadInternalTask($conn, $editId);
-    if (!$et || $et['status'] !== 'active' || strtotime($et['end_dt']) < time()) {
-        setFlash('warning', 'Only an active task that has not ended can be updated.');
+    if (!$et || !in_array($et['status'], ['waiting', 'assigned', 'approved'], true) || strtotime($et['end_dt']) < time()) {
+        setFlash('warning', 'Only a task that has not ended and was not deleted can be updated.');
         header('Location: internal_tasks.php');
         exit();
     }
@@ -69,23 +69,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int)($_POST['task_id'] ?? 0);
     $by  = (int)$_SESSION['user_id'];
 
-    if ($act === 'cancel') {
+    if ($act === 'delete') {   // UC024: a soft delete. The row stays for the history; it no longer counts anywhere.
         $reason = mb_substr(trim($_POST['reason'] ?? ''), 0, 255);
         $t = loadInternalTask($conn, $id);
-        if (!$t || $t['status'] !== 'active') {
+        if (!$t || !in_array($t['status'], ['waiting', 'assigned', 'approved'], true)) {
             setFlash('danger', 'That task is not active.');
+        } elseif (strtotime($t['end_dt']) <= time()) {
+            setFlash('danger', 'A completed task cannot be deleted because it is counted in the driver\'s task count.');   // UC004.4 note
         } elseif (mb_strlen($reason) < 3) {
-            setFlash('danger', 'Please give the reason for cancelling the task.');
+            setFlash('danger', 'Please give the reason for deleting the task.');
         } else {
-            $stmt = $conn->prepare("UPDATE internal_tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND status = 'active'");
+            $stmt = $conn->prepare("UPDATE tasks SET status = 'cancelled', cancel_reason = ?, cancelled_at = NOW() WHERE task_id = ? AND task_source = 'internal' AND status IN ('waiting', 'assigned', 'approved') AND end_dt > NOW()");
             $stmt->bind_param('si', $reason, $id);
             $stmt->execute();
             $stmt->close();
-            auditLog($conn, 'internal_task_cancel', null, "Internal task #$id cancelled: $reason");
-            if ($u = userIdOfDriver($conn, (int)$t['driver_id'])) {
-                notifyUsers($conn, [$u], 'Your internal task was cancelled: ' . taskText($t) . '. Reason: ' . $reason, 'driver/schedules.php');
+            auditLog($conn, 'internal_task_delete', null, "Internal task #$id deleted: $reason");
+            if ($t['driver_id'] && ($u = userIdOfDriver($conn, (int)$t['driver_id']))) {
+                notifyUsers($conn, [$u], 'Your internal task was deleted: ' . taskText($t) . '. Reason: ' . $reason, 'driver/schedules.php');
             }
-            setFlash('success', 'The task was cancelled and the driver was notified.');
+            setFlash('success', 'The task was deleted and the driver was notified.');
         }
         header('Location: internal_tasks.php');
         exit();
@@ -95,12 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form = [
             'task_type'   => trim($_POST['task_type'] ?? ''), 'task_date' => trim($_POST['task_date'] ?? ''),
             'start_time'  => trim($_POST['start_time'] ?? ''), 'end_time' => trim($_POST['end_time'] ?? ''),
-            'driver_id'   => (int)($_POST['driver_id'] ?? 0), 'vehicle_id' => (int)($_POST['vehicle_id'] ?? 0),
+            'vehicle_id'  => (int)($_POST['vehicle_id'] ?? 0),
             'location'    => mb_substr(trim($_POST['location'] ?? ''), 0, 150), 'description' => mb_substr(trim($_POST['description'] ?? ''), 0, 255),
         ];
         $editId = $id;
         $old = $id ? loadInternalTask($conn, $id) : null;
-        if ($id && (!$old || $old['status'] !== 'active')) { $errors['general'] = 'That task is not active and cannot be updated.'; }
+        if ($id && (!$old || !in_array($old['status'], ['waiting', 'assigned', 'approved'], true))) { $errors['general'] = 'That task is not active and cannot be updated.'; }
         $typeOk = isset(INTERNAL_TASK_TYPES[$form['task_type']]) || ($old && $old['task_type'] === $form['task_type']);
         if (!$typeOk) { $errors['task_type'] = 'Choose a task type.'; }
         if (!isValidDate($form['task_date'])) { $errors['task_date'] = 'Enter a valid date.'; }
@@ -110,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!isset($errors['start_time']) && !isset($errors['end_time']) && $form['end_time'] <= $form['start_time']) { $errors['end_time'] = 'The end time must be after the start time.'; }
         if ($form['vehicle_id'] <= 0) { $errors['vehicle_id'] = 'Choose a vehicle.'; }
-        if ($form['driver_id'] <= 0) { $errors['driver_id'] = 'Choose a driver.'; }
 
         if (!$errors) {
             $start = $form['task_date'] . ' ' . $form['start_time'] . ':00';
@@ -126,23 +127,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $q->execute();
                 $veh = $q->get_result()->fetch_assoc();
                 $q->close();
-                $q = $conn->prepare('SELECT name, status, license_class FROM drivers WHERE driver_id = ? FOR UPDATE');
-                $q->bind_param('i', $form['driver_id']);
-                $q->execute();
-                $drv = $q->get_result()->fetch_assoc();
-                $q->close();
+                $drv = null;
+                $keepDriver = $old && $old['driver_id'] ? (int)$old['driver_id'] : 0;      // an update keeps the assigned driver; the new details must still suit the driver
+                if ($keepDriver) {
+                    $q = $conn->prepare('SELECT name, status, license_class FROM drivers WHERE driver_id = ? FOR UPDATE');
+                    $q->bind_param('i', $keepDriver);
+                    $q->execute();
+                    $drv = $q->get_result()->fetch_assoc();
+                    $q->close();
+                }
 
                 if (!$veh) {
                     $errors['vehicle_id'] = 'Unknown vehicle.';
                 } elseif (($why = internalVehicleReason($conn, $form['vehicle_id'], $start, $end, $id)) !== null) {
                     $errors['vehicle_id'] = 'The vehicle ' . vehicleUnavailableText($why) . ' at that time.';
                 }
-                if (!$drv || $drv['status'] !== 'active') {
-                    $errors['driver_id'] = 'Choose an active driver.';
-                } elseif ($veh && !driverHoldsLicence($drv['license_class'], $veh['license_required'])) {
-                    $errors['driver_id'] = $drv['name'] . ' does not hold licence class ' . $veh['license_required'] . ', which ' . $veh['plate_number'] . ' needs.';
-                } elseif (($why = driverClashReason($conn, $form['driver_id'], $start, $end, 0, $id)) !== null) {
-                    $errors['driver_id'] = $drv['name'] . ': ' . $why . '.';
+                if ($keepDriver && $drv) {
+                    if ($veh && !driverHoldsLicence($drv['license_class'], $veh['license_required'])) {
+                        $errors['vehicle_id'] = 'The assigned driver ' . $drv['name'] . ' does not hold licence class ' . $veh['license_required'] . ', which ' . $veh['plate_number'] . ' needs.';
+                    } elseif (($why = driverClashReason($conn, $keepDriver, $start, $end, 0, $id)) !== null) {
+                        $errors['task_date'] = 'The assigned driver ' . $drv['name'] . ': ' . $why . '.';
+                    }
                 }
 
                 if ($errors) { $conn->rollback(); }
@@ -150,33 +155,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $loc = $form['location'] !== '' ? $form['location'] : null;
                     $desc = $form['description'] !== '' ? $form['description'] : null;
                     if ($id) {
-                        $stmt = $conn->prepare("UPDATE internal_tasks SET task_type = ?, task_date = ?, start_time = ?, end_time = ?, vehicle_id = ?, driver_id = ?, location = ?, description = ?
-                                                 WHERE task_id = ? AND status = 'active'");
-                        $stmt->bind_param('ssssiissi', $form['task_type'], $form['task_date'], $form['start_time'], $form['end_time'], $form['vehicle_id'], $form['driver_id'], $loc, $desc, $id);
+                        $stmt = $conn->prepare("UPDATE tasks SET task_type = ?, start_dt = ?, end_dt = ?, vehicle_id = ?, location = ?, description = ?
+                                                 WHERE task_id = ? AND task_source = 'internal' AND status IN ('waiting', 'assigned', 'approved')");
+                        $stmt->bind_param('sssissi', $form['task_type'], $start, $end, $form['vehicle_id'], $loc, $desc, $id);
                     } else {
-                        $stmt = $conn->prepare("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, location, description, created_by)
-                                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->bind_param('ssssiissi', $form['task_type'], $form['task_date'], $form['start_time'], $form['end_time'], $form['vehicle_id'], $form['driver_id'], $loc, $desc, $by);
+                        $stmt = $conn->prepare("INSERT INTO tasks (task_source, task_type, start_dt, end_dt, vehicle_id, location, description, created_by, status)
+                                                VALUES ('internal', ?, ?, ?, ?, ?, ?, ?, 'waiting')");
+                        $stmt->bind_param('sssissi', $form['task_type'], $start, $end, $form['vehicle_id'], $loc, $desc, $by);
                     }
                     $stmt->execute();
                     $newId = $id ?: (int)$stmt->insert_id;
                     $stmt->close();
                     $conn->commit();
 
-                    auditLog($conn, $id ? 'internal_task_update' : 'internal_task_add', null, "Internal task #$newId: {$form['task_type']} {$form['task_date']} driver {$form['driver_id']}");
+                    auditLog($conn, $id ? 'internal_task_update' : 'internal_task_add', null, "Internal task #$newId: {$form['task_type']} {$form['task_date']}");
                     $new = loadInternalTask($conn, $newId);
-                    $newUser = userIdOfDriver($conn, $form['driver_id']);
-                    if (!$id) {
-                        if ($newUser) { notifyUsers($conn, [$newUser], 'New internal task: ' . taskText($new) . '.', 'driver/schedules.php'); }
-                    } else {
-                        if ((int)$old['driver_id'] !== $form['driver_id']) {
-                            if ($u = userIdOfDriver($conn, (int)$old['driver_id'])) { notifyUsers($conn, [$u], 'You are no longer assigned to the internal task: ' . taskText($old) . '.', 'driver/schedules.php'); }
-                            if ($newUser) { notifyUsers($conn, [$newUser], 'New internal task: ' . taskText($new) . '.', 'driver/schedules.php'); }
-                        } elseif ($newUser) {
-                            notifyUsers($conn, [$newUser], 'Your internal task was changed. Now: ' . taskText($new) . '.', 'driver/schedules.php');
-                        }
+                    if ($id && $new['driver_id'] && ($u = userIdOfDriver($conn, (int)$new['driver_id']))) {      // A2: the assigned driver, if any
+                        notifyUsers($conn, [$u], 'Your internal task was changed. Now: ' . taskText($new) . '.', 'driver/schedules.php');
                     }
-                    setFlash('success', $id ? 'The task was updated and the driver was notified.' : 'The task was added and the driver was notified.');
+                    setFlash('success', $id ? 'The task was updated.' . ($new['driver_id'] ? ' The driver was notified.' : '') : 'The task was added with the status Waiting for Driver and the vehicle is reserved. Assign a driver next.');
                     header('Location: internal_tasks.php');
                     exit();
                 }
@@ -191,34 +188,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ---------- list ----------
 $when   = ($_GET['when'] ?? 'upcoming') === 'past' ? 'past' : 'upcoming';
-$fStat  = in_array($_GET['status'] ?? '', ['active', 'cancelled'], true) ? $_GET['status'] : '';
+$fStat  = in_array($_GET['status'] ?? '', ['waiting', 'assigned', 'approved', 'cancelled'], true) ? $_GET['status'] : '';
 $fDrv   = (int)($_GET['driver_id'] ?? 0);
+$fType  = isset(INTERNAL_TASK_TYPES[$_GET['task_type'] ?? '']) ? $_GET['task_type'] : '';
 $fFrom  = isValidDate((string)($_GET['from'] ?? '')) ? $_GET['from'] : '';
 $fTo    = isValidDate((string)($_GET['to'] ?? '')) ? $_GET['to'] : '';
-$where = [$when === 'past' ? 't.end_dt < ?' : 't.end_dt >= ?']; $p = [date('Y-m-d H:i:s')];
+$where = ["t.task_source = 'internal'", $when === 'past' ? 't.end_dt < ?' : 't.end_dt >= ?']; $p = [date('Y-m-d H:i:s')];
 if ($fStat) { $where[] = 't.status = ?'; $p[] = $fStat; }
 if ($fDrv)  { $where[] = 't.driver_id = ?'; $p[] = $fDrv; }
+if ($fType) { $where[] = 't.task_type = ?'; $p[] = $fType; }
 if ($fFrom) { $where[] = 't.task_date >= ?'; $p[] = $fFrom; }
 if ($fTo)   { $where[] = 't.task_date <= ?'; $p[] = $fTo; }
 $W = implode(' AND ', $where);
-$stmt = $conn->prepare("SELECT COUNT(*) FROM internal_tasks t WHERE $W");
+$stmt = $conn->prepare("SELECT COUNT(*) FROM tasks t WHERE $W");
 bindDynamic($stmt, $p); $stmt->execute();
 $total = (int)$stmt->get_result()->fetch_row()[0]; $stmt->close();
 $pg = paginate($total, max(1, (int)($_GET['page'] ?? 1)), 15);
 $order = $when === 'past' ? 'DESC' : 'ASC';
-$stmt = $conn->prepare("SELECT t.*, d.name AS driver_name, v.plate_number, v.brand, v.model
-                          FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+$stmt = $conn->prepare("SELECT t.*, TIME(t.start_dt) AS start_time, TIME(t.end_dt) AS end_time, d.name AS driver_name, v.plate_number, v.brand, v.model
+                          FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
                          WHERE $W ORDER BY t.start_dt $order, t.task_id $order LIMIT ? OFFSET ?");
 $p2 = array_merge($p, [$pg['rows_per_page'], $pg['offset']]);
 bindDynamic($stmt, $p2); $stmt->execute();
 $tasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close();
-$qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['when' => $when, 'status' => $fStat, 'driver_id' => $fDrv ?: '', 'from' => $fFrom, 'to' => $fTo], $o), fn($v) => $v !== '' && $v !== null));
+$qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['when' => $when, 'status' => $fStat, 'task_type' => $fType, 'driver_id' => $fDrv ?: '', 'from' => $fFrom, 'to' => $fTo], $o), fn($v) => $v !== '' && $v !== null));
 
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Internal Tasks');
 ?>
     <h1 class="text-2xl font-medium mb-1">Internal Tasks</h1>
-    <p class="text-base-content/60 text-sm mb-4">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A task is never deleted: cancel it with a reason.</p>
+    <p class="text-base-content/60 text-sm mb-4">Workshop runs, refuelling and test drives. A new task is <strong>Waiting for Driver</strong> and its vehicle is reserved; assign a driver (the Head of Admin then approves). An approved task counts in the driver's workload. A deleted task is kept in the history with its reason (filter Deleted) and no longer counts in any workload.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-6" id="taskForm">
         <div class="card-body">
@@ -257,14 +256,6 @@ adminPageStart('Internal Tasks');
                     </select>
                     <div class="mt-1 block text-xs text-error"><?= $h($errors['vehicle_id'] ?? '') ?></div>
                 </div>
-                <div class="col-span-12 md:col-span-6">
-                    <label class="mb-1 block text-sm font-medium" for="driver_id">Driver</label>
-                    <select class="select w-full <?= isset($errors['driver_id']) ? 'select-error' : '' ?>" id="driver_id" name="driver_id" required>
-                        <option value="">Choose a driver</option>
-                        <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= (int)$form['driver_id'] === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?> (<?= $h($d['license_class']) ?>)</option><?php endforeach; ?>
-                    </select>
-                    <div class="mt-1 block text-xs text-error"><?= $h($errors['driver_id'] ?? '') ?></div>
-                </div>
                 <div class="col-span-12 md:col-span-5">
                     <label class="mb-1 block text-sm font-medium" for="location">Place (optional)</label>
                     <input class="input w-full" id="location" name="location" maxlength="150" value="<?= $h($form['location']) ?>" placeholder="e.g. Workshop name, fuel station">
@@ -288,38 +279,45 @@ adminPageStart('Internal Tasks');
     <form method="get" class="grid-12 grid grid-cols-12 gap-2 mb-4 items-end">
         <input type="hidden" name="when" value="<?= $h($when) ?>">
         <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_status">Status</label>
-            <select class="select w-full select-sm" id="f_status" name="status"><option value="">All</option><option value="active" <?= $fStat === 'active' ? 'selected' : '' ?>>Active</option><option value="cancelled" <?= $fStat === 'cancelled' ? 'selected' : '' ?>>Cancelled</option></select></div>
+            <select class="select select-sm w-full" id="f_status" name="status"><option value="">All</option><?php foreach (['waiting', 'assigned', 'approved', 'cancelled'] as $stt): ?><option value="<?= $stt ?>" <?= $fStat === $stt ? 'selected' : '' ?>><?= $h(internalTaskStatusLabel($stt)) ?></option><?php endforeach; ?></select></div>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_type">Task type</label>
+            <select class="select select-sm w-full" id="f_type" name="task_type"><option value="">All</option><?php foreach (INTERNAL_TASK_TYPES as $k => $lbl): ?><option value="<?= $k ?>" <?= $fType === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select></div>
         <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium mb-0" for="f_driver">Driver</label>
-            <select class="select w-full select-sm" id="f_driver" name="driver_id"><option value="">All drivers</option>
+            <select class="select select-sm w-full" id="f_driver" name="driver_id"><option value="">All drivers</option>
                 <?php foreach ($conn->query('SELECT driver_id, name FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC) as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDrv === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
-        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_from">From</label><input type="date" class="input w-full input-sm" id="f_from" name="from" value="<?= $h($fFrom) ?>"></div>
-        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_to">To</label><input type="date" class="input w-full input-sm" id="f_to" name="to" value="<?= $h($fTo) ?>"></div>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_from">From</label><input type="date" class="input input-sm w-full" id="f_from" name="from" value="<?= $h($fFrom) ?>"></div>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_to">To</label><input type="date" class="input input-sm w-full" id="f_to" name="to" value="<?= $h($fTo) ?>"></div>
         <div class="col-span-12 md:col-span-3 flex gap-2"><button class="btn btn-sm btn-outline btn-success">Filter</button><a class="btn btn-sm btn-outline" href="internal_tasks.php?when=<?= $h($when) ?>">Reset</a></div>
     </form>
 
     <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
         <table class="table [&_tbody_tr:hover]:bg-base-200/60 align-middle mb-0">
-            <thead class=""><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <thead><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
-            <?php foreach ($tasks as $t): $canChange = $t['status'] === 'active' && strtotime($t['end_dt']) >= time(); ?>
+            <?php foreach ($tasks as $t): $live = in_array($t['status'], ['waiting', 'assigned', 'approved'], true); $canChange = $live && strtotime($t['end_dt']) >= time(); $canDelete = $live && strtotime($t['end_dt']) > time(); $canAssign = $t['status'] === 'waiting' && strtotime($t['start_dt']) > time(); ?>
                 <tr>
                     <td class="whitespace-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="text-sm text-base-content/60"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
                     <td><strong><?= $h(internalTaskTypeLabel($t['task_type'])) ?></strong>
                         <?php if ($t['location'] || $t['description']): ?><div class="text-sm text-base-content/60"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
                     <td class="whitespace-nowrap"><?= vehicleHtml($t['plate_number'], $t['brand'], $t['model']) ?></td>
-                    <td><?= $h($t['driver_name']) ?></td>
-                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-soft badge-error">Cancelled</span>
+                    <td><?= $h($t['driver_name'] ?? '-') ?></td>
+                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-soft badge-error">Deleted</span>
                         <div class="text-sm text-base-content/60 mt-1"><?= $h($t['cancel_reason']) ?></div>
-                        <?php else: ?><span class="badge badge-soft badge-success">Active</span><?php endif; ?></td>
+                        <?php else: ?><span class="badge badge-soft <?= $t['status'] === 'approved' ? 'badge-success' : ($t['status'] === 'assigned' ? 'badge-info' : 'badge-warning') ?>"><?= $h(internalTaskStatusLabel($t['status'])) ?></span>
+                        <?php if ($t['status'] === 'waiting' && $t['reject_reason']): ?><div class="text-sm text-base-content/60 mt-1">Rejected by the Head of Admin: <?= $h($t['reject_reason']) ?></div><?php endif; ?><?php endif; ?></td>
                     <td class="text-end whitespace-nowrap">
+                        <?php if ($canAssign): ?><a class="btn btn-sm btn-success" href="assign_internal_task.php?id=<?= (int)$t['task_id'] ?>"><i class="fas fa-user-plus"></i><span class="hidden md:inline ms-1">Assign driver</span></a><?php endif; ?>
+                        <?php if ($t['status'] === 'approved' && $t['driver_id'] && strtotime($t['start_dt']) > time()): ?><a class="btn btn-sm btn-outline btn-primary" href="replace_task_driver.php?internal=<?= (int)$t['task_id'] ?>"><i class="fas fa-right-left"></i><span class="hidden md:inline ms-1">Replace driver</span></a><?php endif; ?>
                         <?php if ($canChange): ?>
                             <a class="btn btn-sm btn-outline btn-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Update</span></a>
-                            <button type="button" class="btn btn-sm btn-outline btn-error" data-cancel-task data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="hidden md:inline ms-1">Cancel</span></button>
+                        <?php endif; ?>
+                        <?php if ($canDelete): ?>
+                            <button type="button" class="btn btn-sm btn-outline btn-error" data-cancel-task data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-trash"></i><span class="hidden md:inline ms-1">Delete</span></button>
                         <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-base-content/60 py-6">No <?= $when ?> tasks found.</td></tr><?php endif; ?>
+            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-base-content/60 py-6">No record is found.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>
@@ -331,15 +329,15 @@ adminPageStart('Internal Tasks');
 
     <dialog class="modal" id="cancelModal" aria-labelledby="cancelTitle">
         <form method="post" class="modal-box">
-            <input type="hidden" name="action" value="cancel"><input type="hidden" name="task_id" id="cancelId" value="">
-            <h3 class="text-lg font-medium" id="cancelTitle">Cancel this task?</h3>
+            <input type="hidden" name="action" value="delete"><input type="hidden" name="task_id" id="cancelId" value="">
+            <h3 class="text-lg font-medium" id="cancelTitle">Delete this task?</h3>
             <div class="mt-3">
                 <p class="mb-4 text-sm text-base-content/70" id="cancelLabel"></p>
-                <label class="mb-1 block text-sm font-medium" for="cancelReason">Reason for cancelling</label>
+                <label class="mb-1 block text-sm font-medium" for="cancelReason">Reason for deleting</label>
                 <textarea class="textarea w-full" id="cancelReason" name="reason" rows="2" maxlength="255" required minlength="3"></textarea>
                 <div class="mt-1 block text-xs text-base-content/60">The driver is told the reason.</div>
             </div>
-            <div class="modal-action"><button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">Keep the task</button><button class="btn btn-error" type="submit">Cancel the task</button></div>
+            <div class="modal-action"><button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">Keep the task</button><button class="btn btn-error" type="submit">Delete the task</button></div>
         </form>
         <form method="dialog" class="modal-backdrop"><button>Close</button></form>
     </dialog>

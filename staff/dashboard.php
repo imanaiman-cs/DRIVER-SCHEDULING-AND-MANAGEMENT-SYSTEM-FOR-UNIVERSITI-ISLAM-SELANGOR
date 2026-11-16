@@ -12,6 +12,6 @@ requireRequester();   // every role is also staff
 $uid = (int)$_SESSION['user_id'];
 adminPageStart('Dashboard');
 ?>
-    <?= dashHeader('Today, ' . date('l j F'), '<a class="btn btn-primary btn-sm" href="request_vehicle.php">Request a vehicle</a>') ?>
+    <?= dashHeader('<a class="btn btn-primary btn-sm" href="request_vehicle.php">Request a vehicle</a>') ?>
     <?php dashMyRequestsSection($conn, $uid); ?>
 <?php adminPageEnd(); ?>

@@ -61,7 +61,7 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $seen[(int)$r['request_id']] = true;
-        $items[] = ['kind' => 'request', 'request_id' => (int)$r['request_id'],
+        $items[] = ['kind' => 'request', 'id' => (int)$r['request_id'], 'request_id' => (int)$r['request_id'],
             'text' => 'Request #' . $r['request_id'] . ' (' . requestStatusLabel($r['status']) . '): ' . fleetWhen($r['depart_at'], $r['return_at'])
                     . ' to ' . $r['destination'] . ', requested by ' . $r['full_name'],
             'url' => 'vehicle_requests.php'];
@@ -69,8 +69,8 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT s.schedule_id, s.request_id, s.start_dt, s.end_dt, s.destination FROM schedules s
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() AND s.start_dt <= ? ORDER BY s.start_dt"
+        "SELECT s.task_id, s.request_id, s.start_dt, s.end_dt, s.location AS destination FROM tasks s
+          WHERE s.task_source = 'request' AND s.vehicle_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() AND s.start_dt <= ? ORDER BY s.start_dt"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
@@ -83,15 +83,27 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id
-          WHERE t.vehicle_id = ? AND t.status = 'active' AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
+        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id
+          WHERE t.task_source = 'internal' AND t.vehicle_id = ? AND t.status IN ('waiting', 'assigned', 'approved') AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'internal', 'request_id' => null,
-            'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt']) . ', driver ' . $r['name'],
+        $items[] = ['kind' => 'internal', 'id' => (int)$r['task_id'], 'request_id' => null,
+            'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt']) . ', driver ' . ($r['name'] ?? 'not assigned yet'),
             'url' => 'internal_tasks.php'];
+    }
+    $stmt->close();
+
+    $stmt = $conn->prepare(
+        "SELECT w.task_id, w.task_date AS duty_date, d.name FROM tasks w LEFT JOIN drivers d ON d.driver_id = w.driver_id
+          WHERE w.task_source = 'welfare' AND w.status <> 'cancelled' AND w.vehicle_id = ? AND w.task_date >= CURDATE() AND w.start_dt <= ? ORDER BY w.task_date"
+    );
+    $stmt->bind_param('is', $vehicle_id, $limit);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['task_id'], 'request_id' => null,
+            'text' => 'Welfare duty (24 hours): ' . date('D d M Y', strtotime($r['duty_date'])) . ', driver ' . ($r['name'] ?? 'not assigned yet'), 'url' => 'welfare.php'];
     }
     $stmt->close();
     return $items;
@@ -107,20 +119,15 @@ function closeVehicleMaintenance(mysqli $conn, int $vehicle_id): void
 }
 
 /**
- * UC008 / UC009: sets the status an administrator may choose.
- * @return array{ok:bool, message:string, items:array}  items = trips to list (warning, or the reason it is refused)
+ * SRS 14 Nov UC002.3 / UC002.4: sets the status of a vehicle: Active ('available'), Under Maintenance ('maintenance') or Inactive (deactivated).
+ * Under Maintenance and Inactive are refused while the vehicle has upcoming bookings: they are listed so that another vehicle can be assigned
+ * to each booking first. An inactive vehicle cannot be activated again.
+ * @return array{ok:bool, message:string, items:array}  items = the bookings that block the change
  */
-function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string $workshop = '', string $return_date = ''): array
+function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status): array
 {
     if (!in_array($status, VEHICLE_ADMIN_STATUSES, true)) {
-        return ['ok' => false, 'message' => 'Choose Available, Under Maintenance or Inactive. "In Use" is set by the system.', 'items' => []];
-    }
-    $workshop = mb_substr(trim($workshop), 0, 120);
-    $items = [];
-    if ($status === 'maintenance') {
-        if ($workshop === '') { return ['ok' => false, 'message' => 'Enter the workshop name.', 'items' => []]; }
-        if ($return_date === '' || !isValidDate($return_date)) { return ['ok' => false, 'message' => 'Enter the expected return date.', 'items' => []]; }
-        if ($return_date < date('Y-m-d')) { return ['ok' => false, 'message' => 'The expected return date cannot be in the past.', 'items' => []]; }
+        return ['ok' => false, 'message' => 'Choose Active or Under Maintenance. "In Use" is set by the system.', 'items' => []];
     }
     $conn->begin_transaction();
     try {
@@ -130,24 +137,15 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string 
         $v = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         if (!$v) { $conn->rollback(); return ['ok' => false, 'message' => 'Vehicle not found.', 'items' => []]; }
-
-        if ($status === 'inactive') {
+        if ($v['status'] === 'inactive') { $conn->rollback(); return ['ok' => false, 'message' => $v['plate_number'] . ' is inactive and cannot be changed.', 'items' => []]; }
+        if ($status === 'inactive' || $status === 'maintenance') {
             $items = vehicleUpcomingTrips($conn, $vehicle_id);
             if ($items) {
                 $conn->rollback();
-                return ['ok' => false, 'message' => $v['plate_number'] . ' has upcoming trips, so it cannot be made Inactive. Replace the vehicle on these trips or wait until they are over.', 'items' => $items];
+                return ['ok' => false, 'message' => $v['plate_number'] . ' has upcoming bookings, so it cannot be ' . ($status === 'inactive' ? 'made Inactive' : 'set Under Maintenance') . '. Assign another vehicle to each booking first.', 'items' => $items];
             }
         }
-        if ($status === 'maintenance') {
-            $items = vehicleUpcomingTrips($conn, $vehicle_id, $return_date);
-            closeVehicleMaintenance($conn, $vehicle_id);
-            $stmt = $conn->prepare('INSERT INTO vehicle_maintenance (vehicle_id, start_date, end_date, workshop) VALUES (?, CURDATE(), ?, ?)');
-            $stmt->bind_param('iss', $vehicle_id, $return_date, $workshop);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            closeVehicleMaintenance($conn, $vehicle_id);
-        }
+        if ($status !== 'maintenance') { closeVehicleMaintenance($conn, $vehicle_id); }
         $stmt = $conn->prepare('UPDATE vehicles SET status = ? WHERE vehicle_id = ?');
         $stmt->bind_param('si', $status, $vehicle_id);
         $stmt->execute();
@@ -158,12 +156,18 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string 
         error_log('setVehicleStatus: ' . $e->getMessage());
         return ['ok' => false, 'message' => 'Database error. Please try again.', 'items' => []];
     }
-    auditLog($conn, 'vehicle_status', null, $v['plate_number'] . ': ' . $v['status'] . ' -> ' . $status . ($status === 'maintenance' ? " ($workshop, back $return_date)" : ''));
-    $msg = $v['plate_number'] . ' is now ' . vehicleStatusLabel($status) . '.';
-    if ($status === 'maintenance' && $items) {
-        $msg .= ' Warning: ' . count($items) . ' upcoming trip(s) fall in the maintenance period.';
-    }
-    return ['ok' => true, 'message' => $msg, 'items' => $items];
+    auditLog($conn, 'vehicle_status', null, $v['plate_number'] . ': ' . $v['status'] . ' -> ' . $status);
+    return ['ok' => true, 'message' => $v['plate_number'] . ' is now ' . vehicleStatusLabel($status) . '.', 'items' => []];
+}
+
+/** A small fuel gauge (4 segments) with the level in words. '' when the level is not recorded. */
+function fuelGaugeHtml(?string $level): string
+{
+    $n = ['empty' => 0, 'quarter' => 1, 'half' => 2, 'three_quarters' => 3, 'full' => 4][$level ?? ''] ?? null;
+    if ($n === null) { return '<span class="text-sm text-base-content/60">-</span>'; }
+    $h = '<span class="fuel-gauge is-l' . $n . '" title="Fuel level: ' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '"><i class="fas fa-gas-pump" aria-hidden="true"></i>';
+    for ($i = 1; $i <= 4; $i++) { $h .= '<b class="' . ($i <= $n ? 'on' : '') . '"></b>'; }
+    return $h . '<span>' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '</span></span>';
 }
 
 // ------------------------------------------------------------
@@ -172,43 +176,44 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status, string 
 
 /**
  * Upcoming work of a driver (UC004): request tasks, internal tasks, welfare duty days.
+ * Item key 'schedule_id' holds the task id of a request task (the replace_driver.php?schedule_id= parameter); 'id' the task id of an internal / welfare task.
  * @return array<int, array{kind:string, request_id:?int, schedule_id:?int, text:string}>
  */
 function driverUpcomingTasks(mysqli $conn, int $driver_id): array
 {
     $items = [];
     $stmt = $conn->prepare(
-        "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, s.destination, v.plate_number
-           FROM schedules s LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-          WHERE s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() ORDER BY s.start_dt"
+        "SELECT s.task_id, s.request_id, s.trip_type, s.start_dt, s.end_dt, s.location AS destination, v.plate_number
+           FROM tasks s LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+          WHERE s.task_source = 'request' AND s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() ORDER BY s.start_dt"
     );
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'request', 'request_id' => $r['request_id'] !== null ? (int)$r['request_id'] : null, 'schedule_id' => (int)$r['schedule_id'],
-            'text' => ($r['request_id'] ? 'Request #' . $r['request_id'] . ' ' : 'Trip ') . ((int)$r['leg_no'] === 2 ? 'return task' : 'task') . ': '
+        $items[] = ['kind' => 'request', 'request_id' => $r['request_id'] !== null ? (int)$r['request_id'] : null, 'schedule_id' => (int)$r['task_id'],
+            'text' => ($r['request_id'] ? 'Request #' . $r['request_id'] . ' ' : 'Trip ') . ($r['trip_type'] === 'return' ? 'return task' : 'task') . ': '
                     . fleetWhen($r['start_dt'], $r['end_dt']) . ' to ' . $r['destination'] . ($r['plate_number'] ? ' (' . $r['plate_number'] . ')' : '')];
     }
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status = 'active' AND end_dt > NOW() ORDER BY start_dt");
+    $stmt = $conn->prepare("SELECT task_id, status, task_type, start_dt, end_dt FROM tasks WHERE task_source = 'internal' AND driver_id = ? AND status IN ('assigned', 'approved') AND end_dt > NOW() ORDER BY start_dt");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'internal', 'request_id' => null, 'schedule_id' => null,
+        $items[] = ['kind' => 'internal', 'id' => (int)$r['task_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null,
             'text' => 'Internal task (' . str_replace('_', ' ', $r['task_type']) . '): ' . fleetWhen($r['start_dt'], $r['end_dt'])];
     }
     $stmt->close();
 
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date > CURDATE() ORDER BY duty_date');
+    $stmt = $conn->prepare("SELECT task_id, status, task_date AS duty_date FROM tasks WHERE task_source = 'welfare' AND driver_id = ? AND status IN ('assigned', 'approved') AND task_date > CURDATE() ORDER BY task_date");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'welfare', 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['task_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
     }
     $stmt->close();
     // today's welfare duty (24 h) also still counts
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date = CURDATE()');
+    $stmt = $conn->prepare("SELECT task_date FROM tasks WHERE task_source = 'welfare' AND driver_id = ? AND status IN ('assigned', 'approved') AND task_date = CURDATE()");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) {
@@ -221,6 +226,7 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
 /** UC004: deactivate ($active=false) or reactivate a driver. @return array{ok:bool, message:string, items:array} */
 function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 {
+    if ($active) { return ['ok' => false, 'message' => 'A deactivated driver cannot be activated again (SRS 14 Nov UC001.4).', 'items' => []]; }
     $conn->begin_transaction();
     try {
         $stmt = $conn->prepare('SELECT name, status FROM drivers WHERE driver_id = ? FOR UPDATE');
@@ -241,6 +247,12 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
         $stmt->bind_param('si', $to, $driver_id);
         $stmt->execute();
         $stmt->close();
+        if (!$active) {                                                  // UC001.4: a deactivated driver cannot log in
+            $stmt = $conn->prepare('UPDATE users SET is_active = 0 WHERE driver_id = ?');
+            $stmt->bind_param('i', $driver_id);
+            $stmt->execute();
+            $stmt->close();
+        }
         $conn->commit();
     } catch (Throwable $e) {
         $conn->rollback();
@@ -256,18 +268,22 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 // ------------------------------------------------------------
 
 /** A <ul> of the blocking / warning items. Request tasks of a driver link to the replace-driver page. */
-function fleetItemsList(array $items, bool $withReplaceLink = false): string
+function fleetItemsList(array $items, bool $withReplaceLink = false, int $vehicleLink = 0): string
 {
     if (!$items) { return ''; }
-    $html = '<ul class="mb-0 mt-2 text-sm">';
+    $html = '<ul class="mt-2 list-disc ps-5 text-sm">';
     foreach ($items as $i) {
         $html .= '<li>' . htmlspecialchars($i['text']);
         if ($withReplaceLink && !empty($i['schedule_id']) && $i['kind'] === 'request') {
-            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="font-semibold">Replace driver</a>';
+            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="link font-semibold">Replace driver</a>';
+        } elseif ($withReplaceLink && in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'approved') {     // UC008 A1
+            $html .= ' <a href="replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] . '" class="link font-semibold">Replace driver</a>';
         }
         $html .= '</li>';
     }
-    return $html . '</ul>';
+    $html .= '</ul>';
+    if ($vehicleLink > 0) { $html .= '<a class="btn btn-sm btn-warning mt-2" href="reassign_vehicle.php?vehicle_id=' . $vehicleLink . '"><i class="fas fa-right-left me-1"></i>Assign another vehicle to each booking</a>'; }
+    return $html;
 }
 
 /**
@@ -353,12 +369,15 @@ function vehicleInput(array $p): array
         'year'         => trim((string)($p['year'] ?? '')),
         'capacity'     => trim((string)($p['capacity'] ?? '')),
         'fuel_type'    => trim((string)($p['fuel_type'] ?? 'Petrol')),
+        'license_required' => trim((string)($p['license_required'] ?? '')),
+        'mileage'      => trim((string)($p['mileage'] ?? '')),
+        'fuel_level'   => trim((string)($p['fuel_level'] ?? '')),
         'notes'        => mb_substr(trim((string)($p['notes'] ?? '')), 0, 1000),
     ];
 }
 
 /** @return array<string,string> field => message */
-function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
+function validateVehicle(mysqli $conn, array $in, int $except_id = 0, bool $withUsage = false): array
 {
     $e = [];
     if ($in['plate_number'] === '') { $e['plate_number'] = 'Enter the registration number.'; }
@@ -375,11 +394,16 @@ function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
     if (!preg_match('/^\d{1,3}$/', $in['capacity']) || (int)$in['capacity'] < 1) { $e['capacity'] = 'Passenger capacity must be a whole number of 1 or more.'; }
     if ($in['year'] !== '' && (!preg_match('/^\d{4}$/', $in['year']) || (int)$in['year'] < 1980 || (int)$in['year'] > (int)date('Y') + 1)) { $e['year'] = 'Enter a valid year.'; }
     if (!in_array($in['fuel_type'], FUEL_TYPES, true)) { $e['fuel_type'] = 'Choose the fuel type.'; }
+    if (!in_array($in['license_required'], ['D', 'GDL', 'PSV'], true)) { $e['license_required'] = 'Choose the licence class the driver needs (D, GDL or PSV).'; }      // UC002 step 3
+    if ($withUsage) {
+        if (!preg_match('/^\d{1,7}$/', $in['mileage'])) { $e['mileage'] = 'Enter the current mileage as a whole number.'; }
+        if (!isset(VEHICLE_FUEL_LEVELS[$in['fuel_level']])) { $e['fuel_level'] = 'Choose the current fuel level.'; }
+    }
     return $e;
 }
 
 /** The form fields. $v = current values, $errors = messages, $photo = stored photo path (edit). */
-function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
+function vehicleFormFields(array $v, array $errors, ?string $photo = null, bool $withUsage = false): void
 {
     $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
@@ -397,27 +421,25 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
             <input class="input w-full" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
         <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="capacity">Passenger capacity <span class="text-error">*</span></label>
             <input type="number" min="1" max="999" class="input w-full" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
-        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_shown">Licence required</label>
-            <input class="input w-full" id="licence_shown" readonly tabindex="-1" aria-describedby="licHelp" value="<?= htmlspecialchars(isset(VEHICLE_TYPES[$v['vehicle_type'] ?? '']) ? licenceForVehicleType($v['vehicle_type']) : '-') ?>">
-            <div class="mt-1 block text-xs text-base-content/60" id="licHelp">Set by the type: Car/Van D, Lorry GDL, Bus PSV.</div></div>
-        <details class="col-span-12 group" id="moreFields" <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'open' : '' ?>>
-            <summary class="link link-primary inline-flex cursor-pointer list-none items-center gap-1 text-sm no-underline"><i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>More details (optional)</summary>
-            <div class="grid-12 mt-4 grid grid-cols-12 gap-4">
-            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="brand">Brand</label><input class="input w-full" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
-            <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="year">Year</label><input class="input w-full" id="year" name="year" inputmode="numeric" maxlength="4" value="<?= $val('year') ?>"><?= $err('year') ?></div>
-            <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="fuel_type">Fuel</label>
-                <select class="select w-full" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
-            <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="notes">Notes</label><textarea class="textarea w-full" id="notes" name="notes" rows="2" maxlength="1000"><?= $val('notes') ?></textarea></div>
-            <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
-                <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(vehiclePhotoUrl($photo)) ?>" alt="Vehicle photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>
-                <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-                <div class="mt-1 block text-xs text-base-content/60">JPG, PNG or WebP, up to 2 MB.</div></div>
-        </div></details>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_shown">Licence class required <span class="text-error">*</span></label>
+            <select class="select w-full" id="licence_shown" name="license_required" required aria-describedby="licHelp"><option value="">Choose...</option>
+                <?php foreach (['D' => 'D (car / van)', 'GDL' => 'GDL (lorry)', 'PSV' => 'PSV (bus)'] as $k => $l): ?><option value="<?= $k ?>" <?= ($v['license_required'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select>
+            <div class="mt-1 block text-xs text-base-content/60" id="licHelp">Used to find drivers. Suggested from the type.</div><?= $err('license_required') ?></div>
+        <?php if ($withUsage): ?>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="mileage">Current mileage (km) <span class="text-error">*</span></label>
+            <input type="number" min="0" max="9999999" class="input w-full" id="mileage" name="mileage" required value="<?= $val('mileage') ?>"><?= $err('mileage') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="fuel_level">Current fuel level <span class="text-error">*</span></label>
+            <select class="select w-full" id="fuel_level" name="fuel_level" required><option value="">Choose...</option>
+                <?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($v['fuel_level'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select><?= $err('fuel_level') ?></div>
+        <?php endif; ?>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="brand">Brand</label><input class="input w-full" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="fuel_type">Fuel type <span class="text-error">*</span></label>
+            <select class="select w-full" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option value="<?= $f ?>" <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
     </div>
     <script>
     (function () {
         var map = <?= json_encode($licByType) ?>, t = document.getElementById('vehicle_type'), l = document.getElementById('licence_shown');
-        t.addEventListener('change', function () { l.value = map[t.value] || '-'; });
+        t.addEventListener('change', function () { if (map[t.value]) { l.value = map[t.value]; } });
     })();
     </script>
     <?php
@@ -428,25 +450,31 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
 // ------------------------------------------------------------
 
 /** Cleans and checks licence classes, licence number / expiry, address (and phone when $withPhone). @return array{0:array,1:array} [values, errors] */
-function driverInput(array $p, bool $withPhone): array
+function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false, bool $requireJoined = false): array
 {
     $classes = $p['license_class'] ?? [];
     $v = [
         'license_class'  => normaliseLicenceList(is_array($classes) ? $classes : []),
         'license_number' => mb_substr(trim((string)($p['license_number'] ?? '')), 0, 50),
         'license_expiry' => trim((string)($p['license_expiry'] ?? '')),
+        'date_joined'    => trim((string)($p['date_joined'] ?? '')),
         'address'        => mb_substr(trim((string)($p['address'] ?? '')), 0, 500),
         'phone'          => mb_substr(trim((string)($p['phone'] ?? '')), 0, 20),
     ];
     $e = [];
     if ($v['license_class'] === '') { $e['license_class'] = 'Tick at least one licence class (D, GDL or PSV).'; }
     if ($v['license_expiry'] !== '' && !isValidDate($v['license_expiry'])) { $e['license_expiry'] = 'Enter a valid date.'; }
+    elseif ($rejectPastExpiry && $v['license_expiry'] !== '' && $v['license_expiry'] < date('Y-m-d')) { $e['license_expiry'] = 'The licence expiry date has already passed.'; }   // UC003 exception 3.1
+    if ($requireJoined) {      // UC001 step 3 / UC003 A1: the experience in the driver recommendation is calculated from this date
+        if ($v['date_joined'] === '') { $e['date_joined'] = 'Enter the date the driver joined the Vehicle Section.'; }
+        elseif (!isValidDate($v['date_joined']) || $v['date_joined'] > date('Y-m-d')) { $e['date_joined'] = 'Enter a valid date that is not in the future.'; }
+    }
     if ($withPhone && $v['phone'] !== '' && !preg_match('/^[0-9+\-\s()]{6,20}$/', $v['phone'])) { $e['phone'] = 'Enter a valid phone number.'; }
     return [$v, $e];
 }
 
 /** Licence ticks + optional fields. */
-function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null): void
+function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null, bool $withJoined = false): void
 {
     $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
@@ -455,7 +483,7 @@ function driverFormFields(array $v, array $errors, bool $withPhone, ?string $pho
     <div class="grid-12 grid grid-cols-12 gap-4">
         <div class="col-span-12"><span class="mb-1 block text-sm font-medium">Licence classes <span class="text-error">*</span></span>
             <?php foreach (LICENCE_CLASSES as $k => $l): ?>
-                <div class="flex items-center gap-2 inline-flex me-4"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
+                <div class="inline-flex items-center gap-2 me-4"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
                     <label class="text-sm" for="lc_<?= $k ?>"><?= htmlspecialchars($l) ?></label></div>
             <?php endforeach; ?><?= $err('license_class') ?></div>
         <?php if ($withPhone): ?>
@@ -463,11 +491,15 @@ function driverFormFields(array $v, array $errors, bool $withPhone, ?string $pho
         <?php endif; ?>
         <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_number">Licence number</label><input class="input w-full" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
         <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_expiry">Licence expiry date</label><input type="date" class="input w-full" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
+        <?php if ($withJoined): ?>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="date_joined">Date joined the Vehicle Section <span class="text-error">*</span></label><input type="date" class="input w-full" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $val('date_joined') ?>"><?= $err('date_joined') ?>
+            <div class="mt-1 block text-xs text-base-content/60">Used to calculate the experience in the driver recommendation.</div></div>
+        <?php endif; ?>
         <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="address">Address</label><textarea class="textarea w-full" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
         <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
             <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>
-            <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-            <div class="mt-1 block text-xs text-base-content/60">JPG, PNG or WebP, up to 2 MB.</div></div>
+            <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png"><?= $err('photo') ?>
+            <div class="mt-1 block text-xs text-base-content/60">JPG or PNG, up to 2 MB.</div></div>
     </div>
     <?php
 }

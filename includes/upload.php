@@ -27,7 +27,7 @@ function saveUploadedImage(array $file, string $subdir, int $maxBytes = 2097152)
         return ['ok' => false, 'path' => null, 'error' => $msg];
     };
 
-    if (!in_array($subdir, ['vehicles', 'drivers'], true)) {
+    if (!in_array($subdir, ['vehicles', 'drivers', 'reports'], true)) {
         return $fail('Invalid upload destination.');
     }
 
@@ -73,10 +73,9 @@ function saveUploadedImage(array $file, string $subdir, int $maxBytes = 2097152)
     $extensions = [
         'image/jpeg' => 'jpg',
         'image/png'  => 'png',
-        'image/webp' => 'webp',
-    ];
+    ];                                                   // CLAUDE.md: uploads are PDF / JPG / PNG only
     if (!is_string($mime) || !isset($extensions[$mime])) {
-        return $fail('Only JPG, PNG or WebP images are allowed.');
+        return $fail('Only JPG or PNG images are allowed.');
     }
 
     $info = @getimagesize($tmp);

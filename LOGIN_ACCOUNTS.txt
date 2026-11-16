@@ -6,8 +6,7 @@ Aligned with the final SRS: five roles - Staff, Driver, Head of Department, Admi
 Login page:
   http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php
 
-In the real system the accounts come from the UIS staff system (tools/import_staff.php + CSV);
-there is no user management screen, no temporary password and no manual unlock.
+Staff and Heads of Department register their own accounts (register.php); the Administrative Assistant creates driver accounts.
 Every role is also Staff, so every account can request a vehicle (menu: Request Vehicle / My Requests).
 
 

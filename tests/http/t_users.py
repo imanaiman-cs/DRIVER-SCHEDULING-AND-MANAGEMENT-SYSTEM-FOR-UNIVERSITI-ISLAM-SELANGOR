@@ -1,0 +1,126 @@
+"""SRS summary 10 Nov 2026: staff register their own account; the Assistant / Head of Admin manage user accounts."""
+import re, sys
+from lib import *
+
+reseed()
+cnt = lambda q: int(sql(q))
+anon = C()
+ad = user('admin'); hd = user('head001'); s1 = user('stf001'); hos = user('hos002')
+reg = dict(username='NEW001', full_name='Aminah binti Yusof', email='aminah@uis.edu.my', phone='012-3456789', department='Faculty of Education', password='Secret123', confirm_password='Secret123')
+exists = lambda u: cnt("SELECT COUNT(*) FROM users WHERE username='%s'" % u)
+
+# ---- self registration (UC013: staff ID + UIS e-mail, verification code, details) ----
+def start(c, username='NEW001', email='aminah@uis.edu.my'): return c.post('register.php', {'action': 'request_code', 'username': username, 'email': email})
+def reg_details(c, **kw):
+    d = dict(action='register', full_name='Aminah binti Yusof', phone='012-3456789', department='Faculty of Education', role='staff', password='Secret123', confirm_password='Secret123')
+    d.update(kw); return c.post('register.php', d)
+pg = anon.get('register.php')
+ok('the registration page opens without signing in; step 1 asks for the staff ID and the UIS e-mail', pg.status_code == 200 and 'name="email"' in pg.text and 'Request code' in pg.text and not errs(pg))
+ok('the login page links to Register and Forgot password', 'register.php' in anon.get('login.php').text and 'forgot_password.php' in anon.get('login.php').text)
+ok('POST without a CSRF token is refused (419)', anon.post('register.php', {'action': 'request_code', 'username': 'NEW001', 'email': 'a@uis.edu.my'}, csrf=False).status_code == 419)
+r = start(anon, email='aminah@gmail.com'); ok('a non-UIS e-mail is refused (2.2)', 'Only a UIS e-mail' in r.text and cnt("SELECT COUNT(*) FROM email_log WHERE kind='verification'") == 0)
+r = start(anon, username='stf001', email='new1@uis.edu.my'); ok('a registered staff ID is refused (2.1)', 'already registered' in r.text)
+r = start(anon, email=sql("SELECT email FROM users WHERE username='stf001'")); ok('a registered e-mail is refused (2.1)', 'already registered' in r.text)
+r = start(anon, username='a b'); ok('an invalid staff ID is refused', 'Please fill in' in r.text)
+r = reg_details(anon); ok('step 4 cannot be reached without the verified code', not exists('NEW001'))
+r = start(anon); ok('Request code: the code is e-mailed (logged) and step 2 asks for it', 'Verification code' in r.text and cnt("SELECT COUNT(*) FROM email_log WHERE to_email='aminah@uis.edu.my' AND kind='verification'") == 1 and len(last_code('aminah@uis.edu.my')) == 6)
+ok('the code is stored only as a hash', cnt("SELECT COUNT(*) FROM verification_codes WHERE code_hash NOT LIKE '$%'") == 0 and cnt("SELECT COUNT(*) FROM verification_codes WHERE code_hash LIKE '%" + last_code('aminah@uis.edu.my') + "%'") == 0)
+code1 = last_code('aminah@uis.edu.my')
+r = anon.post('register.php', {'action': 'verify', 'code': '000000' if code1 != '000000' else '111111'}); ok('a wrong code: verification failed (3.1)', 'Verification failed' in r.text)
+r = anon.post('register.php', {'action': 'resend'}); code2 = last_code('aminah@uis.edu.my')
+ok('Resend code: a new code replaces the old one (A1)', cnt("SELECT COUNT(*) FROM verification_codes WHERE email='aminah@uis.edu.my'") == 1 and cnt("SELECT COUNT(*) FROM email_log WHERE to_email='aminah@uis.edu.my' AND kind='verification'") == 2)
+if code1 != code2:
+    r = anon.post('register.php', {'action': 'verify', 'code': code1}); ok('the old code no longer works', 'Verification failed' in r.text)
+for i in range(4): anon.post('register.php', {'action': 'verify', 'code': '999999' if code2 != '999999' else '888888'})
+r = anon.post('register.php', {'action': 'verify', 'code': code2}); ok('after 5 wrong tries even the right code is refused (a new one is needed)', 'Too many wrong tries' in r.text)
+anon.post('register.php', {'action': 'resend'}); code3 = last_code('aminah@uis.edu.my')
+sql("UPDATE verification_codes SET expiry_time = NOW() - INTERVAL 1 MINUTE WHERE email='aminah@uis.edu.my'")
+r = anon.post('register.php', {'action': 'verify', 'code': code3}); ok('an expired code is refused', 'expired' in r.text)
+anon.post('register.php', {'action': 'resend'}); code4 = last_code('aminah@uis.edu.my')
+r = anon.post('register.php', {'action': 'verify', 'code': code4}); ok('the right code: step 4 (name, phone, department, role, password) is shown', 'Full name' in r.text and 'Head of Department' in r.text and 'name="password"' in r.text)
+for name, bad in [('short password', dict(password='a1', confirm_password='a1')), ('no digits', dict(password='abcdefgh', confirm_password='abcdefgh')),
+                  ('password mismatch (4.1)', dict(confirm_password='Other1234')), ('empty name', dict(full_name='')), ('PTJ not in the list', dict(department='Nowhere')), ('bad phone', dict(phone='abc')),
+                  ('Head of Department of a PTJ that has one (4.2)', dict(role='supervisor'))]:
+    r = reg_details(anon, **bad); ok('registration refused: ' + name, r.status_code == 200 and not exists('NEW001') and 'text-xs text-error' in r.text)
+ok('the message names the existing Head of Department (4.2)', 'already has a Head of Department' in reg_details(anon, role='supervisor').text)
+r = reg_details(anon, role='head_admin'); ok('registered: a role other than Staff or Head of Department becomes Staff', r.status_code == 302 and r.headers['Location'].endswith('login.php') and sql("SELECT role FROM users WHERE username='NEW001'") == 'staff')
+ok('the staff ID and e-mail are the verified ones; approver = the Head of Department of the PTJ; password hashed', sql("SELECT email FROM users WHERE username='NEW001'") == 'aminah@uis.edu.my'
+   and sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='NEW001'") == 'hos002' and sql("SELECT password LIKE '$%' FROM users WHERE username='NEW001'") == '1')
+ok('the code cannot be used again and the registration is in the history log', cnt("SELECT COUNT(*) FROM verification_codes WHERE email='aminah@uis.edu.my'") == 0 and cnt("SELECT COUNT(*) FROM audit_log WHERE action='user_register' AND reason LIKE '%NEW001%'") == 1)
+ok('the sign-in page shows the success message', 'Your account was created' in anon.get('login.php').text)
+nu = C(); r = nu.login('NEW001', 'Secret123')
+ok('the new staff member can sign in and sees the staff dashboard', r.status_code == 302 and 'staff/dashboard.php' in r.headers['Location'] and nu.get('staff/request_vehicle.php').status_code == 200)
+ok('a signed-in user is sent away from the registration page', nu.get('register.php').status_code == 302)
+ok('the new account cannot open admin pages', nu.get('admin/users.php').status_code == 302)
+# a new Head of Department in a department that has none
+sql("UPDATE users SET is_active=0 WHERE username='hos004'")
+a2 = C(); start(a2, username='HOD777', email='head777@uis.edu.my'); a2.post('register.php', {'action': 'verify', 'code': last_code('head777@uis.edu.my')})
+r = reg_details(a2, role='supervisor', department='Student Affairs Division', full_name='Zulkifli Head'); ok('a Head of Department can register for a PTJ that has none', r.status_code == 302 and sql("SELECT role FROM users WHERE username='HOD777'") == 'supervisor')
+ok('and the staff of that PTJ now have him as approver', sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='stf003'") in ('HOD777', 'hos004'))
+sql("UPDATE users SET is_active=1 WHERE username='hos004'")
+
+# ---- managing accounts: roles ----
+for who, c in [('staff', s1), ('head of department', hos), ('new staff', nu)]:
+    ok('%s cannot open User accounts (role check)' % who, c.get('admin/users.php').status_code == 302 and c.get('admin/edit_user.php', id=1).status_code == 302)
+lst = ad.get('admin/users.php')
+ok('the Assistant sees the list with the new account and the menu entry', lst.status_code == 200 and 'NEW001' in lst.text and 'Users' in lst.text and not errs(lst))
+ok('search by name and filter by role work', 'Aminah' in ad.get('admin/users.php', q='Aminah').text and 'drv001' not in ad.get('admin/users.php', q='Aminah').text and 'drv001' in ad.get('admin/users.php', role='driver').text and 'stf001' not in ad.get('admin/users.php', role='driver').text)
+ok('Head of Admin only: the Assistant cannot edit an Assistant or Head of Admin account', ad.get('admin/edit_user.php', id=7).status_code == 302 and 'Edit' not in re.sub(r'.*head001', '', ad.get('admin/users.php', q='head001').text, flags=re.S)[:300])
+
+# ---- UC001.1 create driver account lives in Register Driver (t_regdriver.py); there is no generic "add account" any more ----
+ok('there is no Add account page (staff register themselves)', ad.get('admin/add_user.php').status_code == 404)
+
+# ---- UC001.3 update: department, role, driver licence details; the user is told ----
+uid = sql("SELECT user_id FROM users WHERE username='NEW001'")
+ok('Update page opens with the department and role', 'Registrar Office' in ad.get('admin/edit_user.php', id=uid).text or 'Faculty' in ad.get('admin/edit_user.php', id=uid).text)
+r = ad.post('admin/edit_user.php', dict(id=uid, department='', role='staff'))
+ok('3.1: an empty department is refused', 'Fill in the department' in r.text)
+r = ad.post('admin/edit_user.php', dict(id=uid, department='Registrar Office', role='staff'))
+ok('department saved, the approver follows the new department, the user is told', r.status_code == 302 and sql("SELECT d.department_name FROM users u JOIN departments d ON d.department_id=u.department_id WHERE u.username='NEW001'") == 'Registrar Office'
+   and sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='NEW001'") == 'hos003'
+   and cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='NEW001' AND n.message LIKE 'The Vehicle Section updated your account%'") == 1)
+ok('the name, e-mail and phone are NOT changed here (the user does it in the profile)', 'name="full_name"' not in ad.get('admin/edit_user.php', id=uid).text and 'name="email"' not in ad.get('admin/edit_user.php', id=uid).text)
+r = ad.post('admin/edit_user.php', dict(id=uid, department='Registrar Office', role='head_admin'))
+ok('the Assistant cannot make someone Head of Admin', sql("SELECT role FROM users WHERE username='NEW001'") == 'staff')
+did = sql("SELECT user_id FROM users WHERE username='drv001'")
+pg = ad.get('admin/edit_user.php', id=did); ok('a driver account also shows the licence class, licence expiry and start date', 'name="license_expiry"' in pg.text and 'name="date_joined"' in pg.text and 'name="license_class[]"' in pg.text)
+r = ad.post('admin/edit_user.php', {'id': did, 'department': 'Transport Unit', 'role': 'staff', 'license_class[]': ['D', 'PSV'], 'license_expiry': '2031-05-05', 'date_joined': '2020-02-02'})
+ok('driver licence details updated; the role stays Driver', r.status_code == 302 and rows("SELECT license_class, license_expiry, date_joined FROM drivers WHERE driver_id=1") == [['D,PSV', '2031-05-05', '2020-02-02']] and sql("SELECT role FROM users WHERE username='drv001'") == 'driver')
+r = ad.post('admin/edit_user.php', {'id': did, 'department': 'Transport Unit', 'role': 'driver', 'license_class[]': ['D'], 'license_expiry': '', 'date_joined': '2020-02-02'})
+ok('a driver account needs the licence expiry date (3.1)', 'Fill in the licence expiry date' in r.text)
+ok('Head of Admin only: the Assistant cannot edit an Assistant or Head of Admin account', ad.get('admin/edit_user.php', id=sql("SELECT user_id FROM users WHERE username='head001'")).status_code == 302)
+ok('there is no reset-password form for the Assistant (users reset their own, UC015)', 'Reset password' not in ad.get('admin/edit_user.php', id=uid).text)
+
+# ---- UC001.4 deactivate (never activated again, never deleted) ----
+def act(c, a, u): return c.post('admin/users.php', dict(user_id=u, action=a))
+r = act(ad, 'deactivate', uid)
+ok('deactivate: the account is Inactive, nothing is deleted, history logged', sql("SELECT is_active FROM users WHERE username='NEW001'") == '0' and cnt("SELECT COUNT(*) FROM audit_log WHERE action='user_deactivate'") == 1)
+ok('an Inactive account cannot sign in', C().login('NEW001', 'Secret123').status_code == 200)
+act(ad, 'activate', uid)
+ok('there is no activate action any more', sql("SELECT is_active FROM users WHERE username='NEW001'") == '0')
+ok('the Inactive account shows no Activate button', 'value="activate"' not in ad.get('admin/users.php').text)
+act(ad, 'deactivate', sql("SELECT user_id FROM users WHERE username='admin'"))
+ok('nobody can make their own account Inactive', sql("SELECT is_active FROM users WHERE username='admin'") == '1')
+act(ad, 'deactivate', sql("SELECT user_id FROM users WHERE username='head001'"))
+ok('the Assistant cannot make the Head of Admin Inactive', sql("SELECT is_active FROM users WHERE username='head001'") == '1')
+r = act(ad, 'deactivate', sql("SELECT user_id FROM users WHERE username='drv002'"))
+ok('3.1: a driver with upcoming tasks is not deactivated (the tasks are listed, replace the driver first)', sql("SELECT is_active FROM users WHERE username='drv002'") == '1' and sql("SELECT status FROM drivers WHERE driver_id=2") == 'active')
+did9 = sql("SELECT user_id FROM users WHERE username='drv012'")
+sql("DELETE FROM tasks WHERE driver_id=12")
+act(ad, 'deactivate', did9)
+ok('a driver without upcoming tasks is deactivated with the driver record and cannot sign in', sql("SELECT is_active FROM users WHERE username='drv012'") == '0' and sql("SELECT status FROM drivers WHERE driver_id=12") == 'inactive' and C().login('drv012', 'driver012@uis').status_code == 200)
+# Head of Department with pending requests (UC001.4 3.2)
+sql("UPDATE vehicle_requests SET status='pending' WHERE request_id=1")
+hod = sql("SELECT supervisor_id FROM vehicle_requests WHERE request_id=1")
+act(ad, 'deactivate', hod)
+ok('3.2: a Head of Department with pending requests cannot be made Inactive: handle them first', sql("SELECT is_active FROM users WHERE user_id=%s" % hod) == '1')
+hdept = sql("SELECT d.department_name FROM users u JOIN departments d ON d.department_id=u.department_id WHERE u.user_id=%s" % hod)
+other = sql("SELECT user_id FROM users WHERE role='staff' AND department_id<>(SELECT department_id FROM users WHERE user_id=%s) LIMIT 1" % hod)
+r = ad.post('admin/edit_user.php', dict(id=other, department=hdept, role='supervisor'))
+ok('UC001.3 3.2: a second Head of Department for the same department is refused', 'already has a Head of Department' in r.text and sql("SELECT role FROM users WHERE user_id=%s" % other) == 'staff')
+sql("UPDATE vehicle_requests SET status='approved' WHERE request_id=1")
+act(ad, 'deactivate', hod)
+ok('once the pending requests are handled the Head of Department can be made Inactive', sql("SELECT is_active FROM users WHERE user_id=%s" % hod) == '0')
+ok('role check and CSRF on the action', s1.post('admin/users.php', dict(user_id=uid, action='deactivate')).status_code == 302 and ad.post('admin/users.php', dict(user_id=sql("SELECT user_id FROM users WHERE username='stf002'"), action='deactivate'), csrf=False).status_code == 419)
+ok('no PHP errors on the account pages', not any(errs(ad.get(p)) for p in ['admin/users.php', 'admin/edit_user.php?id=%s' % did]))
+sys.exit(0 if summary() else 1)

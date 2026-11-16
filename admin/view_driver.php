@@ -16,7 +16,7 @@ $d = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if (!$d) { setFlash('danger', 'Driver not found.'); header('Location: drivers.php'); exit(); }
 
-$c = driverMonthCounts($conn, date('Y-m'))[$id] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
+$c = driverMonthCounts($conn, date('Y-m'))[$id] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
 $upcoming = driverUpcomingTasks($conn, $id);
 $expired = $d['license_expiry'] && $d['license_expiry'] < date('Y-m-d');
 adminPageStart($d['name']);
@@ -28,8 +28,6 @@ adminPageStart($d['name']);
             <a class="btn btn-outline btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <?php if ($d['status'] === 'active'): ?>
                 <button class="btn btn-outline btn-error btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this driver Inactive?">Deactivate</button>
-            <?php else: ?>
-                <button class="btn btn-success btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
             <?php endif; ?>
             <a class="btn btn-outline btn-sm" href="drivers.php">Back</a>
         </div>
@@ -37,8 +35,8 @@ adminPageStart($d['name']);
     <div id="fleetResult"></div>
     <div class="grid-12 grid grid-cols-12 gap-4">
         <div class="col-span-12 lg:col-span-5"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <img src="<?= htmlspecialchars(driverPhotoUrl($d['photo'])) ?>" alt="" class="rounded-full mb-4" style="width:90px;height:90px;object-fit:cover">
-            <dl class="grid-12 grid grid-cols-12 gap-x-6 mb-0 text-sm">
+            <img src="<?= htmlspecialchars(driverPhotoUrl($d['photo'])) ?>" alt="" class="rounded-full mb-3" style="width:90px;height:90px;object-fit:cover">
+            <dl class="grid-12 grid grid-cols-12 gap-x-6 gap-y-1 mb-0 text-sm">
                 <dt class="col-span-5">Staff no.</dt><dd class="col-span-7"><?= htmlspecialchars($d['employee_id']) ?></dd>
                 <dt class="col-span-5">E-mail</dt><dd class="col-span-7 break-words"><?= htmlspecialchars((string)$d['email']) ?></dd>
                 <dt class="col-span-5">Phone</dt><dd class="col-span-7"><?= htmlspecialchars((string)$d['phone']) ?></dd>
@@ -46,15 +44,16 @@ adminPageStart($d['name']);
                 <dt class="col-span-5">Licence no.</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['license_number'] ?? '-')) ?></dd>
                 <dt class="col-span-5">Licence expiry</dt><dd class="col-span-7"><?= $d['license_expiry'] ? date('d M Y', strtotime($d['license_expiry'])) : '-' ?>
                     <?= $expired ? '<span class="badge badge-soft badge-error ms-1">Expired</span>' : '' ?></dd>
+                <dt class="col-span-5">Date joined</dt><dd class="col-span-7"><?= !empty($d['date_joined']) ? date('d M Y', strtotime($d['date_joined'])) . ' (' . driverExperienceYears($d['date_joined']) . ' years)' : '-' ?></dd>
                 <dt class="col-span-5">Address</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['address'] ?? '-')) ?></dd>
             </dl>
         </div></div></div>
         <div class="col-span-12 lg:col-span-7">
-            <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <div class="card border border-base-300 bg-base-100 mb-3"><div class="card-body">
                 <h6 class="font-bold">Workload in <?= date('F Y') ?></h6>
-                <div class="grid-12 grid grid-cols-12 text-center gap-2">
+                <div class="grid-12 grid grid-cols-12 gap-2 text-center">
                     <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['tasks'] ?></div><div class="text-sm text-base-content/60">Tasks</div></div>
-                    <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['outside'] ?></div><div class="text-sm text-base-content/60">Outside working hours</div></div>
+                    <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['weekend'] ?></div><div class="text-sm text-base-content/60">Weekend tasks</div></div>
                     <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['welfare'] ?></div><div class="text-sm text-base-content/60">Welfare duty days</div></div>
                 </div>
             </div></div>

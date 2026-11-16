@@ -22,6 +22,11 @@ if (isLoggedIn()) {
 if (isset($_GET['msg']) && $_GET['msg'] === 'logged_out') {
     $success = 'You have been successfully logged out.';
 }
+// Success notice (account created, password reset)
+if (!empty($_SESSION['login_success'])) {
+    $success = $_SESSION['login_success'];
+    unset($_SESSION['login_success']);
+}
 // Notice left by the idle timeout / deactivated account
 if (!empty($_SESSION['login_notice'])) {
     $error = $_SESSION['login_notice'];
@@ -39,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } else {
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT u.*, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.username = ? LIMIT 1");
         $stmt->bind_param('s', $username);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
@@ -83,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // new session id after authentication (prevents session fixation)
             session_regenerate_id(true);
+            unset($_SESSION['lang_synced']);
 
             $driver_id = ($user['role'] === 'driver' && isset($user['driver_id'])) ? (int)$user['driver_id'] : null;
             $_SESSION['user_id']   = $user['user_id'];
@@ -91,7 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
             $_SESSION['driver_id'] = $driver_id;
             $_SESSION['department']    = $user['department']    ?? null;
+            $_SESSION['department_id'] = $user['department_id'] !== null ? (int)$user['department_id'] : null;
             $_SESSION['last_activity'] = time();
+            if (isset($_COOKIE['dsms_lang'])) { setLanguage($conn, (string)$_COOKIE['dsms_lang']); } else { syncLanguageFromAccount($conn); }   // a language chosen on the login page is kept
 
             if (in_array($user['role'], ['admin', 'head_admin'], true)) {
                 header('Location: admin/dashboard.php');
@@ -120,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
 </head>
 <body class="flex min-h-screen flex-col bg-base-200">
+    <div class="fixed end-3 top-3 z-50"><?= languageSwitcher() ?></div>
 
     <main class="flex flex-1 items-center justify-center px-4 py-10">
         <div class="w-full max-w-sm">
@@ -175,6 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <span id="loginBtnText">Sign in</span>
                         </button>
                     </form>
+
+                    <div class="mt-5 space-y-1 border-t border-base-300 pt-4 text-center text-sm">
+                        <p><a class="link link-primary" href="forgot_password.php">Forgot password?</a></p>
+                        <p>First time user? <a class="link link-primary" href="register.php">Register now</a></p>
+                    </div>
                 </div>
             </div>
 

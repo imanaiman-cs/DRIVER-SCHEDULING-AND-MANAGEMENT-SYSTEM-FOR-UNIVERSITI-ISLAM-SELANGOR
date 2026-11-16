@@ -17,11 +17,11 @@ $filter = (string)($_GET['status'] ?? 'all');
 $allowedFilters = ['all', 'pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'];
 if (!in_array($filter, $allowedFilters, true)) { $filter = 'all'; }
 
-$sql = requestSelectSql() . ' WHERE vr.staff_id = ?';
-if ($filter !== 'all') { $sql .= ' AND vr.status = ?'; }
-$sql .= ' ORDER BY vr.created_at DESC, vr.request_id DESC';
+$_GET['status'] = $filter === 'all' ? '' : $filter;
+[$fSql, $fTypes, $fParams, $fv] = requestListFilter($_GET);
+$sql = requestSelectSql() . ' WHERE vr.staff_id = ?' . $fSql . ' ORDER BY vr.created_at DESC, vr.request_id DESC';       // UC017 step 2: filter by status or date
 $stmt = $conn->prepare($sql);
-if ($filter !== 'all') { $stmt->bind_param('is', $uid, $filter); } else { $stmt->bind_param('i', $uid); }
+$stmt->bind_param('i' . $fTypes, $uid, ...$fParams);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
@@ -38,7 +38,7 @@ adminPageStart('My Requests');
 ?>
     <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
         <h1 class="text-2xl font-medium mb-0">My Requests</h1>
-        <a class="btn btn-success btn-sm" href="request_vehicle.php"><i class="fas fa-plus me-1"></i>New request</a>
+        <a class="btn btn-primary btn-sm" href="request_vehicle.php"><i class="fas fa-plus"></i>New request</a>
     </div>
 
     <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
@@ -48,8 +48,9 @@ adminPageStart('My Requests');
         <?php endforeach; ?>
     </div>
 
+    <?php requestFilterForm($fv); ?>
     <?php if (!$requests): ?>
-        <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">No requests yet.</div></div>
+        <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12"><?= array_sum($counts) ? 'No record is found.' : 'No requests yet.' ?></div></div>
     <?php endif; ?>
 
     <?php foreach ($requests as $r): $rules = cancelRulesFor($r); ?>
@@ -58,7 +59,8 @@ adminPageStart('My Requests');
             <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
                     <span class="font-semibold">#<?= (int)$r['request_id'] ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= htmlspecialchars((string)($r['vehicle_type'] ?: ($r['request_type'] === 'pay_claim' ? 'Pay and Claim' : ''))) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
                 <div><?= requestStatusBadge($r['status']) ?></div>
             </div>
@@ -69,10 +71,10 @@ adminPageStart('My Requests');
             <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= (int)$r['request_id'] ?>">
                 <input type="hidden" name="return_to" value="staff/my_requests.php?open=<?= (int)$r['request_id'] ?>">
-                <label class="mb-1 block text-sm font-medium" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (the reason is optional)</label>
+                <label class="mb-1 block text-sm font-medium" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (a reason is required)</label>
                 <div class="join w-full">
-                    <input class="input w-full" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" placeholder="Reason">
-                    <button class="btn btn-outline btn-error" data-confirm="The request will be cancelled and the vehicle released." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
+                    <input class="input join-item w-full" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline btn-error join-item" data-confirm="The request will be cancelled and the vehicle released." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
             </form>
             <?php endif; ?>

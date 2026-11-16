@@ -47,15 +47,18 @@ function sidebarActive(string|array $pages, string $current): string
 
 // ── Counts shown as small badges ─────────────────────────────────
 $_sidebar_uid     = (int)($_SESSION['user_id'] ?? 0);
-$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0];
+$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0, 'changes' => 0];
 $_app_unread      = 0;   // unread notifications (the bell)
 $_app_notifs      = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
     try {
         if ($_is_admin_role) {
             $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
-            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
+            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0]
+                                   + (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'assigned'")->fetch_row()[0]
+                                   + (int)$conn->query("SELECT COUNT(DISTINCT DATE_SUB(task_date, INTERVAL WEEKDAY(task_date) DAY)) FROM tasks WHERE task_source = 'welfare' AND status = 'assigned'")->fetch_row()[0];
             $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
+            if ($role === 'head_admin') { $_badge['changes'] = (int)$conn->query("SELECT COUNT(*) FROM schedule_changes WHERE status = 'pending'")->fetch_row()[0]; }
         }
         if ($role === 'supervisor') {
             $st = $conn->prepare("SELECT COUNT(*) FROM vehicle_requests WHERE supervisor_id = ? AND status = 'pending'");
@@ -91,7 +94,7 @@ if ($_is_admin_role) {
         'Requests' => array_merge(
             [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
             $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
-            [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
+            $role === 'head_admin' ? [[['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Changes', 'changes']] : []
         ),
         'Schedule' => [
             [['calendar.php'],       'admin/calendar.php',       'calendar-days', 'Schedule Calendar', null],
@@ -100,20 +103,26 @@ if ($_is_admin_role) {
         ],
         'Fleet' => [
             [['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'],          'admin/drivers.php',  'id-card', 'Drivers', null],
-            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
+            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
         ],
         'Reports' => [[['reports.php'], 'admin/reports.php', 'chart-column', 'Reports', null]],
-        'System'  => [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]],
+        'System'  => [
+            [['users.php', 'edit_user.php'], 'admin/users.php', 'users', 'Users', null],
+            [['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null],
+        ],
     ] + $_my_requests;
 } elseif ($role === 'supervisor') {
     $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
+              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals'],
+                              [['department_requests.php'], 'supervisor/department_requests.php', 'building', 'Department Requests', null]]] + $_my_requests;
 } elseif ($role === 'staff') {
     $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 } else {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
+              'My Tasks' => [[['schedules.php'], 'driver/schedules.php', 'route', 'My Tasks', null],
+                             [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null]]] + $_my_requests;
 }
+$_menu['My Account'] = [[['profile.php'], 'profile.php', 'id-card', 'My Profile', null]];      // UC016: every role
 ?>
 
 <a class="skip-link" href="#mainContent">Skip to main content</a>
@@ -157,6 +166,7 @@ if ($_is_admin_role) {
         </ul>
 
         <div class="border-t border-base-300 p-3">
+            <div class="px-2 pb-2 sm:hidden"><?= languageSwitcher() ?></div>
             <div class="flex items-center gap-3 px-2 py-2">
                 <div class="avatar avatar-placeholder">
                     <div class="w-9 rounded-full bg-primary text-primary-content"><span class="text-xs font-semibold"><?php echo htmlspecialchars($initials); ?></span></div>
@@ -167,7 +177,7 @@ if ($_is_admin_role) {
                 </div>
             </div>
             <ul class="menu w-full p-0 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
-                <li><a href="<?php echo SITE_URL; ?>/help.php" class="<?php echo $current_page === 'help.php' ? 'menu-active font-medium' : ''; ?>"><i class="fas fa-circle-question w-4 text-center opacity-70" aria-hidden="true"></i>Help &amp; guide</a></li>
+                <li><a href="<?php echo SITE_URL; ?>/profile.php" class="<?php echo $current_page === 'profile.php' ? 'menu-active font-medium' : ''; ?>"><i class="fas fa-id-card w-4 text-center opacity-70" aria-hidden="true"></i>My Profile</a></li>
                 <li><a href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
                     <i class="fas fa-right-from-bracket w-4 text-center opacity-70" aria-hidden="true"></i>Log out</a></li>
@@ -189,6 +199,8 @@ if ($_is_admin_role) {
             <li class="truncate font-medium" aria-current="page"><?php echo htmlspecialchars($page_title ?? ''); ?></li>
         </ul>
     </div>
+
+    <?= languageSwitcher('hidden sm:inline-flex') ?>
 
     <!-- Notifications -->
     <div class="dropdown dropdown-end">
@@ -238,7 +250,7 @@ if ($_is_admin_role) {
                 <span class="block truncate font-medium text-base-content"><?php echo htmlspecialchars($full_name); ?></span>
                 <span class="block text-xs font-normal"><?php echo htmlspecialchars($role_label); ?></span>
             </li>
-            <li><a href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4 opacity-70" aria-hidden="true"></i>Help</a></li>
+            <li><a href="<?php echo SITE_URL; ?>/profile.php"><i class="fas fa-id-card w-4 opacity-70" aria-hidden="true"></i>My Profile</a></li>
             <li><a href="<?php echo SITE_URL; ?>/logout.php" class="text-error"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
                 <i class="fas fa-right-from-bracket w-4" aria-hidden="true"></i>Log out</a></li>
@@ -246,7 +258,7 @@ if ($_is_admin_role) {
     </div>
 </header>
 
-<!-- Shared popup dialogs (SweetAlert2 + UIS theme) -->
+<!-- Shared dialogs (assets/js/ui.js, DaisyUI <dialog>) -->
 <script>window.UIS_CSRF = <?php echo json_encode(csrfToken()); ?>;
 (function () {
     'use strict';

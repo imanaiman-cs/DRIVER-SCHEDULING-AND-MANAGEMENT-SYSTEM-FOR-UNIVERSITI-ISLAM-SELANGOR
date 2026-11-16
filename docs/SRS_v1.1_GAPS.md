@@ -1,0 +1,57 @@
+# Code vs SRS v1.1 — what is still missing
+
+Checked on 27 October 2026 against `docs/SRS.md`; re-checked against the code on 27 October 2026 (nothing was done yet, three items corrected, two items added). Do the items in this order; tick them off as they are finished.
+Each item names the use case to read first.
+
+## 1. Missing features
+
+- [x] **Automatic approval reminder — UC012.** (done 27 Oct: `runRequestJobs()` step 1b, `sendApprovalReminder($conn, $id, true)`; one reminder per request, HoD only, recorded in `reminders` with no sender; the manual page is kept) Code: reminders are manual only (`admin/reminders.php`, `sendApprovalReminder()`).
+  SRS: the hourly job sends one reminder email to the HoD when a request is still Pending one day after submission.
+  Add it to `runRequestJobs()`, send it only once per request (record it in `reminders`), and keep the manual page only if Iman wants it.
+  _Re-checked: still open. `runRequestJobs()` only lapses, cancels and completes; `includes/workflow.php` says "There is NO automatic reminder". The manual page and `sendApprovalReminder()` stay (nothing is deleted)._
+- [x] **Request without driver — UC010 A3.** (done 27 Oct, flow chosen by Iman: HoD approves -> Assistant "Send to Head of Admin" -> Head of Admin approves the use of the vehicle = Confirmed. `vehicle_requests.need_driver`, migration `2026_11_need_driver`, `sendRequestWithoutDriverForApproval()`, test `tests/http/t_nodriver.py`.) Add a "With driver / Without driver" choice to `staff/request_vehicle.php`
+  (new column, e.g. `vehicle_requests.need_driver`). Without driver: same approval flow and vehicle lock, but no driver
+  assignment step and no driver tasks.
+- [x] **Record paper form request — UC010 A4.** (done 27 Oct: `admin/record_paper_form.php` = `staff/request_vehicle.php` in paper-form mode; saved Approved, vehicle locked, scan stored as `approval_letter`, history `paper_form`; no UC011/UC012; test `tests/http/t_paper.py`.) Admin page "Record Paper Form": enter the details of form BPTK/BPI/2025/PIN.5,
+  upload the scanned form, save with status Approved and lock the vehicle. No UC011/UC012 emails. Allowed even when the trip
+  is less than 1 day away.
+  _Re-checked: still open (no `record paper form` page or code anywhere)._
+- [x] **Driver profile — UC002 and UC003.** (done 27 Oct: `driver/profile.php`, `driverInput(..., $rejectPastExpiry)`, driver told when the Assistant edits; test `tests/http/t_profile.py`. Date joined is part of the recommender item below.) Driver page "My Profile" (view, UC002) and update of their own phone number and licence details (classes, expiry; UC003).
+  Licence expiry in the past → error (exception 3.1). Admin keeps `admin/edit_driver.php`.
+  _Corrected: SRS also asks to notify the Assistant when the licence classes change (UC003 3.3) and no licence class selected → error. `driver/` has only dashboard, schedules and task_sheet, so My Profile does not exist yet._
+- [x] **Driver updates vehicle after a task — UC007 A1.** (done 27 Oct: table `vehicle_usage_log`, migration `2026_11_vehicle_usage_log`, `driver/update_vehicle.php`, `recordVehicleUsage()`, history on `admin/view_vehicle.php`; test `tests/http/t_usage.py`.) New table `vehicle_usage_log` (vehicle, driver, mileage, fuel level,
+  condition issue, recorded_at). The driver can record it only for vehicles used in their own tasks. Update `vehicles.mileage`.
+- [x] **Schedule change request — UC029 and UC030.** (done 27 Oct, Iman chose: an unavailable driver is BLOCKED, not only warned. Tables `schedule_change_requests` + `schedule_change_dates`, migration `2026_11_schedule_changes`, `driver/schedule_change.php`, `admin/schedule_changes.php`, `driverUnavailableReason()`, Replace Driver with `$driverRequest`; test `tests/http/t_change.py`. Withdraw is for trip tasks only.) New table `schedule_change_requests` (driver, type = unavailable dates or
+  withdraw from a task, dates / task, reason, status). Driver submits (no duplicate pending request for the same date or task).
+  Head of Admin approves or rejects with a comment (UC016). Approved "unavailable" dates must be excluded by the recommender
+  and must block welfare duty on those days (UC025 exception 3.1). Approved "withdraw" frees the driver from the task so the
+  Assistant can replace them (UC020).
+- [x] **Vendor bus — UC017 A2.** (done 27 Oct, Iman chose: the UIS bus lock is released when the all-vendor request is Confirmed. Migration `2026_11_vendor_bus`, `assignRequestDrivers(..., $vendorOut, $vendorRet)`, `requestAllTasksVendor()`; test `tests/http/t_vendor.py`.) When no UIS driver with a PSV licence is available, the Assistant records a vendor bus
+  (vendor name, bus registration number, vendor driver name) instead of a UIS driver.
+
+## 2. Behaviour that differs from the SRS
+
+- [x] **Date joined and recommender score — UC001, UC003 A1 and UC018.** (done 27 Oct, Iman chose weights 0.5 / 0.3 / 0.2 and more experience = higher score; `drivers.date_joined`, migration `2026_11_date_joined_weights`, `W_WEEKEND` + `W_EXPERIENCE` in Settings, `driverExperienceYears()`; `experience_years` kept unused, the old `W_AFTER_HOURS` row stays in old databases; tests `RecommenderTest`, `tests/http/t_joined.py`.) Code ranks by tasks this month (`W_TASKS` 0.6) and tasks
+  **outside working hours** (`W_AFTER_HOURS` 0.4, which also counts before-start/after-end hours); experience is excluded.
+  SRS: weighted score of tasks this month (highest weight), **weekend tasks only** (Saturday/Sunday) and **experience calculated
+  from the date the driver joined the Vehicle Section**. Add the three weights to Settings.
+  _Corrected: the gap list said `drivers.experience_years` already exists and can be used. It exists (decimal, typed by hand), but the SRS
+  wants experience **calculated from a date joined** that the Assistant enters in Add Driver (UC001 step 3) and edits (UC003 A1). There is no
+  `date_joined` column yet, so a migration is needed. Questions for Iman before this item: (1) the weight of the experience factor
+  (En. Khairul is still confirming), (2) what to do with the old `experience_years` column (keep unused or drop; nothing is dropped without asking)._
+- [x] **Reports — UC031.** (done 27 Oct, Iman chose to keep "outside working hours" and add the two missing ones, so 6 reports: `weekend` and `replacements` in `reportTypes()`; message "No data for the selected month"; tests in `agents_test.py`.) Code has 4 reports (`reportTypes()`: tasks, **outside working hours**, welfare, vehicle usage). SRS has 5: tasks per driver,
+  **weekend tasks per driver**, welfare duty days, **driver replacements**, vehicle usage. So: replace/rename "outside working hours" by
+  "weekend tasks" and add "driver replacements". Export as PDF/Excel and print (UC032) for all 5. Exception 3.1: message when there is no data.
+- [x] **Delete internal task — UC024.** (done 27 Oct, Iman chose: soft delete with a reason, called Delete in the interface; refused once the task has started; test in `agents_test.py`.) Code never deletes an internal task (cancel with a reason). Ask Iman: either keep it as
+  a soft delete with a reason and call it "Delete" in the interface, or change the SRS wording.
+  _Re-checked: still open (code only cancels, with a reason). **Waiting for Iman's decision.**_
+- [x] **WhatsApp notifications.** (done 27 Oct, Iman chose: keep the code, keep it off; `sendWhatsApp()` returns at once and writes no `whatsapp_log` row while disabled; documented in the README as outside the SRS.) The code can also notify drivers on WhatsApp (optional, off by default). The SRS only lists
+  in-system and email. Keep it disabled, or ask Iman to add it to the SRS.
+  _Re-checked: still open. Note: `notifyUsers()` calls `sendWhatsApp()` for every driver even when WhatsApp is switched off, and then writes a `skipped` row in `whatsapp_log`. **Waiting for Iman's decision** (keep disabled, remove, or add to the SRS)._
+
+## 3. Already matching (do not redo)
+
+Vehicle lock per period, 1-day / 2-day rules, Lapsed after 2 days, approval by HoD of the same PTJ, comments on
+cancel/approve/reject, two tasks per trip with separate drivers, Head of Admin approval of assignments, driver replacement with
+reason, internal tasks, welfare duty set/update with reason, schedule calendar, driver task view (Confirmed only),
+login lockout, 15-minute idle logout, upload limits, prepared statements and CSRF.

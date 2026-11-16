@@ -39,7 +39,31 @@ $conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with
 // page is opened, so "git pull" is enough. It can also be run by hand:
 //     mysql -uroot uis_driver_db < migrations/2026_10_align_srs.sql
 // A migration is written so that running it twice does no harm.
+// The files run in the order they were written (MIGRATION_ORDER), NOT in name order: a later migration needs the columns and tables of
+// the earlier ones (e.g. approval_email needs is_urgent from urgent). ADD EVERY NEW MIGRATION AT THE END OF THE LIST. A file missing
+// from the list runs after the listed ones, in name order. A failed migration stops the run; it is tried again on the next session.
 // ============================================================
+const MIGRATION_ORDER = [
+    '2026_10_align_srs', '2026_11_whatsapp_log', '2026_11_need_driver', '2026_11_vehicle_usage_log', '2026_11_schedule_changes',
+    '2026_11_vendor_bus', '2026_11_date_joined_weights', '2026_11_user_language', '2026_11_pay_claim', '2026_11_urgent',
+    '2026_11_purpose_type', '2026_11_vehicle_reservations', '2026_11_personal_rental', '2026_11_task_reports',
+    '2026_11_verification_codes', '2026_11_internal_task_approval', '2026_11_welfare_weekly', '2026_11_approval_email',
+    '2026_11_welfare_report', '2026_11_remove_whatsapp', '2026_11_internal_task_types', '2026_11_replace_internal_welfare',
+    '2026_11_schedule_change_cancel', '2026_11_whatsapp_openwa', '2026_11_class_diagram_tasks', '2026_11_class_diagram_schedule_change',
+    '2026_11_class_diagram_departments', '2026_11_class_diagram_attributes', '2026_11_class_diagram_welfare_history',
+];
+
+/** The order in which the migration files run (see MIGRATION_ORDER). */
+function migrationOrder(array $files): array
+{
+    $key = function (string $f): array {
+        $i = array_search(basename($f, '.sql'), MIGRATION_ORDER, true);
+        return [$i === false ? PHP_INT_MAX : $i, basename($f)];
+    };
+    usort($files, fn($a, $b) => $key($a) <=> $key($b));
+    return $files;
+}
+
 function applyPendingMigrations(mysqli $conn): void
 {
     try {
@@ -47,8 +71,7 @@ function applyPendingMigrations(mysqli $conn): void
         $done = [];
         $r = $conn->query('SELECT name FROM schema_migrations');
         while ($r && ($row = $r->fetch_row())) { $done[$row[0]] = true; }
-        $files = glob(__DIR__ . '/../migrations/*.sql') ?: [];
-        sort($files);
+        $files = migrationOrder(glob(__DIR__ . '/../migrations/*.sql') ?: []);
         foreach ($files as $file) {
             $name = basename($file, '.sql');
             if (isset($done[$name])) { continue; }
@@ -59,8 +82,9 @@ function applyPendingMigrations(mysqli $conn): void
             if ($conn->multi_query($sql)) {
                 do { if ($res = $conn->store_result()) { $res->free(); } } while ($conn->more_results() && $conn->next_result());
             }
-            if ($conn->errno) { error_log("Migration $name failed: " . $conn->error); }
+            $failed = $conn->errno ? $conn->error : null;
             $conn->query("SELECT RELEASE_LOCK('uis_migrate')");
+            if ($failed !== null) { error_log("Migration $name failed: " . $failed); return; }   // the next ones may need this one
         }
     } catch (Throwable $e) {
         error_log('Migration skipped: ' . $e->getMessage());
@@ -93,13 +117,18 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/request_view.php';
-require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
+require_once __DIR__ . '/../includes/whatsapp.php';        // optional WhatsApp channel (OpenWA), see config/whatsapp.sample.php
 require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
+require_once __DIR__ . '/../includes/verification.php';    // verification codes (register, reset password)
+require_once __DIR__ . '/../includes/accounts.php';        // user accounts: register, manage
+require_once __DIR__ . '/../includes/i18n.php';            // English / Bahasa Melayu (the pages are written in English and translated on output)
 // Apply new migrations once per session (cheap: one SELECT when nothing is pending)
 if (empty($_SESSION['migrations_checked'])) {
     applyPendingMigrations($conn);
     $_SESSION['migrations_checked'] = true;
 }
+syncLanguageFromAccount($conn);
+startTranslation();
 
 // Lapse / cancel / complete, lightly, whenever a signed-in user opens a page (cron/run_jobs.php does it hourly)
 if (isLoggedIn() && !defined('SKIP_REQUEST_JOBS')) {
@@ -173,7 +202,7 @@ function runSecurityChecks(mysqli $conn): void
     // 2. the account itself
     try {
         $uid = (int)$_SESSION['user_id'];
-        $stmt = $conn->prepare('SELECT is_active, role, department FROM users WHERE user_id = ?');
+        $stmt = $conn->prepare('SELECT u.is_active, u.role, u.department_id, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $u = $stmt->get_result()->fetch_assoc();
@@ -185,6 +214,7 @@ function runSecurityChecks(mysqli $conn): void
         }
         $_SESSION['role'] = $u['role'];                 // a role changed in the UIS staff system applies at once
         $_SESSION['department'] = $u['department'];
+        $_SESSION['department_id'] = $u['department_id'] !== null ? (int)$u['department_id'] : null;
     } catch (Throwable $e) {
         // columns not created yet (very first request): nothing to check
     }
@@ -419,12 +449,12 @@ function requestStatusBadgeClass(string $status): string
     };
 }
 
-/** The words people see for a stored status ('assigned' = Driver Assigned, 'processed' = Confirmed). */
+/** The words people see for a stored status ('approved' = Approved by Head of Department, 'assigned' = Driver Assigned, 'processed' = Approved). */
 function requestStatusLabel(string $status): string
 {
     return match ($status) {
-        'pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned',
-        'processed' => 'Confirmed', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
+        'pending' => 'Pending', 'approved' => 'Approved by Head of Department', 'assigned' => 'Driver Assigned',
+        'processed' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
         'lapsed' => 'Lapsed', 'completed' => 'Completed', default => ucfirst($status),
     };
 }
@@ -600,18 +630,18 @@ function formatTime(?string $time): string
 }
 
 /**
- * Returns the DaisyUI badge modifier classes for a schedule status value.
+ * Returns the DaisyUI badge modifier classes for a task status value (table `tasks`).
  *
- * @param string $status One of: pending, approved, in_progress, completed, cancelled
+ * @param string $status One of: waiting, assigned, approved, completed, cancelled
  *
  * @return string DaisyUI badge classes, e.g. 'badge-soft badge-warning'
  */
 function statusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'     => 'badge-soft badge-warning',
+        'waiting'     => 'badge-soft badge-warning',
+        'assigned'    => 'badge-soft badge-info',
         'approved'    => 'badge-soft badge-primary',
-        'in_progress' => 'badge-soft badge-info',
         'completed'   => 'badge-soft badge-success',
         'cancelled'   => 'badge-ghost',
         default       => 'badge-neutral',
@@ -673,8 +703,8 @@ function vehicleDisplayStatus(mysqli $conn, int $vehicle_id, string $stored_stat
 {
     if ($stored_status !== 'available') { return $stored_status; }
     $stmt = $conn->prepare(
-        "SELECT 1 FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
+        "SELECT 1 FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+          WHERE s.task_source = 'request' AND s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
     );
     $stmt->bind_param('i', $vehicle_id);
     $stmt->execute();

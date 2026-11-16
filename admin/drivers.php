@@ -34,9 +34,9 @@ adminPageStart('Drivers');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
         <h1 class="text-2xl font-medium mb-0">Drivers</h1>
-        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add driver</a>
+        <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Register driver</a>
     </div>
-    <p class="text-base-content/60 text-sm">Driver accounts come from the UIS staff system. Here you register an existing driver account as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
+    <p class="text-base-content/60 text-sm">Create the driver account in <a href="users.php">User accounts</a> first, then register it here as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
 
     <form method="get" class="card border border-base-300 bg-base-100 mb-4"><div class="card-body grid-12 grid grid-cols-12 gap-2 items-end">
         <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="q">Search</label>
@@ -55,7 +55,7 @@ adminPageStart('Drivers');
     <div class="card border border-base-300 bg-base-100">
         <div class="overflow-x-auto hidden md:block">
             <table class="table align-middle mb-0">
-                <thead class=""><tr><th>Driver</th><th>Staff no.</th><th>Phone</th><th>Licence</th><th class="text-end">Tasks this month</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <thead><tr><th>Driver</th><th>Staff no.</th><th>Phone</th><th>Licence</th><th class="text-end">Tasks this month</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <?php foreach ($drivers as $d): $id = (int)$d['driver_id']; $c = $counts[$id] ?? ['tasks' => 0]; ?>
                     <tr>
@@ -70,8 +70,6 @@ adminPageStart('Drivers');
                             <a class="btn btn-sm btn-outline" href="edit_driver.php?id=<?= $id ?>" title="Edit"><i class="fas fa-pen"></i></a>
                             <?php if ($d['status'] === 'active'): ?>
                                 <button class="btn btn-sm btn-outline btn-error" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($d['name'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
-                            <?php else: ?>
-                                <button class="btn btn-sm btn-outline btn-success" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -93,8 +91,6 @@ adminPageStart('Drivers');
                         <a class="btn btn-sm btn-outline" href="edit_driver.php?id=<?= $id ?>">Edit</a>
                         <?php if ($d['status'] === 'active'): ?>
                             <button class="btn btn-sm btn-outline btn-error" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($d['name'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
-                        <?php else: ?>
-                            <button class="btn btn-sm btn-outline btn-success" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-extra="reactivate=1" data-fleet-confirm="Make this driver Active again?">Reactivate</button>
                         <?php endif; ?>
                     </div>
                 </div>

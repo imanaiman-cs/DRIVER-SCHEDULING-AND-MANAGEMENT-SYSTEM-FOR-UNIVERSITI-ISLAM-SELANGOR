@@ -93,7 +93,6 @@ adminPageStart('Schedule Calendar');
             <h3 class="text-lg font-medium" id="calModalTitle"></h3>
             <dl class="mt-4 grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-sm" id="calModalBody"></dl>
             <form method="dialog" class="modal-action">
-                <a class="btn btn-sm" id="calSheet" target="_blank" rel="noopener"><i class="fas fa-print"></i>Task sheet</a>
                 <button class="btn btn-sm btn-primary">Close</button>
             </form>
         </div>
@@ -228,8 +227,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     ['Destination', ev.destination], ['Waiting place', ev.waiting], ['Purpose', ev.purpose], ['Officer', ev.officer]];
         if (ev.kind === 'welfare' && ev.purpose) { rows[7] = ['Replacement reason', ev.purpose]; }
         rows.forEach(function (r) { if (!r[1]) { return; } dl.appendChild(el('dt', 'text-base-content/60', r[0])); dl.appendChild(el('dd', '', r[1])); });
-        var sheet = document.getElementById('calSheet');
-        if (ev.schedule_id) { sheet.href = 'task_sheet.php?id=' + ev.schedule_id; sheet.style.display = ''; } else { sheet.style.display = 'none'; }
         document.getElementById('calModal').showModal();
     }
 

@@ -1,7 +1,8 @@
 <?php
 // ============================================================
-// WhatsApp (OpenWA) settings - optional, drivers only
+// WhatsApp (OpenWA) settings - optional extra channel for the system notifications
 // OpenWA: https://github.com/rmyndharis/OpenWA   (setup steps: docs/OPENWA_SETUP.md)
+// Only DRIVERS get WhatsApp. All other roles get the in-system notification and e-mail.
 //
 // 1. Copy this file to config/whatsapp.php   (that file is NOT uploaded to
 //    GitHub, so the API key stays on your computer)
@@ -11,7 +12,7 @@
 // Use a dedicated number; e-mail and in-system notifications stay the main channels.
 // ============================================================
 return [
-    // false = nothing is sent; the attempt is only written to whatsapp_log
+    // false (default) = nothing is sent and nothing is written to whatsapp_log. E-mail and in-system notifications always go out.
     'enabled'      => false,
 
     // Address of the OpenWA server (no trailing slash, no /api)

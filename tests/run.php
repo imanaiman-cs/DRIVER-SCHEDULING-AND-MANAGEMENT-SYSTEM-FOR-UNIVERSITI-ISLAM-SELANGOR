@@ -41,6 +41,7 @@ foreach (glob(__DIR__ . '/*Test.php') as $file) {
     foreach ((require $file) as $name => $test) {
         try {
             $conn->begin_transaction();
+            $conn->query("UPDATE drivers SET license_expiry = '2040-01-01'");      // the tests use dates far ahead: the demo licences must not expire first (UC009)
             $test();
             echo "  PASS  $name\n"; $pass++;
         } catch (Throwable $e) {

@@ -1,0 +1,79 @@
+"""SRS 10 Nov UC003 A1: a request for several vehicles - the Assistant chooses a vehicle and a driver for EACH vehicle."""
+import datetime, re, sys
+from lib import *
+
+reseed()
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal'")
+s1 = user('stf001'); hos2 = user('hos002'); ad = user('admin'); hd = user('head001')
+cnt = lambda q: int(sql(q)); last = lambda: cnt("SELECT MAX(request_id) FROM vehicle_requests")
+st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)
+def when(h):
+    t = now() + datetime.timedelta(hours=h); return t.strftime('%Y-%m-%d'), t.strftime('%H:%M')
+def new(dep_h, qty='2', **kw):
+    dd, dt = when(dep_h); rd, rt = when(dep_h + 4)
+    f = {'request_type': 'uis', 'depart_date': dd, 'depart_time': dt, 'return_date': rd, 'return_time': rt, 'passengers': '4', 'vehicle_type': 'Car', 'quantity': qty,
+         'destination': 'Putrajaya', 'destination_address': 'Presint 5', 'purpose': 'Attend the national higher education forum', 'purpose_type': 'official',
+         'passenger_names': 'A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '1'}
+    f.update(kw); s1.post('staff/request_vehicle.php', f); return last()
+
+rid = new(240)
+ok('2 cars are reserved as 2 rows', cnt("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d" % rid) == 2)
+hos2.post('ajax/request_action.php', {'request_id': rid, 'action': 'approve'})
+pg = ad.get('admin/assign_driver.php', request_id=rid)
+ok('the assign page asks for the other vehicle and its driver', 'Other vehicles' in pg.text and 'name="extra_vehicle[]"' in pg.text and 'name="extra_driver[]"' in pg.text and not errs(pg))
+drivers = sql("SELECT GROUP_CONCAT(driver_id) FROM drivers WHERE status='active' AND FIND_IN_SET('D', license_class)").split(',')
+d1, d2 = drivers[0], drivers[1]
+base = {'request_id': rid, 'out_driver': d1, 'return_mode': 'same', 'vehicle_id': '5'}
+ad.post('admin/assign_driver.php', base)
+ok('the second vehicle and driver are required: refused', st(rid) == 'approved')
+ad.post('admin/assign_driver.php', dict(base, **{'extra_vehicle[]': '5', 'extra_driver[]': d2}))
+ok('the same vehicle twice is refused', st(rid) == 'approved')
+ad.post('admin/assign_driver.php', dict(base, **{'extra_vehicle[]': '1', 'extra_driver[]': d2}))
+ok('a vehicle of another type (Bus) is refused', st(rid) == 'approved')
+ad.post('admin/assign_driver.php', dict(base, **{'extra_vehicle[]': '6', 'extra_driver[]': d1}))
+ok('the same driver for both vehicles is refused (clash)', st(rid) == 'approved' and cnt("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=%d" % rid) == 0)
+ad.post('admin/assign_driver.php', dict(base, **{'extra_vehicle[]': '6', 'extra_driver[]': d2}))
+ok('both vehicles assigned: Driver Assigned', st(rid) == 'assigned')
+ok('4 tasks: outbound + return for each vehicle', rows("SELECT trip_type, vehicle_id, driver_id FROM tasks WHERE task_source='request' AND request_id=%d ORDER BY trip_type, vehicle_id" % rid) == [['outbound', '5', d1], ['outbound', '6', d2], ['return', '5', d1], ['return', '6', d2]])
+ok('the 4 tasks are Driver Assigned until the Head of Admin approves', rows("SELECT DISTINCT status FROM tasks WHERE task_source='request' AND request_id=%d" % rid) == [['assigned']])
+ok('both vehicles locked and both reservation rows filled', cnt("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d" % rid) == 2 and cnt("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d AND vehicle_id IS NOT NULL" % rid) == 2)
+r = hd.get('admin/approve_assignments.php'); ok('the Head of Admin sees both vehicles', r.status_code == 200 and not errs(r))
+hd.post('admin/approve_assignments.php', {'request_id': rid, 'action': 'approve'})
+ok('approved: Approved status', st(rid) == 'processed')
+ok('...and all 4 tasks are approved, with the approver recorded', rows("SELECT status, COUNT(*), SUM(approved_by IS NOT NULL AND approved_at IS NOT NULL) FROM tasks WHERE task_source='request' AND request_id=%d GROUP BY status" % rid) == [['approved', '4', '4']])
+
+# without driver: every vehicle needs a vehicle
+sql("UPDATE vehicle_requests SET status='cancelled' WHERE request_id=%d" % rid)
+sql("DELETE FROM vehicle_locks WHERE request_id=%d" % rid)
+sql("DELETE FROM vehicle_reservations WHERE request_id=%d" % rid)
+drv1 = user('drv001'); hos1 = user('hos001')
+dd, dt = when(300); rd, rt = when(304)
+f = {'request_type': 'uis', 'depart_date': dd, 'depart_time': dt, 'return_date': rd, 'return_time': rt, 'passengers': '2', 'vehicle_type': 'Lorry', 'quantity': '2',
+     'destination': 'Putrajaya', 'destination_address': 'Presint 5', 'purpose': 'Move the faculty equipment', 'purpose_type': 'official', 'passenger_names': 'A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '0'}
+drv1.post('staff/request_vehicle.php', f); rid2 = last()
+ok('2 lorries reserved', cnt("SELECT COUNT(*) FROM vehicle_reservations WHERE request_id=%d" % rid2) == 2)
+hos1.post('ajax/request_action.php', {'request_id': rid2, 'action': 'approve'})
+ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rid2, 'vehicle_id': '11'})
+ok('without driver: the second vehicle is required', st(rid2) == 'approved')
+ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rid2, 'vehicle_id': '11', 'extra_vehicle[]': '11'})
+ok('without driver: the same lorry twice is refused', st(rid2) == 'approved')
+ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rid2, 'vehicle_id': '11', 'extra_vehicle[]': '12'})
+ok('without driver: both lorries chosen, sent to the Head of Admin', st(rid2) == 'assigned' and cnt("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d" % rid2) == 2)
+
+# UC003 A3: a driver who is not the top recommendation needs a confirmation (with the task count)
+reseed()
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal'")
+s1 = user('stf001'); hos2 = user('hos002'); ad = user('admin')
+rid3 = new(240, qty='1')
+hos2.post('ajax/request_action.php', {'request_id': rid3, 'action': 'approve'})
+pg = ad.get('admin/assign_driver.php', request_id=rid3)
+ids = re.findall(r'name="out_driver" value="(\d+)"', pg.text)
+ok('the recommendation lists several drivers', len(ids) >= 2)
+r = ad.post('admin/assign_driver.php', {'request_id': rid3, 'out_driver': ids[-1], 'return_mode': 'same', 'vehicle_id': '5', 'warn': '1'})
+ok('A3: a driver outside the top recommendation gives a warning with the task count, nothing is assigned', 'not the top recommendation' in r.text and 'task(s) this month' in r.text and st(rid3) == 'approved')
+r = ad.post('admin/assign_driver.php', {'request_id': rid3, 'out_driver': ids[0], 'return_mode': 'same', 'vehicle_id': '5', 'warn': '1'})
+ok('the top recommendation is assigned without a warning', r.status_code == 302 and st(rid3) == 'assigned')
+sql("UPDATE vehicle_requests SET status='approved' WHERE request_id=%d" % rid3); sql("DELETE FROM tasks WHERE task_source='request' AND request_id=%d" % rid3)
+r = ad.post('admin/assign_driver.php', {'request_id': rid3, 'out_driver': ids[-1], 'return_mode': 'same', 'vehicle_id': '5', 'confirmed': '1', 'warn': '1'})
+ok('after Confirm the other driver is assigned', st(rid3) == 'assigned' and sql("SELECT driver_id FROM tasks WHERE task_source='request' AND request_id=%d AND trip_type='outbound'" % rid3) == ids[-1])
+sys.exit(0 if summary() else 1)

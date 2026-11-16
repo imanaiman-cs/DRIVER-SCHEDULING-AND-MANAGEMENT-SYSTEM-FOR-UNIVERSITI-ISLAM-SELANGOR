@@ -1,8 +1,10 @@
 <?php
 // ============================================================
 // WhatsApp through an OpenWA server (https://github.com/rmyndharis/OpenWA): POST /api/sessions/{id}/messages/send-text
-// Used for DRIVERS only, as an extra channel next to the in-system notification and the e-mail.
-// A failure never stops the workflow: it is written to whatsapp_log and the other channels still go out.
+// An extra channel next to the in-system notification and the e-mail (Iman's decision, 16 Nov 2026; WhatsApp is not in the 14 Nov use cases).
+// ONLY DRIVERS get WhatsApp (Iman, 16 Nov 2026): every message notifyUsers() sends to a driver (new trip confirmed, task cancelled,
+// replaced, schedule change, internal/welfare task ...) also goes to WhatsApp. All other roles get the in-system notification and e-mail only.
+// A failure never stops the workflow: it is written to whatsapp_log and the other channels still go out. E-mail stays the guaranteed channel.
 // ============================================================
 
 function whatsappConfig(): array
@@ -21,6 +23,12 @@ function whatsappEnabled(): bool
 {
     $c = whatsappConfig();
     return !empty($c['enabled']) && $c['base_url'] !== '' && $c['session_id'] !== '';
+}
+
+/** Only drivers get WhatsApp; every other role uses e-mail (fixed rule, not a setting). */
+function whatsappForRole(?string $role): bool
+{
+    return $role === 'driver';
 }
 
 /** "012-345 6789" -> "60123456789"; null when it cannot be a mobile number. */
@@ -50,15 +58,13 @@ function logWhatsapp(mysqli $conn, ?int $userId, ?string $number, string $messag
 function sendWhatsApp(mysqli $conn, ?int $userId, ?string $phone, string $text): array
 {
     $c = whatsappConfig();
+    if (!whatsappEnabled()) {   // outside the SRS: while it is off nothing happens and nothing is logged
+        return ['status' => 'skipped', 'message' => 'WhatsApp sending is switched off (see config/whatsapp.php).'];
+    }
     $number = whatsappNumber($phone, (string)$c['country_code']);
     if ($number === null) {
-        $err = 'No valid mobile number is saved for this driver.';
+        $err = 'No valid mobile number is saved for this user.';
         logWhatsapp($conn, $userId, null, $text, 'skipped', $err);
-        return ['status' => 'skipped', 'message' => $err];
-    }
-    if (!whatsappEnabled()) {
-        $err = 'WhatsApp sending is switched off (see config/whatsapp.php).';
-        logWhatsapp($conn, $userId, $number, $text, 'skipped', $err);
         return ['status' => 'skipped', 'message' => $err];
     }
     $target = preg_replace('/\D+/', '', (string)$c['redirect_to']) ?: $number;

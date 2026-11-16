@@ -60,8 +60,8 @@ adminPageStart('Vehicles');
     <div id="fleetResult"></div>
     <div class="card border border-base-300 bg-base-100">
         <div class="overflow-x-auto hidden md:block">
-            <table class="table align-middle mb-0">
-                <thead class=""><tr><th>Registration no.</th><th>Type</th><th>Model</th><th class="text-end">Seats</th><th>Licence</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Registration no.</th><th>Type</th><th>Model</th><th class="text-end">Seats</th><th>Licence</th><th>Fuel</th><th class="text-end">Mileage</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <?php foreach ($vehicles as $v): $id = (int)$v['vehicle_id']; ?>
                     <tr>
@@ -70,15 +70,14 @@ adminPageStart('Vehicles');
                         <td><?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?></td>
                         <td class="text-end"><?= (int)$v['capacity'] ?></td>
                         <td><span class="badge badge-ghost"><?= htmlspecialchars($v['license_required']) ?></span></td>
-                        <td><span class="badge <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
+                        <td><?= fuelGaugeHtml($v['fuel_level'] ?? null) ?></td>
+                        <td class="text-end whitespace-nowrap"><?= number_format((int)$v['mileage']) ?> km</td>
+                        <td><span class="veh-status is-<?= htmlspecialchars($v['shown']) ?>"></span><span class="badge whitespace-nowrap <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
                             <?php if ($v['status'] === 'maintenance' && $v['back_on']): ?><div class="text-sm text-base-content/60"><?= htmlspecialchars((string)$v['workshop']) ?>, back <?= date('d M Y', strtotime($v['back_on'])) ?></div><?php endif; ?></td>
                         <td class="text-end whitespace-nowrap">
                             <a class="btn btn-sm btn-outline btn-success" href="view_vehicle.php?id=<?= $id ?>" title="View"><i class="fas fa-eye"></i></a>
                             <a class="btn btn-sm btn-outline" href="edit_vehicle.php?id=<?= $id ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                            <a class="btn btn-sm btn-outline btn-warning" href="vehicle_maintenance.php?id=<?= $id ?>" title="Maintenance"><i class="fas fa-screwdriver-wrench"></i></a>
-                            <?php if ($v['status'] === 'inactive'): ?>
-                                <button class="btn btn-sm btn-outline btn-success" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
-                            <?php else: ?>
+                            <?php if ($v['status'] !== 'inactive'): ?>
                                 <button class="btn btn-sm btn-outline btn-error" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($v['plate_number'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
                             <?php endif; ?>
                         </td>
@@ -93,23 +92,20 @@ adminPageStart('Vehicles');
                     <div class="flex justify-between items-start">
                         <div><a href="view_vehicle.php?id=<?= $id ?>" aria-label="View <?= htmlspecialchars($v['plate_number']) ?>"><?= plate($v['plate_number']) ?></a>
                             <div class="text-sm text-base-content/60"><?= htmlspecialchars($v['vehicle_type']) ?> &middot; <?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?> &middot; <?= (int)$v['capacity'] ?> seats &middot; licence <?= htmlspecialchars($v['license_required']) ?></div></div>
-                        <span class="badge <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
+                        <span class="badge whitespace-nowrap <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
                     </div>
                     <?php if ($v['status'] === 'maintenance' && $v['back_on']): ?><div class="text-sm text-base-content/60 mt-1"><?= htmlspecialchars((string)$v['workshop']) ?>, back <?= date('d M Y', strtotime($v['back_on'])) ?></div><?php endif; ?>
                     <div class="mt-2 flex flex-wrap gap-1">
                         <a class="btn btn-sm btn-outline btn-success" href="view_vehicle.php?id=<?= $id ?>">View</a>
                         <a class="btn btn-sm btn-outline" href="edit_vehicle.php?id=<?= $id ?>">Edit</a>
-                        <a class="btn btn-sm btn-outline btn-warning" href="vehicle_maintenance.php?id=<?= $id ?>">Maintenance</a>
-                        <?php if ($v['status'] === 'inactive'): ?>
-                            <button class="btn btn-sm btn-outline btn-success" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
-                        <?php else: ?>
+                        <?php if ($v['status'] !== 'inactive'): ?>
                             <button class="btn btn-sm btn-outline btn-error" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make <?= htmlspecialchars($v['plate_number'], ENT_QUOTES) ?> Inactive?">Deactivate</button>
                         <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
-        <?php if (!$vehicles): ?><div class="text-center text-base-content/60 py-6">No vehicle matches your search.</div><?php endif; ?>
+        <?php if (!$vehicles): ?><div class="text-center text-base-content/60 py-4">No record is found.</div><?php endif; ?>
     </div>
     <p class="text-base-content/60 text-sm mt-2"><?= count($vehicles) ?> vehicle(s)</p>
 <?php fleetActionScript(); adminPageEnd(); ?>
