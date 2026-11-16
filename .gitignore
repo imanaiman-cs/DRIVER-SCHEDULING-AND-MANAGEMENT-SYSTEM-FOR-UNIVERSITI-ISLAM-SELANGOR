@@ -17,3 +17,6 @@ config/whatsapp.php
 
 # Server settings (database password)
 config/local.php
+
+# Python cache of the HTTP tests
+__pycache__/
