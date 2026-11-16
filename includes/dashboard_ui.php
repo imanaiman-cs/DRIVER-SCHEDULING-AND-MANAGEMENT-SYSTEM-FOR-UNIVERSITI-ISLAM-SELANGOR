@@ -20,7 +20,7 @@ function dashKpi(string $label, $value, string $icon, string $tone, ?string $hre
     $inner = '<div class="dash-kpi dash-kpi-' . dh($tone) . '"><div class="dash-kpi-icon"><i class="fas fa-' . dh($icon) . '"></i></div>'
            . '<div class="dash-kpi-body"><div class="dash-kpi-value">' . dh($value) . ' ' . $t . '</div><div class="dash-kpi-label">' . dh($label) . '</div>'
            . ($hint !== '' ? '<div class="dash-kpi-hint">' . dh($hint) . '</div>' : '') . '</div></div>';
-    return $href ? '<a class="no-underline" href="' . dh($href) . '">' . $inner . '</a>' : $inner;
+    return $href ? '<a class="block h-full no-underline" href="' . dh($href) . '">' . $inner . '</a>' : $inner;
 }
 
 /** The four steps of a request, with the current one marked. */
@@ -97,8 +97,10 @@ function dashBoard(mysqli $conn): string
     uasort($rows, fn($a, $b) => (count($b['items']) > 0) <=> (count($a['items']) > 0));
 
     $hours = '';
+    $nowX = ($nowTs > $t0 && $nowTs < $t0 + $span) ? $pos($nowTs) : null;
     for ($hr = $from; $hr <= $to; $hr++) {
         $x = ($hr - $from) / ($to - $from) * 100;
+        if ($nowX !== null && abs($x - $nowX) < 6) { continue; }   // the "now" label sits here; don't print an hour under it
         $shift = $hr === $from ? '' : ($hr === $to ? '-translate-x-full' : '-translate-x-1/2');
         $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/50" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
     }
@@ -108,8 +110,8 @@ function dashBoard(mysqli $conn): string
     }
     $now = '';
     if ($nowTs > $t0 && $nowTs < $t0 + $span) {
-        $now = '<span class="absolute inset-y-0 w-px bg-base-content" style="left:' . $pos($nowTs) . '%"></span>'
-             . '<span class="absolute -top-5 -translate-x-1/2 rounded-sm bg-base-content px-1 font-mono text-[0.6875rem] text-base-100" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
+        $now = '<span class="absolute inset-y-0 w-px bg-primary" style="left:' . $pos($nowTs) . '%"></span>'
+             . '<span class="absolute -top-6 z-[1] -translate-x-1/2 rounded bg-primary px-1.5 py-px text-[0.6875rem] font-semibold tabular-nums text-primary-content" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
     }
 
     $h = '<div class="overflow-x-auto"><div class="min-w-[44rem]">'

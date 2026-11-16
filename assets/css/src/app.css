@@ -61,7 +61,10 @@
 
 /* ---------- Base typography (Tailwind's reset removes these; the pages rely on them) ---------- */
 @layer base {
-  :where(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  :where(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; text-wrap: balance; }
+  :where(main p) { text-wrap: pretty; }
+  :where(.badge, .stat-value, .indicator-item) { font-variant-numeric: tabular-nums; }
   :where(h1) { font-size: var(--text-2xl); }
   :where(h2) { font-size: var(--text-xl); }
   :where(h3, h4) { font-size: var(--text-lg); }
@@ -115,17 +118,18 @@
   .dash-chip { @apply me-1.5 mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-0.5 text-[0.8rem]; }
 
   .dash-kpi {
-    @apply relative flex h-full items-center gap-3.5 rounded-2xl border border-base-300 bg-base-100 px-4 py-4 shadow-sm transition;
+    @apply relative flex h-full items-start gap-3.5 rounded-2xl border border-base-300 bg-base-100 px-4 py-4 shadow-sm transition-[transform,box-shadow,border-color] duration-150;
     --kpi: var(--color-success);
   }
   .dash-kpi::before { content: ''; @apply absolute inset-y-[18%] left-0 w-1 rounded-r; background: var(--kpi); }
-  a:hover > .dash-kpi { @apply -translate-y-0.5 border-primary/25 shadow-md; }
-  .dash-kpi-icon { @apply grid size-12 shrink-0 place-items-center rounded-[14px] text-xl text-white; background: var(--kpi); box-shadow: 0 4px 10px -2px var(--kpi); }
+  @media (hover: hover) { a:hover > .dash-kpi { @apply -translate-y-0.5 border-primary/25 shadow-md; } }
+  a:active > .dash-kpi { @apply scale-[0.98]; }
+  .dash-kpi-icon { @apply grid size-11 shrink-0 place-items-center rounded-xl text-lg text-white; background: var(--kpi); box-shadow: 0 4px 10px -3px var(--kpi); }
   .dash-kpi-body { @apply min-w-0; }
-  .dash-kpi-value { @apply flex flex-wrap items-baseline gap-x-2 text-[1.75rem] leading-tight font-extrabold tracking-tight text-base-content; }
-  .dash-kpi-label { @apply text-[0.8rem] leading-snug font-medium text-base-content/70; }
-  .dash-kpi-hint { @apply mt-0.5 text-xs text-base-content/50; }
-  .dash-trend { @apply rounded-full bg-base-content/5 px-2 py-px text-[0.68rem] font-bold; }
+  .dash-kpi-value { @apply flex flex-wrap items-center gap-x-2 text-[1.75rem] leading-[2.75rem] font-extrabold tracking-tight tabular-nums text-base-content; }
+  .dash-kpi-label { @apply text-[0.8125rem] leading-snug font-medium text-base-content/80; text-wrap: pretty; }
+  .dash-kpi-hint { @apply mt-0.5 text-xs text-base-content/65; text-wrap: pretty; }
+  .dash-trend { @apply inline-flex items-center gap-1 self-center rounded-full bg-base-content/5 px-2 py-0.5 text-[0.68rem] leading-4 font-bold tracking-normal; }
   .dash-trend.text-success { @apply bg-success/10; }
   .dash-trend.text-error { @apply bg-error/10; }
   .dash-kpi-success { --kpi: var(--color-success); }
@@ -140,12 +144,12 @@
   .dash-card > h6 small { @apply text-xs; }
   .dash-card > h6 .fas { --fa-display: inline-grid; @apply me-1.5 size-7 place-items-center rounded-lg bg-primary/10 align-middle text-[0.8rem]; }
   .dash-card > h6 a { @apply text-primary; }
-  .dash-empty { @apply py-6 text-center text-sm text-base-content/50; }
+  .dash-empty { @apply py-6 text-center text-sm text-base-content/65; }
   .dash-empty i { --fa-display: block; @apply mb-1.5 text-3xl text-base-content/20; }
   .dash-row { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 text-sm transition-colors; }
   .dash-row + .dash-row { border-top: 1px dashed var(--color-base-300); }
   a.dash-row:hover { @apply bg-primary/5; }
-  .dash-group { @apply mt-3 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-wide text-base-content/60 uppercase first:mt-0; }
+  .dash-group { @apply mt-3 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-[0.08em] text-base-content/65 uppercase first:mt-0; }
   .dash-group::before { content: ''; @apply size-2 rounded-full bg-success; }
   .dash-group.warn::before { @apply bg-secondary; }
   .dash-group.info::before { @apply bg-info; }
@@ -182,18 +186,18 @@
   /* Dark green sidebar */
   .app-sidebar { background: #0e1f17; color: rgb(255 255 255 / .82); --color-base-content: #ffffff; }
   .app-sidebar .menu { --menu-active-bg: rgb(21 128 79 / .38); --menu-active-fg: #ffffff; font-size: .845rem; }
-  .app-sidebar .menu-title { padding-top: .9rem; font-size: .6rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(255 255 255 / .4); }
+  .app-sidebar .menu-title { padding-top: .9rem; font-size: .625rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(255 255 255 / .55); }
   .app-sidebar .menu li > a { position: relative; font-weight: 500; }
   .app-sidebar .menu li > a i { opacity: .75; }
-  .app-sidebar .menu li > a.menu-active { font-weight: 600; box-shadow: inset 0 0 0 1px rgb(21 128 79 / .5); }
+  .app-sidebar .menu li > a.menu-active { box-shadow: inset 0 0 0 1px rgb(21 128 79 / .5); }
   .app-sidebar .menu li > a.menu-active::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-secondary); }
   .app-sidebar .menu li > a.menu-active i, .app-sidebar .menu li > a:hover i { color: var(--color-secondary); opacity: 1; }
-  .app-sidebar .menu a.logout { color: rgb(255 255 255 / .5); }
+  .app-sidebar .menu a.logout { color: rgb(255 255 255 / .65); }
   .app-sidebar .menu a.logout:hover { background: rgb(220 38 38 / .2); color: #fca5a5; }
 
   /* Buttons without a colour: white with a hairline, so they show on the grey page */
   .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active, .btn-circle) {
-    --btn-color: var(--color-base-100); border-color: var(--color-base-300); box-shadow: 0 1px 2px rgb(18 32 24 / .05);
+    --btn-color: #f6f8f7; border-color: var(--color-base-300); box-shadow: 0 1px 2px rgb(18 32 24 / .05);
   }
   .btn { font-weight: 600; }
 
@@ -209,12 +213,15 @@
   /* Tables: the green header row */
   .table :where(thead) th {
     background: var(--color-primary); color: #ffffff; font-size: .72rem; font-weight: 700;
-    letter-spacing: .06em; text-transform: uppercase; padding-block: .8rem;
+    letter-spacing: .08em; text-transform: uppercase; padding-block: .8rem;
   }
-  .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 5%, transparent); }
+  .table { font-variant-numeric: tabular-nums; }
+  @media (hover: hover) { .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 5%, transparent); } }
 
   /* Focus rings in UIS green */
-  .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus { outline-color: var(--color-primary); border-color: var(--color-primary); }
+  .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
+    border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-base-content) 12%, transparent); outline-offset: 0;
+  }
 
   /* Badges: small and bold, as before */
   .badge { font-weight: 700; }

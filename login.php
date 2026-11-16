@@ -155,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
 
                     <div>
-                        <label for="username" class="mb-1.5 block text-xs font-bold tracking-wider uppercase">Username</label>
+                        <label for="username" class="mb-1.5 block text-xs font-bold tracking-[0.08em] uppercase">Username</label>
                         <label class="input input-lg w-full">
                             <i class="fas fa-user text-primary" aria-hidden="true"></i>
                             <input type="text" id="username" name="username" class="grow text-base" placeholder="Enter your username"
@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div>
-                        <label for="password" class="mb-1.5 block text-xs font-bold tracking-wider uppercase">Password</label>
+                        <label for="password" class="mb-1.5 block text-xs font-bold tracking-[0.08em] uppercase">Password</label>
                         <label class="input input-lg w-full">
                             <i class="fas fa-lock text-primary" aria-hidden="true"></i>
                             <input type="password" id="password" name="password" class="grow text-base" placeholder="Enter your password"

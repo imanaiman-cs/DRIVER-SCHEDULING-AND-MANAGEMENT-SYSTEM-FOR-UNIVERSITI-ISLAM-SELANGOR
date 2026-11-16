@@ -89,19 +89,19 @@ adminPageStart('Dashboard');
     </div>
 
     <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
-        <div class="col-span-12 lg:col-span-4"><div class="dash-card"><h6>Requests by status <small class="text-base-content/60 font-normal">last 6 months</small></h6>
+        <div class="col-span-12 lg:col-span-4"><div class="dash-card"><h6><span><i class="fas fa-chart-pie text-success me-1"></i>Requests by status</span> <small class="text-base-content/60 font-normal">last 6 months</small></h6>
             <?= $doData ? dashChart('chStatus', 'doughnut', $doLabels, [['label' => 'Requests', 'data' => $doData, 'colors' => $doColours]], ['centre' => [array_sum($doData), 'requests']]) : dashEmpty('No requests yet.', 'inbox') ?></div></div>
-        <div class="col-span-12 lg:col-span-8"><div class="dash-card"><h6>Requests per month</h6>
+        <div class="col-span-12 lg:col-span-8"><div class="dash-card"><h6><span><i class="fas fa-chart-line text-success me-1"></i>Requests per month</span></h6>
             <?= dashChart('chMonthly', 'line', array_keys($monthly), [['label' => 'Requests', 'data' => array_values($monthly), 'color' => '#15804f']]) ?></div></div>
     </div>
 
     <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
-        <div class="col-span-12 lg:col-span-6"><div class="dash-card"><h6>Driver workload <small class="text-base-content/60 font-normal">this month</small></h6>
+        <div class="col-span-12 lg:col-span-6"><div class="dash-card"><h6><span><i class="fas fa-user-clock text-success me-1"></i>Driver workload</span> <small class="text-base-content/60 font-normal">this month</small></h6>
             <?= $workload ? dashChart('chDrivers', 'bar', array_column($workload, 'name'), [
                 ['label' => 'Tasks in working hours', 'data' => array_map(fn($w) => $w['tasks'] - $w['outside'], $workload), 'color' => '#15804f'],
                 ['label' => 'Outside working hours', 'data' => array_column($workload, 'outside'), 'color' => '#d4a017']], ['stacked' => true, 'horizontal' => true, 'height' => 320]) : dashEmpty('No active drivers.', 'user-slash') ?>
             <div class="text-sm text-base-content/60 mt-2">The same counts the driver recommendation uses (welfare days count as tasks).</div></div></div>
-        <div class="col-span-12 lg:col-span-6"><div class="dash-card"><h6>Vehicle booked hours <small class="text-base-content/60 font-normal">this month, upcoming included</small></h6>
+        <div class="col-span-12 lg:col-span-6"><div class="dash-card"><h6><span><i class="fas fa-gauge-high text-success me-1"></i>Vehicle booked hours</span> <small class="text-base-content/60 font-normal">this month, upcoming included</small></h6>
             <?= array_sum(array_column($util, 'hours')) > 0 ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#0e7490']], ['horizontal' => true, 'height' => 320]) : dashEmpty('No vehicle is booked this month yet.', 'car-side') ?></div></div>
     </div>
 
@@ -115,7 +115,7 @@ adminPageStart('Dashboard');
         </div>
         <div class="col-span-12 xl:col-span-3">
             <div class="dash-card">
-                <h6>Fleet now</h6>
+                <h6><span><i class="fas fa-car-side text-success me-1"></i>Fleet now</span></h6>
                 <?php $totalV = max(1, array_sum($fleet)); foreach (['available', 'in_use', 'maintenance', 'inactive'] as $st): ?>
                     <div class="flex justify-between text-sm mt-2"><span><span class="badge <?= vehicleStatusBadgeClass($st) ?>"><?= dh(vehicleStatusLabel($st)) ?></span></span><strong><?= (int)$fleet[$st] ?></strong></div>
                     <div class="dash-bar"><span style="width:<?= round($fleet[$st] / $totalV * 100) ?>%;--bar:<?= ['available' => '#15803d', 'in_use' => '#1d4ed8', 'maintenance' => '#c69214', 'inactive' => '#64748b'][$st] ?>"></span></div>

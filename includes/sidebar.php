@@ -134,7 +134,7 @@ if ($_is_admin_role) {
             <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-white p-1 ring-2 ring-secondary/50"><img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="" class="size-full object-contain"></span>
             <span class="leading-tight">
                 <span class="block font-extrabold tracking-wide text-white">UIS</span>
-                <span class="block text-[0.65rem] tracking-wider text-white/50 uppercase">Driver Management</span>
+                <span class="block text-[0.65rem] tracking-[0.08em] text-white/65 uppercase">Driver Management</span>
             </span>
         </a>
 
@@ -142,8 +142,8 @@ if ($_is_admin_role) {
             <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-secondary to-amber-300 text-sm font-extrabold text-neutral shadow"><?php echo htmlspecialchars($initials); ?></span>
             <span class="min-w-0">
                 <span class="block truncate text-sm font-semibold text-white" title="<?php echo htmlspecialchars($full_name); ?>"><?php echo htmlspecialchars($full_name); ?></span>
-                <span class="mt-0.5 inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/15 px-2 py-px text-[0.62rem] font-bold tracking-wide text-secondary uppercase">
-                    <i class="fas <?php echo $_is_admin_role ? 'fa-shield-halved' : 'fa-id-card'; ?> text-[0.55rem]" aria-hidden="true"></i><?php echo htmlspecialchars($role_label); ?>
+                <span class="mt-1 flex max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full border border-secondary/30 bg-secondary/15 px-2 py-px text-[0.7rem] font-semibold text-secondary" title="<?php echo htmlspecialchars($role_label); ?>">
+                    <i class="fas <?php echo $_is_admin_role ? 'fa-shield-halved' : 'fa-id-card'; ?> shrink-0 text-[0.6rem]" aria-hidden="true"></i><span class="truncate"><?php echo htmlspecialchars($role_label); ?></span>
                 </span>
             </span>
         </div>
