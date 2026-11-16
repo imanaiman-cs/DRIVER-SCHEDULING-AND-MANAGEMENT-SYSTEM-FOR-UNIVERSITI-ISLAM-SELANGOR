@@ -191,13 +191,13 @@ function userIdOfDriver(mysqli $conn, int $driver_id): ?int
     return $row ? (int)$row['user_id'] : null;
 }
 
-/** Login accounts of the drivers on some schedule rows. */
-function driverUserIdsOfSchedules(mysqli $conn, array $schedule_ids): array
+/** Login accounts of the drivers of some tasks. */
+function driverUserIdsOfTasks(mysqli $conn, array $task_ids): array
 {
-    $ids = array_values(array_filter(array_map('intval', $schedule_ids)));
+    $ids = array_values(array_filter(array_map('intval', $task_ids)));
     if (!$ids) { return []; }
     $in = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $conn->prepare("SELECT DISTINCT u.user_id FROM schedules s JOIN users u ON u.driver_id = s.driver_id WHERE s.schedule_id IN ($in)");
+    $stmt = $conn->prepare("SELECT DISTINCT u.user_id FROM tasks t JOIN users u ON u.driver_id = t.driver_id WHERE t.task_id IN ($in)");
     $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
     $stmt->execute();
     $out = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id'));
@@ -366,9 +366,9 @@ function vehicleUnavailableReason(mysqli $conn, int $vehicle_id, string $start, 
     }
     $checks = [
         'locked'   => "SELECT 1 FROM vehicle_locks WHERE vehicle_id = ? AND request_id <> ? AND start_dt < ? AND end_dt > ? LIMIT 1",
-        'trip'     => "SELECT 1 FROM schedules WHERE vehicle_id = ? AND COALESCE(request_id, 0) <> ? AND status <> 'cancelled' AND start_dt < ? AND end_dt > ? LIMIT 1",
-        'internal' => "SELECT 1 FROM internal_tasks WHERE vehicle_id = ? AND task_id <> ? AND status IN ('waiting', 'assigned', 'active') AND start_dt < ? AND end_dt > ? LIMIT 1",
-        'welfare'  => "SELECT 1 FROM welfare_roster WHERE vehicle_id = ? AND roster_id <> ? AND TIMESTAMP(duty_date) < ? AND DATE_ADD(TIMESTAMP(duty_date), INTERVAL 1 DAY) > ? LIMIT 1",
+        'trip'     => "SELECT 1 FROM tasks WHERE task_source = 'request' AND vehicle_id = ? AND COALESCE(request_id, 0) <> ? AND status <> 'cancelled' AND start_dt < ? AND end_dt > ? LIMIT 1",
+        'internal' => "SELECT 1 FROM tasks WHERE task_source = 'internal' AND vehicle_id = ? AND task_id <> ? AND status IN ('waiting', 'assigned', 'approved') AND start_dt < ? AND end_dt > ? LIMIT 1",
+        'welfare'  => "SELECT 1 FROM tasks WHERE task_source = 'welfare' AND vehicle_id = ? AND task_id <> ? AND status <> 'cancelled' AND start_dt < ? AND end_dt > ? LIMIT 1",
     ];
     foreach ($checks as $why => $sql) {
         $except = in_array($why, ['internal', 'welfare'], true) ? ($why === 'welfare' ? $except_welfare : 0) : $except_request;
@@ -410,9 +410,9 @@ function availableVehicles(mysqli $conn, string $start, string $end, int $passen
             AND (v.status <> 'maintenance'
                  OR COALESCE((SELECT MAX(m.end_date) FROM vehicle_maintenance m WHERE m.vehicle_id = v.vehicle_id AND m.closed_at IS NULL), '9999-12-31') < ?)
             AND NOT EXISTS (SELECT 1 FROM vehicle_locks l WHERE l.vehicle_id = v.vehicle_id AND l.request_id <> ? AND l.start_dt < ? AND l.end_dt > ?)
-            AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND COALESCE(s.request_id, 0) <> ? AND s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?)
-            AND NOT EXISTS (SELECT 1 FROM internal_tasks t WHERE t.vehicle_id = v.vehicle_id AND t.status IN ('waiting', 'assigned', 'active') AND t.start_dt < ? AND t.end_dt > ?)
-            AND NOT EXISTS (SELECT 1 FROM welfare_roster w WHERE w.vehicle_id = v.vehicle_id AND TIMESTAMP(w.duty_date) < ? AND DATE_ADD(TIMESTAMP(w.duty_date), INTERVAL 1 DAY) > ?)
+            AND NOT EXISTS (SELECT 1 FROM tasks s WHERE s.vehicle_id = v.vehicle_id AND s.task_source = 'request' AND COALESCE(s.request_id, 0) <> ? AND s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?)
+            AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.vehicle_id = v.vehicle_id AND t.task_source = 'internal' AND t.status IN ('waiting', 'assigned', 'approved') AND t.start_dt < ? AND t.end_dt > ?)
+            AND NOT EXISTS (SELECT 1 FROM tasks w WHERE w.vehicle_id = v.vehicle_id AND w.task_source = 'welfare' AND w.status <> 'cancelled' AND w.start_dt < ? AND w.end_dt > ?)
           ORDER BY v.capacity, v.plate_number"
     );
     $stmt->bind_param('isississssss', $passengers, $day, $except_request, $end, $start, $except_request, $end, $start, $end, $start, $end, $start);
@@ -609,67 +609,76 @@ function canChangeRequestStatus(string $from, string $to): bool
     return in_array($to, REQUEST_TRANSITIONS[$from] ?? [], true);
 }
 
-/** Ids of the schedule rows (tasks) of a request: outbound first, then return. */
-function requestScheduleIds(mysqli $conn, int $request_id): array
+/** Ids of the tasks of a request: outbound first, then return. */
+function requestTaskIds(mysqli $conn, int $request_id): array
 {
-    $stmt = $conn->prepare('SELECT schedule_id FROM schedules WHERE request_id = ? ORDER BY leg_no, schedule_id');
+    $stmt = $conn->prepare("SELECT task_id FROM tasks WHERE task_source = 'request' AND request_id = ? ORDER BY trip_type, task_id");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
-    $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'schedule_id'));
+    $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'task_id'));
     $stmt->close();
     return $ids;
 }
 
-/** The request a schedule row was made from (0 if none). */
-function requestIdOfSchedule(mysqli $conn, int $schedule_id): int
-{
-    $stmt = $conn->prepare('SELECT COALESCE(request_id, 0) FROM schedules WHERE schedule_id = ?');
-    $stmt->bind_param('i', $schedule_id);
-    $stmt->execute();
-    $id = (int)($stmt->get_result()->fetch_row()[0] ?? 0);
-    $stmt->close();
-    return $id;
-}
-
 /**
- * SQL condition (table alias `s` = schedules) that hides a task from the driver until the request is
+ * SQL condition (table alias `s` = tasks of a request) that hides a request task from the driver until the request is
  * Confirmed. UC011/UC029: driver and vehicle are shown only AFTER the assignment is Confirmed.
  */
 const SCHEDULE_CONFIRMED_ONLY_SQL = "EXISTS (SELECT 1 FROM vehicle_requests vr_c WHERE vr_c.request_id = s.request_id AND vr_c.status IN ('processed', 'completed'))";
 
-/** Cancels the tasks of a request and removes their driver (the old driver ids are returned for the notice). */
-function cancelRequestTasks(mysqli $conn, int $request_id): array
+/**
+ * Cancels the tasks of a request and removes their driver (the old driver ids are returned for the notice).
+ * $rejectReason: set when the Head of Admin rejected the assignment (the task keeps who rejected it, when and why).
+ */
+function cancelRequestTasks(mysqli $conn, int $request_id, ?string $rejectReason = null): array
 {
-    $stmt = $conn->prepare("SELECT schedule_id, driver_id FROM schedules WHERE request_id = ? AND status <> 'cancelled'");
+    $stmt = $conn->prepare("SELECT task_id, driver_id FROM tasks WHERE task_source = 'request' AND request_id = ? AND status <> 'cancelled'");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
-    $upd = $conn->prepare("UPDATE schedules SET status = 'cancelled', driver_id = NULL WHERE schedule_id = ?");
+    $by = $rejectReason !== null ? ((int)($_SESSION['user_id'] ?? 0) ?: null) : null;
+    $why = $rejectReason !== null ? mb_substr($rejectReason, 0, 255) : null;
+    $upd = $conn->prepare("UPDATE tasks SET status = 'cancelled', driver_id = NULL, cancelled_at = NOW(),
+                                  reject_reason = COALESCE(?, reject_reason), rejected_by = COALESCE(?, rejected_by), rejected_at = IF(? IS NULL, rejected_at, NOW())
+                            WHERE task_id = ?");
     $drivers = [];
     foreach ($rows as $r) {
         if ($r['driver_id'] !== null) { $drivers[] = (int)$r['driver_id']; }
-        $sid = (int)$r['schedule_id'];
-        $upd->bind_param('i', $sid);
+        $tid = (int)$r['task_id'];
+        $upd->bind_param('sisi', $why, $by, $why, $tid);
         $upd->execute();
     }
     $upd->close();
+    if ($rejectReason !== null && $rows) { settleDriverReplacements($conn, array_map(fn($r) => (int)$r['task_id'], $rows), 'rejected'); }
     return array_values(array_unique($drivers));
+}
+
+/** A replacement waits for the Head of Admin: approving or rejecting the new assignment settles it (DriverReplacement.status). */
+function settleDriverReplacements(mysqli $conn, array $task_ids, string $status): void
+{
+    $ids = array_values(array_filter(array_map('intval', $task_ids)));
+    if (!$ids || !in_array($status, ['approved', 'rejected'], true)) { return; }
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $conn->prepare("UPDATE driver_replacements SET status = ? WHERE status = 'pending' AND task_id IN ($in)");
+    $stmt->bind_param('s' . str_repeat('i', count($ids)), $status, ...$ids);
+    $stmt->execute();
+    $stmt->close();
 }
 
 /** One line per task: "Outbound: Name (plate)  /  Return: Name (plate)". */
 function taskSummaryText(mysqli $conn, int $request_id): string
 {
     $stmt = $conn->prepare(
-        "SELECT s.leg_no, d.name AS driver, v.plate_number, v.model, s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name FROM schedules s
+        "SELECT s.trip_type, d.name AS driver, v.plate_number, v.model, s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name FROM tasks s
            LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-          WHERE s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.leg_no"
+          WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.trip_type, s.task_id"
     );
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
     $parts = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $parts[] = ((int)$r['leg_no'] === 2 ? 'Return' : 'Outbound') . ': ' . ($r['vendor_name'] !== null
+        $parts[] = ($r['trip_type'] === 'return' ? 'Return' : 'Outbound') . ': ' . ($r['vendor_name'] !== null
             ? 'vendor bus ' . $r['vendor_bus_plate'] . ' (' . $r['vendor_name'] . ')'
             : ($r['driver'] ?? 'no driver') . ' with ' . ($r['plate_number'] ?? 'no vehicle') . ($r['model'] ? ' (' . $r['model'] . ')' : ''));
     }
@@ -748,18 +757,28 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         if ($to === 'processed' && requestAllTasksVendor($conn, $request_id)) {
             releaseVehicleLocks($conn, $request_id);          // UC017 A2: the vendor bus replaces the UIS bus, which is free for others again
         }
+        if ($to === 'processed') {                       // the Head of Admin approved: the tasks of the request are Approved
+            $tids = requestTaskIds($conn, $request_id);
+            $ap = $conn->prepare("UPDATE tasks SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE task_source = 'request' AND request_id = ? AND status IN ('waiting', 'assigned')");
+            $ap->bind_param('ii', $actor, $request_id);
+            $ap->execute();
+            $ap->close();
+            settleDriverReplacements($conn, $tids, 'approved');
+        }
+        if ($to === 'completed') {
+            $cp = $conn->prepare("UPDATE tasks SET status = 'completed' WHERE task_source = 'request' AND request_id = ? AND status IN ('assigned', 'approved')");
+            $cp->bind_param('i', $request_id);
+            $cp->execute();
+            $cp->close();
+        }
         if ($to === 'approved' && $req['status'] === 'assigned') {
             // The Head of Admin rejected the assignment: the tasks and the driver go, the vehicle stays locked
-            $oldDrivers = cancelRequestTasks($conn, $request_id);
+            $oldDrivers = cancelRequestTasks($conn, $request_id, (string)$reason);
             $del = $conn->prepare('DELETE FROM vehicle_locks WHERE request_id = ? AND NOT (vehicle_id <=> ?)');
             $mainVehicle = $req['vehicle_id'] !== null ? (int)$req['vehicle_id'] : null;
             $del->bind_param('ii', $request_id, $mainVehicle);
             $del->execute();
             $del->close();
-            $clr = $conn->prepare('UPDATE vehicle_requests SET schedule_id = NULL WHERE request_id = ?');
-            $clr->bind_param('i', $request_id);
-            $clr->execute();
-            $clr->close();
         }
         $conn->commit();
     } catch (Throwable $e) {
@@ -776,7 +795,7 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
 /** True when the request has tasks and every one of them is given to a vendor bus (no UIS driver and no UIS bus is needed). */
 function requestAllTasksVendor(mysqli $conn, int $request_id): bool
 {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS n, SUM(vendor_name IS NULL) AS uis FROM schedules WHERE request_id = ? AND status <> 'cancelled'");
+    $stmt = $conn->prepare("SELECT COUNT(*) AS n, SUM(vendor_name IS NULL) AS uis FROM tasks WHERE task_source = 'request' AND request_id = ? AND status <> 'cancelled'");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
     $r = $stmt->get_result()->fetch_assoc();
@@ -844,8 +863,8 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             notifyUsers($conn, headAdminUserIds($conn), ucfirst($what) . (isRequestWithoutDriver($req) ? ' is without driver and needs your approval for the use of the vehicle.' : ' has a driver assigned and needs your approval.'), 'admin/approve_assignments.php');
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
-            $ids = requestScheduleIds($conn, $request_id);
-            notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
+            $ids = requestTaskIds($conn, $request_id);
+            notifyUsers($conn, driverUserIdsOfTasks($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
             notifyUsers($conn, [$staff], "Your $what is confirmed. " . (isPayClaimRequest($req) ? 'You may use your own vehicle and make your claim.' : (isRequestWithoutDriver($req) ? 'You may use the vehicle without a driver.' : taskSummaryText($conn, $request_id) . '.')), 'staff/my_requests.php');
             break;
         case 'completed':
@@ -1072,24 +1091,21 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         if ($vendorRet !== null && ($e = $vendorOk($vendorRet, $win['ret'], 'return')) !== null) { $conn->rollback(); return $fail($e); }
 
         $ins = $conn->prepare(
-            "INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, purpose, passenger_count,
-                                    status, created_by, notes, officer_name, officer_phone, waiting_place, request_id, leg_no,
-                                    vendor_name, vendor_bus_plate, vendor_driver_name)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO tasks (task_source, request_id, task_type, trip_type, driver_id, vehicle_id, start_dt, end_dt, location, description,
+                                vendor_name, vendor_bus_plate, vendor_driver_name, status, assigned_by, assigned_at, created_by)
+             VALUES ('request', ?, 'trip', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'assigned', ?, NOW(), ?)"
         );
         $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
-        $note = 'e-Kenderaan request #' . $request_id;
-        $insertTask = function (?int $driver, ?int $vehicle, array $w, int $leg, ?array $vendor = null) use ($ins, $req, $by, $note, $request_id) {
-            $dest = $req['destination'];
+        $insertTask = function (?int $driver, ?int $vehicle, array $w, int $leg, ?array $vendor = null) use ($ins, $req, $by, $request_id) {
+            $dest = mb_substr((string)$req['destination'], 0, 255);
             $purpose = mb_substr((string)$req['purpose'], 0, 255);
-            $pax = (int)$req['passenger_count'];
+            $trip = $leg === 2 ? 'return' : 'outbound';
             $vn = $vendor['name'] ?? null; $vp = $vendor['plate'] ?? null; $vd = $vendor['driver'] ?? null;
-            $ins->bind_param('iisssssiissssiisss', $driver, $vehicle, $w['date'], $w['start'], $w['end'], $dest, $purpose, $pax,
-                $by, $note, $req['officer_name'], $req['officer_phone'], $req['waiting_place'], $request_id, $leg, $vn, $vp, $vd);
+            $ins->bind_param('isiisssssssii', $request_id, $trip, $driver, $vehicle, $w['start_dt'], $w['end_dt'], $dest, $purpose, $vn, $vp, $vd, $by, $by);
             $ins->execute();
             return (int)$ins->insert_id;
         };
-        $outId = $insertTask($vendorOut !== null ? null : $out_driver, $vendorOut !== null ? null : $mainVehicle, $win['out'], 1, $vendorOut);   // a vendor task uses no UIS vehicle
+        $insertTask($vendorOut !== null ? null : $out_driver, $vendorOut !== null ? null : $mainVehicle, $win['out'], 1, $vendorOut);   // a vendor task uses no UIS vehicle
 
         // return trip
         $retIsVendor = $vendorRet !== null || ($sameReturn && $vendorOut !== null);
@@ -1129,8 +1145,8 @@ function assignRequestDrivers(mysqli $conn, int $request_id, int $out_driver, ?i
         } elseif ($extra) { $conn->rollback(); return $fail('This request has only one vehicle.'); }
         $ins->close();
 
-        $upd = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned', schedule_id = ?, status_reason = NULL WHERE request_id = ? AND status IN ('approved', 'pending')");
-        $upd->bind_param('ii', $outId, $request_id);
+        $upd = $conn->prepare("UPDATE vehicle_requests SET status = 'assigned', status_reason = NULL WHERE request_id = ? AND status IN ('approved', 'pending')");
+        $upd->bind_param('i', $request_id);
         $upd->execute();
         $upd->close();
         if (isPersonalRental($req)) {                                          // UC003 A5: the Assistant confirms or corrects the distance; the charge follows
@@ -1163,12 +1179,12 @@ function approveAssignment(mysqli $conn, int $request_id): array
     $withoutDriver = ($row = $q->get_result()->fetch_assoc()) && isRequestWithoutDriver($row);
     $q->close();
     if ($withoutDriver) { return changeRequestStatus($conn, $request_id, 'processed'); }       // UC019 A2: only the vehicle is approved
-    $stmt = $conn->prepare("SELECT s.driver_id FROM schedules s WHERE s.request_id = ? AND s.status <> 'cancelled' AND s.driver_id IS NULL AND s.vendor_name IS NULL");
+    $stmt = $conn->prepare("SELECT s.driver_id FROM tasks s WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled' AND s.driver_id IS NULL AND s.vendor_name IS NULL");
     $stmt->bind_param('i', $request_id);
     $stmt->execute();
     $noDriver = (bool)$stmt->get_result()->fetch_row();
     $stmt->close();
-    if ($noDriver || !requestScheduleIds($conn, $request_id)) {
+    if ($noDriver || !requestTaskIds($conn, $request_id)) {
         return ['ok' => false, 'message' => 'A task of this request has no driver, so it cannot be confirmed.'];
     }
     return changeRequestStatus($conn, $request_id, 'processed');
@@ -1193,7 +1209,7 @@ function rejectAssignment(mysqli $conn, int $request_id, string $reason): array
  * (old driver, new driver, reason, date), the request goes back to "Driver Assigned" so the
  * Head of Admin approves again, and the old driver, the new driver and the Head of Admin are told.
  */
-function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, string $reason, bool $driverRequest = false): array
+function replaceTaskDriver(mysqli $conn, int $task_id, int $new_driver, string $reason, bool $driverRequest = false): array
 {
     $reason = trim($reason);
     if ($driverRequest && $reason === '') { $reason = 'Driver Request'; }      // UC020 A1: the Head of Admin replaces after a schedule change request
@@ -1204,9 +1220,9 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $stmt = $conn->prepare(
             "SELECT s.*, vr.status AS req_status, vr.destination AS req_dest, vr.trip_date AS r_date, vr.start_time AS r_start, vr.return_date, vr.end_time AS r_end,
                     vr.staff_id, vr.supervisor_id
-               FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id WHERE s.schedule_id = ? FOR UPDATE"
+               FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id WHERE s.task_id = ? AND s.task_source = 'request' FOR UPDATE"
         );
-        $stmt->bind_param('i', $schedule_id);
+        $stmt->bind_param('i', $task_id);
         $stmt->execute();
         $t = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -1230,18 +1246,22 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
         $need = (string)($v->get_result()->fetch_row()[0] ?? 'D');
         $v->close();
         if (!driverHoldsLicence($nd['license_class'], $need)) { $conn->rollback(); return $fail($nd['name'] . ' does not hold licence class ' . $need . '.'); }
-        if (($why = driverUnavailableReason($conn, $new_driver, $t['start_dt'], $t['end_dt']) ?? driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], $schedule_id)) !== null) {
+        if (($why = driverUnavailableReason($conn, $new_driver, $t['start_dt'], $t['end_dt']) ?? driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], $task_id)) !== null) {
             $conn->rollback();
             return $fail($nd['name'] . ' cannot be chosen: ' . $why . '.');
         }
 
-        $u = $conn->prepare('UPDATE schedules SET driver_id = ? WHERE schedule_id = ?');
-        $u->bind_param('ii', $new_driver, $schedule_id);
+        $by = (int)($_SESSION['user_id'] ?? 0);
+        // a normal replacement waits for the Head of Admin (the task is Driver Assigned again); a Driver Request is done by the Head of Admin
+        $u = $driverRequest
+            ? $conn->prepare("UPDATE tasks SET driver_id = ?, approved_by = ?, approved_at = NOW() WHERE task_id = ?")
+            : $conn->prepare("UPDATE tasks SET driver_id = ?, status = 'assigned', assigned_by = ?, assigned_at = NOW() WHERE task_id = ?");
+        $u->bind_param('iii', $new_driver, $by, $task_id);
         $u->execute();
         $u->close();
-        $by = (int)($_SESSION['user_id'] ?? 0);
-        $log = $conn->prepare('INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by) VALUES (?, ?, ?, ?, ?)');
-        $log->bind_param('iiisi', $schedule_id, $old, $new_driver, $reason, $by);
+        $replStatus = $driverRequest ? 'approved' : 'pending';
+        $log = $conn->prepare('INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, replaced_by, status) VALUES (?, ?, ?, ?, ?, ?)');
+        $log->bind_param('iiisis', $task_id, $old, $new_driver, $reason, $by, $replStatus);
         $log->execute();
         $log->close();
         $rid = (int)$t['request_id'];
@@ -1264,7 +1284,7 @@ function replaceTaskDriver(mysqli $conn, int $schedule_id, int $new_driver, stri
     $on->execute();
     $oldN = (string)($on->get_result()->fetch_row()[0] ?? '');
     $on->close();
-    auditLog($conn, 'replace_driver', $rid, "Task #$schedule_id: $oldN -> {$nd['name']}. Reason: $reason");
+    auditLog($conn, 'replace_driver', $rid, "Task #$task_id: $oldN -> {$nd['name']}. Reason: $reason");
     $what = "request #$rid ({$t['req_dest']}, " . date('d M Y H:i', strtotime($t['start_dt'])) . ')';
     notifyUsers($conn, driverUserIdsFromDriverIds($conn, [$old]), "You were replaced on $what. Reason: $reason", 'driver/schedules.php');
     if ($driverRequest) {                            // UC020 A1: done by the Head of Admin, so the task is Confirmed directly
@@ -1487,12 +1507,12 @@ function runRequestJobs(mysqli $conn): array
 
     // 3. Confirmed and the trip (and its return task) is over: Completed. The lock is released.
     $r = $conn->query("SELECT vr.request_id FROM vehicle_requests vr WHERE vr.status = 'processed'
-                          AND GREATEST(vr.return_at, IFNULL((SELECT MAX(s.end_dt) FROM schedules s WHERE s.request_id = vr.request_id AND s.status <> 'cancelled'), vr.return_at)) < NOW()");
+                          AND GREATEST(vr.return_at, IFNULL((SELECT MAX(s.end_dt) FROM tasks s WHERE s.task_source = 'request' AND s.request_id = vr.request_id AND s.status <> 'cancelled'), vr.return_at)) < NOW()");
     foreach ($r->fetch_all(MYSQLI_ASSOC) as $row) {
         if (changeRequestStatus($conn, (int)$row['request_id'], 'completed', ['system' => true])['ok']) { $out['completed']++; }
     }
-    $conn->query("UPDATE schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id SET s.status = 'completed'
-                   WHERE vr.status = 'completed' AND s.status = 'approved'");
+    $conn->query("UPDATE tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id SET s.status = 'completed'
+                   WHERE s.task_source = 'request' AND vr.status = 'completed' AND s.status IN ('assigned', 'approved')");
     return $out;
 }
 
@@ -1523,86 +1543,22 @@ function runRequestJobsThrottled(mysqli $conn): void
 const VEHICLE_FUEL_LEVELS = ['empty' => 'Empty', 'quarter' => '1/4', 'half' => '1/2', 'three_quarters' => '3/4', 'full' => 'Full'];
 
 /**
- * The vehicle of one of THIS driver's tasks: a trip task of a Confirmed / Completed request, or an active internal task.
- * $kind is 'trip' (schedule_id) or 'internal' (internal_tasks.task_id). Returns the vehicle row, or null when the driver may not update it.
+ * The vehicle of one of THIS driver's tasks: a request task of a Confirmed / Completed request, or an Approved internal task or welfare
+ * duty day. $kind is 'trip', 'internal' or 'welfare' (task_source request / internal / welfare); $id is tasks.task_id.
+ * Returns the vehicle row, or null when the driver may not use it.
  */
 function driverTaskVehicle(mysqli $conn, int $driver_id, string $kind, int $id): ?array
 {
-    if ($kind === 'trip') {
-        $sql = "SELECT v.* FROM schedules s JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-                 WHERE s.schedule_id = ? AND s.driver_id = ? AND s.status <> 'cancelled' AND " . SCHEDULE_CONFIRMED_ONLY_SQL;
-    } elseif ($kind === 'internal') {
-        $sql = "SELECT v.* FROM internal_tasks t JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-                 WHERE t.task_id = ? AND t.driver_id = ? AND t.status = 'active'";
-    } elseif ($kind === 'welfare') {
-        $sql = "SELECT v.* FROM welfare_roster w JOIN vehicles v ON v.vehicle_id = w.vehicle_id
-                 WHERE w.roster_id = ? AND w.driver_id = ? AND w.status = 'active'";
-    } else {
-        return null;
-    }
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ii', $id, $driver_id);
+    $source = ['trip' => 'request', 'internal' => 'internal', 'welfare' => 'welfare'][$kind] ?? null;
+    if ($source === null) { return null; }
+    $visible = $source === 'request' ? "s.status <> 'cancelled' AND " . SCHEDULE_CONFIRMED_ONLY_SQL : "s.status IN ('approved', 'completed')";
+    $stmt = $conn->prepare("SELECT v.* FROM tasks s JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+                             WHERE s.task_id = ? AND s.driver_id = ? AND s.task_source = ? AND $visible");
+    $stmt->bind_param('iis', $id, $driver_id, $source);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row ?: null;
-}
-
-/**
- * Saves the driver's update (name, date and time are kept) and the new mileage becomes the vehicle's mileage.
- * The new mileage must not be lower than the last recorded one. If a condition issue is entered the Administrative Assistant is told.
- * @return array{ok:bool, message:string}
- */
-function recordVehicleUsage(mysqli $conn, int $driver_id, string $kind, int $task_id, $mileage, string $fuel, ?string $issue): array
-{
-    $veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);
-    if (!$veh) { return ['ok' => false, 'message' => 'You can only update a vehicle that is used for one of your tasks.']; }
-    if (!is_numeric($mileage) || (string)(int)$mileage !== trim((string)$mileage) || (int)$mileage < 0 || (int)$mileage > 9999999) {
-        return ['ok' => false, 'message' => 'Enter the current mileage as a whole number (km).'];
-    }
-    $mileage = (int)$mileage;
-    if (!isset(VEHICLE_FUEL_LEVELS[$fuel])) { return ['ok' => false, 'message' => 'Choose the fuel level.']; }
-    $issue = $issue === null ? null : trim($issue);
-    if ($issue !== null && mb_strlen($issue) > 500) { return ['ok' => false, 'message' => 'Describe the condition issue in at most 500 characters.']; }
-    $issue = ($issue === '' ? null : $issue);
-    $vehicle_id = (int)$veh['vehicle_id'];
-    $sched = $kind === 'trip' ? $task_id : null;
-    $task  = $kind === 'internal' ? $task_id : null;
-
-    $conn->begin_transaction();
-    try {
-        $stmt = $conn->prepare('SELECT mileage FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
-        $stmt->bind_param('i', $vehicle_id);
-        $stmt->execute();
-        $last = (int)($stmt->get_result()->fetch_row()[0] ?? 0);
-        $stmt->close();
-        if ($mileage < $last) {
-            $conn->rollback();
-            return ['ok' => false, 'message' => "The mileage is lower than the last recorded mileage ($last km)."];
-        }
-        $stmt = $conn->prepare('INSERT INTO vehicle_usage_log (vehicle_id, driver_id, schedule_id, internal_task_id, mileage, fuel_level, condition_issue) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $stmt->bind_param('iiiiiss', $vehicle_id, $driver_id, $sched, $task, $mileage, $fuel, $issue);
-        $stmt->execute();
-        $stmt->close();
-        $stmt = $conn->prepare('UPDATE vehicles SET mileage = ? WHERE vehicle_id = ?');
-        $stmt->bind_param('ii', $mileage, $vehicle_id);
-        $stmt->execute();
-        $stmt->close();
-        $conn->commit();
-    } catch (Throwable $e) {
-        $conn->rollback();
-        error_log('recordVehicleUsage: ' . $e->getMessage());
-        return ['ok' => false, 'message' => 'Database error. Please try again.'];
-    }
-    if ($issue !== null) {
-        $q = $conn->prepare('SELECT name FROM drivers WHERE driver_id = ?');
-        $q->bind_param('i', $driver_id);
-        $q->execute();
-        $name = $q->get_result()->fetch_row()[0] ?? 'A driver';
-        $q->close();
-        notifyUsers($conn, assistantUserIds($conn), "$name reported a condition issue on {$veh['plate_number']}: $issue", 'admin/view_vehicle.php?id=' . $vehicle_id);
-    }
-    return ['ok' => true, 'message' => 'The vehicle was updated.' . ($issue !== null ? ' The Administrative Assistant was told about the condition issue.' : '')];
 }
 
 // ------------------------------------------------------------
@@ -1611,11 +1567,10 @@ function recordVehicleUsage(mysqli $conn, int $driver_id, string $kind, int $tas
 
 const REPORT_PROBLEM_TYPES = ['Plate Number', 'Tyre', 'Lights', 'Body Damage', 'Engine', 'Others'];
 
-/** The report of one task of this driver, or null. $kind 'trip' (schedule_id) or 'internal' (task_id). */
+/** The report of one task, or null ($id = tasks.task_id; $kind is kept for the callers). */
 function taskReportOf(mysqli $conn, string $kind, int $id): ?array
 {
-    $col = ['internal' => 'internal_task_id', 'welfare' => 'welfare_id'][$kind] ?? 'schedule_id';
-    $stmt = $conn->prepare("SELECT * FROM task_reports WHERE $col = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT r.*, t.driver_id, t.vehicle_id FROM task_reports r JOIN tasks t ON t.task_id = r.task_id WHERE r.task_id = ? LIMIT 1");
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -1626,8 +1581,7 @@ function taskReportOf(mysqli $conn, string $kind, int $id): ?array
 /** When the task starts (Y-m-d H:i:s): a report can only be created from then on (UC024 exception 1.1). */
 function taskStartDt(mysqli $conn, string $kind, int $id): ?string
 {
-    $sql = $kind === 'internal' ? 'SELECT start_dt FROM internal_tasks WHERE task_id = ?' : ($kind === 'welfare' ? "SELECT TIMESTAMP(duty_date) FROM welfare_roster WHERE roster_id = ?" : 'SELECT start_dt FROM schedules WHERE schedule_id = ?');
-    $stmt = $conn->prepare($sql);
+    $stmt = $conn->prepare('SELECT start_dt FROM tasks WHERE task_id = ?');
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $v = $stmt->get_result()->fetch_row()[0] ?? null;
@@ -1680,17 +1634,14 @@ function saveTaskReport(mysqli $conn, int $driver_id, string $kind, int $task_id
         $stmt->close();
         $floor = $existing ? (int)$existing['start_mileage'] : (int)$v['mileage'];
         if ($mileage < $floor) { $conn->rollback(); return ['ok' => false, 'message' => "The mileage is not valid: it is lower than the current mileage ($floor km)."]; }   // 3.2
-        $sched = $kind === 'trip' ? $task_id : null;
-        $int   = $kind === 'internal' ? $task_id : null;
-        $wel   = $kind === 'welfare' ? $task_id : null;
         if ($existing) {
             $keep = $photo ?? $existing['photo'];
             $stmt = $conn->prepare('UPDATE task_reports SET actual_depart = ?, actual_return = ?, end_mileage = ?, fuel_level = ?, vehicle_condition = ?, problem_type = ?, problem_desc = ?, photo = ?, can_be_used = ?, updated_at = NOW() WHERE report_id = ?');
             $rid = (int)$existing['report_id'];
             $stmt->bind_param('ssisssssii', $dep, $ret, $mileage, $fuel, $cond, $ptype, $pdesc, $keep, $canUse, $rid);
         } else {
-            $stmt = $conn->prepare('INSERT INTO task_reports (schedule_id, internal_task_id, welfare_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition, problem_type, problem_desc, photo, can_be_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('iiiiissiisssssi', $sched, $int, $wel, $driver_id, $vehicle_id, $dep, $ret, $floor, $mileage, $fuel, $cond, $ptype, $pdesc, $photo, $canUse);
+            $stmt = $conn->prepare('INSERT INTO task_reports (task_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition, problem_type, problem_desc, photo, can_be_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('issiisssssi', $task_id, $dep, $ret, $floor, $mileage, $fuel, $cond, $ptype, $pdesc, $photo, $canUse);
         }
         $stmt->execute();
         $stmt->close();
@@ -1703,12 +1654,12 @@ function saveTaskReport(mysqli $conn, int $driver_id, string $kind, int $task_id
         $stmt->execute();
         $stmt->close();
         $issue = $cond === 'problem' ? $ptype . ': ' . $pdesc : null;
-        $stmt = $conn->prepare('INSERT INTO vehicle_usage_log (vehicle_id, driver_id, schedule_id, internal_task_id, mileage, fuel_level, condition_issue) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $stmt->bind_param('iiiiiss', $vehicle_id, $driver_id, $sched, $int, $mileage, $fuel, $issue);
+        $stmt = $conn->prepare('INSERT INTO vehicle_usage_log (vehicle_id, driver_id, task_id, mileage, fuel_level, condition_issue) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('iiiiss', $vehicle_id, $driver_id, $task_id, $mileage, $fuel, $issue);
         $stmt->execute();
         $stmt->close();
         if ($kind === 'trip') {                                              // the task becomes Completed
-            $stmt = $conn->prepare("UPDATE schedules SET status = 'completed' WHERE schedule_id = ? AND status <> 'cancelled'");
+            $stmt = $conn->prepare("UPDATE tasks SET status = 'completed' WHERE task_id = ? AND status <> 'cancelled'");
             $stmt->bind_param('i', $task_id);
             $stmt->execute();
             $stmt->close();
@@ -1770,10 +1721,10 @@ function scheduleChangeDates(string $from, string $to): array
 
 /**
  * UC029: saves the request with the status Pending and tells the Head of Admin (system + e-mail).
- * $dates: the days of an "unavailable" request. $schedule_id: the task of a "withdraw" request.
+ * $dates: the days of an "unavailable" request. $task_id: the task of a "withdraw" request.
  * @return array{ok:bool, message:string, change_id?:int}
  */
-function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type, array $dates, ?int $schedule_id, string $reason): array
+function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type, array $dates, ?int $task_id, string $reason): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $reason = trim($reason);
@@ -1785,10 +1736,10 @@ function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type,
     $task = null;
     if ($type === 'withdraw') {
         $stmt = $conn->prepare(
-            "SELECT s.schedule_id, s.start_dt, s.end_dt, vr.destination FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-              WHERE s.schedule_id = ? AND s.driver_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed'"
+            "SELECT s.task_id, s.start_dt, s.end_dt, vr.destination FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+              WHERE s.task_id = ? AND s.task_source = 'request' AND s.driver_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed'"
         );
-        $sid = (int)$schedule_id;
+        $sid = (int)$task_id;
         $stmt->bind_param('ii', $sid, $driver_id);
         $stmt->execute();
         $task = $stmt->get_result()->fetch_assoc();
@@ -1808,8 +1759,8 @@ function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type,
     try {
         // no second Pending request for the same date or task
         if ($type === 'withdraw') {
-            $stmt = $conn->prepare("SELECT 1 FROM schedule_change_requests WHERE driver_id = ? AND change_type = 'withdraw' AND status = 'pending' AND schedule_id = ? FOR UPDATE");
-            $sid = (int)$schedule_id;
+            $stmt = $conn->prepare("SELECT 1 FROM schedule_change_requests WHERE driver_id = ? AND change_type = 'withdraw' AND status = 'pending' AND task_id = ? FOR UPDATE");
+            $sid = (int)$task_id;
             $stmt->bind_param('ii', $driver_id, $sid);
             $stmt->execute();
             $dup = (bool)$stmt->get_result()->fetch_row();
@@ -1825,8 +1776,8 @@ function createScheduleChangeRequest(mysqli $conn, int $driver_id, string $type,
             $stmt->close();
             if ($dupRow) { $conn->rollback(); return $fail('A pending request already exists for ' . date('d M Y', strtotime($dupRow['change_date'])) . '.'); }
         }
-        $stmt = $conn->prepare('INSERT INTO schedule_change_requests (driver_id, change_type, schedule_id, reason) VALUES (?, ?, ?, ?)');
-        $sid = $type === 'withdraw' ? (int)$schedule_id : null;
+        $stmt = $conn->prepare('INSERT INTO schedule_change_requests (driver_id, change_type, task_id, reason) VALUES (?, ?, ?, ?)');
+        $sid = $type === 'withdraw' ? (int)$task_id : null;
         $stmt->bind_param('isis', $driver_id, $type, $sid, $reason);
         $stmt->execute();
         $cid = (int)$stmt->insert_id;
@@ -1880,15 +1831,15 @@ function scheduleChangeAffectedTasks(mysqli $conn, array $change): array
 {
     if ($change['change_type'] === 'withdraw') {
         $stmt = $conn->prepare(
-            "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
-               FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id WHERE s.schedule_id = ? AND s.status <> 'cancelled'"
+            "SELECT s.task_id, s.request_id, s.trip_type, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
+               FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id WHERE s.task_id = ? AND s.status <> 'cancelled'"
         );
-        $sid = (int)$change['schedule_id'];
+        $sid = (int)$change['task_id'];
         $stmt->bind_param('i', $sid);
     } else {
         $stmt = $conn->prepare(
-            "SELECT DISTINCT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
-               FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+            "SELECT DISTINCT s.task_id, s.request_id, s.trip_type, s.start_dt, s.end_dt, vr.destination, vr.status AS req_status
+               FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
                JOIN schedule_change_dates d ON d.change_id = ? AND d.change_date BETWEEN DATE(s.start_dt) AND DATE(s.end_dt)
               WHERE s.driver_id = ? AND s.status <> 'cancelled' AND vr.status IN ('assigned', 'processed') AND s.end_dt > NOW() ORDER BY s.start_dt"
         );
@@ -1957,9 +1908,11 @@ function decideScheduleChange(mysqli $conn, int $change_id, string $decision, st
 
 // ------------------------------------------------------------
 // Internal task approval (SRS 10 Nov UC005 Assign Internal Task, UC026 approval)
+//   tasks with task_source 'internal':
 //   waiting  = Waiting for Driver   (vehicle reserved, no driver)
 //   assigned = Driver Assigned      (waits for the Head of Admin)
-//   active   = Approved             (the driver sees it, it counts everywhere)
+//   approved = Approved             (the driver sees it, it counts everywhere)
+//   cancelled = Deleted
 // ------------------------------------------------------------
 
 /** One-line description of an internal task row, for messages. */
@@ -1973,7 +1926,7 @@ function internalTaskLine(mysqli $conn, array $t): string
         $plate = (string)($q->get_result()->fetch_row()[0] ?? '');
         $q->close();
     }
-    return internalTaskTypeLabel($t['task_type']) . ' on ' . date('d M Y', strtotime($t['task_date'])) . ' ' . substr($t['start_time'], 0, 5) . '-' . substr($t['end_time'], 0, 5)
+    return internalTaskTypeLabel($t['task_type']) . ' on ' . date('d M Y H:i', strtotime($t['start_dt'])) . '-' . date('H:i', strtotime($t['end_dt']))
          . ($plate !== '' ? ' (' . $plate . ')' : '');
 }
 
@@ -1986,7 +1939,7 @@ function assignInternalTask(mysqli $conn, int $task_id, int $driver_id): array
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
     try {
-        $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ? FOR UPDATE');
+        $q = $conn->prepare("SELECT * FROM tasks WHERE task_id = ? AND task_source = 'internal' FOR UPDATE");
         $q->bind_param('i', $task_id);
         $q->execute();
         $t = $q->get_result()->fetch_assoc();
@@ -2012,8 +1965,9 @@ function assignInternalTask(mysqli $conn, int $task_id, int $driver_id): array
             $conn->rollback();
             return $fail($d['name'] . ': ' . $why . '.');
         }
-        $q = $conn->prepare("UPDATE internal_tasks SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE task_id = ? AND status = 'waiting'");
-        $q->bind_param('ii', $driver_id, $task_id);
+        $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
+        $q = $conn->prepare("UPDATE tasks SET driver_id = ?, status = 'assigned', assigned_by = ?, assigned_at = NOW(), reject_reason = NULL WHERE task_id = ? AND status = 'waiting'");
+        $q->bind_param('iii', $driver_id, $by, $task_id);
         $q->execute();
         $q->close();
         auditLog($conn, 'internal_task_assign', null, "Internal task #$task_id assigned to {$d['name']}.");
@@ -2026,16 +1980,17 @@ function assignInternalTask(mysqli $conn, int $task_id, int $driver_id): array
     return ['ok' => true, 'message' => 'Driver assigned. The Head of Admin has been told.'];
 }
 
-/** UC026: the Head of Admin approves a Driver Assigned internal task -> Approved (active). The driver and the Assistants are told. */
+/** UC026: the Head of Admin approves a Driver Assigned internal task -> Approved. The driver and the Assistants are told. */
 function approveInternalTask(mysqli $conn, int $task_id, int $by): array
 {
-    $q = $conn->prepare("UPDATE internal_tasks SET status = 'active', approved_by = ?, approved_at = NOW() WHERE task_id = ? AND status = 'assigned' AND driver_id IS NOT NULL");
+    $q = $conn->prepare("UPDATE tasks SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE task_id = ? AND task_source = 'internal' AND status = 'assigned' AND driver_id IS NOT NULL");
     $q->bind_param('ii', $by, $task_id);
     $q->execute();
     $done = $q->affected_rows > 0;
     $q->close();
     if (!$done) { return ['ok' => false, 'message' => 'That task is not waiting for approval.']; }
-    $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ?');
+    settleDriverReplacements($conn, [$task_id], 'approved');
+    $q = $conn->prepare('SELECT * FROM tasks WHERE task_id = ?');
     $q->bind_param('i', $task_id);
     $q->execute();
     $t = $q->get_result()->fetch_assoc();
@@ -2052,17 +2007,19 @@ function rejectInternalTask(mysqli $conn, int $task_id, string $reason): array
 {
     $reason = mb_substr(trim($reason), 0, 255);
     if (mb_strlen($reason) < 3) { return ['ok' => false, 'message' => 'Please give a reason for rejecting the assignment.']; }
-    $q = $conn->prepare('SELECT * FROM internal_tasks WHERE task_id = ?');
+    $q = $conn->prepare("SELECT * FROM tasks WHERE task_id = ? AND task_source = 'internal'");
     $q->bind_param('i', $task_id);
     $q->execute();
     $t = $q->get_result()->fetch_assoc();
     $q->close();
-    $q = $conn->prepare("UPDATE internal_tasks SET status = 'waiting', driver_id = NULL, reject_reason = ? WHERE task_id = ? AND status = 'assigned'");
-    $q->bind_param('si', $reason, $task_id);
+    $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
+    $q = $conn->prepare("UPDATE tasks SET status = 'waiting', driver_id = NULL, reject_reason = ?, rejected_by = ?, rejected_at = NOW() WHERE task_id = ? AND task_source = 'internal' AND status = 'assigned'");
+    $q->bind_param('sii', $reason, $by, $task_id);
     $q->execute();
     $done = $q->affected_rows > 0;
     $q->close();
     if (!$done) { return ['ok' => false, 'message' => 'That task is not waiting for approval.']; }
+    settleDriverReplacements($conn, [$task_id], 'rejected');
     auditLog($conn, 'internal_task_reject', null, "Internal task #$task_id assignment rejected: $reason");
     notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of an internal task was rejected: ' . internalTaskLine($conn, $t) . '. Reason: ' . $reason, 'admin/internal_tasks.php');
     return ['ok' => true, 'message' => 'Assignment rejected. The task is Waiting for Driver again.'];
@@ -2070,8 +2027,9 @@ function rejectInternalTask(mysqli $conn, int $task_id, string $reason): array
 
 // ------------------------------------------------------------
 // Weekly welfare duty (SRS 10 Nov UC006 / UC007 / UC026)
-//   one welfare_roster row per day: vehicle (car or van, reserved for the 24 hours), driver, status
-//   waiting = Waiting for Driver, assigned = Driver Assigned, active = Approved
+//   class WelfareDuty = welfare_duties: one row per week (Monday), status follows its days
+//   each day is a Task (task_source 'welfare', 24 hours from midnight): vehicle (car or van, reserved), driver, status
+//   waiting = Waiting for Driver, assigned = Driver Assigned, approved = Approved
 // ------------------------------------------------------------
 
 const WELFARE_VEHICLE_TYPES = ['Car', 'MPV', 'Van'];
@@ -2082,11 +2040,13 @@ function welfareWeekStart(string $date): string
     return date('Y-m-d', strtotime($date . ' -' . ((int)date('N', strtotime($date)) - 1) . ' days'));
 }
 
-/** The seven (or fewer) roster rows of a week keyed by date, with driver and vehicle names. */
+/** The seven (or fewer) days of a week keyed by date (Y-m-d): task_id, duty_id, duty_date, driver, vehicle, status. */
 function welfareWeekRows(mysqli $conn, string $monday): array
 {
     $to = date('Y-m-d', strtotime($monday . ' +6 days'));
-    $q = $conn->prepare('SELECT w.*, d.name AS driver_name, v.plate_number, v.model FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id WHERE w.duty_date BETWEEN ? AND ? ORDER BY w.duty_date');
+    $q = $conn->prepare("SELECT t.*, t.task_date AS duty_date, d.name AS driver_name, v.plate_number, v.model
+                           FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+                          WHERE t.task_source = 'welfare' AND t.task_date BETWEEN ? AND ? ORDER BY t.task_date");
     $q->bind_param('ss', $monday, $to);
     $q->execute();
     $out = [];
@@ -2095,8 +2055,41 @@ function welfareWeekRows(mysqli $conn, string $monday): array
     return $out;
 }
 
+/** One welfare duty day (task) with duty_date, or null. */
+function welfareDay(mysqli $conn, int $task_id, bool $forUpdate = false): ?array
+{
+    $q = $conn->prepare("SELECT t.*, t.task_date AS duty_date FROM tasks t WHERE t.task_id = ? AND t.task_source = 'welfare'" . ($forUpdate ? ' FOR UPDATE' : ''));
+    $q->bind_param('i', $task_id);
+    $q->execute();
+    $w = $q->get_result()->fetch_assoc();
+    $q->close();
+    return $w ?: null;
+}
+
+/** The WelfareDuty status follows its days: waiting if a day has no driver, assigned if a day waits for the Head of Admin, else approved. */
+function syncWelfareDutyStatus(mysqli $conn, int $duty_id): void
+{
+    $q = $conn->prepare("SELECT COUNT(*) AS n, SUM(status = 'waiting') AS w, SUM(status = 'assigned') AS a FROM tasks WHERE task_source = 'welfare' AND duty_id = ?");
+    $q->bind_param('i', $duty_id);
+    $q->execute();
+    $c = $q->get_result()->fetch_assoc();
+    $q->close();
+    if ((int)$c['n'] === 0) {                               // no day left: the week is gone too, so it can be created again
+        $d = $conn->prepare('DELETE FROM welfare_duties WHERE duty_id = ?');
+        $d->bind_param('i', $duty_id);
+        $d->execute();
+        $d->close();
+        return;
+    }
+    $status = (int)$c['w'] > 0 ? 'waiting' : ((int)$c['a'] > 0 ? 'assigned' : 'approved');
+    $u = $conn->prepare('UPDATE welfare_duties SET status = ? WHERE duty_id = ?');
+    $u->bind_param('si', $status, $duty_id);
+    $u->execute();
+    $u->close();
+}
+
 /** Why a vehicle cannot be used for welfare duty on a date, or null (type car/van, free for the whole 24 hours). */
-function welfareVehicleProblem(mysqli $conn, int $vehicle_id, string $date, int $except_roster = 0): ?string
+function welfareVehicleProblem(mysqli $conn, int $vehicle_id, string $date, int $except_task = 0): ?string
 {
     $q = $conn->prepare('SELECT vehicle_type, plate_number FROM vehicles WHERE vehicle_id = ? FOR UPDATE');
     $q->bind_param('i', $vehicle_id);
@@ -2105,11 +2098,11 @@ function welfareVehicleProblem(mysqli $conn, int $vehicle_id, string $date, int 
     $q->close();
     if (!$v) { return 'Choose a vehicle.'; }
     if (!in_array($v['vehicle_type'], WELFARE_VEHICLE_TYPES, true)) { return 'Only a car or a van can be used for welfare duty (' . $v['plate_number'] . ').'; }
-    $why = vehicleUnavailableReason($conn, $vehicle_id, $date . ' 00:00:00', date('Y-m-d H:i:s', strtotime($date . ' +1 day')), 0, $except_roster);
+    $why = vehicleUnavailableReason($conn, $vehicle_id, $date . ' 00:00:00', date('Y-m-d H:i:s', strtotime($date . ' +1 day')), 0, $except_task);
     return $why === null ? null : $v['plate_number'] . ' ' . vehicleUnavailableText($why) . ' on ' . date('d M', strtotime($date)) . '.';
 }
 
-/** UC006: creates the schedule of a week. $vehicles = [date => vehicle_id] for every day from today onward. Status Waiting for Driver. */
+/** UC006: creates the schedule of a week (a WelfareDuty with 1..7 tasks). $vehicles = [date => vehicle_id] for every day from today onward. Status Waiting for Driver. */
 function createWelfareWeek(mysqli $conn, string $monday, array $vehicles): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
@@ -2119,20 +2112,28 @@ function createWelfareWeek(mysqli $conn, string $monday, array $vehicles): array
     $days = [];
     for ($i = 0; $i < 7; $i++) { $d = date('Y-m-d', strtotime("$monday +$i days")); if ($d >= $today) { $days[] = $d; } }
     foreach ($days as $d) { if ((int)($vehicles[$d] ?? 0) <= 0) { return $fail('Choose a vehicle for ' . date('D d M', strtotime($d)) . '.'); } }
+    $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
     $conn->begin_transaction();
     try {
-        $q = $conn->prepare('SELECT COUNT(*) FROM welfare_roster WHERE duty_date BETWEEN ? AND ? FOR UPDATE');
-        $end = date('Y-m-d', strtotime($monday . ' +6 days'));
-        $q->bind_param('ss', $monday, $end);
+        $q = $conn->prepare('SELECT COUNT(*) FROM welfare_duties WHERE week_start_date = ? FOR UPDATE');
+        $q->bind_param('s', $monday);
         $q->execute();
         $exists = (int)$q->get_result()->fetch_row()[0];
         $q->close();
         if ($exists > 0) { $conn->rollback(); return $fail('A welfare duty schedule already exists for that week.'); }       // 2.1
+        $q = $conn->prepare("INSERT INTO welfare_duties (week_start_date, status, created_by) VALUES (?, 'waiting', ?)");
+        $q->bind_param('si', $monday, $by);
+        $q->execute();
+        $duty = (int)$q->insert_id;
+        $q->close();
         foreach ($days as $d) {
             if (($why = welfareVehicleProblem($conn, (int)$vehicles[$d], $d)) !== null) { $conn->rollback(); return $fail($why); }   // 3.1
-            $ins = $conn->prepare("INSERT INTO welfare_roster (duty_date, vehicle_id, status) VALUES (?, ?, 'waiting')");
+            $ins = $conn->prepare("INSERT INTO tasks (task_source, duty_id, task_type, vehicle_id, start_dt, end_dt, description, status, created_by)
+                                   VALUES ('welfare', ?, 'welfare', ?, ?, ?, 'Welfare duty (24 hours)', 'waiting', ?)");
             $vid = (int)$vehicles[$d];
-            $ins->bind_param('si', $d, $vid);
+            $s = $d . ' 00:00:00';
+            $e = date('Y-m-d H:i:s', strtotime($d . ' +1 day'));
+            $ins->bind_param('iissi', $duty, $vid, $s, $e, $by);
             $ins->execute();
             $ins->close();
         }
@@ -2147,21 +2148,17 @@ function createWelfareWeek(mysqli $conn, string $monday, array $vehicles): array
 }
 
 /** UC006 A2: changes the vehicle of one day; the assigned driver (if any) is told. */
-function updateWelfareVehicle(mysqli $conn, int $roster_id, int $vehicle_id): array
+function updateWelfareVehicle(mysqli $conn, int $task_id, int $vehicle_id): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
     $conn->begin_transaction();
     try {
-        $q = $conn->prepare('SELECT * FROM welfare_roster WHERE roster_id = ? FOR UPDATE');
-        $q->bind_param('i', $roster_id);
-        $q->execute();
-        $w = $q->get_result()->fetch_assoc();
-        $q->close();
+        $w = welfareDay($conn, $task_id, true);
         if (!$w || $w['duty_date'] < date('Y-m-d')) { $conn->rollback(); return $fail('Only a duty day from today onward can be changed.'); }
         if ((int)$w['vehicle_id'] === $vehicle_id) { $conn->rollback(); return $fail('That vehicle is already set for the day.'); }
-        if (($why = welfareVehicleProblem($conn, $vehicle_id, $w['duty_date'], $roster_id)) !== null) { $conn->rollback(); return $fail($why); }
-        $u = $conn->prepare('UPDATE welfare_roster SET vehicle_id = ? WHERE roster_id = ?');
-        $u->bind_param('ii', $vehicle_id, $roster_id);
+        if (($why = welfareVehicleProblem($conn, $vehicle_id, $w['duty_date'], $task_id)) !== null) { $conn->rollback(); return $fail($why); }
+        $u = $conn->prepare('UPDATE tasks SET vehicle_id = ? WHERE task_id = ?');
+        $u->bind_param('ii', $vehicle_id, $task_id);
         $u->execute();
         $u->close();
         auditLog($conn, 'welfare_update', null, "Welfare duty {$w['duty_date']}: vehicle changed to #$vehicle_id.");
@@ -2177,18 +2174,15 @@ function updateWelfareVehicle(mysqli $conn, int $roster_id, int $vehicle_id): ar
 }
 
 /** UC006 A3: deletes one duty day (the vehicle is released); the assigned driver, if any, is told. */
-function deleteWelfareDay(mysqli $conn, int $roster_id): array
+function deleteWelfareDay(mysqli $conn, int $task_id): array
 {
-    $q = $conn->prepare('SELECT * FROM welfare_roster WHERE roster_id = ?');
-    $q->bind_param('i', $roster_id);
-    $q->execute();
-    $w = $q->get_result()->fetch_assoc();
-    $q->close();
+    $w = welfareDay($conn, $task_id);
     if (!$w || $w['duty_date'] < date('Y-m-d')) { return ['ok' => false, 'message' => 'Only a duty day from today onward can be deleted.']; }
-    $d = $conn->prepare('DELETE FROM welfare_roster WHERE roster_id = ?');
-    $d->bind_param('i', $roster_id);
+    $d = $conn->prepare("DELETE FROM tasks WHERE task_id = ? AND task_source = 'welfare'");
+    $d->bind_param('i', $task_id);
     $d->execute();
     $d->close();
+    if ($w['duty_id']) { syncWelfareDutyStatus($conn, (int)$w['duty_id']); }
     auditLog($conn, 'welfare_delete', null, "Welfare duty {$w['duty_date']} deleted.");
     if ($w['driver_id'] && ($u = userIdOfDriver($conn, (int)$w['driver_id']))) {
         notifyUsers($conn, [$u], 'Your welfare duty on ' . date('d M Y', strtotime($w['duty_date'])) . ' was deleted.', 'driver/schedules.php');
@@ -2210,6 +2204,17 @@ function welfareDayRecommendation(mysqli $conn, array $day): array
     return recommendDrivers($conn, ['start' => $day['duty_date'] . ' 00:00:00', 'end' => date('Y-m-d H:i:s', strtotime($day['duty_date'] . ' +1 day')), 'licence' => $licence]);
 }
 
+/** The WelfareDuty (week) of a Monday, or null. */
+function welfareDutyOfWeek(mysqli $conn, string $monday): ?array
+{
+    $q = $conn->prepare('SELECT * FROM welfare_duties WHERE week_start_date = ?');
+    $q->bind_param('s', $monday);
+    $q->execute();
+    $r = $q->get_result()->fetch_assoc();
+    $q->close();
+    return $r ?: null;
+}
+
 /** UC007 step 3: saves the driver of every day of a Waiting for Driver week ($drivers = [date => driver_id]) -> Driver Assigned, Head of Admin told. */
 function assignWelfareWeek(mysqli $conn, string $monday, array $drivers): array
 {
@@ -2224,15 +2229,17 @@ function assignWelfareWeek(mysqli $conn, string $monday, array $drivers): array
             return $fail(date('D d M', strtotime($date)) . ': that driver is not available.');
         }
     }
+    $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
     $conn->begin_transaction();
     try {
         foreach ($open as $date => $r) {
-            $u = $conn->prepare("UPDATE welfare_roster SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE roster_id = ? AND status = 'waiting'");
-            $did = (int)$drivers[$date]; $rid = (int)$r['roster_id'];
-            $u->bind_param('ii', $did, $rid);
+            $u = $conn->prepare("UPDATE tasks SET driver_id = ?, status = 'assigned', assigned_by = ?, assigned_at = NOW(), reject_reason = NULL WHERE task_id = ? AND status = 'waiting'");
+            $did = (int)$drivers[$date]; $tid = (int)$r['task_id'];
+            $u->bind_param('iii', $did, $by, $tid);
             $u->execute();
             $u->close();
         }
+        foreach (array_unique(array_filter(array_map(fn($r) => (int)$r['duty_id'], $open))) as $duty) { syncWelfareDutyStatus($conn, $duty); }
         auditLog($conn, 'welfare_assign', null, "Welfare duty week $monday: drivers assigned.");
         $conn->commit();
     } catch (Throwable $e) {
@@ -2247,14 +2254,18 @@ function assignWelfareWeek(mysqli $conn, string $monday, array $drivers): array
 function approveWelfareWeek(mysqli $conn, string $monday, int $by): array
 {
     $to = date('Y-m-d', strtotime($monday . ' +6 days'));
-    $pending = [];
-    foreach (welfareWeekRows($conn, $monday) as $date => $r) { if ($r['status'] === 'assigned' && $r['driver_id']) { $pending[$date] = (int)$r['driver_id']; } }      // only the days approved now are announced
-    $u = $conn->prepare("UPDATE welfare_roster SET status = 'active', approved_by = ?, approved_at = NOW() WHERE status = 'assigned' AND driver_id IS NOT NULL AND duty_date BETWEEN ? AND ?");
+    $pending = []; $ids = []; $duties = [];
+    foreach (welfareWeekRows($conn, $monday) as $date => $r) {
+        if ($r['status'] === 'assigned' && $r['driver_id']) { $pending[$date] = (int)$r['driver_id']; $ids[] = (int)$r['task_id']; $duties[(int)$r['duty_id']] = true; }      // only the days approved now are announced
+    }
+    $u = $conn->prepare("UPDATE tasks SET status = 'approved', approved_by = ?, approved_at = NOW() WHERE task_source = 'welfare' AND status = 'assigned' AND driver_id IS NOT NULL AND task_date BETWEEN ? AND ?");
     $u->bind_param('iss', $by, $monday, $to);
     $u->execute();
     $n = $u->affected_rows;
     $u->close();
     if ($n < 1) { return ['ok' => false, 'message' => 'That schedule is not waiting for approval.']; }
+    foreach (array_keys($duties) as $duty) { if ($duty) { syncWelfareDutyStatus($conn, $duty); } }
+    settleDriverReplacements($conn, $ids, 'approved');
     auditLog($conn, 'welfare_approve', null, "Welfare duty week $monday approved.");
     $per = [];
     foreach ($pending as $date => $did) { $per[$did][] = date('D d M', strtotime($date)); }
@@ -2271,12 +2282,17 @@ function rejectWelfareWeek(mysqli $conn, string $monday, string $reason): array
     $reason = mb_substr(trim($reason), 0, 255);
     if (mb_strlen($reason) < 3) { return ['ok' => false, 'message' => 'Please give a reason for rejecting the assignment.']; }
     $to = date('Y-m-d', strtotime($monday . ' +6 days'));
-    $u = $conn->prepare("UPDATE welfare_roster SET status = 'waiting', driver_id = NULL, reject_reason = ? WHERE status = 'assigned' AND duty_date BETWEEN ? AND ?");
-    $u->bind_param('sss', $reason, $monday, $to);
+    $ids = []; $duties = [];
+    foreach (welfareWeekRows($conn, $monday) as $r) { if ($r['status'] === 'assigned') { $ids[] = (int)$r['task_id']; $duties[(int)$r['duty_id']] = true; } }
+    $by = (int)($_SESSION['user_id'] ?? 0) ?: null;
+    $u = $conn->prepare("UPDATE tasks SET status = 'waiting', driver_id = NULL, reject_reason = ?, rejected_by = ?, rejected_at = NOW() WHERE task_source = 'welfare' AND status = 'assigned' AND task_date BETWEEN ? AND ?");
+    $u->bind_param('siss', $reason, $by, $monday, $to);
     $u->execute();
     $n = $u->affected_rows;
     $u->close();
     if ($n < 1) { return ['ok' => false, 'message' => 'That schedule is not waiting for approval.']; }
+    foreach (array_keys($duties) as $duty) { if ($duty) { syncWelfareDutyStatus($conn, $duty); } }
+    settleDriverReplacements($conn, $ids, 'rejected');
     auditLog($conn, 'welfare_reject', null, "Welfare duty week $monday assignment rejected: $reason");
     notifyUsers($conn, assistantUserIds($conn), 'The driver assignment of the welfare duty of the week of ' . date('d M Y', strtotime($monday)) . ' was rejected. Reason: ' . $reason, 'admin/welfare.php');
     return ['ok' => true, 'message' => 'Assignment rejected. The week is Waiting for Driver again.'];
@@ -2288,7 +2304,7 @@ function rejectWelfareWeek(mysqli $conn, string $monday, string $reason): array
 // ------------------------------------------------------------
 
 /**
- * Moves one booking from $old to $new vehicle. $kind: 'request' (request_id), 'internal' (task_id), 'welfare' (roster_id).
+ * Moves one booking from $old to $new vehicle. $kind: 'request' (request_id), 'internal' or 'welfare' (task_id).
  * The new vehicle must be free for the whole period, of the requested type (requests) or a car / van (welfare), have enough seats and be one
  * that the assigned driver(s) may drive. The people involved are told.
  * @return array{ok:bool, message:string}
@@ -2317,11 +2333,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
     };
 
     if ($kind === 'welfare') {
-        $q = $conn->prepare('SELECT driver_id FROM welfare_roster WHERE roster_id = ?');
-        $q->bind_param('i', $id);
-        $q->execute();
-        $w = $q->get_result()->fetch_assoc();
-        $q->close();
+        $w = welfareDay($conn, $id);
         if (!$w) { return $fail('The duty day was not found.'); }
         if (($m = $licOk([(int)$w['driver_id']])) !== null) { return $fail($m); }
         return updateWelfareVehicle($conn, $id, $new);
@@ -2335,7 +2347,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
         $q->get_result();
         $q->close();
         if ($kind === 'internal') {
-            $q = $conn->prepare("SELECT * FROM internal_tasks WHERE task_id = ? AND vehicle_id = ? AND status IN ('waiting', 'assigned', 'active') FOR UPDATE");
+            $q = $conn->prepare("SELECT * FROM tasks WHERE task_id = ? AND task_source = 'internal' AND vehicle_id = ? AND status IN ('waiting', 'assigned', 'approved') FOR UPDATE");
             $q->bind_param('ii', $id, $old);
             $q->execute();
             $t = $q->get_result()->fetch_assoc();
@@ -2343,7 +2355,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
             if (!$t || strtotime($t['end_dt']) <= time()) { $conn->rollback(); return $fail('That task is not an upcoming booking of this vehicle.'); }
             if (($m = $licOk([(int)$t['driver_id']])) !== null) { $conn->rollback(); return $fail($m); }
             if (($why = vehicleUnavailableReason($conn, $new, $t['start_dt'], $t['end_dt'])) !== null) { $conn->rollback(); return $fail($nv['plate_number'] . ' ' . vehicleUnavailableText($why) . ' at that time.'); }
-            $u = $conn->prepare('UPDATE internal_tasks SET vehicle_id = ? WHERE task_id = ?');
+            $u = $conn->prepare('UPDATE tasks SET vehicle_id = ? WHERE task_id = ?');
             $u->bind_param('ii', $new, $id);
             $u->execute();
             $u->close();
@@ -2368,7 +2380,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
         $q->execute();
         $locks = $q->get_result()->fetch_all(MYSQLI_ASSOC);
         $q->close();
-        $q = $conn->prepare("SELECT DISTINCT driver_id FROM schedules WHERE request_id = ? AND vehicle_id = ? AND status <> 'cancelled' AND driver_id IS NOT NULL");
+        $q = $conn->prepare("SELECT DISTINCT driver_id FROM tasks WHERE task_source = 'request' AND request_id = ? AND vehicle_id = ? AND status <> 'cancelled' AND driver_id IS NOT NULL");
         $q->bind_param('ii', $id, $old);
         $q->execute();
         $driverIds = array_map('intval', array_column($q->get_result()->fetch_all(MYSQLI_ASSOC), 'driver_id'));
@@ -2379,7 +2391,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
             if (($why = vehicleUnavailableReason($conn, $new, $l['start_dt'], $l['end_dt'], $id)) !== null) { $conn->rollback(); return $fail($nv['plate_number'] . ' ' . vehicleUnavailableText($why) . ' in that period.'); }
         }
         foreach (['UPDATE vehicle_locks SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?', 'UPDATE vehicle_requests SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?',
-                  'UPDATE schedules SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?', 'UPDATE vehicle_reservations SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?'] as $sql) {
+                  "UPDATE tasks SET vehicle_id = ? WHERE task_source = 'request' AND request_id = ? AND vehicle_id = ?", 'UPDATE vehicle_reservations SET vehicle_id = ? WHERE request_id = ? AND vehicle_id = ?'] as $sql) {
             $u = $conn->prepare($sql);
             $u->bind_param('iii', $new, $id, $old);
             $u->execute();
@@ -2403,7 +2415,7 @@ function reassignBookingVehicle(mysqli $conn, string $kind, int $id, int $old, i
 // unavailable); a reason is required; the replacement is recorded; the task goes back to Driver Assigned so the Head of Admin approves (UC026).
 // ------------------------------------------------------------
 
-/** @param string $kind 'internal' (task_id) or 'welfare' (roster_id) @return array{ok:bool, message:string} */
+/** @param string $kind 'internal' or 'welfare' ($id = tasks.task_id) @return array{ok:bool, message:string} */
 function replaceNonRequestDriver(mysqli $conn, string $kind, int $id, int $new_driver, string $reason): array
 {
     $fail = fn(string $m) => ['ok' => false, 'message' => $m];
@@ -2411,13 +2423,9 @@ function replaceNonRequestDriver(mysqli $conn, string $kind, int $id, int $new_d
     if (mb_strlen($reason) < 3) { return $fail('Please give a reason for replacing the driver.'); }
     $conn->begin_transaction();
     try {
-        if ($kind === 'internal') {
-            $q = $conn->prepare("SELECT * FROM internal_tasks WHERE task_id = ? AND status = 'active' FOR UPDATE");
-            $start = 'start_dt'; $end = 'end_dt';
-        } else {
-            $q = $conn->prepare("SELECT w.*, TIMESTAMP(w.duty_date) AS start_dt, DATE_ADD(TIMESTAMP(w.duty_date), INTERVAL 1 DAY) AS end_dt FROM welfare_roster w WHERE w.roster_id = ? AND w.status = 'active' FOR UPDATE");
-        }
-        $q->bind_param('i', $id);
+        $source = $kind === 'internal' ? 'internal' : 'welfare';
+        $q = $conn->prepare("SELECT t.*, t.task_date AS duty_date FROM tasks t WHERE t.task_id = ? AND t.task_source = ? AND t.status = 'approved' FOR UPDATE");
+        $q->bind_param('is', $id, $source);
         $q->execute();
         $t = $q->get_result()->fetch_assoc();
         $q->close();
@@ -2440,17 +2448,15 @@ function replaceNonRequestDriver(mysqli $conn, string $kind, int $id, int $new_d
             $v->close();
         }
         if (!driverHoldsLicence($nd['license_class'], $need)) { $conn->rollback(); return $fail($nd['name'] . ' does not hold licence class ' . $need . '.'); }
-        $clash = $kind === 'internal' ? driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], 0, $id) : driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt']);
+        $clash = driverClashReason($conn, $new_driver, $t['start_dt'], $t['end_dt'], $id);
         if (($why = driverUnavailableReason($conn, $new_driver, $t['start_dt'], $t['end_dt']) ?? $clash) !== null) { $conn->rollback(); return $fail($nd['name'] . ' cannot be chosen: ' . $why . '.'); }
-        $table = $kind === 'internal' ? 'internal_tasks' : 'welfare_roster';
-        $key = $kind === 'internal' ? 'task_id' : 'roster_id';
-        $u = $conn->prepare("UPDATE $table SET driver_id = ?, status = 'assigned', reject_reason = NULL WHERE $key = ?");
-        $u->bind_param('ii', $new_driver, $id);
+        $by = (int)($_SESSION['user_id'] ?? 0);
+        $u = $conn->prepare("UPDATE tasks SET driver_id = ?, status = 'assigned', assigned_by = ?, assigned_at = NOW(), reject_reason = NULL WHERE task_id = ?");
+        $u->bind_param('iii', $new_driver, $by, $id);
         $u->execute();
         $u->close();
-        $by = (int)($_SESSION['user_id'] ?? 0);
-        $col = $kind === 'internal' ? 'internal_task_id' : 'welfare_id';
-        $log = $conn->prepare("INSERT INTO driver_replacements ($col, previous_driver_id, new_driver_id, reason, changed_by) VALUES (?, ?, ?, ?, ?)");
+        if ($kind === 'welfare' && $t['duty_id']) { syncWelfareDutyStatus($conn, (int)$t['duty_id']); }
+        $log = $conn->prepare("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, replaced_by, status) VALUES (?, ?, ?, ?, ?, 'pending')");
         $log->bind_param('iiisi', $id, $old, $new_driver, $reason, $by);
         $log->execute();
         $log->close();

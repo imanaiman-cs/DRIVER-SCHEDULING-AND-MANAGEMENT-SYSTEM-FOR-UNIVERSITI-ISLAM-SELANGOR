@@ -28,9 +28,9 @@ rid = cnt("SELECT request_id FROM vehicle_requests WHERE status='assigned' LIMIT
 pg = hd.get('admin/approve_assignments.php'); ok('Approve Assignments shows each driver\'s task count this month', 'Tasks this month' in pg.text and not errs(pg))
 # UC008 A1: deactivating a driver lists internal tasks / welfare days with a Replace driver link
 ad.post('admin/internal_tasks.php', {'action': 'save', 'task_id': '0', 'task_type': 'refuel', 'task_date': D(9), 'start_time': '09:00', 'end_time': '10:00', 'vehicle_id': '5', 'location': 'P', 'description': 'x'})
-tid = cnt("SELECT MAX(task_id) FROM internal_tasks")
-sql("DELETE FROM schedules WHERE driver_id=12"); sql("DELETE FROM welfare_roster WHERE driver_id=12"); sql("DELETE FROM internal_tasks WHERE driver_id=12")
-sql("UPDATE internal_tasks SET driver_id=12, status='active' WHERE task_id=%d" % tid)
+tid = cnt("SELECT MAX(task_id) FROM tasks WHERE task_source='internal'")
+sql("DELETE FROM tasks WHERE driver_id=12")
+sql("UPDATE tasks SET driver_id=12, status='approved' WHERE task_id=%d" % tid)
 j = ad.post('ajax/deactivate_driver.php', {'id': 12}).json()
 ok('the blocked list gives a Replace driver link for an approved internal task', not j['success'] and any((i.get('replace_url') or '').startswith('replace_task_driver.php?internal=%d' % tid) for i in j['items']))
 pg = ad.get('admin/view_driver.php', id=12); ok('the driver page lists it with the Replace driver link', 'replace_task_driver.php?internal=%d' % tid in pg.text)

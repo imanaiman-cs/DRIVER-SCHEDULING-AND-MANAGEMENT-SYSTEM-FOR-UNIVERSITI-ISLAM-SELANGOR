@@ -61,9 +61,9 @@ j = a.post('ajax/deactivate_driver.php', {'id': did, 'reactivate': 1}).json(); o
 sql(f"UPDATE drivers SET status='active' WHERE driver_id={did}")
 j = a.post('ajax/deactivate_driver.php', {'id': 9999}).json(); ok('deactivate unknown driver -> error', not j['success'])
 # welfare duty blocks
-sql(f"INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('{D(20)}', {did})")
+sql(f"INSERT INTO tasks (task_source, task_type, driver_id, start_dt, end_dt, status) VALUES ('welfare', 'welfare', {did}, '{D(20)} 00:00:00', '{D(21)} 00:00:00', 'approved')")
 j = a.post('ajax/deactivate_driver.php', {'id': did}).json(); ok('welfare duty blocks deactivation', not j['success'] and any('Welfare' in i['text'] for i in j['items']))
-sql(f"DELETE FROM welfare_roster WHERE driver_id={did}")
+sql(f"DELETE FROM tasks WHERE task_source='welfare' AND driver_id={did}")
 ok('drivers filter by status', 'Hairul' in a.get('admin/drivers.php?status=inactive').text and 'Faizal' not in a.get('admin/drivers.php?status=inactive').text)
 ok('drivers filter by licence GDL', 'Roslan' not in a.get('admin/drivers.php?licence=GDL').text and 'Norhaslinda' in a.get('admin/drivers.php?licence=GDL').text)
 

@@ -37,7 +37,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
                     <?= dashStepper($next['status']) ?>
                     <div class="small mt-3 dash-next">
                         <?php if ($next['status'] === 'processed'):
-                            $a = dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]); ?>
+                            $a = dashRows($conn, "SELECT DISTINCT d.name FROM tasks s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]); ?>
                             <i class="fas fa-user-tie me-1 text-success"></i>Driver: <strong><?= dh(implode(', ', array_column($a, 'name')) ?: '-') ?></strong>
                             &middot; <i class="fas fa-car-side me-1 text-success"></i><strong><?= dh($next['plate_number'] ?? '-') ?></strong>
                         <?php else: ?>

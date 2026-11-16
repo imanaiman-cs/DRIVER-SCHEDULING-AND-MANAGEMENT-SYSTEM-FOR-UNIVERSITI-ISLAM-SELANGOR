@@ -106,7 +106,7 @@ ok('the Assistant cannot make the Head of Admin Inactive', sql("SELECT is_active
 r = act(ad, 'deactivate', sql("SELECT user_id FROM users WHERE username='drv002'"))
 ok('3.1: a driver with upcoming tasks is not deactivated (the tasks are listed, replace the driver first)', sql("SELECT is_active FROM users WHERE username='drv002'") == '1' and sql("SELECT status FROM drivers WHERE driver_id=2") == 'active')
 did9 = sql("SELECT user_id FROM users WHERE username='drv012'")
-sql("DELETE FROM schedules WHERE driver_id=12"); sql("DELETE FROM internal_tasks WHERE driver_id=12"); sql("DELETE FROM welfare_roster WHERE driver_id=12")
+sql("DELETE FROM tasks WHERE driver_id=12")
 act(ad, 'deactivate', did9)
 ok('a driver without upcoming tasks is deactivated with the driver record and cannot sign in', sql("SELECT is_active FROM users WHERE username='drv012'") == '0' and sql("SELECT status FROM drivers WHERE driver_id=12") == 'inactive' and C().login('drv012', 'driver012@uis').status_code == 200)
 # Head of Department with pending requests (UC001.4 3.2)

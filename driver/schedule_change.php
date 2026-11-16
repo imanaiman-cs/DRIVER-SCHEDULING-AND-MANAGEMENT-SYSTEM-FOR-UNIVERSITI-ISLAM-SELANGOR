@@ -18,8 +18,8 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 // the driver's coming Confirmed trip tasks (for "Withdraw from Task" and to show the tasks on the chosen dates)
 $stmt = $conn->prepare(
-    "SELECT s.schedule_id, s.leg_no, s.start_dt, s.end_dt, vr.destination FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-      WHERE s.driver_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt > NOW() ORDER BY s.start_dt LIMIT 100"
+    "SELECT s.task_id, s.trip_type, s.start_dt, s.end_dt, vr.destination FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+      WHERE s.task_source = 'request' AND s.driver_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt > NOW() ORDER BY s.start_dt LIMIT 100"
 );
 $stmt->bind_param('i', $driver_id);
 $stmt->execute();
@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'cance
     header('Location: schedule_change.php');
     exit();
 }
+// the form field keeps its old name "schedule_id"; its value is now a tasks.task_id
 $f = ['type' => in_array($_GET['type'] ?? '', ['withdraw'], true) ? 'withdraw' : 'unavailable', 'from' => '', 'to' => '', 'schedule_id' => (string)(int)($_GET['schedule_id'] ?? 0), 'reason' => ''];
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -74,8 +75,8 @@ adminPageStart('Schedule Change');
             <label class="form-label fw-semibold">Task *</label>
             <?php if (!$myTasks): ?><div class="text-muted small">You have no confirmed task to withdraw from.</div><?php endif; ?>
             <?php foreach ($myTasks as $t): ?>
-                <div class="form-check"><input class="form-check-input" type="radio" name="schedule_id" id="s<?= (int)$t['schedule_id'] ?>" value="<?= (int)$t['schedule_id'] ?>" <?= (string)$t['schedule_id'] === $f['schedule_id'] ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="s<?= (int)$t['schedule_id'] ?>"><?= $h(date('D, d M Y H:i', strtotime($t['start_dt']))) ?> &middot; <?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?></label></div>
+                <div class="form-check"><input class="form-check-input" type="radio" name="schedule_id" id="s<?= (int)$t['task_id'] ?>" value="<?= (int)$t['task_id'] ?>" <?= (string)$t['task_id'] === $f['schedule_id'] ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="s<?= (int)$t['task_id'] ?>"><?= $h(date('D, d M Y H:i', strtotime($t['start_dt']))) ?> &middot; <?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?></label></div>
             <?php endforeach; ?>
         </div>
         <div class="mb-3"><label class="form-label fw-semibold" for="reason">Reason *</label><textarea class="form-control" id="reason" name="reason" rows="3" maxlength="500"><?= $h($f['reason']) ?></textarea></div>
@@ -97,7 +98,7 @@ adminPageStart('Schedule Change');
     <?php endforeach; ?>
 <script>
 (function () {
-    var tasks = <?= json_encode(array_map(fn($t) => ['d' => substr($t['start_dt'], 0, 10), 'when' => date('D, d M H:i', strtotime($t['start_dt'])), 'leg' => (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound', 'dest' => $t['destination']], $myTasks)) ?>;
+    var tasks = <?= json_encode(array_map(fn($t) => ['d' => substr($t['start_dt'], 0, 10), 'when' => date('D, d M H:i', strtotime($t['start_dt'])), 'leg' => $t['trip_type'] === 'return' ? 'Return' : 'Outbound', 'dest' => $t['destination']], $myTasks)) ?>;
     var un = document.getElementById('boxUn'), wd = document.getElementById('boxWd');
     function sync() { var w = document.getElementById('t_wd').checked; wd.style.display = w ? '' : 'none'; un.style.display = w ? 'none' : ''; }
     function show() {

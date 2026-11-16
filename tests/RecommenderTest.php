@@ -55,10 +55,10 @@ return [
     },
     'weekend tasks are counted by driverMonthCounts (Saturday and Sunday only)' => function () {
         global $conn;
-        $conn->query("DELETE FROM schedules WHERE driver_id = 1 AND trip_date LIKE '2034-07-%'");
+        $conn->query("DELETE FROM tasks WHERE driver_id = 1 AND task_date LIKE '2034-07-%'");
         // 2034-07-01 is a Saturday, 2034-07-02 a Sunday, 2034-07-03 a Monday
         foreach (['2034-07-01', '2034-07-02', '2034-07-03'] as $d) {
-            $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (1, 5, '$d', '09:00', '11:00', 'T', 'approved')");
+            $conn->query("INSERT INTO tasks (driver_id, vehicle_id, task_source, task_type, start_dt, end_dt, location, status) VALUES (1, 5, 'request', 'trip', '$d 09:00', '$d 11:00', 'T', 'approved')");
         }
         $c = driverMonthCounts($conn, '2034-07')[1];
         assert_same(3, (int)$c['tasks']); assert_same(2, (int)$c['weekend']);
@@ -78,8 +78,8 @@ return [
     'a driver with an overlapping task or internal task is removed, an adjacent one is not' => function () {
         global $conn;
         $ids = fn($rec) => array_map('intval', array_column($rec['ranked'], 'driver_id'));
-        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (1, 5, '2034-07-05', '09:00', '11:00', 'T', 'approved')");
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES ('refuel', '2034-07-05', '10:00', '12:00', 6, 2, 'x', 'active')");
+        $conn->query("INSERT INTO tasks (driver_id, vehicle_id, task_source, task_type, start_dt, end_dt, location, status) VALUES (1, 5, 'request', 'trip', '2034-07-05 09:00', '2034-07-05 11:00', 'T', 'approved')");
+        $conn->query("INSERT INTO tasks (task_type, task_source, start_dt, end_dt, vehicle_id, driver_id, description, status) VALUES ('refuel', 'internal', '2034-07-05 10:00', '2034-07-05 12:00', 6, 2, 'x', 'approved')");
         $t = ['start' => '2034-07-05 10:00:00', 'end' => '2034-07-05 12:00:00', 'licence' => 'D'];
         $rec = recommendDrivers($conn, $t);
         assert_true(!in_array(1, $ids($rec), true), 'overlapping request task');
@@ -90,14 +90,14 @@ return [
     'month counts: request tasks + internal tasks + welfare days; cancelled ones never count; outside hours counted apart' => function () {
         global $conn;
         $base = driverMonthCounts($conn, '2034-08')[9] ?? ['tasks' => 0, 'outside' => 0, 'welfare' => 0];
-        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES
-            (9, 5, '2034-08-02', '09:00', '11:00', 'T', 'approved'),
-            (9, 5, '2034-08-03', '06:30', '08:30', 'early', 'approved'),
-            (9, 5, '2034-08-05', '10:00', '12:00', 'saturday', 'approved'),
-            (9, 5, '2034-08-07', '10:00', '12:00', 'cancelled', 'cancelled')");
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES
-            ('refuel', '2034-08-08', '18:00', '19:00', 6, 9, 'late', 'active'), ('refuel', '2034-08-09', '10:00', '11:00', 6, 9, 'gone', 'cancelled')");
-        $conn->query("INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('2034-08-12', 9)");
+        $conn->query("INSERT INTO tasks (driver_id, vehicle_id, task_source, task_type, start_dt, end_dt, location, status) VALUES
+            (9, 5, 'request', 'trip', '2034-08-02 09:00', '2034-08-02 11:00', 'T', 'approved'),
+            (9, 5, 'request', 'trip', '2034-08-03 06:30', '2034-08-03 08:30', 'early', 'approved'),
+            (9, 5, 'request', 'trip', '2034-08-05 10:00', '2034-08-05 12:00', 'saturday', 'approved'),
+            (9, 5, 'request', 'trip', '2034-08-07 10:00', '2034-08-07 12:00', 'cancelled', 'cancelled')");
+        $conn->query("INSERT INTO tasks (task_type, task_source, start_dt, end_dt, vehicle_id, driver_id, description, status) VALUES
+            ('refuel', 'internal', '2034-08-08 18:00', '2034-08-08 19:00', 6, 9, 'late', 'approved'), ('refuel', 'internal', '2034-08-09 10:00', '2034-08-09 11:00', 6, 9, 'gone', 'cancelled')");
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, start_dt, end_dt, status) VALUES ('welfare', 'welfare', 9, '2034-08-12 00:00:00', '2034-08-13 00:00:00', 'approved')");
         $c = driverMonthCounts($conn, '2034-08')[9];
         assert_same($base['tasks'] + 5, $c['tasks'], '3 request tasks + 1 internal task + 1 welfare day');
         assert_same($base['outside'] + 3, $c['outside'], 'early start, Saturday and the evening internal task; welfare is not outside hours');
@@ -105,7 +105,7 @@ return [
     },
     'welfare duty on the trip date is FLAGGED, not removed' => function () {
         global $conn;
-        $conn->query("INSERT INTO welfare_roster (duty_date, driver_id) VALUES ('2034-09-12', 3) ON DUPLICATE KEY UPDATE driver_id = 3");
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, start_dt, end_dt, status) VALUES ('welfare', 'welfare', 3, '2034-09-12 00:00:00', '2034-09-13 00:00:00', 'approved') ON DUPLICATE KEY UPDATE driver_id = 3");
         $rec = recommendDrivers($conn, ['start' => '2034-09-12 09:00:00', 'end' => '2034-09-12 11:00:00', 'licence' => 'D']);
         $d3 = array_values(array_filter($rec['ranked'], fn($x) => (int)$x['driver_id'] === 3));
         assert_true(count($d3) === 1 && $d3[0]['welfare'] === true, 'driver 3 is listed with the welfare flag');

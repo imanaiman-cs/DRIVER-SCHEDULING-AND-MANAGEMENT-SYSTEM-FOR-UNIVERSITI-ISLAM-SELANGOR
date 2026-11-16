@@ -55,7 +55,7 @@ ok('HoD cannot open the admin dashboard', S['hos002'].get('admin/dashboard.php')
 r = S['drv001'].get('driver/dashboard.php')
 ok('driver dashboard is view only (no form, no button to change)', '<form' not in r.text.split('<main')[1])
 shown_dest = set(re.findall(r'</span>([^<]+)</span>\s*<span class="text-muted">', r.text))
-hidden = [x[0] for x in rows("SELECT vr.destination FROM schedules s JOIN vehicle_requests vr ON vr.request_id=s.request_id JOIN drivers d ON d.driver_id=s.driver_id JOIN users u ON u.driver_id=d.driver_id WHERE u.username='drv001' AND vr.status NOT IN ('processed','completed')")]
+hidden = [x[0] for x in rows("SELECT vr.destination FROM tasks s JOIN vehicle_requests vr ON vr.request_id=s.request_id JOIN drivers d ON d.driver_id=s.driver_id JOIN users u ON u.driver_id=d.driver_id WHERE u.username='drv001' AND vr.status NOT IN ('processed','completed')")]
 ok('driver sees no task of a request that is not Confirmed', not any(h and h in r.text for h in hidden))
 
 # non-admin roles cannot reach the others' dashboards

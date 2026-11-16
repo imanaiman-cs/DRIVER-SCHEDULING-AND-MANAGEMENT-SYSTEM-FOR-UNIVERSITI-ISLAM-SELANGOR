@@ -15,12 +15,12 @@ const INTERNAL_TASK_TYPES = [
 /** The words people see for the status of an internal task (SRS 10 Nov: Waiting for Driver, Driver Assigned, Approved; a deleted task is kept). */
 function internalTaskStatusLabel(string $status): string
 {
-    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'active' => 'Approved', 'cancelled' => 'Deleted'][$status] ?? ucfirst($status);
+    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'approved' => 'Approved', 'active' => 'Approved', 'cancelled' => 'Deleted'][$status] ?? ucfirst($status);
 }
 
 function welfareStatusLabel(string $status): string
 {
-    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'active' => 'Approved'][$status] ?? ucfirst($status);
+    return ['waiting' => 'Waiting for Driver', 'assigned' => 'Driver Assigned', 'approved' => 'Approved', 'active' => 'Approved'][$status] ?? ucfirst($status);
 }
 
 function internalTaskTypeLabel(string $type): string
@@ -28,10 +28,12 @@ function internalTaskTypeLabel(string $type): string
     return INTERNAL_TASK_TYPES[$type] ?? ['workshop_send' => 'Workshop', 'workshop_collect' => 'Workshop', 'document_delivery' => 'Document delivery', 'road_tax' => 'Road tax / inspection', 'other' => 'Other'][$type] ?? ucfirst(str_replace('_', ' ', $type));
 }
 
-/** "Outbound trip" / "Return trip" from schedules.leg_no. */
-function legLabel(?int $leg_no): string
+/** "Outbound trip" / "Return trip" from tasks.trip_type ('outbound' / 'return'; the old leg numbers 1 / 2 are still understood). */
+function legLabel(int|string|null $trip_type): string
 {
-    return $leg_no === 1 ? 'Outbound trip' : ($leg_no === 2 ? 'Return trip' : 'Trip');
+    if ($trip_type === 'outbound' || $trip_type === 1) { return 'Outbound trip'; }
+    if ($trip_type === 'return' || $trip_type === 2) { return 'Return trip'; }
+    return 'Trip';
 }
 
 /** "BHW 8595 (Toyota Hiace)" - plate plus model. */
@@ -69,8 +71,8 @@ function bindDynamic(mysqli_stmt $stmt, array $params): void
 
 /**
  * Everything on the schedule between two moments, for the calendar (UC028).
- *   trips    : request tasks (schedules that are not cancelled), with the request status
- *   internal : active internal tasks
+ *   trips    : request tasks (tasks.task_source = 'request', not cancelled), with the request status
+ *   internal : internal tasks that are waiting, assigned or approved
  *   welfare  : welfare duty days (24 hours)
  * Overlap rule: start < range_end AND end > range_start.
  *
@@ -82,15 +84,14 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     $iso = fn(string $dt) => date('Y-m-d\TH:i:s', strtotime($dt));
 
     // request tasks
-    $sql = "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, s.driver_id, s.vehicle_id, s.purpose AS s_purpose,
-                   s.destination AS s_dest, s.officer_name AS s_officer, s.officer_phone AS s_phone, s.waiting_place AS s_wait,
-                   vr.status AS req_status, vr.destination, vr.destination_address, vr.purpose, vr.officer_name, vr.officer_phone,
+    $sql = "SELECT s.task_id, s.request_id, s.trip_type, s.start_dt, s.end_dt, s.driver_id, s.vehicle_id, s.description AS s_purpose,
+                   s.location AS s_dest, vr.status AS req_status, vr.destination, vr.destination_address, vr.purpose, vr.officer_name, vr.officer_phone,
                    vr.waiting_place, vr.waiting_address, d.name AS driver_name, v.plate_number, v.brand, v.model, s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name
-              FROM schedules s
+              FROM tasks s
               LEFT JOIN vehicle_requests vr ON vr.request_id = s.request_id
               LEFT JOIN drivers d ON d.driver_id = s.driver_id
               LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-             WHERE s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?";
+             WHERE s.task_source = 'request' AND s.status <> 'cancelled' AND s.start_dt < ? AND s.end_dt > ?";
     $p = [$to_dt, $from_dt];
     if ($driver_id)  { $sql .= ' AND s.driver_id = ?';  $p[] = $driver_id; }
     if ($vehicle_id) { $sql .= ' AND s.vehicle_id = ? AND s.vendor_name IS NULL'; $p[] = $vehicle_id; }
@@ -99,9 +100,9 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     bindDynamic($stmt, $p);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $leg = $r['leg_no'] !== null ? (int)$r['leg_no'] : null;
+        $leg = $r['trip_type'];
         $out[] = [
-            'id' => 't' . $r['schedule_id'], 'kind' => 'trip', 'title' => legLabel($leg) . ($r['request_id'] ? ' - request #' . $r['request_id'] : ''),
+            'id' => 't' . $r['task_id'], 'kind' => 'trip', 'title' => legLabel($leg) . ($r['request_id'] ? ' - request #' . $r['request_id'] : ''),
             'start' => $iso($r['start_dt']), 'end' => $iso($r['end_dt']),
             'driver_id' => (int)$r['driver_id'], 'driver' => $r['vendor_name'] !== null ? 'Vendor bus: ' . $r['vendor_name'] : ($r['driver_name'] ?? ''), 'vehicle_id' => $r['vendor_name'] !== null ? 0 : (int)$r['vehicle_id'],
             'vehicle' => $r['vendor_name'] !== null ? 'Vendor bus ' . $r['vendor_bus_plate'] : vehicleText($r['plate_number'], $r['brand'], $r['model']),
@@ -110,19 +111,19 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
             'leg' => legLabel($leg),
             'destination' => destinationText($r['destination'] ?? $r['s_dest'], $r['destination_address']),
             'purpose' => (string)($r['purpose'] ?? $r['s_purpose'] ?? ''),
-            'officer' => trim((string)($r['officer_name'] ?? $r['s_officer'] ?? '') . ' ' . (($r['officer_phone'] ?? $r['s_phone']) ? '(' . ($r['officer_phone'] ?? $r['s_phone']) . ')' : '')),
-            'waiting' => waitingText($r['waiting_place'] ?? $r['s_wait'], $r['waiting_address']),
-            'schedule_id' => (int)$r['schedule_id'],
+            'officer' => trim((string)($r['officer_name'] ?? '') . ' ' . ($r['officer_phone'] ? '(' . $r['officer_phone'] . ')' : '')),
+            'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
+            'schedule_id' => (int)$r['task_id'], 'task_id' => (int)$r['task_id'],
         ];
     }
     $stmt->close();
 
     // internal tasks
     $sql = "SELECT t.*, d.name AS driver_name, v.plate_number, v.brand, v.model
-              FROM internal_tasks t
+              FROM tasks t
               LEFT JOIN drivers d ON d.driver_id = t.driver_id
               LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-             WHERE t.status IN ('waiting', 'assigned', 'active') AND t.start_dt < ? AND t.end_dt > ?";
+             WHERE t.task_source = 'internal' AND t.status IN ('waiting', 'assigned', 'approved') AND t.start_dt < ? AND t.end_dt > ?";
     $p = [$to_dt, $from_dt];
     if ($driver_id)  { $sql .= ' AND t.driver_id = ?';  $p[] = $driver_id; }
     if ($vehicle_id) { $sql .= ' AND t.vehicle_id = ?'; $p[] = $vehicle_id; }
@@ -137,15 +138,18 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
             'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'] ?? '(not assigned yet)', 'vehicle_id' => (int)$r['vehicle_id'],
             'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
             'request_id' => null, 'request_status' => internalTaskStatusLabel($r['status']), 'leg' => 'Internal task',
-            'destination' => (string)$r['location'], 'purpose' => (string)$r['description'], 'officer' => '', 'waiting' => '',
+            'destination' => (string)$r['location'], 'purpose' => (string)$r['description'], 'officer' => '', 'waiting' => '', 'task_id' => (int)$r['task_id'],
         ];
     }
     $stmt->close();
 
     // welfare duty: one 24-hour day with a vehicle (reserved) and, once assigned, a driver
     $f = substr($from_dt, 0, 10); $t = substr($to_dt, 0, 10);
-    $sql = 'SELECT w.*, d.name AS driver_name, v.plate_number, v.brand, v.model FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id
-             WHERE w.duty_date >= ? AND w.duty_date <= ?';
+    // the reason of the last driver replacement is shown as the details of the day (it was welfare_roster.replacement_reason)
+    $sql = "SELECT w.*, d.name AS driver_name, v.plate_number, v.brand, v.model,
+                   (SELECT dr.reason FROM driver_replacements dr WHERE dr.task_id = w.task_id AND dr.status <> 'rejected' ORDER BY dr.replacement_id DESC LIMIT 1) AS replacement_reason
+              FROM tasks w LEFT JOIN drivers d ON d.driver_id = w.driver_id LEFT JOIN vehicles v ON v.vehicle_id = w.vehicle_id
+             WHERE w.task_source = 'welfare' AND w.status <> 'cancelled' AND w.task_date >= ? AND w.task_date <= ?";
     $p = [$f, $t];
     if ($driver_id) { $sql .= ' AND w.driver_id = ?'; $p[] = $driver_id; }
     if ($vehicle_id) { $sql .= ' AND w.vehicle_id = ?'; $p[] = $vehicle_id; }
@@ -153,14 +157,14 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
     bindDynamic($stmt, $p);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $day = $r['duty_date'];
+        $day = $r['task_date'];
         if ($day . ' 00:00:00' >= $to_dt || date('Y-m-d H:i:s', strtotime("$day +1 day")) <= $from_dt) { continue; }
         $out[] = [
-            'id' => 'w' . $r['roster_id'], 'kind' => 'welfare', 'title' => 'Welfare duty',
+            'id' => 'w' . $r['task_id'], 'kind' => 'welfare', 'title' => 'Welfare duty',
             'start' => $day . 'T00:00:00', 'end' => date('Y-m-d', strtotime("$day +1 day")) . 'T00:00:00',
             'driver_id' => (int)$r['driver_id'], 'driver' => $r['driver_name'] ?? '(not assigned yet)', 'vehicle_id' => (int)$r['vehicle_id'], 'vehicle' => $r['vehicle_id'] ? vehicleText($r['plate_number'], $r['brand'], $r['model']) : '',
             'request_id' => null, 'request_status' => welfareStatusLabel($r['status']), 'leg' => 'Welfare duty (24 hours)',
-            'destination' => '', 'purpose' => (string)($r['replacement_reason'] ?? ''), 'officer' => '', 'waiting' => '',
+            'destination' => '', 'purpose' => (string)($r['replacement_reason'] ?? ''), 'officer' => '', 'waiting' => '', 'task_id' => (int)$r['task_id'],
         ];
     }
     $stmt->close();
@@ -172,21 +176,20 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
  * One task row for the printable task sheet, with the full destination and waiting place.
  * $driver_id > 0: only a task of that driver, and only when its request is Confirmed/Completed.
  */
-function taskSheetRow(mysqli $conn, int $schedule_id, int $driver_id = 0): ?array
+function taskSheetRow(mysqli $conn, int $task_id, int $driver_id = 0): ?array
 {
-    $sql = "SELECT s.schedule_id, s.trip_date, s.start_time, s.end_time,
-                   COALESCE(vr.destination, s.destination) AS destination, vr.destination_address,
-                   COALESCE(vr.purpose, s.purpose) AS purpose, COALESCE(vr.officer_name, s.officer_name) AS officer_name,
-                   COALESCE(vr.officer_phone, s.officer_phone) AS officer_phone,
-                   COALESCE(vr.waiting_place, s.waiting_place) AS waiting_place, vr.waiting_address,
+    $sql = "SELECT s.task_id, s.task_id AS schedule_id, s.task_date AS trip_date, TIME(s.start_dt) AS start_time, TIME(s.end_dt) AS end_time,
+                   COALESCE(vr.destination, s.location) AS destination, vr.destination_address,
+                   COALESCE(vr.purpose, s.description) AS purpose, vr.officer_name, vr.officer_phone,
+                   vr.waiting_place, vr.waiting_address,
                    d.name AS driver_name, v.plate_number AS vehicle_plate, v.brand AS vehicle_brand,
                    v.model AS vehicle_model, v.vehicle_type AS vehicle_type
-              FROM schedules s
+              FROM tasks s
               LEFT JOIN vehicle_requests vr ON vr.request_id = s.request_id
               LEFT JOIN drivers d ON d.driver_id = s.driver_id
               LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-             WHERE s.schedule_id = ?";
-    $p = [$schedule_id];
+             WHERE s.task_id = ? AND s.task_source = 'request'";
+    $p = [$task_id];
     if ($driver_id > 0) { $sql .= ' AND s.driver_id = ? AND s.status <> \'cancelled\' AND ' . SCHEDULE_CONFIRMED_ONLY_SQL; $p[] = $driver_id; }
     $stmt = $conn->prepare($sql);
     bindDynamic($stmt, $p);

@@ -69,8 +69,8 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT s.schedule_id, s.request_id, s.start_dt, s.end_dt, s.destination FROM schedules s
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() AND s.start_dt <= ? ORDER BY s.start_dt"
+        "SELECT s.task_id, s.request_id, s.start_dt, s.end_dt, s.location AS destination FROM tasks s
+          WHERE s.task_source = 'request' AND s.vehicle_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() AND s.start_dt <= ? ORDER BY s.start_dt"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
@@ -83,8 +83,8 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM internal_tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id
-          WHERE t.vehicle_id = ? AND t.status IN ('waiting', 'assigned', 'active') AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
+        "SELECT t.task_id, t.task_type, t.start_dt, t.end_dt, d.name FROM tasks t LEFT JOIN drivers d ON d.driver_id = t.driver_id
+          WHERE t.task_source = 'internal' AND t.vehicle_id = ? AND t.status IN ('waiting', 'assigned', 'approved') AND t.end_dt > NOW() AND t.start_dt <= ? ORDER BY t.start_dt"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
@@ -96,13 +96,13 @@ function vehicleUpcomingTrips(mysqli $conn, int $vehicle_id, ?string $until = nu
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT w.roster_id, w.duty_date, d.name FROM welfare_roster w LEFT JOIN drivers d ON d.driver_id = w.driver_id
-          WHERE w.vehicle_id = ? AND w.duty_date >= CURDATE() AND TIMESTAMP(w.duty_date) <= ? ORDER BY w.duty_date"
+        "SELECT w.task_id, w.task_date AS duty_date, d.name FROM tasks w LEFT JOIN drivers d ON d.driver_id = w.driver_id
+          WHERE w.task_source = 'welfare' AND w.status <> 'cancelled' AND w.vehicle_id = ? AND w.task_date >= CURDATE() AND w.start_dt <= ? ORDER BY w.task_date"
     );
     $stmt->bind_param('is', $vehicle_id, $limit);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'welfare', 'id' => (int)$r['roster_id'], 'request_id' => null,
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['task_id'], 'request_id' => null,
             'text' => 'Welfare duty (24 hours): ' . date('D d M Y', strtotime($r['duty_date'])) . ', driver ' . ($r['name'] ?? 'not assigned yet'), 'url' => 'welfare.php'];
     }
     $stmt->close();
@@ -176,26 +176,27 @@ function fuelGaugeHtml(?string $level): string
 
 /**
  * Upcoming work of a driver (UC004): request tasks, internal tasks, welfare duty days.
+ * Item key 'schedule_id' holds the task id of a request task (the replace_driver.php?schedule_id= parameter); 'id' the task id of an internal / welfare task.
  * @return array<int, array{kind:string, request_id:?int, schedule_id:?int, text:string}>
  */
 function driverUpcomingTasks(mysqli $conn, int $driver_id): array
 {
     $items = [];
     $stmt = $conn->prepare(
-        "SELECT s.schedule_id, s.request_id, s.leg_no, s.start_dt, s.end_dt, s.destination, v.plate_number
-           FROM schedules s LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-          WHERE s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() ORDER BY s.start_dt"
+        "SELECT s.task_id, s.request_id, s.trip_type, s.start_dt, s.end_dt, s.location AS destination, v.plate_number
+           FROM tasks s LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+          WHERE s.task_source = 'request' AND s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt > NOW() ORDER BY s.start_dt"
     );
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'request', 'request_id' => $r['request_id'] !== null ? (int)$r['request_id'] : null, 'schedule_id' => (int)$r['schedule_id'],
-            'text' => ($r['request_id'] ? 'Request #' . $r['request_id'] . ' ' : 'Trip ') . ((int)$r['leg_no'] === 2 ? 'return task' : 'task') . ': '
+        $items[] = ['kind' => 'request', 'request_id' => $r['request_id'] !== null ? (int)$r['request_id'] : null, 'schedule_id' => (int)$r['task_id'],
+            'text' => ($r['request_id'] ? 'Request #' . $r['request_id'] . ' ' : 'Trip ') . ($r['trip_type'] === 'return' ? 'return task' : 'task') . ': '
                     . fleetWhen($r['start_dt'], $r['end_dt']) . ' to ' . $r['destination'] . ($r['plate_number'] ? ' (' . $r['plate_number'] . ')' : '')];
     }
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT task_id, status, task_type, start_dt, end_dt FROM internal_tasks WHERE driver_id = ? AND status IN ('assigned', 'active') AND end_dt > NOW() ORDER BY start_dt");
+    $stmt = $conn->prepare("SELECT task_id, status, task_type, start_dt, end_dt FROM tasks WHERE task_source = 'internal' AND driver_id = ? AND status IN ('assigned', 'approved') AND end_dt > NOW() ORDER BY start_dt");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
@@ -204,15 +205,15 @@ function driverUpcomingTasks(mysqli $conn, int $driver_id): array
     }
     $stmt->close();
 
-    $stmt = $conn->prepare('SELECT roster_id, status, duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date > CURDATE() ORDER BY duty_date');
+    $stmt = $conn->prepare("SELECT task_id, status, task_date AS duty_date FROM tasks WHERE task_source = 'welfare' AND driver_id = ? AND status IN ('assigned', 'approved') AND task_date > CURDATE() ORDER BY task_date");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-        $items[] = ['kind' => 'welfare', 'id' => (int)$r['roster_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
+        $items[] = ['kind' => 'welfare', 'id' => (int)$r['task_id'], 'task_status' => $r['status'], 'request_id' => null, 'schedule_id' => null, 'text' => 'Welfare duty on ' . date('d M Y', strtotime($r['duty_date']))];
     }
     $stmt->close();
     // today's welfare duty (24 h) also still counts
-    $stmt = $conn->prepare('SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status IN (\'assigned\', \'active\') AND duty_date = CURDATE()');
+    $stmt = $conn->prepare("SELECT task_date FROM tasks WHERE task_source = 'welfare' AND driver_id = ? AND status IN ('assigned', 'approved') AND task_date = CURDATE()");
     $stmt->bind_param('i', $driver_id);
     $stmt->execute();
     if ($stmt->get_result()->fetch_row()) {
@@ -275,7 +276,7 @@ function fleetItemsList(array $items, bool $withReplaceLink = false, int $vehicl
         $html .= '<li>' . htmlspecialchars($i['text']);
         if ($withReplaceLink && !empty($i['schedule_id']) && $i['kind'] === 'request') {
             $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="fw-semibold">Replace driver</a>';
-        } elseif ($withReplaceLink && in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'active') {     // UC008 A1
+        } elseif ($withReplaceLink && in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'approved') {     // UC008 A1
             $html .= ' <a href="replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] . '" class="fw-semibold">Replace driver</a>';
         }
         $html .= '</li>';

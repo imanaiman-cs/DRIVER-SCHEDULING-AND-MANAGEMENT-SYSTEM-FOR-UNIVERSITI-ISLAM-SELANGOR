@@ -11,7 +11,7 @@ No framework, no new top-level layers. Prepared statements for every query; CSRF
 | Status keys | Stay `pending approved assigned processed rejected cancelled lapsed completed`. Labels (`requestStatusLabel()`): Pending, Approved, **Driver Assigned**, **Confirmed** (= `processed`), Rejected, Cancelled, Lapsed, Completed. |
 | Departure / return | `trip_date`+`start_time` = departure, `return_date`+`end_time` = return. Generated columns `depart_at`, `return_at`. |
 | One vehicle per request | The requested vehicle is `vehicle_requests.vehicle_id`. |
-| Two tasks | Outbound task (`schedules.leg_no = 1`) starts at departure, return task (`leg_no = 2`) starts at the return time. Each lasts `TASK_DURATION_HOURS` (setting, default 2 h), never longer than the gap to the return, never past midnight. This is what drivers are scheduled for; the vehicle stays locked for the whole departure→return period. |
+| Two tasks | Outbound task (`tasks.trip_type = 'outbound'`) starts at departure, return task (`trip_type = 'return'`) starts at the return time. Each lasts `TASK_DURATION_HOURS` (setting, default 2 h), never longer than the gap to the return, never past midnight. This is what drivers are scheduled for; the vehicle stays locked for the whole departure→return period. |
 | Vehicle lock | Table `vehicle_locks (request_id, vehicle_id, start_dt, end_dt)`. Overlap rule everywhere: `start < other_end AND end > other_start`. Atomic: transaction + `SELECT … FOR UPDATE` on the vehicle row (`lockVehiclePeriod()`). A separate return vehicle gets a lock for the return window only. |
 | Welfare duty vs. recommender | SRS item "remove drivers with overlapping welfare duty" and item "flag drivers on welfare duty" contradict (duty is 24 h, so every trip that day overlaps). Implemented as: **flag, do not remove**; welfare days count as tasks in the workload. |
 | "Outside working hours" | A request task / internal task that starts before `WORK_START` (08:00), ends after `WORK_END` (17:30), or falls on Sat/Sun. Welfare days are not counted as outside hours. |
@@ -50,7 +50,7 @@ No framework, no new top-level layers. Prepared statements for every query; CSRF
 * Comments: `addRequestComment($conn,$req,$text)`, `requestComments($conn,$id)`. Visibility: `requestForCurrentUser($conn,$id)`, `hodOwnsRequest()`.
 * Reminder (manual): `sendApprovalReminder($conn,$id)`.
 * Jobs: `runRequestJobs($conn)` (lapse, cancel unhandled, complete).
-* Driver visibility: `SCHEDULE_CONFIRMED_ONLY_SQL` (table alias `s` = schedules) — a driver sees a task only when its request is Confirmed/Completed.
+* Driver visibility: `SCHEDULE_CONFIRMED_ONLY_SQL` (table alias `s` = tasks of a request) — a driver sees a task only when its request is Confirmed/Completed.
 
 `includes/recommender.php`
 * `recommendDrivers($conn,['start'=>…,'end'=>…,'licence'=>'D|GDL|PSV','except_schedule'=>id])` → `ranked` (tasks, outside, welfare flag, score, rank), `excluded` (reason).

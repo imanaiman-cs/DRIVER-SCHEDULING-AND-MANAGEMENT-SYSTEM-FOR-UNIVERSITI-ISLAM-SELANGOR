@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // driver/task_report.php  -  UC024 Manage Assigned Task Report (driver): create, view, update the report of a task
-// Opened from a task in My Tasks: ?trip=<schedule_id> or ?internal=<task_id>. The report records the actual times, the end mileage, the fuel
+// Opened from a task in My Tasks: ?trip=, ?internal= or ?welfare=, each with a tasks.task_id (the task_source must match the kind). The report records the actual times, the end mileage, the fuel
 // level and the condition of the vehicle (a problem: type, description, photo, can it still be used) and updates the vehicle.
 // Only the driver of the task can open it. Create Report is available once the task has started. A report is never deleted.
 // ============================================================
@@ -14,7 +14,7 @@ requireDriver();
 $driver_id = (int)($_SESSION['driver_id'] ?? 0);
 $kind = isset($_REQUEST['internal']) ? 'internal' : (isset($_REQUEST['welfare']) ? 'welfare' : 'trip');
 $task_id = (int)($_REQUEST[$kind] ?? 0);
-$veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);
+$veh = driverTaskVehicle($conn, $driver_id, $kind, $task_id);   // also checks that the task's source matches the kind
 if (!$veh) {
     setFlash('warning', 'You can only report a task that is assigned to you.');
     header('Location: schedules.php');

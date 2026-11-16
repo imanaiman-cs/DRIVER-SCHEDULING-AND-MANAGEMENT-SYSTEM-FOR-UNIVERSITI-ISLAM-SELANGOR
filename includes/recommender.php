@@ -109,31 +109,21 @@ function normaliseLicenceList(array $classes): string
  * There is no override: a driver with a clash can never be chosen.
  */
 function driverClashReason(mysqli $conn, int $driver_id, string $start, string $end,
-                           int $except_schedule = 0, int $except_internal = 0): ?string
+                           int $except_task = 0, int $except_task_alt = 0): ?string
 {
     $stmt = $conn->prepare(
-        "SELECT start_dt, end_dt FROM schedules
-          WHERE driver_id = ? AND status <> 'cancelled' AND schedule_id <> ?
-            AND start_dt < ? AND end_dt > ? LIMIT 1"
+        "SELECT task_source, start_dt, end_dt FROM tasks
+          WHERE driver_id = ? AND task_id NOT IN (?, ?)
+            AND ((task_source = 'request' AND status <> 'cancelled') OR (task_source = 'internal' AND status IN ('assigned', 'approved')))
+            AND start_dt < ? AND end_dt > ? ORDER BY task_source = 'internal', start_dt LIMIT 1"
     );
-    $stmt->bind_param('iiss', $driver_id, $except_schedule, $end, $start);
+    $stmt->bind_param('iiiss', $driver_id, $except_task, $except_task_alt, $end, $start);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if ($row) {
-        return 'Already has a trip ' . date('d M H:i', strtotime($row['start_dt'])) . ' - ' . date('H:i', strtotime($row['end_dt']));
-    }
-    $stmt = $conn->prepare(
-        "SELECT start_dt, end_dt FROM internal_tasks
-          WHERE driver_id = ? AND status IN ('assigned', 'active') AND task_id <> ?
-            AND start_dt < ? AND end_dt > ? LIMIT 1"
-    );
-    $stmt->bind_param('iiss', $driver_id, $except_internal, $end, $start);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if ($row) {
-        return 'Has an internal task ' . date('d M H:i', strtotime($row['start_dt'])) . ' - ' . date('H:i', strtotime($row['end_dt']));
+        return ($row['task_source'] === 'internal' ? 'Has an internal task ' : 'Already has a trip ')
+             . date('d M H:i', strtotime($row['start_dt'])) . ' - ' . date('H:i', strtotime($row['end_dt']));
     }
     return null;
 }
@@ -162,16 +152,14 @@ function driverMonthCounts(mysqli $conn, string $month): array
     $to   = date('Y-m-t', strtotime($from));
     $stmt = $conn->prepare(
         "SELECT driver_id, COUNT(*) AS tasks, COALESCE(SUM(out_h), 0) AS outside, COALESCE(SUM(wk), 0) AS weekend, COALESCE(SUM(is_w), 0) AS welfare FROM (
-             SELECT driver_id, (DAYOFWEEK(trip_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(trip_date) IN (1, 7)) AS wk, 0 AS is_w
-               FROM schedules WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND trip_date BETWEEN ? AND ?
-             UNION ALL
-             SELECT driver_id, (DAYOFWEEK(task_date) IN (1, 7) OR start_time < ? OR end_time > ?) AS out_h, (DAYOFWEEK(task_date) IN (1, 7)) AS wk, 0 AS is_w
-               FROM internal_tasks WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND task_date BETWEEN ? AND ?
-             UNION ALL
-             SELECT driver_id, 0 AS out_h, 0 AS wk, 1 AS is_w FROM welfare_roster WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND duty_date BETWEEN ? AND ?
+             SELECT driver_id, IF(task_source = 'welfare', 0, DAYOFWEEK(task_date) IN (1, 7) OR TIME(start_dt) < ? OR TIME(end_dt) > ?) AS out_h,
+                    IF(task_source = 'welfare', 0, DAYOFWEEK(task_date) IN (1, 7)) AS wk, task_source = 'welfare' AS is_w
+               FROM tasks
+              WHERE driver_id IS NOT NULL AND task_date BETWEEN ? AND ?
+                AND ((task_source = 'request' AND status <> 'cancelled') OR (task_source IN ('internal', 'welfare') AND status IN ('assigned', 'approved', 'completed')))
          ) x GROUP BY driver_id"
     );
-    $stmt->bind_param('ssssssssss', $ws, $we, $from, $to, $ws, $we, $from, $to, $from, $to);
+    $stmt->bind_param('ssss', $ws, $we, $from, $to);
     $stmt->execute();
     $out = [];
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
@@ -185,7 +173,7 @@ function driverMonthCounts(mysqli $conn, string $month): array
 function welfareDriverIdsOn(mysqli $conn, string $date): array
 {
     $out = [];
-    $stmt = $conn->prepare("SELECT driver_id FROM welfare_roster WHERE driver_id IS NOT NULL AND status IN ('assigned', 'active') AND duty_date = ?");
+    $stmt = $conn->prepare("SELECT driver_id FROM tasks WHERE task_source = 'welfare' AND driver_id IS NOT NULL AND status IN ('assigned', 'approved') AND task_date = ?");
     $stmt->bind_param('s', $date);
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $out[(int)$r['driver_id']] = true; }
@@ -197,7 +185,7 @@ function welfareDriverIdsOn(mysqli $conn, string $date): array
  * UC018: recommends drivers for one task.
  *
  * @param array $task start (Y-m-d H:i:s), end, licence ('D'|'GDL'|'PSV'|null = any),
- *                    except_schedule (a task being replaced does not clash with itself)
+ *                    except_task (a task being replaced does not clash with itself)
  * @return array{ranked: array, excluded: array, weights: array}
  *   ranked   : driver_id, name, employee_id, phone, license_class, tasks, weekend, experience (years), welfare (flag), score, rank
  *   excluded : driver_id, name, reason
@@ -207,7 +195,7 @@ function recommendDrivers(mysqli $conn, array $task): array
     $start = $task['start'];
     $end   = $task['end'];
     $need  = $task['licence'] ?? null;
-    $except = (int)($task['except_schedule'] ?? 0);
+    $except = (int)($task['except_task'] ?? $task['except_schedule'] ?? 0);
     $w = ['tasks' => (float)getSetting($conn, 'W_TASKS'), 'weekend' => (float)getSetting($conn, 'W_WEEKEND'), 'experience' => (float)getSetting($conn, 'W_EXPERIENCE')];
     $sum = $w['tasks'] + $w['weekend'] + $w['experience'];
     if ($sum > 0 && abs($sum - 1.0) > 0.0001) { foreach ($w as $k => $x) { $w[$k] = $x / $sum; } }      // always on a 0-100 scale, whatever the weights are

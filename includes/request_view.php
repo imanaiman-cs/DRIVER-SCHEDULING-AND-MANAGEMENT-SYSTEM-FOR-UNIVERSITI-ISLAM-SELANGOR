@@ -220,10 +220,10 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
 
         <?php if ($showAssign): ?>
         <?php
-            $stmt = $conn->prepare("SELECT s.leg_no, s.trip_date, s.start_time, s.end_time, s.status, d.name AS driver, d.phone AS driver_phone, v.plate_number, v.model,
+            $stmt = $conn->prepare("SELECT s.trip_type, s.start_dt, s.end_dt, s.status, d.name AS driver, d.phone AS driver_phone, v.plate_number, v.model,
                                            s.vendor_name, s.vendor_bus_plate, s.vendor_driver_name
-                                      FROM schedules s LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-                                     WHERE s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.leg_no");
+                                      FROM tasks s LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+                                     WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled' ORDER BY s.trip_type");
             $stmt->bind_param('i', $rid);
             $stmt->execute();
             $tasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -236,8 +236,8 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
                 <tbody>
                 <?php foreach ($tasks as $t): ?>
                     <tr>
-                        <td class="text-nowrap"><?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?></td>
-                        <td class="text-nowrap"><?= date('d M H:i', strtotime($t['trip_date'] . ' ' . $t['start_time'])) ?>-<?= substr($t['end_time'], 0, 5) ?></td>
+                        <td class="text-nowrap"><?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?></td>
+                        <td class="text-nowrap"><?= date('d M H:i', strtotime($t['start_dt'])) ?>-<?= date('H:i', strtotime($t['end_dt'])) ?></td>
                         <?php if ($t['vendor_name'] !== null): ?>
                         <td><?= reqH($t['vendor_driver_name'] ?: $t['vendor_name']) ?> <span class="badge bg-warning text-dark">Vendor bus</span></td>
                         <td><?= reqH($t['vendor_bus_plate']) ?> <span class="text-muted"><?= reqH($t['vendor_name']) ?></span></td>

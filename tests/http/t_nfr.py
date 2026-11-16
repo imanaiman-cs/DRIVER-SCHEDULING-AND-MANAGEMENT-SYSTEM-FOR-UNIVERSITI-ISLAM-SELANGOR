@@ -67,6 +67,6 @@ t2=timed(lambda: a.get('ajax/get_available_drivers.php',start=dd+' 09:00:00',end
 t3=timed(lambda: a.get('admin/vehicles.php')); t4=timed(lambda: a.get('admin/calendar.php')); t5=timed(lambda: a.get('admin/reports.php',type='tasks',month=today().strftime('%Y-%m')))
 ok('vehicle list responds within 3 s (%.2f s)'%t1, t1<3); ok('driver recommendation within 3 s (%.2f s)'%t2, t2<3); ok('vehicles page within 3 s (%.2f s)'%t3, t3<3)
 ok('calendar page within 3 s (%.2f s)'%t4, t4<3); ok('report within 3 s (%.2f s)'%t5, t5<3)
-ix=sql("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='%s' AND index_name IN ('idx_sched_driver_time','idx_sched_vehicle_time','idx_vr_period','idx_lock_vehicle','idx_itask_time')"%DB)
+ix=sql("SELECT COUNT(DISTINCT table_name, index_name) FROM information_schema.statistics WHERE table_schema='%s' AND index_name IN ('idx_task_driver_time','idx_task_vehicle_time','idx_vr_period','idx_lock_vehicle','idx_task_source')"%DB)
 ok('indexes on the date/time columns exist', int(ix)>=5)
 print(summary())

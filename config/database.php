@@ -603,18 +603,18 @@ function formatTime(?string $time): string
 }
 
 /**
- * Returns a Bootstrap badge class string for a schedule status value.
+ * Returns a Bootstrap badge class string for a task status value (table `tasks`).
  *
- * @param string $status One of: pending, approved, in_progress, completed, cancelled
+ * @param string $status One of: waiting, assigned, approved, completed, cancelled
  *
  * @return string Bootstrap badge colour class, e.g. 'bg-warning'
  */
 function statusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'     => 'bg-warning text-dark',
+        'waiting'     => 'bg-warning text-dark',
+        'assigned'    => 'bg-info text-dark',
         'approved'    => 'bg-primary',
-        'in_progress' => 'bg-info text-dark',
         'completed'   => 'bg-success',
         'cancelled'   => 'bg-secondary',
         default       => 'bg-dark',
@@ -669,8 +669,8 @@ function vehicleDisplayStatus(mysqli $conn, int $vehicle_id, string $stored_stat
 {
     if ($stored_status !== 'available') { return $stored_status; }
     $stmt = $conn->prepare(
-        "SELECT 1 FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
+        "SELECT 1 FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+          WHERE s.task_source = 'request' AND s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
     );
     $stmt->bind_param('i', $vehicle_id);
     $stmt->execute();

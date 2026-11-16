@@ -18,8 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $res = decideScheduleChange($conn, $cid, (string)($_POST['decision'] ?? ''), (string)($_POST['comment'] ?? ''));
     setFlash($res['ok'] ? 'success' : 'danger', $res['ok'] ? "Request #$cid " . ($_POST['decision'] === 'approve' ? 'approved. The driver and the Administrative Assistant were told.' : 'rejected. The driver was told. The task stays with the driver.') : $res['message']);
     if ($res['ok'] && !empty($res['tasks'])) {                      // UC030 A2: Replace Driver for each affected task
-        $_SESSION['replace_queue'] = ['change_id' => $cid, 'tasks' => array_map(fn($t) => (int)$t['schedule_id'], $res['tasks'])];
-        header('Location: replace_driver.php?schedule_id=' . (int)$res['tasks'][0]['schedule_id'] . '&change_id=' . $cid);
+        $_SESSION['replace_queue'] = ['change_id' => $cid, 'tasks' => array_map(fn($t) => (int)$t['task_id'], $res['tasks'])];
+        header('Location: replace_driver.php?schedule_id=' . (int)$res['tasks'][0]['task_id'] . '&change_id=' . $cid);
         exit();
     }
     header('Location: schedule_changes.php');
@@ -43,7 +43,7 @@ adminPageStart('Schedule Changes');
         <div class="small text-muted mb-2">Reason: <?= $h($r['reason']) ?> &middot; sent <?= $h(date('d M Y H:i', strtotime($r['created_at']))) ?></div>
         <div class="small fw-semibold">The driver's tasks <?= $r['change_type'] === 'withdraw' ? 'for this request' : 'on these dates' ?></div>
         <?php if (!$tasks): ?><div class="small text-muted mb-2">None.</div><?php endif; ?>
-        <?php foreach ($tasks as $t): ?><div class="small">&bull; <?= $h(date('D, d M H:i', strtotime($t['start_dt']))) ?> &middot; <?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?> (request #<?= (int)$t['request_id'] ?>, <?= $h(requestStatusLabel($t['req_status'])) ?>)</div><?php endforeach; ?>
+        <?php foreach ($tasks as $t): ?><div class="small">&bull; <?= $h(date('D, d M H:i', strtotime($t['start_dt']))) ?> &middot; <?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?> (request #<?= (int)$t['request_id'] ?>, <?= $h(requestStatusLabel($t['req_status'])) ?>)</div><?php endforeach; ?>
         <form method="post" class="row g-2 mt-2">
             <input type="hidden" name="change_id" value="<?= $cid ?>">
             <div class="col-12 col-md-7"><input class="form-control form-control-sm" name="comment" maxlength="500" placeholder="Comment (required when rejecting)"></div>

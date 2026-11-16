@@ -88,10 +88,10 @@ adminPageStart('Vehicle Requests');
             <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
 
             <?php if ($r['status'] === 'processed'): ?>
-                <?php $ts = $conn->prepare("SELECT schedule_id, leg_no, start_dt FROM schedules WHERE request_id = ? AND status <> 'cancelled' AND vendor_name IS NULL AND start_dt > NOW() ORDER BY leg_no");
+                <?php $ts = $conn->prepare("SELECT task_id, trip_type, start_dt FROM tasks WHERE task_source = 'request' AND request_id = ? AND status <> 'cancelled' AND vendor_name IS NULL AND start_dt > NOW() ORDER BY trip_type, task_id");
                       $ts->bind_param('i', $rid); $ts->execute(); $tasks = $ts->get_result()->fetch_all(MYSQLI_ASSOC); $ts->close(); ?>
                 <?php foreach ($tasks as $t): ?>
-                    <a class="btn btn-sm btn-outline-primary mt-2 me-1" href="replace_driver.php?schedule_id=<?= (int)$t['schedule_id'] ?>"><i class="fas fa-right-left me-1"></i>Replace driver (<?= (int)$t['leg_no'] === 2 ? 'return' : 'outbound' ?>)</a>
+                    <a class="btn btn-sm btn-outline-primary mt-2 me-1" href="replace_driver.php?schedule_id=<?= (int)$t['task_id'] ?>"><i class="fas fa-right-left me-1"></i>Replace driver (<?= $t['trip_type'] === 'return' ? 'return' : 'outbound' ?>)</a>
                 <?php endforeach; ?>
             <?php endif; ?>
             <?php if ($r['status'] === 'assigned' && isHeadAdmin()): ?>

@@ -16,15 +16,15 @@ $weekEnd = date('Y-m-d 23:59:59', strtotime('+7 days'));
 $tasks = [];
 if ($driverId > 0) {
     foreach (dashRows($conn,
-        "SELECT s.start_dt, s.end_dt, s.leg_no, COALESCE(vr.destination, s.destination) AS destination, v.plate_number
-           FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-          WHERE s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt >= ? AND s.start_dt <= ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL,
+        "SELECT s.start_dt, s.end_dt, s.trip_type, COALESCE(vr.destination, s.location) AS destination, v.plate_number
+           FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
+          WHERE s.task_source = 'request' AND s.driver_id = ? AND s.status <> 'cancelled' AND s.end_dt >= ? AND s.start_dt <= ? AND " . SCHEDULE_CONFIRMED_ONLY_SQL,
         'iss', [$driverId, $now, $weekEnd]) as $r) {
-        $tasks[] = ['start' => $r['start_dt'], 'end' => $r['end_dt'], 'kind' => (int)$r['leg_no'] === 2 ? 'Return' : 'Outbound', 'title' => $r['destination'], 'vehicle' => (string)$r['plate_number']];
+        $tasks[] = ['start' => $r['start_dt'], 'end' => $r['end_dt'], 'kind' => $r['trip_type'] === 'return' ? 'Return' : 'Outbound', 'title' => $r['destination'], 'vehicle' => (string)$r['plate_number']];
     }
     foreach (dashRows($conn,
-        "SELECT t.task_type, t.start_dt, t.end_dt, t.location, v.plate_number FROM internal_tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-          WHERE t.driver_id = ? AND t.status = 'active' AND t.end_dt >= ? AND t.start_dt <= ?", 'iss', [$driverId, $now, $weekEnd]) as $r) {
+        "SELECT t.task_type, t.start_dt, t.end_dt, t.location, v.plate_number FROM tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+          WHERE t.task_source = 'internal' AND t.driver_id = ? AND t.status = 'approved' AND t.end_dt >= ? AND t.start_dt <= ?", 'iss', [$driverId, $now, $weekEnd]) as $r) {
         $tasks[] = ['start' => $r['start_dt'], 'end' => $r['end_dt'], 'kind' => 'Internal', 'title' => ucfirst(str_replace('_', ' ', $r['task_type'])) . ($r['location'] ? ' - ' . $r['location'] : ''), 'vehicle' => (string)$r['plate_number']];
     }
 }
@@ -33,7 +33,7 @@ $todayKey = date('Y-m-d');
 $todayTasks = array_filter($tasks, fn($t) => substr($t['start'], 0, 10) === $todayKey);
 $laterTasks = array_filter($tasks, fn($t) => substr($t['start'], 0, 10) > $todayKey);
 $month = driverMonthCounts($conn, date('Y-m'))[$driverId] ?? ['tasks' => 0, 'outside' => 0, 'weekend' => 0, 'welfare' => 0];
-$welfareDays = $driverId > 0 ? dashRows($conn, "SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND status = 'active' AND duty_date >= ? ORDER BY duty_date LIMIT 5", 'is', [$driverId, $todayKey]) : [];
+$welfareDays = $driverId > 0 ? dashRows($conn, "SELECT task_date AS duty_date FROM tasks WHERE task_source = 'welfare' AND driver_id = ? AND status = 'approved' AND task_date >= ? ORDER BY task_date LIMIT 5", 'is', [$driverId, $todayKey]) : [];
 adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">

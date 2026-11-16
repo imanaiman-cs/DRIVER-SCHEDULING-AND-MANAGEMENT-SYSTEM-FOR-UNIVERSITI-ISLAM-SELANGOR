@@ -135,17 +135,17 @@ return [
     },
     'driver clash: tasks and internal tasks overlap, adjacent and cancelled ones do not' => function () {
         global $conn;
-        $conn->query("INSERT INTO schedules (driver_id, vehicle_id, trip_date, start_time, end_time, destination, status) VALUES (3, 5, '2034-06-01', '09:00', '11:00', 'T', 'approved')");
+        $conn->query("INSERT INTO tasks (driver_id, vehicle_id, task_source, task_type, start_dt, end_dt, location, status) VALUES (3, 5, 'request', 'trip', '2034-06-01 09:00', '2034-06-01 11:00', 'T', 'approved')");
         $sid = (int)$conn->insert_id;
         assert_true(driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00') !== null, 'overlap');
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 11:00:00', '2034-06-01 13:00:00'), 'adjacent');
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00', $sid), 'the task itself is excluded (replace driver)');
-        $conn->query("UPDATE schedules SET status = 'cancelled' WHERE schedule_id = $sid");
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE task_id = $sid");
         assert_same(null, driverClashReason($conn, 3, '2034-06-01 10:00:00', '2034-06-01 12:00:00'), 'cancelled task');
-        $conn->query("INSERT INTO internal_tasks (task_type, task_date, start_time, end_time, vehicle_id, driver_id, description, status) VALUES ('refuel', '2034-06-02', '14:00', '15:00', 5, 4, 'x', 'active')");
+        $conn->query("INSERT INTO tasks (task_type, task_source, start_dt, end_dt, vehicle_id, driver_id, description, status) VALUES ('refuel', 'internal', '2034-06-02 14:00', '2034-06-02 15:00', 5, 4, 'x', 'approved')");
         $tid = (int)$conn->insert_id;
         assert_true(driverClashReason($conn, 4, '2034-06-02 14:30:00', '2034-06-02 16:00:00') !== null, 'internal task overlaps');
-        $conn->query("UPDATE internal_tasks SET status = 'cancelled' WHERE task_id = $tid");
+        $conn->query("UPDATE tasks SET status = 'cancelled' WHERE task_id = $tid");
         assert_same(null, driverClashReason($conn, 4, '2034-06-02 14:30:00', '2034-06-02 16:00:00'), 'cancelled internal task');
     },
     'outside working hours: before 08:00, after 17:30 and weekends' => function () {
@@ -274,5 +274,54 @@ return [
         assert_same($before, (int)$conn->query('SELECT COUNT(*) FROM whatsapp_log')->fetch_row()[0], 'switched off: no row is written');
         assert_true(whatsappForRole('driver'), 'drivers get WhatsApp');
         foreach (['staff', 'supervisor', 'admin', 'head_admin', null] as $r) { assert_true(!whatsappForRole($r), ($r ?? 'null') . ' gets e-mail only'); }
+    },
+    'class diagram: one tasks table; a WelfareDuty week follows its days; a replacement waits for the Head of Admin' => function () {
+        global $conn;
+        // one Task class: request tasks, internal tasks and welfare days live in one table
+        $src = array_column($conn->query("SELECT DISTINCT task_source FROM tasks ORDER BY task_source")->fetch_all(), 0);
+        assert_same(['request', 'internal', 'welfare'], $src, 'the demo data has the three task sources');
+        // WelfareDuty: one row per week, status follows the days, a week with no day left is removed
+        $monday = '2034-10-02';
+        assert_same($monday, welfareWeekStart('2034-10-05'));
+        $conn->query("INSERT INTO welfare_duties (week_start_date, status) VALUES ('$monday', 'waiting')");
+        $duty = (int)$conn->insert_id;
+        $conn->query("INSERT INTO tasks (task_source, duty_id, task_type, vehicle_id, start_dt, end_dt, status) VALUES
+                      ('welfare', $duty, 'welfare', 5, '2034-10-02 00:00:00', '2034-10-03 00:00:00', 'waiting'),
+                      ('welfare', $duty, 'welfare', 6, '2034-10-03 00:00:00', '2034-10-04 00:00:00', 'approved')");
+        $st = fn() => (string)($conn->query("SELECT status FROM welfare_duties WHERE duty_id = $duty")->fetch_row()[0] ?? 'gone');
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('waiting', $st(), 'a day without a driver');
+        $conn->query("UPDATE tasks SET status = 'assigned', driver_id = 3 WHERE duty_id = $duty AND status = 'waiting'");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('assigned', $st(), 'a day waits for the Head of Admin');
+        $conn->query("UPDATE tasks SET status = 'approved' WHERE duty_id = $duty");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('approved', $st());
+        assert_same(2, count(welfareWeekRows($conn, $monday)), 'the week has its days (1..7)');
+        $dup = false;
+        try { $conn->query("INSERT INTO tasks (task_source, task_type, start_dt, end_dt) VALUES ('welfare', 'welfare', '2034-10-02 00:00:00', '2034-10-03 00:00:00')"); }
+        catch (mysqli_sql_exception $e) { $dup = true; }
+        assert_true($dup, 'only one welfare duty per day');
+        $conn->query("DELETE FROM tasks WHERE duty_id = $duty");
+        syncWelfareDutyStatus($conn, $duty);
+        assert_same('gone', $st(), 'a week without days is removed, so it can be created again');
+        // DriverReplacement.status: pending until the Head of Admin decides
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, vehicle_id, start_dt, end_dt, status) VALUES ('internal', 'refuel', 4, 5, '2034-10-09 09:00:00', '2034-10-09 10:00:00', 'assigned')");
+        $t1 = (int)$conn->insert_id;
+        $conn->query("INSERT INTO tasks (task_source, task_type, driver_id, vehicle_id, start_dt, end_dt, status) VALUES ('internal', 'refuel', 5, 5, '2034-10-10 09:00:00', '2034-10-10 10:00:00', 'assigned')");
+        $t2 = (int)$conn->insert_id;
+        $conn->query("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, status) VALUES ($t1, 2, 4, 'Sick', 'pending'), ($t2, 2, 5, 'Leave', 'pending')");
+        settleDriverReplacements($conn, [$t1], 'approved');
+        settleDriverReplacements($conn, [$t2], 'rejected');
+        $rs = $conn->query("SELECT task_id, status FROM driver_replacements WHERE task_id IN ($t1, $t2) ORDER BY task_id")->fetch_all();
+        assert_same([[(string)$t1, 'approved'], [(string)$t2, 'rejected']], $rs);
+        // a rejected request assignment: the tasks are cancelled and keep who rejected them, when and why
+        $_SESSION = ['user_id' => 7, 'role' => 'head_admin'];
+        $drivers = cancelRequestTasks($conn, 3, 'Use a more experienced driver');
+        $_SESSION = [];
+        sort($drivers);
+        assert_same([3, 5], $drivers, 'the drivers of request 3 are returned for the notice');
+        $t = $conn->query("SELECT COUNT(*), MIN(status), MIN(reject_reason), MIN(rejected_by), SUM(rejected_at IS NULL), SUM(driver_id IS NULL) FROM tasks WHERE request_id = 3")->fetch_row();
+        assert_same(['2', 'cancelled', 'Use a more experienced driver', '7', '0', '2'], $t);
     },
 ];

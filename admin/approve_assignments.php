@@ -41,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $requests = $conn->query(requestSelectSql() . " WHERE vr.status = 'assigned' ORDER BY vr.is_urgent DESC, vr.depart_at, vr.request_id")->fetch_all(MYSQLI_ASSOC);
 $open = (int)($_GET['open'] ?? 0);
-$welfareWeeks = $conn->query("SELECT DISTINCT DATE_SUB(duty_date, INTERVAL WEEKDAY(duty_date) DAY) AS monday FROM welfare_roster WHERE status = 'assigned' ORDER BY monday")->fetch_all(MYSQLI_ASSOC);
-$tasks = $conn->query("SELECT t.*, d.name AS driver_name, v.plate_number FROM internal_tasks t JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-                        WHERE t.status = 'assigned' ORDER BY t.start_dt")->fetch_all(MYSQLI_ASSOC);
+$welfareWeeks = $conn->query("SELECT DISTINCT DATE_SUB(task_date, INTERVAL WEEKDAY(task_date) DAY) AS monday FROM tasks WHERE task_source = 'welfare' AND status = 'assigned' ORDER BY monday")->fetch_all(MYSQLI_ASSOC);
+$tasks = $conn->query("SELECT t.*, d.name AS driver_name, v.plate_number FROM tasks t JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
+                        WHERE t.task_source = 'internal' AND t.status = 'assigned' ORDER BY t.start_dt")->fetch_all(MYSQLI_ASSOC);
 
 adminPageStart('Approve Assignments');
 ?>
@@ -60,7 +60,7 @@ adminPageStart('Approve Assignments');
         </div>
         <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
         <?php $cnt = driverMonthCounts($conn, substr(requestDepartDT($r), 0, 7));          // UC026 step 2.1: each driver's task count this month
-              $dq = $conn->prepare("SELECT DISTINCT d.driver_id, d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'");
+              $dq = $conn->prepare("SELECT DISTINCT d.driver_id, d.name FROM tasks s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.task_source = 'request' AND s.request_id = ? AND s.status <> 'cancelled'");
               $dq->bind_param('i', $rid); $dq->execute(); $ds = $dq->get_result()->fetch_all(MYSQLI_ASSOC); $dq->close(); ?>
         <?php if ($ds): ?><div class="small text-muted mt-2">Tasks this month: <?php foreach ($ds as $d): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($d['name']) ?>: <?= (int)($cnt[(int)$d['driver_id']]['tasks'] ?? 0) ?></span><?php endforeach; ?></div><?php endif; ?>
         <div class="row g-3 mt-1 border-top pt-3">
@@ -86,7 +86,7 @@ adminPageStart('Approve Assignments');
             <div class="fw-bold">Internal task #<?= $tid ?> &middot; <?= htmlspecialchars(internalTaskTypeLabel($t['task_type'])) ?></div>
             <span class="badge bg-info text-dark">Driver Assigned</span>
         </div>
-        <div class="small text-muted mb-2"><?= date('D, d M Y', strtotime($t['task_date'])) ?> <?= substr($t['start_time'], 0, 5) ?>&ndash;<?= substr($t['end_time'], 0, 5) ?> &middot; <?= htmlspecialchars((string)($t['plate_number'] ?: 'no vehicle')) ?> &middot; Driver: <strong><?= htmlspecialchars($t['driver_name']) ?></strong> (<?= (int)(driverMonthCounts($conn, substr($t['task_date'], 0, 7))[(int)$t['driver_id']]['tasks'] ?? 0) ?> tasks this month)<?= $t['location'] ? ' &middot; ' . htmlspecialchars($t['location']) : '' ?></div>
+        <div class="small text-muted mb-2"><?= date('D, d M Y', strtotime($t['task_date'])) ?> <?= date('H:i', strtotime($t['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($t['end_dt'])) ?> &middot; <?= htmlspecialchars((string)($t['plate_number'] ?: 'no vehicle')) ?> &middot; Driver: <strong><?= htmlspecialchars($t['driver_name']) ?></strong> (<?= (int)(driverMonthCounts($conn, substr($t['task_date'], 0, 7))[(int)$t['driver_id']]['tasks'] ?? 0) ?> tasks this month)<?= $t['location'] ? ' &middot; ' . htmlspecialchars($t['location']) : '' ?></div>
         <div class="row g-3 border-top pt-3">
             <form method="post" class="col-md-5">
                 <input type="hidden" name="task_id" value="<?= $tid ?>"><input type="hidden" name="action" value="approve">

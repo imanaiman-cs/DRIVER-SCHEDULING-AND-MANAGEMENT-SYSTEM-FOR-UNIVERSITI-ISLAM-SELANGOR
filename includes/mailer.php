@@ -88,7 +88,7 @@ function logEmail(mysqli $conn, array $row): void
     $subject      = mb_substr((string)($row['subject'] ?? ''), 0, 255);
     $kind         = (string)($row['kind'] ?? 'notice');
     $ref_date     = $row['ref_date']     ?? null;
-    $schedule_ids = $row['schedule_ids'] ?? null;
+    $schedule_ids = $row['schedule_ids'] ?? null;   // email_log.schedule_ids holds task ids (tasks.task_id), comma separated
     $status       = (string)$row['status'];
     $error        = isset($row['error_message']) ? mb_substr((string)$row['error_message'], 0, 500) : null;
     $body         = $row['body_html']    ?? null;
@@ -111,7 +111,7 @@ function logEmail(mysqli $conn, array $row): void
 /**
  * Sends (or, when switched off, only logs) one e-mail.
  *
- * @param array<string, mixed> $meta  driver_id, kind, ref_date, schedule_ids (int[])
+ * @param array<string, mixed> $meta  driver_id, kind, ref_date, schedule_ids (int[], task ids; 'task_ids' is accepted too)
  *
  * @return array{status: string, message: string}  status: sent | skipped | failed
  */
@@ -125,7 +125,8 @@ function sendMail(mysqli $conn, ?string $to, string $subject, string $html, stri
         'subject'      => $subject,
         'kind'         => $meta['kind'] ?? 'notice',
         'ref_date'     => $meta['ref_date'] ?? null,
-        'schedule_ids' => isset($meta['schedule_ids']) ? implode(',', array_map('intval', (array)$meta['schedule_ids'])) : null,
+        'schedule_ids' => isset($meta['task_ids']) || isset($meta['schedule_ids'])
+                            ? implode(',', array_map('intval', (array)($meta['task_ids'] ?? $meta['schedule_ids']))) : null,
         'body_html'    => $html,
     ];
 

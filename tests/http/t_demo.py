@@ -28,17 +28,17 @@ for p, q in (('staff/print_approval.php', {}),):
     pass
 # 2 internal task
 add = {'action': 'save', 'task_id': '0', 'task_type': 'refuel', 'task_date': D(9), 'start_time': '09:00', 'end_time': '10:00', 'vehicle_id': '5', 'location': 'Petronas', 'description': 'x'}
-ad.post('admin/internal_tasks.php', add); tid = cnt("SELECT MAX(task_id) FROM internal_tasks"); ok('2 internal task Waiting for Driver', sql("SELECT status FROM internal_tasks WHERE task_id=%d" % tid) == 'waiting')
+ad.post('admin/internal_tasks.php', add); tid = cnt("SELECT MAX(task_id) FROM tasks WHERE task_source='internal'"); ok('2 internal task Waiting for Driver', sql("SELECT status FROM tasks WHERE task_id=%d" % tid) == 'waiting')
 rec = re.findall(r'name="driver_id" value="(\d+)"', ad.get('admin/assign_internal_task.php', id=tid).text)
-ad.post('admin/assign_internal_task.php', {'task_id': tid, 'driver_id': rec[0]}); hd.post('admin/approve_assignments.php', {'task_id': tid, 'action': 'approve'}); ok('2 assigned and approved', sql("SELECT status FROM internal_tasks WHERE task_id=%d" % tid) == 'active')
+ad.post('admin/assign_internal_task.php', {'task_id': tid, 'driver_id': rec[0]}); hd.post('admin/approve_assignments.php', {'task_id': tid, 'action': 'approve'}); ok('2 assigned and approved', sql("SELECT status FROM tasks WHERE task_id=%d" % tid) == 'approved')
 # 3 welfare
 mon = (datetime.date.today() + datetime.timedelta(days=35)); mon = mon - datetime.timedelta(days=mon.weekday()); days = [(mon + datetime.timedelta(days=i)).isoformat() for i in range(7)]
-ad.post('admin/welfare.php', dict(action='create', week_date=mon.isoformat(), **{'vehicle[%s]' % d: '6' for d in days})); ok('3 welfare week created', cnt("SELECT COUNT(*) FROM welfare_roster WHERE status='waiting' AND duty_date BETWEEN '%s' AND '%s'" % (days[0], days[6])) == 7)
+ad.post('admin/welfare.php', dict(action='create', week_date=mon.isoformat(), **{'vehicle[%s]' % d: '6' for d in days})); ok('3 welfare week created', cnt("SELECT COUNT(*) FROM tasks WHERE task_source='welfare' AND status='waiting' AND task_date BETWEEN '%s' AND '%s'" % (days[0], days[6])) == 7)
 pick = {}
 page = ad.get('admin/assign_welfare.php', week=mon.isoformat()).text
 for d in days: pick['driver[%s]' % d] = re.findall(r'name="driver\[%s\]" value="(\d+)"' % d, page)[0]
 ad.post('admin/assign_welfare.php', dict(week=mon.isoformat(), confirmed='1', **pick)); hd.post('admin/approve_assignments.php', dict(week=mon.isoformat(), action='approve'))
-ok('3 welfare assigned and approved', cnt("SELECT COUNT(*) FROM welfare_roster WHERE status='active' AND vehicle_id=6 AND duty_date BETWEEN '%s' AND '%s'" % (days[0], days[6])) == 7)
+ok('3 welfare assigned and approved', cnt("SELECT COUNT(*) FROM tasks WHERE task_source='welfare' AND status='approved' AND vehicle_id=6 AND task_date BETWEEN '%s' AND '%s'" % (days[0], days[6])) == 7)
 # 4 accounts and vehicles
 ad.post('admin/add_driver.php', {'mode': 'register', 'username': 'DRV901', 'full_name': 'Demo Driver Baru', 'email': 'demo.driver@uis.edu.my', 'phone': '012-1112223', 'license_class[]': ['D'], 'license_expiry': '2031-01-01', 'date_joined': '2025-01-01'})
 ok('4 driver registered with account', cnt("SELECT COUNT(*) FROM users u JOIN drivers d ON d.driver_id=u.driver_id WHERE u.username='DRV901'") == 1)

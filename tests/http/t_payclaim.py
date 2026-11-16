@@ -50,7 +50,7 @@ ok('the Assistant cannot approve (only the Head of Admin)', st(rA) == 'assigned'
 r = ad.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'approve'}, csrf=False)
 ok('POST without CSRF is refused (419)', r.status_code == 419 and st(rA) == 'assigned')
 r = hd.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'approve'})
-ok('the Head of Admin approves: Confirmed, no tasks, no vehicle lock', st(rA) == 'processed' and cnt("SELECT COUNT(*) FROM schedules WHERE request_id=%d" % rA) == 0 and cnt("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d" % rA) == 0)
+ok('the Head of Admin approves: Confirmed, no tasks, no vehicle lock', st(rA) == 'processed' and cnt("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=%d" % rA) == 0 and cnt("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d" % rA) == 0)
 ok('the staff member may use the own vehicle and claim; no driver is told', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE '%%#%d%%confirmed%%own vehicle%%'" % rA) == 1
    and cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.role='driver' AND n.message LIKE '%%#%d %%'" % rA) == 0)
 mine = s1.get('staff/my_requests.php', open=rA).text

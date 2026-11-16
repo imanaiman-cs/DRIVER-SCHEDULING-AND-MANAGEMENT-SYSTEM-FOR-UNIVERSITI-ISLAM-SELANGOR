@@ -12,5 +12,5 @@ $res = setDriverActive($conn, (int)($_POST['id'] ?? 0), !empty($_POST['reactivat
 if ($res['ok']) { setFlash('success', $res['message']); }
 echo json_encode(['success' => $res['ok'], 'message' => $res['message'], 'items' => array_map(
     fn($i) => ['text' => $i['text'], 'replace_url' => ($i['kind'] === 'request' && !empty($i['schedule_id'])) ? 'replace_driver.php?schedule_id=' . (int)$i['schedule_id']
-        : (in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'active' ? 'replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] : null)],
+        : (in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'approved' ? 'replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] : null)],
     $res['items'])]);

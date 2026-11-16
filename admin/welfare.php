@@ -25,10 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
         if ($res['ok']) { $week = welfareWeekStart($_POST['week_date']); }
     } elseif ($act === 'vehicle') {
-        $res = updateWelfareVehicle($conn, (int)($_POST['roster_id'] ?? 0), (int)($_POST['vehicle_id'] ?? 0));
+        $res = updateWelfareVehicle($conn, (int)($_POST['task_id'] ?? 0), (int)($_POST['vehicle_id'] ?? 0));
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
     } elseif ($act === 'delete') {
-        $res = deleteWelfareDay($conn, (int)($_POST['roster_id'] ?? 0));
+        $res = deleteWelfareDay($conn, (int)($_POST['task_id'] ?? 0));
         setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
     }
     header('Location: welfare.php' . (isValidDate($week) ? '?week=' . urlencode($week) : ''));
@@ -39,9 +39,9 @@ $week = isValidDate((string)($_GET['week'] ?? '')) ? welfareWeekStart($_GET['wee
 $newWeek = isValidDate((string)($_GET['new'] ?? '')) ? welfareWeekStart($_GET['new']) : welfareWeekStart(date('Y-m-d', strtotime('+7 days')));
 
 // the weeks that have a schedule (from this week on, and the last few)
-$weeks = $conn->query("SELECT DATE_SUB(duty_date, INTERVAL WEEKDAY(duty_date) DAY) AS monday, COUNT(*) AS days, SUM(driver_id IS NOT NULL) AS with_driver,
-                              SUM(status = 'waiting') AS waiting, SUM(status = 'assigned') AS assigned, SUM(status = 'active') AS approved
-                         FROM welfare_roster WHERE duty_date >= DATE_SUB(CURDATE(), INTERVAL 28 DAY) GROUP BY monday ORDER BY monday")->fetch_all(MYSQLI_ASSOC);
+$weeks = $conn->query("SELECT DATE_SUB(task_date, INTERVAL WEEKDAY(task_date) DAY) AS monday, COUNT(*) AS days, SUM(driver_id IS NOT NULL) AS with_driver,
+                              SUM(status = 'waiting') AS waiting, SUM(status = 'assigned') AS assigned, SUM(status = 'approved') AS approved
+                         FROM tasks WHERE task_source = 'welfare' AND status <> 'cancelled' AND task_date >= DATE_SUB(CURDATE(), INTERVAL 28 DAY) GROUP BY monday ORDER BY monday")->fetch_all(MYSQLI_ASSOC);
 $rows = $week ? welfareWeekRows($conn, $week) : [];
 $weekStatus = function (array $w): string { return $w['waiting'] > 0 ? 'Waiting for Driver' : ($w['assigned'] > 0 ? 'Driver Assigned' : 'Approved'); };
 
@@ -113,12 +113,12 @@ adminPageStart('Welfare Duty');
                     <td class="text-end">
                         <?php if ($d >= $today): ?>
                         <form method="post" class="d-inline-flex gap-1">
-                            <input type="hidden" name="week" value="<?= $h($week) ?>"><input type="hidden" name="roster_id" value="<?= (int)$w['roster_id'] ?>">
+                            <input type="hidden" name="week" value="<?= $h($week) ?>"><input type="hidden" name="task_id" value="<?= (int)$w['task_id'] ?>">
                             <select class="form-select form-select-sm" name="vehicle_id" aria-label="Vehicle for <?= $h($d) ?>" style="width:auto">
                                 <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= (int)$v['vehicle_id'] === (int)$w['vehicle_id'] ? 'selected' : '' ?>><?= $h($v['plate_number']) ?></option><?php endforeach; ?>
                             </select>
                             <button class="btn btn-sm btn-outline-success" name="action" value="vehicle">Edit</button>
-                            <?php if ($w['status'] === 'active' && $w['driver_id'] && $d > $today): ?><a class="btn btn-sm btn-outline-primary" href="replace_task_driver.php?welfare=<?= (int)$w['roster_id'] ?>">Replace driver</a><?php endif; ?>
+                            <?php if ($w['status'] === 'approved' && $w['driver_id'] && $d > $today): ?><a class="btn btn-sm btn-outline-primary" href="replace_task_driver.php?welfare=<?= (int)$w['task_id'] ?>">Replace driver</a><?php endif; ?>
                             <button class="btn btn-sm btn-outline-danger" name="action" value="delete" data-confirm="The vehicle is released<?= $w['driver_id'] ? ' and the driver is told' : '' ?>." data-confirm-title="Delete this duty day?" data-confirm-button="Delete">Delete</button>
                         </form>
                         <?php endif; ?>

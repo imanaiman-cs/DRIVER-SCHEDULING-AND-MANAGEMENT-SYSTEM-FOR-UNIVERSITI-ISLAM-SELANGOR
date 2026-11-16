@@ -3,7 +3,7 @@ import json, datetime, re, sys
 from lib import *
 
 reseed()
-sql("UPDATE internal_tasks SET status='cancelled'")
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal'")
 s1 = user('stf001'); hos2 = user('hos002'); ad = user('admin'); hd = user('head001')
 cnt = lambda q: int(sql(q)); last = lambda: cnt("SELECT MAX(request_id) FROM vehicle_requests")
 st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)
@@ -37,7 +37,7 @@ r = ad.post('admin/assign_driver.php', dict(base, vehicle_id='1'))
 ok('a vehicle of another type (a Bus) is refused', st(rid) == 'approved')
 r = ad.post('admin/assign_driver.php', dict(base, vehicle_id='9'))
 ok('an inactive car is refused', st(rid) == 'approved')
-sql("INSERT INTO internal_tasks (task_type,task_date,start_time,end_time,vehicle_id,driver_id,description,status) SELECT 'refuel', trip_date, start_time, end_time, 5, 12, 'blocks car 5', 'active' FROM vehicle_requests WHERE request_id=%d" % rid)
+sql("INSERT INTO tasks (task_source,task_type,start_dt,end_dt,vehicle_id,driver_id,description,status) SELECT 'internal', 'refuel', TIMESTAMP(trip_date, start_time), TIMESTAMP(trip_date, end_time), 5, 12, 'blocks car 5', 'approved' FROM vehicle_requests WHERE request_id=%d" % rid)
 r = ad.post('admin/assign_driver.php', dict(base, vehicle_id='5'))
 ok('a car that has an internal task in the period is refused', st(rid) == 'approved')
 r = ad.post('admin/assign_driver.php', dict(base, vehicle_id='6'))
@@ -45,7 +45,7 @@ ok('the free car is chosen and assigned: Driver Assigned, the request now has th
 ok('the vehicle is locked from departure to return + 1 hour and the reservation row points to it',
    sql("SELECT TIMESTAMPDIFF(MINUTE, vr.return_at, l.end_dt) FROM vehicle_locks l JOIN vehicle_requests vr ON vr.request_id=l.request_id WHERE l.request_id=%d" % rid) == '60'
    and sql("SELECT vehicle_id FROM vehicle_reservations WHERE request_id=%d" % rid) == '6')
-ok('both tasks use the chosen vehicle', sql("SELECT COUNT(*) FROM schedules WHERE request_id=%d AND vehicle_id=6 AND status<>'cancelled'" % rid) == '2')
+ok('both tasks use the chosen vehicle', sql("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=%d AND vehicle_id=6 AND status<>'cancelled'" % rid) == '2')
 ok('the request page shows the type and the chosen plate', 'Car' in ad.get('admin/vehicle_requests.php', tab='assigned').text)
 hd.post('admin/approve_assignments.php', {'request_id': rid, 'action': 'approve'})
 ok('the Head of Admin approves: Approved', st(rid) == 'processed')

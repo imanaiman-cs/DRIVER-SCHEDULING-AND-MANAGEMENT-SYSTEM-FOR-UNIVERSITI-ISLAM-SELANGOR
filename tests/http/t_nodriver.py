@@ -4,7 +4,7 @@ import json, datetime, re
 from lib import *
 
 reseed()
-sql("UPDATE internal_tasks SET status='cancelled' WHERE vehicle_id=6")   # demo internal tasks use relative dates
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal' AND vehicle_id=6")   # demo internal tasks use relative dates
 s1 = user('drv001'); hos2 = user('hos001');   # Self Drive (without driver) is only for a lorry and a driver with a GDL licence
 ad = user('admin'); hd = user('head001'); drv = user('drv002')
 st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)
@@ -70,7 +70,7 @@ ok('POST without a CSRF token is refused (419)', r.status_code == 419 and st(rA)
 
 # Assistant sends it to the Head of Admin
 r = ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request_id': rA})
-ok('the Assistant sends it: status Driver Assigned, NO tasks created', st(rA) == 'assigned' and sql("SELECT COUNT(*) FROM schedules WHERE request_id=%d" % rA) == '0')
+ok('the Assistant sends it: status Driver Assigned, NO tasks created', st(rA) == 'assigned' and sql("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=%d" % rA) == '0')
 ok('the Head of Admin is told in the system', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='head001' AND n.message LIKE '%%#%d%%without driver%%'" % rA)) >= 1)
 pg = hd.get('admin/approve_assignments.php')
 ok('the Head of Admin sees it with the vehicle details only', pg.status_code == 200 and ('Request #%d' % rA) in pg.text and 'Without driver' in pg.text and 'no driver is assigned' in pg.text)
@@ -88,7 +88,7 @@ ad.post('admin/vehicle_requests.php', {'action': 'send_without_driver', 'request
 r = ad.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'approve'})
 ok('the Assistant cannot approve (only the Head of Admin)', st(rA) == 'assigned')
 r = hd.post('admin/approve_assignments.php', {'request_id': rA, 'action': 'approve'})
-ok('the Head of Admin approves the use of the vehicle: Confirmed, still no tasks', st(rA) == 'processed' and sql("SELECT COUNT(*) FROM schedules WHERE request_id=%d" % rA) == '0')
+ok('the Head of Admin approves the use of the vehicle: Confirmed, still no tasks', st(rA) == 'processed' and sql("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=%d" % rA) == '0')
 ok('the requester is told they may use the vehicle without a driver',
    int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv001' AND n.message LIKE '%%#%d%%confirmed%%without a driver%%'" % rA)) == 1)
 ok('no other driver is notified', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.role='driver' AND u.username<>'drv001' AND n.message LIKE '%%#%d %%'" % rA)) == 0)

@@ -61,8 +61,8 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         if ($_is_admin_role) {
             $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
             $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0]
-                                   + (int)$conn->query("SELECT COUNT(*) FROM internal_tasks WHERE status = 'assigned'")->fetch_row()[0]
-                                   + (int)$conn->query("SELECT COUNT(DISTINCT DATE_SUB(duty_date, INTERVAL WEEKDAY(duty_date) DAY)) FROM welfare_roster WHERE status = 'assigned'")->fetch_row()[0];
+                                   + (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'assigned'")->fetch_row()[0]
+                                   + (int)$conn->query("SELECT COUNT(DISTINCT DATE_SUB(task_date, INTERVAL WEEKDAY(task_date) DAY)) FROM tasks WHERE task_source = 'welfare' AND status = 'assigned'")->fetch_row()[0];
             $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
             if ($role === 'head_admin') { $_badge['changes'] = (int)$conn->query("SELECT COUNT(*) FROM schedule_change_requests WHERE status = 'pending'")->fetch_row()[0]; }
         }

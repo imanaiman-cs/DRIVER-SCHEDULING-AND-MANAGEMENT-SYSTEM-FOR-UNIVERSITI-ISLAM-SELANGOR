@@ -13,7 +13,7 @@ require_once '../includes/schedule_view.php';
 requireAdmin();
 
 $id = (int)($_GET['id'] ?? $_POST['task_id'] ?? 0);
-$stmt = $conn->prepare("SELECT t.*, v.plate_number, v.model, v.license_required FROM internal_tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.task_id = ?");
+$stmt = $conn->prepare("SELECT t.*, v.plate_number, v.model, v.license_required FROM tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.task_id = ? AND t.task_source = 'internal'");
 $stmt->bind_param('i', $id);
 $stmt->execute();
 $task = $stmt->get_result()->fetch_assoc();
@@ -24,7 +24,7 @@ if (!$task || $task['status'] !== 'waiting') {
     exit();
 }
 
-$rec = recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'] ?: null, 'except_internal' => $id]);
+$rec = recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'] ?: null, 'except_task' => $id]);
 $top = $rec['ranked'][0]['driver_id'] ?? 0;
 $byId = [];
 foreach ($rec['ranked'] as $d) { $byId[(int)$d['driver_id']] = $d; }
@@ -52,7 +52,7 @@ adminPageStart('Assign Internal Task');
     <a class="small text-decoration-none" href="internal_tasks.php"><i class="fas fa-arrow-left me-1"></i>Internal tasks</a>
     <h4 class="fw-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign internal task &mdash; #<?= $id ?></h4>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body small">
-        <strong><?= htmlspecialchars(internalTaskTypeLabel($task['task_type'])) ?></strong> &middot; <?= date('D, d M Y', strtotime($task['task_date'])) ?> <?= substr($task['start_time'], 0, 5) ?>&ndash;<?= substr($task['end_time'], 0, 5) ?>
+        <strong><?= htmlspecialchars(internalTaskTypeLabel($task['task_type'])) ?></strong> &middot; <?= date('D, d M Y', strtotime($task['task_date'])) ?> <?= date('H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?>
         &middot; <?= htmlspecialchars((string)($task['plate_number'] ?: 'no vehicle')) ?><?= $task['location'] ? ' &middot; ' . htmlspecialchars($task['location']) : '' ?>
         <?php if (!empty($task['reject_reason'])): ?><div class="text-danger mt-1">Last assignment was rejected: <?= htmlspecialchars($task['reject_reason']) ?></div><?php endif; ?>
     </div></div>

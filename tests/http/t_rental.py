@@ -3,7 +3,7 @@ import json, datetime, re, sys
 from lib import *
 
 reseed()
-sql("UPDATE internal_tasks SET status='cancelled'")
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal'")
 s1 = user('stf001'); s2 = user('stf002'); hos2 = user('hos002'); hos3 = user('hos003'); ad = user('admin'); hd = user('head001')
 cnt = lambda q: int(sql(q)); last = lambda: cnt("SELECT MAX(request_id) FROM vehicle_requests")
 st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)

@@ -1,7 +1,7 @@
 import sys, threading, json, datetime
 from lib import *
 reseed()
-sql("UPDATE internal_tasks SET status='cancelled' WHERE vehicle_id=6")   # demo internal tasks use relative dates; keep vehicle 6 free for these tests
+sql("UPDATE tasks SET status='cancelled' WHERE task_source='internal' AND vehicle_id=6")   # demo internal tasks use relative dates; keep vehicle 6 free for these tests
 s1=user('stf001'); s2=user('stf002'); s3=user('stf003'); hos2=user('hos002'); hos3=user('hos003'); hos1=user('hos001'); hos5=user('hos005')
 ad=user('admin'); hd=user('head001'); drv=user('drv001'); drv3=user('drv003')
 uid=lambda u: sql("SELECT user_id FROM users WHERE username='%s'"%u)
@@ -152,7 +152,7 @@ r=ad.post('ajax/cancel_request.php',{'request_id':2,'reason':'too late'}); ok('a
 # cancel a Confirmed request removes the driver and notifies the driver
 r=hos1.post('ajax/cancel_request.php',{'request_id':4,'reason':'x'}); ok('a Head of Department of another PTJ cannot cancel (4 belongs to hos002)', json.loads(r.text)['success'] is False)
 r=hos2.post('ajax/cancel_request.php',{'request_id':4,'reason':'Faculty programme postponed'}); ok('Head of Department cancels a Confirmed request', json.loads(r.text)['success'] and st(4)=='cancelled')
-ok('assigned driver removed from the tasks', sql("SELECT COUNT(*) FROM schedules WHERE request_id=4 AND (driver_id IS NOT NULL OR status<>'cancelled')")=='0')
+ok('assigned driver removed from the tasks', sql("SELECT COUNT(*) FROM tasks WHERE task_source='request' AND request_id=4 AND (driver_id IS NOT NULL OR status<>'cancelled')")=='0')
 ok('the driver was notified', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv001' AND n.message LIKE '%%#4%%cancelled%%'"))==1)
 # view status: driver and vehicle only after Confirmed
 rs=s3.get('staff/my_requests.php'); ok('my requests renders with the exact status labels', rs.status_code==200 and 'Cancelled' in rs.text and not errs(rs))

@@ -43,73 +43,73 @@ def assign(c, tid, driver, confirmed=False):
     d = dict(task_id=tid, driver_id=driver)
     if confirmed: d['confirmed'] = '1'
     return c.post('admin/assign_internal_task.php', d)
-n0 = count('select count(*) from internal_tasks')
+n0 = count("select count(*) from tasks where task_source='internal'")
 r = add(admin); ok('add internal task redirects', r.status_code == 302)
-tid = int(sql("select max(task_id) from internal_tasks"))
-ok('task added', count('select count(*) from internal_tasks') == n0 + 1)
-ok('new task is Waiting for Driver with no driver, vehicle reserved', rows(f"select task_type,status,driver_id,vehicle_id,start_time,end_time from internal_tasks where task_id={tid}") == [['refuel', 'waiting', 'NULL', '5', '09:00:00', '10:00:00']])
+tid = int(sql("select max(task_id) from tasks where task_source='internal'"))
+ok('task added', count("select count(*) from tasks where task_source='internal'") == n0 + 1)
+ok('new task is Waiting for Driver with no driver, vehicle reserved', rows(f"select task_type,status,driver_id,vehicle_id,time(start_dt),time(end_dt) from tasks where task_id={tid}") == [['refuel', 'waiting', 'NULL', '5', '09:00:00', '10:00:00']])
 ok('no driver is told yet', count("select count(*) from notifications where user_id=15 and message like '%internal task%'") == 0)
-r = add(admin, start_time='09:30', end_time='10:30'); ok('vehicle clash refused (overlap), also against a waiting task', count('select count(*) from internal_tasks') == n0 + 1 and 'at that time' in r.text)
-r = add(admin, start_time='10:00', end_time='11:00'); ok('adjacent slot allowed (start < end rule)', r.status_code == 302 and count('select count(*) from internal_tasks') == n0 + 2)
-tid_adj = int(sql("select max(task_id) from internal_tasks"))
-r = add(admin, vehicle_id=4, start_time='15:00', end_time='16:00'); ok('vehicle in maintenance refused', count('select count(*) from internal_tasks') == n0 + 2 and 'maintenance' in r.text)
-r = add(admin, vehicle_id=3, task_date=D(5), start_time='12:00', end_time='13:00'); ok('vehicle locked by request period refused', count('select count(*) from internal_tasks') == n0 + 2 and 'at that time' in r.text)
-r = add(admin, task_date=D(-1)); ok('past date refused', count('select count(*) from internal_tasks') == n0 + 2)
-r = add(admin, start_time='11:00', end_time='10:00'); ok('end before start refused', count('select count(*) from internal_tasks') == n0 + 2)
-r = add(admin, task_type='hacker', start_time='17:00', end_time='18:00'); ok('bad task type refused', count('select count(*) from internal_tasks') == n0 + 2)
-r = add(admin, driver_id=8, vehicle_id=5, start_time='13:00', end_time='14:00'); ok('a posted driver is ignored: the task is still Waiting', sql("select concat(status,'/',ifnull(driver_id,'none')) from internal_tasks order by task_id desc limit 1") == 'waiting/none')
-sql("delete from internal_tasks where task_id=(select m from (select max(task_id) m from internal_tasks) x)")
+r = add(admin, start_time='09:30', end_time='10:30'); ok('vehicle clash refused (overlap), also against a waiting task', count("select count(*) from tasks where task_source='internal'") == n0 + 1 and 'at that time' in r.text)
+r = add(admin, start_time='10:00', end_time='11:00'); ok('adjacent slot allowed (start < end rule)', r.status_code == 302 and count("select count(*) from tasks where task_source='internal'") == n0 + 2)
+tid_adj = int(sql("select max(task_id) from tasks where task_source='internal'"))
+r = add(admin, vehicle_id=4, start_time='15:00', end_time='16:00'); ok('vehicle in maintenance refused', count("select count(*) from tasks where task_source='internal'") == n0 + 2 and 'maintenance' in r.text)
+r = add(admin, vehicle_id=3, task_date=D(5), start_time='12:00', end_time='13:00'); ok('vehicle locked by request period refused', count("select count(*) from tasks where task_source='internal'") == n0 + 2 and 'at that time' in r.text)
+r = add(admin, task_date=D(-1)); ok('past date refused', count("select count(*) from tasks where task_source='internal'") == n0 + 2)
+r = add(admin, start_time='11:00', end_time='10:00'); ok('end before start refused', count("select count(*) from tasks where task_source='internal'") == n0 + 2)
+r = add(admin, task_type='hacker', start_time='17:00', end_time='18:00'); ok('bad task type refused', count("select count(*) from tasks where task_source='internal'") == n0 + 2)
+r = add(admin, driver_id=8, vehicle_id=5, start_time='13:00', end_time='14:00'); ok('a posted driver is ignored: the task is still Waiting', sql("select concat(status,'/',ifnull(driver_id,'none')) from tasks where task_source='internal' order by task_id desc limit 1") == 'waiting/none')
+sql("delete from tasks where task_id=(select m from (select max(task_id) m from tasks where task_source='internal') x)")
 # UC005 assign
 r = admin.get('admin/assign_internal_task.php', id=tid); ok('assign page lists the recommendation', r.status_code == 200 and 'Recommended' in r.text and not errs(r))
 r = stf.get('admin/assign_internal_task.php', id=tid); ok('staff cannot open the assign page (role check)', r.status_code in (302, 403))
-r = admin.post('admin/assign_internal_task.php', dict(task_id=tid, driver_id=5), csrf=False); ok('assign without CSRF token refused (419)', r.status_code == 419 and sql(f"select status from internal_tasks where task_id={tid}") == 'waiting')
-r = assign(admin, tid, 11); ok('inactive driver cannot be assigned', sql(f"select status from internal_tasks where task_id={tid}") == 'waiting')
+r = admin.post('admin/assign_internal_task.php', dict(task_id=tid, driver_id=5), csrf=False); ok('assign without CSRF token refused (419)', r.status_code == 419 and sql(f"select status from tasks where task_id={tid}") == 'waiting')
+r = assign(admin, tid, 11); ok('inactive driver cannot be assigned', sql(f"select status from tasks where task_id={tid}") == 'waiting')
 rec = [int(x) for x in re.findall(r'name="driver_id" value="(\d+)"', admin.get('admin/assign_internal_task.php', id=tid).text)]
 ok('recommendation has drivers', len(rec) >= 2)
 other = rec[-1]
-r = assign(admin, tid, other); ok('A1: a driver outside the top recommendation gets a warning first', 'not the top recommendation' in r.text and sql(f"select status from internal_tasks where task_id={tid}") == 'waiting')
-r = assign(admin, tid, rec[0]); ok('assign the recommended driver', r.status_code == 302 and rows(f"select status,driver_id from internal_tasks where task_id={tid}") == [['assigned', str(rec[0])]])
+r = assign(admin, tid, other); ok('A1: a driver outside the top recommendation gets a warning first', 'not the top recommendation' in r.text and sql(f"select status from tasks where task_id={tid}") == 'waiting')
+r = assign(admin, tid, rec[0]); ok('assign the recommended driver', r.status_code == 302 and rows(f"select status,driver_id from tasks where task_id={tid}") == [['assigned', str(rec[0])]])
 ok('Head of Admin told', count("select count(*) from notifications where user_id=2 and message like 'An internal task is waiting for your approval%'") >= 1 or count("select count(*) from notifications n join users u on u.user_id=n.user_id where u.role='head_admin' and n.message like 'An internal task is waiting for your approval%'") >= 1)
 ok('the driver is NOT told before approval', count("select count(*) from notifications n join users u on u.user_id=n.user_id where u.driver_id=%d and n.message like '%%internal task%%'" % rec[0]) == 0)
-r = assign(admin, tid, rec[0]); ok('a task that is not waiting cannot be assigned again', r.status_code == 302 and sql(f"select status from internal_tasks where task_id={tid}") == 'assigned')
+r = assign(admin, tid, rec[0]); ok('a task that is not waiting cannot be assigned again', r.status_code == 302 and sql(f"select status from tasks where task_id={tid}") == 'assigned')
 # UC026 approve / reject
-r = admin.post('admin/approve_assignments.php', dict(task_id=tid, action='approve')); ok('Assistant cannot approve (role check)', sql(f"select status from internal_tasks where task_id={tid}") == 'assigned')
+r = admin.post('admin/approve_assignments.php', dict(task_id=tid, action='approve')); ok('Assistant cannot approve (role check)', sql(f"select status from tasks where task_id={tid}") == 'assigned')
 r = head.get('admin/approve_assignments.php'); ok('Head of Admin sees the task to approve', 'Internal task #%d' % tid in r.text and not errs(r))
-r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='reject', reason='')); ok('reject needs a reason', sql(f"select status from internal_tasks where task_id={tid}") == 'assigned')
-r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='reject', reason='Use another driver')); ok('reject: back to Waiting for Driver, driver removed, reason kept', rows(f"select status,driver_id,reject_reason from internal_tasks where task_id={tid}") == [['waiting', 'NULL', 'Use another driver']])
+r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='reject', reason='')); ok('reject needs a reason', sql(f"select status from tasks where task_id={tid}") == 'assigned')
+r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='reject', reason='Use another driver')); ok('reject: back to Waiting for Driver, driver removed, reason kept', rows(f"select status,driver_id,reject_reason from tasks where task_id={tid}") == [['waiting', 'NULL', 'Use another driver']])
 ok('Assistant told of the rejection', count("select count(*) from notifications where message like 'The driver assignment of an internal task was rejected%Use another driver%'") >= 1)
 drv_user = sql(f"select user_id from users where driver_id={rec[0]} limit 1")
 assign(admin, tid, rec[0])
-r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='approve')); ok('approve: Approved (active) with approver and time', rows(f"select status,approved_by is not null,approved_at is not null from internal_tasks where task_id={tid}") == [['active', '1', '1']])
+r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='approve')); ok('approve: Approved with approver and time', rows(f"select status,approved_by is not null,approved_at is not null from tasks where task_id={tid}") == [['approved', '1', '1']])
 ok('the driver is told only now', count(f"select count(*) from notifications where user_id={drv_user} and message like 'You have a new internal task%'") == 1)
 ok('notification link driver/schedules.php', sql(f"select link from notifications where user_id={drv_user} and message like 'You have a new internal task%' limit 1") == 'driver/schedules.php')
 r = head.post('admin/approve_assignments.php', dict(task_id=tid, action='approve')); ok('cannot approve twice', count(f"select count(*) from notifications where user_id={drv_user} and message like 'You have a new internal task%'") == 1)
 # the driver clash now counts for an approved task
 tid2 = None
-add(admin, vehicle_id=6, start_time='09:30', end_time='10:30'); tid2 = int(sql("select max(task_id) from internal_tasks"))
-r = assign(admin, tid2, rec[0], confirmed=True); ok('driver with an approved task at that time cannot be assigned (clash)', sql(f"select status from internal_tasks where task_id={tid2}") == 'waiting')
-sql(f"update internal_tasks set status='cancelled' where task_id={tid2}")
+add(admin, vehicle_id=6, start_time='09:30', end_time='10:30'); tid2 = int(sql("select max(task_id) from tasks where task_source='internal'"))
+r = assign(admin, tid2, rec[0], confirmed=True); ok('driver with an approved task at that time cannot be assigned (clash)', sql(f"select status from tasks where task_id={tid2}") == 'waiting')
+sql(f"update tasks set status='cancelled' where task_id={tid2}")
 # update keeps the driver
-nb = count('select count(*) from internal_tasks')
-r = add(admin, task_id=tid, description='Changed note'); ok('update without self-clash', r.status_code == 302 and sql(f"select description from internal_tasks where task_id={tid}") == 'Changed note')
+nb = count("select count(*) from tasks where task_source='internal'")
+r = add(admin, task_id=tid, description='Changed note'); ok('update without self-clash', r.status_code == 302 and sql(f"select description from tasks where task_id={tid}") == 'Changed note')
 ok('driver notified of change', count(f"select count(*) from notifications where user_id={drv_user} and message like 'Your internal task was changed%'") == 1)
-ok('update keeps the assigned driver', sql(f"select driver_id from internal_tasks where task_id={tid}") == str(rec[0]))
-ok('update did not add a row', count('select count(*) from internal_tasks') == nb)
+ok('update keeps the assigned driver', sql(f"select driver_id from tasks where task_id={tid}") == str(rec[0]))
+ok('update did not add a row', count("select count(*) from tasks where task_source='internal'") == nb)
 r = admin.get('admin/internal_tasks.php', edit=tid); ok('edit form shows values', r.status_code == 200 and 'Update task #%d' % tid in r.text and 'Fill up' not in r.text or 'Changed note' in r.text)
 # delete (soft delete with a reason)
-sql("INSERT INTO internal_tasks (task_type,task_date,start_time,end_time,vehicle_id,driver_id,description,status) VALUES ('refuel',DATE_SUB(CURDATE(), INTERVAL 2 DAY),'09:00:00','10:00:00',5,8,'completed task','active')")
-st_id = int(sql("select max(task_id) from internal_tasks"))
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=st_id, reason='too late to delete')); ok('a completed task cannot be deleted (UC004.4)', sql(f"select status from internal_tasks where task_id={st_id}") == 'active')
+sql("INSERT INTO tasks (task_source,task_type,start_dt,end_dt,vehicle_id,driver_id,description,status) VALUES ('internal','refuel',TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY),'09:00:00'),TIMESTAMP(DATE_SUB(CURDATE(), INTERVAL 2 DAY),'10:00:00'),5,8,'completed task','approved')")
+st_id = int(sql("select max(task_id) from tasks where task_source='internal'"))
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=st_id, reason='too late to delete')); ok('a completed task cannot be deleted (UC004.4)', sql(f"select status from tasks where task_id={st_id}") == 'approved')
 ok('the Delete button is not offered for a completed task', 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php', when='today').text and 'data-id="%d"' % st_id not in admin.get('admin/internal_tasks.php').text)
-r = hod.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='not allowed')); ok('Head of Department cannot delete (role check)', sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='no csrf'), csrf=False); ok('delete without CSRF token is refused (419)', r.status_code == 419 and sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='')); ok('delete needs a reason', sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='ab')); ok('too short reason refused', sql(f"select status from internal_tasks where task_id={tid_adj}") == 'waiting')
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='Vehicle not needed')); ok('a Waiting task can be deleted (row kept, status cancelled)', rows(f"select status,cancel_reason,cancelled_at is not null from internal_tasks where task_id={tid_adj}") == [['cancelled', 'Vehicle not needed', '1']])
+r = hod.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='not allowed')); ok('Head of Department cannot delete (role check)', sql(f"select status from tasks where task_id={tid_adj}") == 'waiting')
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='no csrf'), csrf=False); ok('delete without CSRF token is refused (419)', r.status_code == 419 and sql(f"select status from tasks where task_id={tid_adj}") == 'waiting')
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='')); ok('delete needs a reason', sql(f"select status from tasks where task_id={tid_adj}") == 'waiting')
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='ab')); ok('too short reason refused', sql(f"select status from tasks where task_id={tid_adj}") == 'waiting')
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid_adj, reason='Vehicle not needed')); ok('a Waiting task can be deleted (row kept, status cancelled)', rows(f"select status,cancel_reason,cancelled_at is not null from tasks where task_id={tid_adj}") == [['cancelled', 'Vehicle not needed', '1']])
 ok('the deletion is in the history log', count("select count(*) from audit_log where action='internal_task_delete' and reason like '%Vehicle not needed%'") == 1)
-r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid, reason='Plans changed')); ok('an Approved task can be deleted and the driver is told', sql(f"select status from internal_tasks where task_id={tid}") == 'cancelled' and count(f"select count(*) from notifications where user_id={drv_user} and message like 'Your internal task was deleted%Plans changed%'") == 1)
+r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid, reason='Plans changed')); ok('an Approved task can be deleted and the driver is told', sql(f"select status from tasks where task_id={tid}") == 'cancelled' and count(f"select count(*) from notifications where user_id={drv_user} and message like 'Your internal task was deleted%Plans changed%'") == 1)
 r = admin.post('admin/internal_tasks.php', dict(action='delete', task_id=tid, reason='again please')); ok('cannot delete twice', count("select count(*) from notifications where message like '%deleted%again please%'") == 0)
-sql(f"update internal_tasks set status='cancelled' where task_id={st_id}")
+sql(f"update tasks set status='cancelled' where task_id={st_id}")
 r = add(admin, vehicle_id=5, start_time='09:00', end_time='09:50'); ok('vehicle slot free again after delete (overlaps cancelled tasks only)', r.status_code == 302)
 r = admin.get('admin/internal_tasks.php', status='cancelled', when='upcoming'); ok('list shows the Deleted badge and reason', 'Deleted' in r.text and 'Vehicle not needed' in r.text and not errs(r))
 r = admin.get('admin/internal_tasks.php', status='waiting', when='upcoming'); ok('list shows Waiting for Driver and the Assign driver button', 'Waiting for Driver' in r.text and 'assign_internal_task.php' in r.text and not errs(r))
@@ -117,9 +117,9 @@ r = admin.get('admin/internal_tasks.php', when='past'); ok('past tab lists past 
 r = admin.get('admin/internal_tasks.php', driver_id=9, from_=D(0)); fl = table(admin.get('admin/internal_tasks.php', driver_id=9).text); ok('driver filter lists their task only', len(fl) == 2 and 'Test Drive' in fl[1][1])
 
 # an approved refuelling task for driver 5 (used by the driver schedule checks below)
-add(admin, start_time='10:00', end_time='11:00'); t5 = int(sql("select max(task_id) from internal_tasks"))
+add(admin, start_time='10:00', end_time='11:00'); t5 = int(sql("select max(task_id) from tasks where task_source='internal'"))
 assign(admin, t5, 5, confirmed=True); head.post('admin/approve_assignments.php', dict(task_id=t5, action='approve'))
-ok('approved refuelling task for driver 5 is active', sql(f"select concat(status,'/',driver_id) from internal_tasks where task_id={t5}") == 'active/5')
+ok('approved refuelling task for driver 5 is approved', sql(f"select concat(status,'/',driver_id) from tasks where task_id={t5}") == 'approved/5')
 
 # ---------------- welfare duty (SRS 10 Nov UC006 / UC007 / UC026) ----------------
 def monday_of(s):
@@ -134,55 +134,56 @@ lorry = sql("select vehicle_id from vehicles where vehicle_type='Lorry' limit 1"
 mon = monday_of(D(30)); days7 = [(datetime.date.fromisoformat(mon) + datetime.timedelta(days=i)).isoformat() for i in range(7)]
 r = stf.get('admin/welfare.php'); ok('staff cannot open Welfare Duty (role check)', r.status_code in (302, 403))
 r = admin.get('admin/welfare.php'); ok('welfare page opens', r.status_code == 200 and not errs(r) and 'Create schedule' in r.text)
-r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(lorry, mon))); ok('only a car or van can be used (lorry refused)', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(lorry, mon))); ok('only a car or van can be used (lorry refused)', count("select count(*) from tasks where task_source='welfare' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
 partial = wk_vehicles(car, mon); partial.pop('vehicle[%s]' % days7[3])
-r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **partial)); ok('every day needs a vehicle', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **partial)); ok('every day needs a vehicle', count("select count(*) from tasks where task_source='welfare' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
 r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon)), csrf=False); ok('create without CSRF token refused (419)', r.status_code == 419)
-r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('week created: seven days Waiting for Driver, no driver, vehicle set', rows("select status, ifnull(driver_id,'none'), vehicle_id from welfare_roster where duty_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['waiting', 'none', car]])
-r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('2.1: a second schedule for the same week is refused', count("select count(*) from welfare_roster where duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('week created: seven days Waiting for Driver, no driver, vehicle set', rows("select status, ifnull(driver_id,'none'), vehicle_id from tasks where task_source='welfare' and task_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['waiting', 'none', car]])
+r = admin.post('admin/welfare.php', dict(action='create', week_date=mon, **wk_vehicles(car, mon))); ok('2.1: a second schedule for the same week is refused', count("select count(*) from tasks where task_source='welfare' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
 ok('vehicle reserved for the 24 hours: an internal task that day is refused', 'welfare' in add(admin, task_date=days7[1], vehicle_id=car, start_time='09:00', end_time='10:00').text)
 r = admin.get('admin/welfare.php', week=mon); ok('view shows the seven days', r.status_code == 200 and 'Waiting for Driver' in r.text and not errs(r))
 # A2 update vehicle
 van = sql("select vehicle_id from vehicles where vehicle_type='Van' and status='available' order by vehicle_id limit 1")
-rid = sql("select roster_id from welfare_roster where duty_date='%s'" % days7[2])
-r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, roster_id=rid, vehicle_id=lorry)); ok('A2: a lorry cannot replace the vehicle', sql("select vehicle_id from welfare_roster where roster_id=%s" % rid) == car)
-r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, roster_id=rid, vehicle_id=van)); ok('A2: vehicle of one day updated', sql("select vehicle_id from welfare_roster where roster_id=%s" % rid) == van)
+rid = sql("select task_id from tasks where task_source='welfare' and task_date='%s'" % days7[2])
+r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, task_id=rid, vehicle_id=lorry)); ok('A2: a lorry cannot replace the vehicle', sql("select vehicle_id from tasks where task_id=%s" % rid) == car)
+r = admin.post('admin/welfare.php', dict(action='vehicle', week=mon, task_id=rid, vehicle_id=van)); ok('A2: vehicle of one day updated', sql("select vehicle_id from tasks where task_id=%s" % rid) == van)
 # UC007 assign
 r = admin.get('admin/assign_welfare.php', week=mon); ok('assign page lists the recommendation of each day', r.status_code == 200 and r.text.count('Recommended') >= 7 and not errs(r))
-r = admin.post('admin/assign_welfare.php', dict(week=mon)); ok('3.1: not every day has a driver -> refused', count("select count(*) from welfare_roster where status='assigned'") == 0)
+r = admin.post('admin/assign_welfare.php', dict(week=mon)); ok('3.1: not every day has a driver -> refused', count("select count(*) from tasks where task_source='welfare' and status='assigned'") == 0)
 tops = {}
 for d in days7:
     ids = re.findall(r'name="driver\[%s\]" value="(\d+)"' % d, admin.get('admin/assign_welfare.php', week=mon).text); tops[d] = ids
 ok('each day has recommended drivers', all(len(v) >= 2 for v in tops.values()))
 pick = {'driver[%s]' % d: tops[d][0] for d in days7}
 pick2 = dict(pick); pick2['driver[%s]' % days7[4]] = tops[days7[4]][-1]
-r = admin.post('admin/assign_welfare.php', dict(week=mon, **pick2)); ok('A1: a driver outside the top recommendation gives a warning first', 'not the top recommendation' in r.text and count("select count(*) from welfare_roster where status='assigned'") == 0)
-r = admin.post('admin/assign_welfare.php', dict(week=mon, confirmed='1', **pick2)); ok('confirmed: week is Driver Assigned', r.status_code == 302 and count("select count(*) from welfare_roster where status='assigned' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+r = admin.post('admin/assign_welfare.php', dict(week=mon, **pick2)); ok('A1: a driver outside the top recommendation gives a warning first', 'not the top recommendation' in r.text and count("select count(*) from tasks where task_source='welfare' and status='assigned'") == 0)
+r = admin.post('admin/assign_welfare.php', dict(week=mon, confirmed='1', **pick2)); ok('confirmed: week is Driver Assigned', r.status_code == 302 and count("select count(*) from tasks where task_source='welfare' and status='assigned' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
 ok('Head of Admin told', count("select count(*) from notifications n join users u on u.user_id=n.user_id where u.role='head_admin' and n.message like 'A welfare duty schedule is waiting for your approval%'") >= 1)
 d0 = int(tops[days7[0]][0]); u0 = sql("select user_id from users where driver_id=%d limit 1" % d0)
 ok('the drivers are not told before approval and see nothing yet', count("select count(*) from notifications where user_id=%s and message like 'You are on welfare duty%%'" % u0) == 0)
 # UC026
-r = admin.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('Assistant cannot approve (role check)', count("select count(*) from welfare_roster where status='active' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
+r = admin.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('Assistant cannot approve (role check)', count("select count(*) from tasks where task_source='welfare' and status='approved' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 0)
 r = head.get('admin/approve_assignments.php'); ok('Head of Admin sees the welfare week with task counts', 'Welfare duty' in r.text and 'Tasks this month' in r.text and not errs(r))
-r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='')); ok('reject needs a reason', count("select count(*) from welfare_roster where status='assigned' and duty_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
-r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='Rotate the drivers')); ok('reject: back to Waiting, drivers cleared, vehicle reservation kept', rows("select status, ifnull(driver_id,'none'), reject_reason from welfare_roster where duty_date='%s'" % days7[0]) == [['waiting', 'none', 'Rotate the drivers']] and sql("select vehicle_id from welfare_roster where duty_date='%s'" % days7[0]) == car)
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='')); ok('reject needs a reason', count("select count(*) from tasks where task_source='welfare' and status='assigned' and task_date between '%s' and '%s'" % (days7[0], days7[6])) == 7)
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='reject', reason='Rotate the drivers')); ok('reject: back to Waiting, drivers cleared, vehicle reservation kept', rows("select status, ifnull(driver_id,'none'), reject_reason from tasks where task_source='welfare' and task_date='%s'" % days7[0]) == [['waiting', 'none', 'Rotate the drivers']] and sql("select vehicle_id from tasks where task_source='welfare' and task_date='%s'" % days7[0]) == car)
 ok('Assistant told of the rejection', count("select count(*) from notifications where message like 'The driver assignment of the welfare duty%Rotate the drivers%'") >= 1)
 admin.post('admin/assign_welfare.php', dict(week=mon, confirmed='1', **pick2))
-r = head.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('approve: all days Approved with approver and time', rows("select status, approved_by is not null, approved_at is not null from welfare_roster where duty_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['active', '1', '1']])
+r = head.post('admin/approve_assignments.php', dict(week=mon, action='approve')); ok('approve: all days Approved with approver and time', rows("select status, approved_by is not null, approved_at is not null from tasks where task_source='welfare' and task_date between '%s' and '%s' group by 1,2,3" % (days7[0], days7[6])) == [['approved', '1', '1']])
 ok('the driver is told only now', count("select count(*) from notifications where user_id=%s and message like 'You are on welfare duty%%'" % u0) == 1)
-ok('welfare duty counts in the driver workload', int(sql("select count(*) from welfare_roster where driver_id=%d and status='active'" % d0)) >= 1)
+ok('welfare duty counts in the driver workload', int(sql("select count(*) from tasks where task_source='welfare' and driver_id=%d and status='approved'" % d0)) >= 1)
 # A3 delete
-rid3 = sql("select roster_id from welfare_roster where duty_date='%s'" % days7[6])
-r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=rid3), csrf=False); ok('delete without CSRF refused (419)', r.status_code == 419 and count("select count(*) from welfare_roster where roster_id=%s" % rid3) == 1)
-r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=rid3)); ok('A3: a duty day is deleted and the vehicle released', count("select count(*) from welfare_roster where roster_id=%s" % rid3) == 0)
+rid3 = sql("select task_id from tasks where task_source='welfare' and task_date='%s'" % days7[6])
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=rid3), csrf=False); ok('delete without CSRF refused (419)', r.status_code == 419 and count("select count(*) from tasks where task_id=%s" % rid3) == 1)
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=rid3)); ok('A3: a duty day is deleted and the vehicle released', count("select count(*) from tasks where task_id=%s" % rid3) == 0)
 ok('the deletion is in the history log', count("select count(*) from audit_log where action='welfare_delete'") == 1)
 dp = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
-sql("insert into welfare_roster (duty_date, driver_id, status) values ('%s', 3, 'active')" % dp)
-r = admin.post('admin/welfare.php', dict(action='delete', week=mon, roster_id=sql("select roster_id from welfare_roster where duty_date='%s'" % dp))); ok('a past day cannot be deleted', count("select count(*) from welfare_roster where duty_date='%s'" % dp) == 1)
-sql("delete from welfare_roster where duty_date='%s'" % dp)
+added_dp = count("select count(*) from tasks where task_source='welfare' and task_date='%s'" % dp) == 0   # the demo roster may already have yesterday
+if added_dp: sql("insert into tasks (task_source, task_type, driver_id, start_dt, end_dt, status) values ('welfare', 'welfare', 3, '%s 00:00:00', '%s 00:00:00' + interval 1 day, 'approved')" % (dp, dp))
+r = admin.post('admin/welfare.php', dict(action='delete', week=mon, task_id=sql("select task_id from tasks where task_source='welfare' and task_date='%s'" % dp))); ok('a past day cannot be deleted', count("select count(*) from tasks where task_source='welfare' and task_date='%s'" % dp) == 1)
+if added_dp: sql("delete from tasks where task_source='welfare' and task_date='%s'" % dp)
 
 # ---------------- calendar ----------------
-sql("UPDATE welfare_roster SET driver_id=1 WHERE duty_date=CURDATE()")   # the demo roster rotates by day of the month: make today's duty driver 1
+sql("UPDATE tasks SET driver_id=1 WHERE task_source='welfare' AND task_date=CURDATE()")   # the demo roster rotates by day of the month: make today's duty driver 1
 def cal(c, s, e, **kw):
     r = c.get('ajax/calendar_events.php', start=s, end=e, **kw); assert r.status_code == 200, r.text[:200]; return json.loads(r.text)['events']
 ev = cal(admin, D(0), D(8))
@@ -200,8 +201,9 @@ f = cal(admin, D(0), D(8), driver_id=1)
 ok('driver filter only that driver', f and all(e['driver_id'] == 1 for e in f) and {e['kind'] for e in f} >= {'trip', 'welfare'})
 f = cal(admin, D(0), D(8), vehicle_id=1)
 ok('vehicle filter only that vehicle (no welfare)', f and all(e['vehicle_id'] == 1 for e in f) and not any(e['kind'] == 'welfare' for e in f))
-ok('cancelled schedule hidden', (sql(f"update schedules set status='cancelled' where schedule_id=2") or True) and not any(e['id'] == 't2' for e in cal(admin, D(0), D(8))))
-sql("update schedules set status='approved' where schedule_id=2")
+t2id = 2; t2st = sql(f"select status from tasks where task_id={t2id}")   # task 2 = return trip of request #3
+ok('cancelled schedule hidden', (sql(f"update tasks set status='cancelled' where task_id={t2id}") or True) and not any(e['id'] == 't2' for e in cal(admin, D(0), D(8))))
+sql(f"update tasks set status='{t2st}' where task_id={t2id}")
 ok('range overlap rule: event ending exactly at range start excluded', not any(e['id'] == 't4' for e in cal(admin, D(4), D(6))))
 r = admin.get('ajax/calendar_events.php', start='bad', end='x'); ok('bad dates -> 400 json', r.status_code == 400)
 r = admin.get('admin/calendar.php'); ok('calendar page', r.status_code == 200 and 'calDriver' in r.text and not errs(r) and 'cdn.jsdelivr.net/npm/fullcalendar' not in r.text)
@@ -271,11 +273,11 @@ a, b = M + '-01', sql(f"select last_day('{M}-01')")
 def rep(t, **kw): return admin.get('admin/reports.php', type=t, month=M, **kw)
 r = rep('workload'); tb = table(main_html(r))
 expd = {x[1]: x for x in rows(f"""select d.driver_id, d.name,
-   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}'),
-   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}'),
-   (select count(*) from welfare_roster w where w.driver_id=d.driver_id and w.status='active' and w.duty_date between '{a}' and '{b}'),
-   (select count(*) from schedules s where s.driver_id=d.driver_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}' and dayofweek(s.trip_date) in (1,7)) +
-   (select count(*) from internal_tasks t where t.driver_id=d.driver_id and t.status='active' and t.task_date between '{a}' and '{b}' and dayofweek(t.task_date) in (1,7)) from drivers d""")}
+   (select count(*) from tasks s where s.task_source='request' and s.driver_id=d.driver_id and s.status<>'cancelled' and s.task_date between '{a}' and '{b}'),
+   (select count(*) from tasks t where t.task_source='internal' and t.driver_id=d.driver_id and t.status in ('approved','completed') and t.task_date between '{a}' and '{b}'),
+   (select count(*) from tasks w where w.task_source='welfare' and w.driver_id=d.driver_id and w.status in ('approved','completed') and w.task_date between '{a}' and '{b}'),
+   (select count(*) from tasks s where s.task_source='request' and s.driver_id=d.driver_id and s.status<>'cancelled' and s.task_date between '{a}' and '{b}' and dayofweek(s.task_date) in (1,7)) +
+   (select count(*) from tasks t where t.task_source='internal' and t.driver_id=d.driver_id and t.status in ('approved','completed') and t.task_date between '{a}' and '{b}' and dayofweek(t.task_date) in (1,7)) from drivers d""")}
 ok('Driver Workload: headers', r.status_code == 200 and not errs(r) and tb[0][:6] == ['Driver', 'Employee ID', 'Request tasks', 'Internal tasks', 'Welfare duties', 'Weekend tasks'])
 good = True; seen = 0
 for line in tb[1:-1]:
@@ -285,22 +287,22 @@ for line in tb[1:-1]:
 ok('Driver Workload numbers match SQL (request, internal, welfare, weekend)', good and seen >= 10)
 ok('Driver Workload totals row', tb[-1][0] == 'Total' and tb[-1][2] == str(sum(int(l[2]) for l in tb[1:-1])) and int(tb[-1][4]) > 0)
 r = rep('vehicle'); tb = table(main_html(r))
-sql("INSERT INTO task_reports (schedule_id, driver_id, vehicle_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition) SELECT schedule_id, driver_id, vehicle_id, CONCAT(trip_date,' 08:00:00'), CONCAT(trip_date,' 12:00:00'), 1000, 1250, 'half', 'ok' FROM schedules WHERE driver_id IS NOT NULL AND vehicle_id IS NOT NULL AND status<>'cancelled' AND trip_date BETWEEN '%s' AND '%s' LIMIT 1" % (a, b))
+sql("INSERT INTO task_reports (task_id, actual_depart, actual_return, start_mileage, end_mileage, fuel_level, vehicle_condition) SELECT task_id, CONCAT(task_date,' 08:00:00'), CONCAT(task_date,' 12:00:00'), 1000, 1250, 'half', 'ok' FROM tasks WHERE task_source='request' AND driver_id IS NOT NULL AND vehicle_id IS NOT NULL AND status<>'cancelled' AND task_date BETWEEN '%s' AND '%s' LIMIT 1" % (a, b))
 r = rep('vehicle'); tb = table(main_html(r))
 expv = {x[0]: x for x in rows(f"""select concat_ws(' ', v.plate_number, v.brand, v.model),
-   (select count(*) from schedules s where s.vehicle_id=v.vehicle_id and s.status<>'cancelled' and s.trip_date between '{a}' and '{b}'),
-   coalesce((select sum(r.end_mileage-r.start_mileage) from task_reports r where r.vehicle_id=v.vehicle_id and date(r.actual_depart) between '{a}' and '{b}'),0) from vehicles v""")}
+   (select count(*) from tasks s where s.task_source='request' and s.vehicle_id=v.vehicle_id and s.status<>'cancelled' and s.task_date between '{a}' and '{b}'),
+   coalesce((select sum(r.end_mileage-r.start_mileage) from task_reports r join tasks rt on rt.task_id=r.task_id where rt.vehicle_id=v.vehicle_id and date(r.actual_depart) between '{a}' and '{b}'),0) from vehicles v""")}
 ok('Vehicle Usage: headers', tb[0][:4] == ['Vehicle', 'Type', 'Trips', 'Total mileage (km)'])
 good = all(int(l[2]) == int(expv[l[0]][1]) and int(l[3]) == int(float(expv[l[0]][2])) for l in tb[1:-1])
 ok('Vehicle Usage numbers match SQL (number of trips and total mileage)', good and len(tb) > 5 and any(int(l[3]) == 250 for l in tb[1:-1]))
 # driver replacements (UC020 records, UC031)
 sql("DELETE FROM driver_replacements")
-sid = sql("SELECT schedule_id FROM schedules WHERE driver_id IS NOT NULL AND status<>'cancelled' LIMIT 1")
-sql("INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by, changed_at) VALUES (%s, 1, 2, 'Driver fell sick', 5, '%s 10:30:00')" % (sid, a))
+sid = sql("SELECT task_id FROM tasks WHERE task_source='request' AND request_id IS NOT NULL AND driver_id IS NOT NULL AND status<>'cancelled' ORDER BY task_id LIMIT 1")
+sql("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, replaced_by, replaced_at) VALUES (%s, 1, 2, 'Driver fell sick', 5, '%s 10:30:00')" % (sid, a))
 r = rep('replacements'); tb = table(main_html(r))
 ok('driver replacements: headers', r.status_code == 200 and not errs(r) and tb[0] == ['Date changed', 'Request', 'Trip date', 'Previous driver', 'New driver', 'Reason', 'Changed by'])
 ok('driver replacements: the row shows previous driver, new driver, reason and who', len(tb) == 3 and 'Driver fell sick' in tb[1][5] and tb[1][3] != tb[1][4] and tb[-1][0] == 'Total: 1')
-sql("INSERT INTO driver_replacements (schedule_id, previous_driver_id, new_driver_id, reason, changed_by, changed_at) VALUES (%s, 2, 1, 'Next month', 5, DATE_ADD('%s', INTERVAL 40 DAY))" % (sid, a))
+sql("INSERT INTO driver_replacements (task_id, previous_driver_id, driver_id, reason, replaced_by, replaced_at) VALUES (%s, 2, 1, 'Next month', 5, DATE_ADD('%s', INTERVAL 40 DAY))" % (sid, a))
 ok('driver replacements: only the selected month', len(table(main_html(rep('replacements')))) == 3)
 for ex in ('pdf', 'xlsx'):
     rr = rep('replacements', export=ex)

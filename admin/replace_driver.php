@@ -16,9 +16,9 @@ requireAdmin();
 $sid = (int)($_GET['schedule_id'] ?? $_POST['schedule_id'] ?? 0);
 $stmt = $conn->prepare(
     "SELECT s.*, d.name AS driver_name, v.plate_number, v.model, v.license_required, vr.status AS req_status, vr.destination AS req_destination
-       FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
+       FROM tasks s JOIN vehicle_requests vr ON vr.request_id = s.request_id
        LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-      WHERE s.schedule_id = ? AND s.status <> 'cancelled'"
+      WHERE s.task_id = ? AND s.task_source = 'request' AND s.status <> 'cancelled'"
 );
 $stmt->bind_param('i', $sid);
 $stmt->execute();
@@ -36,7 +36,7 @@ $change_id = (int)($_GET['change_id'] ?? $_POST['change_id'] ?? 0);
 $driverRequest = false;
 if ($change_id > 0 && isHeadAdmin()) {
     $cs = $conn->prepare("SELECT 1 FROM schedule_change_requests r WHERE r.change_id = ? AND r.status = 'approved' AND r.driver_id = ?
-                             AND (r.schedule_id = ? OR (r.change_type = 'unavailable' AND EXISTS (SELECT 1 FROM schedule_change_dates d WHERE d.change_id = r.change_id AND d.change_date BETWEEN DATE(?) AND DATE(?))))");
+                             AND (r.task_id = ? OR (r.change_type = 'unavailable' AND EXISTS (SELECT 1 FROM schedule_change_dates d WHERE d.change_id = r.change_id AND d.change_date BETWEEN DATE(?) AND DATE(?))))");
     $cs->bind_param('iiiss', $change_id, $task['driver_id'], $sid, $task['start_dt'], $task['end_dt']);
     $cs->execute();
     $driverRequest = (bool)$cs->get_result()->fetch_row();
@@ -63,10 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-$rec = $canReplace ? recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'], 'except_schedule' => $sid]) : ['ranked' => [], 'excluded' => [], 'weights' => ['tasks' => 0, 'weekend' => 0, 'experience' => 0]];
-$hist = $conn->prepare("SELECT r.reason, r.changed_at, o.name AS old_name, n.name AS new_name FROM driver_replacements r
-                         LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id LEFT JOIN drivers n ON n.driver_id = r.new_driver_id
-                        WHERE r.schedule_id = ? ORDER BY r.replacement_id DESC");
+$rec = $canReplace ? recommendDrivers($conn, ['start' => $task['start_dt'], 'end' => $task['end_dt'], 'licence' => $task['license_required'], 'except_task' => $sid]) : ['ranked' => [], 'excluded' => [], 'weights' => ['tasks' => 0, 'weekend' => 0, 'experience' => 0]];
+$hist = $conn->prepare("SELECT r.reason, r.replaced_at, o.name AS old_name, n.name AS new_name FROM driver_replacements r
+                         LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id LEFT JOIN drivers n ON n.driver_id = r.driver_id
+                        WHERE r.task_id = ? ORDER BY r.replacement_id DESC");
 $hist->bind_param('i', $sid);
 $hist->execute();
 $history = $hist->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -75,7 +75,7 @@ $hist->close();
 adminPageStart('Replace Driver');
 ?>
     <a class="small text-decoration-none" href="vehicle_requests.php?tab=processed"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="fw-bold my-2"><i class="fas fa-right-left text-success me-2"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h4>
+    <h4 class="fw-bold my-2"><i class="fas fa-right-left text-success me-2"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= $task['trip_type'] === 'return' ? 'return' : 'outbound' ?> trip</h4>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body small">
         <div><strong><?= htmlspecialchars($task['req_destination']) ?></strong> &middot; <?= date('D, d M Y H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?></div>
         <div>Vehicle: <?= htmlspecialchars((string)$task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
@@ -113,7 +113,7 @@ adminPageStart('Replace Driver');
     <?php if ($history): ?>
     <div class="card border-0 shadow-sm mt-3"><div class="card-body small">
         <h6 class="fw-bold">Replacement history of this task</h6>
-        <?php foreach ($history as $h): ?><div><?= date('d M Y H:i', strtotime($h['changed_at'])) ?> &middot; <?= htmlspecialchars((string)$h['old_name']) ?> &rarr; <?= htmlspecialchars((string)$h['new_name']) ?> &middot; <?= htmlspecialchars((string)$h['reason']) ?></div><?php endforeach; ?>
+        <?php foreach ($history as $h): ?><div><?= date('d M Y H:i', strtotime($h['replaced_at'])) ?> &middot; <?= htmlspecialchars((string)$h['old_name']) ?> &rarr; <?= htmlspecialchars((string)$h['new_name']) ?> &middot; <?= htmlspecialchars((string)$h['reason']) ?></div><?php endforeach; ?>
     </div></div>
     <?php endif; ?>
 <?php adminPageEnd(); ?>

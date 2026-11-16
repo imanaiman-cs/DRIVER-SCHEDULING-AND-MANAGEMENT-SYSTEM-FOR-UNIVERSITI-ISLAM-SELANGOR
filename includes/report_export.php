@@ -34,17 +34,17 @@ function buildReport(mysqli $conn, string $type, string $month): array
         $counts = driverMonthCounts($conn, $month);
         $drivers = $conn->query('SELECT driver_id, name, employee_id, status FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC);
         $split = [];
-        $stmt = $conn->prepare("SELECT driver_id, SUM(k = 'r') AS req, SUM(k = 'i') AS internal FROM (
-                                   SELECT driver_id, 'r' AS k FROM schedules WHERE driver_id IS NOT NULL AND status <> 'cancelled' AND trip_date BETWEEN ? AND ?
-                                   UNION ALL
-                                   SELECT driver_id, 'i' FROM internal_tasks WHERE driver_id IS NOT NULL AND status = 'active' AND task_date BETWEEN ? AND ?
-                                ) x GROUP BY driver_id");
-        $stmt->bind_param('ssss', $from, $to, $from, $to);
+        $stmt = $conn->prepare("SELECT driver_id, SUM(task_source = 'request') AS req, SUM(task_source = 'internal') AS internal
+                                  FROM tasks
+                                 WHERE driver_id IS NOT NULL AND task_date BETWEEN ? AND ?
+                                   AND ((task_source = 'request' AND status <> 'cancelled') OR (task_source = 'internal' AND status IN ('approved', 'completed')))
+                                 GROUP BY driver_id");
+        $stmt->bind_param('ss', $from, $to);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $split[(int)$r['driver_id']] = [(int)$r['req'], (int)$r['internal']]; }
         $stmt->close();
         $wel = [];
-        $stmt = $conn->prepare("SELECT driver_id, COUNT(*) AS n FROM welfare_roster WHERE driver_id IS NOT NULL AND status = 'active' AND duty_date BETWEEN ? AND ? GROUP BY driver_id");
+        $stmt = $conn->prepare("SELECT driver_id, COUNT(*) AS n FROM tasks WHERE task_source = 'welfare' AND driver_id IS NOT NULL AND status IN ('approved', 'completed') AND task_date BETWEEN ? AND ? GROUP BY driver_id");
         $stmt->bind_param('ss', $from, $to);
         $stmt->execute();
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $wel[(int)$r['driver_id']] = (int)$r['n']; }
@@ -61,32 +61,35 @@ function buildReport(mysqli $conn, string $type, string $month): array
         }
     } elseif ($type === 'replacements') {
         $stmt = $conn->prepare(
-            "SELECT r.changed_at, s.request_id, s.leg_no, COALESCE(s.trip_date, it.task_date, wr.duty_date) AS trip_date, s.destination, r.internal_task_id, r.welfare_id, o.name AS old_name, n.name AS new_name, r.reason, u.full_name AS by_name
+            "SELECT r.replaced_at, t.task_id, t.task_source, t.request_id, t.trip_type, t.task_date AS trip_date, o.name AS old_name, n.name AS new_name, r.reason, u.full_name AS by_name
                FROM driver_replacements r
-               LEFT JOIN schedules s ON s.schedule_id = r.schedule_id
-               LEFT JOIN internal_tasks it ON it.task_id = r.internal_task_id
-               LEFT JOIN welfare_roster wr ON wr.roster_id = r.welfare_id
+               LEFT JOIN tasks t ON t.task_id = r.task_id
                LEFT JOIN drivers o ON o.driver_id = r.previous_driver_id
-               LEFT JOIN drivers n ON n.driver_id = r.new_driver_id
-               LEFT JOIN users u ON u.user_id = r.changed_by
-              WHERE DATE(r.changed_at) BETWEEN ? AND ?
-              ORDER BY r.changed_at, r.replacement_id");
+               LEFT JOIN drivers n ON n.driver_id = r.driver_id
+               LEFT JOIN users u ON u.user_id = r.replaced_by
+              WHERE DATE(r.replaced_at) BETWEEN ? AND ?
+              ORDER BY r.replaced_at, r.replacement_id");
         $stmt->bind_param('ss', $from, $to);
         $stmt->execute();
         $rep['headers'] = ['Date changed', 'Request', 'Trip date', 'Previous driver', 'New driver', 'Reason', 'Changed by'];
         $rep['widths']  = [18, 12, 14, 24, 24, 38, 20];
         $rep['note']    = 'Every driver replacement made in the month (UC020), with the reason and who made it. Records are never edited.';
         foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
-            $rep['rows'][] = [date('d M Y H:i', strtotime($r['changed_at'])), $r['internal_task_id'] ? 'Internal task #' . $r['internal_task_id'] : ($r['welfare_id'] ? 'Welfare duty' : '#' . $r['request_id'] . ($r['leg_no'] ? ' (task ' . $r['leg_no'] . ')' : '')),
-                              date('d M Y', strtotime($r['trip_date'])), $r['old_name'] ?? '-', $r['new_name'] ?? '-', $r['reason'], $r['by_name'] ?? '-'];
+            $what = match ($r['task_source']) {
+                'internal' => 'Internal task #' . $r['task_id'],
+                'welfare'  => 'Welfare duty',
+                default    => '#' . $r['request_id'] . ($r['trip_type'] ? ' (task ' . ($r['trip_type'] === 'return' ? 2 : 1) . ')' : ''),
+            };
+            $rep['rows'][] = [date('d M Y H:i', strtotime($r['replaced_at'])), $what,
+                              $r['trip_date'] ? date('d M Y', strtotime($r['trip_date'])) : '-', $r['old_name'] ?? '-', $r['new_name'] ?? '-', $r['reason'], $r['by_name'] ?? '-'];
         }
         $stmt->close();
     } else {
         // Vehicle Usage (UC011): the number of trips and the total mileage of each vehicle in the month (mileage from the driver task reports)
         $stmt = $conn->prepare(
             "SELECT v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.status,
-                    COALESCE((SELECT COUNT(*) FROM schedules s WHERE s.vehicle_id = v.vehicle_id AND s.status <> 'cancelled' AND s.trip_date BETWEEN ? AND ?), 0) AS trips,
-                    COALESCE((SELECT SUM(r.end_mileage - r.start_mileage) FROM task_reports r WHERE r.vehicle_id = v.vehicle_id AND DATE(r.actual_depart) BETWEEN ? AND ?), 0) AS km
+                    COALESCE((SELECT COUNT(*) FROM tasks s WHERE s.task_source = 'request' AND s.vehicle_id = v.vehicle_id AND s.status <> 'cancelled' AND s.task_date BETWEEN ? AND ?), 0) AS trips,
+                    COALESCE((SELECT SUM(r.end_mileage - r.start_mileage) FROM task_reports r JOIN tasks t ON t.task_id = r.task_id WHERE t.vehicle_id = v.vehicle_id AND DATE(r.actual_depart) BETWEEN ? AND ?), 0) AS km
                FROM vehicles v ORDER BY v.plate_number");
         $stmt->bind_param('ssss', $from, $to, $from, $to);
         $stmt->execute();
