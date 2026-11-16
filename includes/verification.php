@@ -41,6 +41,29 @@ function isUisEmail(mysqli $conn, string $email): bool
  */
 function sendVerificationCode(mysqli $conn, string $email, string $staffId, string $purpose): array
 {
+    // one request per e-mail at a time: the limit check and the logged e-mail happen under a lock, so requests sent at the same moment
+    // cannot all pass the check before any of them is written to email_log
+    $lockName = 'uis_verify_' . md5(strtolower(trim($email)));
+    $l = $conn->prepare('SELECT GET_LOCK(?, 10)');
+    $l->bind_param('s', $lockName);
+    $l->execute();
+    $got = (int)($l->get_result()->fetch_row()[0] ?? 0) === 1;
+    $l->close();
+    if (!$got) { return ['ok' => false, 'message' => 'A code was just sent. Please wait one minute before asking for a new code.']; }
+    try {
+        return sendVerificationCodeLocked($conn, $email, $staffId, $purpose);
+    } finally {
+        $u = $conn->prepare('SELECT RELEASE_LOCK(?)');
+        $u->bind_param('s', $lockName);
+        $u->execute();
+        $u->get_result();
+        $u->close();
+    }
+}
+
+/** The work of sendVerificationCode(), called while the lock of the e-mail is held. */
+function sendVerificationCodeLocked(mysqli $conn, string $email, string $staffId, string $purpose): array
+{
     if (($limit = verificationLimitMessage($conn, $email)) !== null) { return ['ok' => false, 'message' => $limit]; }   // the earlier code stays valid
     $code = (string)random_int(100000, 999999);
     $hash = password_hash($code, PASSWORD_DEFAULT);
