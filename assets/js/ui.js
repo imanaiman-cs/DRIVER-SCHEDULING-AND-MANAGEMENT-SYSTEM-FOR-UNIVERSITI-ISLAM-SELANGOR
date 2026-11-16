@@ -1,15 +1,14 @@
 /* ============================================================
    UIS Driver Scheduling & Management System
-   assets/js/ui.js  –  Shared popup dialogs
+   assets/js/ui.js  –  Shared dialogs (DaisyUI <dialog class="modal">)
 
-   Replaces the browser's native confirm()/alert() boxes with
-   dialogs styled to match the system (built on SweetAlert2).
+   Replaces the browser's native confirm()/alert()/prompt() boxes.
 
    JavaScript:
-     UIS.confirm({ title, text, confirmText, cancelText, tone, icon })
-         -> Promise<boolean>
-     UIS.alert(message, { title, tone, buttonText })
-         -> Promise<void>
+     UIS.confirm({ title, text, confirmText, cancelText, tone })   -> Promise<boolean>
+     UIS.alert(message, { title, tone, buttonText })                -> Promise<void>
+     UIS.askReason({ title, text, label, placeholder, confirmText, cancelText, tone, minLength })
+                                                                    -> Promise<string|null>
      tone: 'primary' (green) | 'danger' (red) | 'warning' (amber)
 
    Markup (no JavaScript needed):
@@ -17,142 +16,124 @@
         data-confirm="You will need to sign in again."
         data-confirm-title="Log out?"
         data-confirm-button="Log Out"
-        data-confirm-tone="danger"
-        data-confirm-icon="fa-right-from-bracket">Log out</a>
+        data-confirm-tone="danger">Log out</a>
      Also works on <button type="submit"> inside a form.
    ============================================================ */
 (function () {
     'use strict';
 
-    var DEFAULT_ICON = {
-        primary: 'fa-circle-question',
-        danger:  'fa-triangle-exclamation',
-        warning: 'fa-circle-exclamation'
-    };
-
-    function swalReady() {
-        return typeof window.Swal !== 'undefined';
-    }
+    var BUTTON = { primary: 'btn-primary', danger: 'btn-error', warning: 'btn-warning' };
 
     function toneOf(value) {
-        return DEFAULT_ICON[value] ? value : 'primary';
+        return BUTTON[value] ? value : 'primary';
     }
 
-    function classes(tone) {
-        return {
-            popup:         'uis-swal',
-            icon:          'uis-swal-icon uis-swal-icon--' + tone,
-            confirmButton: 'uis-btn uis-btn--' + tone,
-            cancelButton:  'uis-btn uis-btn--ghost',
-            actions:       'uis-swal-actions'
-        };
+    function el(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) { e.className = cls; }
+        if (text) { e.textContent = text; }
+        return e;
     }
 
-    function confirmDialog(options) {
-        var o = Object.assign({
-            title:       'Are you sure?',
-            text:        '',
-            confirmText: 'Yes, continue',
-            cancelText:  'Cancel',
-            tone:        'primary',
-            icon:        null
-        }, options || {});
-        o.tone = toneOf(o.tone);
+    var supported = typeof window.HTMLDialogElement === 'function';
 
-        if (!swalReady()) {
-            // Library failed to load (e.g. offline): fall back to the native box.
-            return Promise.resolve(window.confirm(o.title + (o.text ? '\n\n' + o.text : '')));
-        }
+    /**
+     * One dialog for every case. o: { title, text, confirmText, cancelText (null = no cancel), tone, input: { label, placeholder, minLength } }
+     * Resolves to true/false, or to the typed text / null when o.input is set.
+     */
+    function openDialog(o) {
+        return new Promise(function (resolve) {
+            var dialog = el('dialog', 'modal');
+            var box = el('div', 'modal-box max-w-md');
+            var titleId = 'uisDialog' + Date.now();
+            var h = el('h3', 'text-lg font-medium', o.title);
+            h.id = titleId;
+            dialog.setAttribute('aria-labelledby', titleId);
+            box.appendChild(h);
+            if (o.text) { box.appendChild(el('p', 'mt-2 text-sm text-base-content/70', o.text)); }
 
-        var icon = o.icon || DEFAULT_ICON[o.tone];
-        return window.Swal.fire({
-            title:             o.title,
-            text:              o.text,
-            icon:              'question',
-            iconHtml:          '<i class="fas ' + icon + '" aria-hidden="true"></i>',
-            showCancelButton:  true,
-            confirmButtonText: o.confirmText,
-            cancelButtonText:  o.cancelText,
-            reverseButtons:    true,
-            focusCancel:       o.tone === 'danger',
-            buttonsStyling:    false,
-            customClass:       classes(o.tone)
-        }).then(function (result) {
-            return result.isConfirmed === true;
+            var field = null, error = null;
+            if (o.input) {
+                var label = el('label', 'mt-4 mb-1 block text-sm font-medium', o.input.label);
+                field = el('textarea', 'textarea w-full');
+                field.id = titleId + 'Input';
+                label.setAttribute('for', field.id);
+                field.rows = 3;
+                field.maxLength = 500;
+                field.placeholder = o.input.placeholder || '';
+                error = el('p', 'mt-1 hidden text-xs text-error');
+                box.appendChild(label); box.appendChild(field); box.appendChild(error);
+            }
+
+            var actions = el('div', 'modal-action');
+            var cancel = null;
+            if (o.cancelText !== null) {
+                cancel = el('button', 'btn btn-ghost', o.cancelText);
+                cancel.type = 'button';
+                actions.appendChild(cancel);
+            }
+            var ok = el('button', 'btn ' + BUTTON[o.tone], o.confirmText);
+            ok.type = 'button';
+            actions.appendChild(ok);
+            box.appendChild(actions);
+            dialog.appendChild(box);
+
+            // Clicking outside the box closes it, like Cancel
+            var backdrop = el('form', 'modal-backdrop');
+            backdrop.method = 'dialog';
+            var closeBtn = el('button', '', 'Close');
+            backdrop.appendChild(closeBtn);
+            dialog.appendChild(backdrop);
+
+            var result = o.input ? null : false;
+            function finish(value) { result = value; dialog.close(); }
+            ok.addEventListener('click', function () {
+                if (!o.input) { finish(true); return; }
+                var v = field.value.trim();
+                if (v.length < (o.input.minLength || 0)) {
+                    error.textContent = 'Please write the reason (at least ' + o.input.minLength + ' characters).';
+                    error.classList.remove('hidden');
+                    field.classList.add('textarea-error');
+                    field.focus();
+                    return;
+                }
+                finish(v);
+            });
+            if (cancel) { cancel.addEventListener('click', function () { dialog.close(); }); }
+            dialog.addEventListener('close', function () {
+                dialog.remove();
+                resolve(o.cancelText === null && !o.input ? undefined : result);
+            });
+
+            document.body.appendChild(dialog);
+            dialog.showModal();
+            (field || (o.tone === 'danger' && cancel) || ok).focus();
         });
     }
 
-    function alertDialog(message, options) {
-        var o = Object.assign({
-            title:      'Notice',
-            tone:       'primary',
-            buttonText: 'OK',
-            icon:       null
-        }, options || {});
+    function confirmDialog(options) {
+        var o = Object.assign({ title: 'Are you sure?', text: '', confirmText: 'Yes, continue', cancelText: 'Cancel', tone: 'primary' }, options || {});
         o.tone = toneOf(o.tone);
+        if (!supported) { return Promise.resolve(window.confirm(o.title + (o.text ? '\n\n' + o.text : ''))); }
+        return openDialog(o);
+    }
 
-        if (!swalReady()) {
-            window.alert(message);
-            return Promise.resolve();
-        }
-
-        var icon = o.icon || (o.tone === 'danger' ? 'fa-circle-xmark' : (o.tone === 'warning' ? DEFAULT_ICON.warning : 'fa-circle-info'));
-        return window.Swal.fire({
-            title:             o.title,
-            text:              message,
-            icon:              'info',
-            iconHtml:          '<i class="fas ' + icon + '" aria-hidden="true"></i>',
-            confirmButtonText: o.buttonText,
-            buttonsStyling:    false,
-            customClass:       classes(o.tone)
-        }).then(function () { /* resolved when dismissed */ });
+    function alertDialog(message, options) {
+        var o = Object.assign({ title: 'Notice', tone: 'primary', buttonText: 'OK' }, options || {});
+        if (!supported) { window.alert(message); return Promise.resolve(); }
+        return openDialog({ title: o.title, text: message, confirmText: o.buttonText, cancelText: null, tone: toneOf(o.tone) });
     }
 
     // Asks for a written reason (cancel / reject need one). Resolves to the text, or null if dismissed.
     function askReason(options) {
-        var o = Object.assign({
-            title:       'Reason required',
-            text:        '',
-            label:       'Reason',
-            placeholder: 'Write the reason here...',
-            confirmText: 'Continue',
-            cancelText:  'Back',
-            tone:        'danger',
-            icon:        null,
-            minLength:   3
-        }, options || {});
+        var o = Object.assign({ title: 'Reason required', text: '', label: 'Reason', placeholder: 'Write the reason here', confirmText: 'Continue', cancelText: 'Back', tone: 'danger', minLength: 3 }, options || {});
         o.tone = toneOf(o.tone);
-
-        if (!swalReady()) {
+        if (!supported) {
             var typed = window.prompt(o.title + (o.text ? '\n' + o.text : '') + '\n' + o.label);
             return Promise.resolve(typed && typed.trim().length >= o.minLength ? typed.trim() : null);
         }
-
-        var icon = o.icon || DEFAULT_ICON[o.tone];
-        return window.Swal.fire({
-            title:             o.title,
-            text:              o.text,
-            icon:              'question',
-            iconHtml:          '<i class="fas ' + icon + '" aria-hidden="true"></i>',
-            input:             'textarea',
-            inputLabel:        o.label,
-            inputPlaceholder:  o.placeholder,
-            inputAttributes:   { maxlength: 500, 'aria-label': o.label },
-            showCancelButton:  true,
-            confirmButtonText: o.confirmText,
-            cancelButtonText:  o.cancelText,
-            reverseButtons:    true,
-            buttonsStyling:    false,
-            customClass:       classes(o.tone),
-            inputValidator:    function (value) {
-                if (!value || value.trim().length < o.minLength) {
-                    return 'Please write the reason (at least ' + o.minLength + ' characters).';
-                }
-                return null;
-            }
-        }).then(function (result) {
-            return result.isConfirmed ? String(result.value).trim() : null;
-        });
+        return openDialog({ title: o.title, text: o.text, confirmText: o.confirmText, cancelText: o.cancelText, tone: o.tone,
+                            input: { label: o.label, placeholder: o.placeholder, minLength: o.minLength } });
     }
 
     window.UIS = window.UIS || {};
@@ -160,56 +141,10 @@
     window.UIS.confirm = confirmDialog;
     window.UIS.alert   = alertDialog;
 
-    // ── One look for every pop-up ───────────────────────────────
-    // Pages call Swal.fire() directly (delete confirmations, success and
-    // error notices…). Give those the same UIS styling so no pop-up keeps
-    // the library's default colours, icons or button shapes.
-    if (swalReady() && !window.Swal.__uisWrapped) {
-        var originalFire = window.Swal.fire.bind(window.Swal);
-        var ICON_BY_TYPE = {
-            success:  { icon: 'fa-circle-check',            tone: 'success' },
-            error:    { icon: 'fa-circle-xmark',            tone: 'danger'  },
-            warning:  { icon: 'fa-triangle-exclamation',    tone: 'warning' },
-            question: { icon: 'fa-circle-question',         tone: 'primary' },
-            info:     { icon: 'fa-circle-info',             tone: 'primary' }
-        };
-        window.Swal.fire = function () {
-            var args = Array.prototype.slice.call(arguments);
-            var o = args[0];
-            if (args.length > 1 || typeof o !== 'object' || o === null) {
-                // Swal.fire('Title', 'text', 'success') shorthand
-                o = { title: args[0], text: args[1], icon: args[2] };
-            }
-            var cc = o.customClass || {};
-            if (o.toast || (typeof cc.popup === 'string' && cc.popup.indexOf('uis-swal') !== -1)) {
-                return originalFire.apply(null, args);
-            }
-            o = Object.assign({}, o);
-            var type = ICON_BY_TYPE[o.icon] ? o.icon : null;
-            var meta = type ? ICON_BY_TYPE[type] : { icon: null, tone: 'primary' };
-            // A red confirm button means a destructive action
-            if (String(o.confirmButtonColor || '').toLowerCase() === '#dc3545') { meta = { icon: meta.icon || 'fa-triangle-exclamation', tone: 'danger' }; }
-            delete o.confirmButtonColor;
-            delete o.cancelButtonColor;
-            o.buttonsStyling = false;
-            if (o.showCancelButton && o.reverseButtons === undefined) { o.reverseButtons = true; }
-            if (o.showCancelButton && meta.tone === 'danger' && o.focusCancel === undefined) { o.focusCancel = true; }
-            var custom = classes(meta.tone);
-            if (!type) { custom.icon = ''; }
-            o.customClass = Object.assign(custom, cc);
-            if (type) {
-                o.iconHtml = '<i class="fas ' + meta.icon + '" aria-hidden="true"></i>';
-                o.icon = 'info';
-            }
-            return originalFire(o);
-        };
-        window.Swal.__uisWrapped = true;
-    }
-
     // ── Declarative confirmation: [data-confirm] ────────────────
     document.addEventListener('click', function (event) {
-        var el = event.target.closest ? event.target.closest('[data-confirm]') : null;
-        if (!el || el.getAttribute('data-confirm-passed') === '1') {
+        var target = event.target.closest ? event.target.closest('[data-confirm]') : null;
+        if (!target || target.getAttribute('data-confirm-passed') === '1') {
             return;
         }
 
@@ -217,32 +152,31 @@
         event.stopPropagation();
 
         confirmDialog({
-            title:       el.getAttribute('data-confirm-title')  || 'Are you sure?',
-            text:        el.getAttribute('data-confirm')        || '',
-            confirmText: el.getAttribute('data-confirm-button') || 'Yes, continue',
-            cancelText:  el.getAttribute('data-confirm-cancel') || 'Cancel',
-            tone:        el.getAttribute('data-confirm-tone')   || 'primary',
-            icon:        el.getAttribute('data-confirm-icon')
+            title:       target.getAttribute('data-confirm-title')  || 'Are you sure?',
+            text:        target.getAttribute('data-confirm')        || '',
+            confirmText: target.getAttribute('data-confirm-button') || 'Yes, continue',
+            cancelText:  target.getAttribute('data-confirm-cancel') || 'Cancel',
+            tone:        target.getAttribute('data-confirm-tone')   || 'primary'
         }).then(function (confirmed) {
             if (!confirmed) {
                 return;
             }
-            if (el.tagName === 'A' && el.href) {
-                if (el.target === '_blank') {
-                    window.open(el.href, '_blank', 'noopener');
+            if (target.tagName === 'A' && target.href) {
+                if (target.target === '_blank') {
+                    window.open(target.href, '_blank', 'noopener');
                 } else {
-                    window.location.href = el.href;
+                    window.location.href = target.href;
                 }
-            } else if (el.form && (el.type === 'submit' || el.tagName === 'BUTTON')) {
-                if (typeof el.form.requestSubmit === 'function') {
-                    el.form.requestSubmit(el);
+            } else if (target.form && (target.type === 'submit' || target.tagName === 'BUTTON')) {
+                if (typeof target.form.requestSubmit === 'function') {
+                    target.form.requestSubmit(target);
                 } else {
-                    el.form.submit();
+                    target.form.submit();
                 }
             } else {
-                el.setAttribute('data-confirm-passed', '1');
-                el.click();
-                el.removeAttribute('data-confirm-passed');
+                target.setAttribute('data-confirm-passed', '1');
+                target.click();
+                target.removeAttribute('data-confirm-passed');
             }
         });
     }, true);
@@ -272,26 +206,24 @@
 
     // ── Accessibility landmarks ─────────────────────────────────
     ready(function () {
-        var main = document.querySelector('main') || document.querySelector('.main-content');
+        var main = document.querySelector('main');
         if (main) {
             if (!main.id) { main.id = 'mainContent'; }
             main.setAttribute('tabindex', '-1');
             var skip = document.querySelector('.skip-link');
             if (skip && main.id !== 'mainContent') { skip.setAttribute('href', '#' + main.id); }
         }
-        document.querySelectorAll('.sidebar-item.active > .sidebar-link, .sidebar-sublink.active')
-            .forEach(function (el) { el.setAttribute('aria-current', 'page'); });
     });
 
     // ── Error recovery: focus the first problem on page load ────
     ready(function () {
-        var invalid = document.querySelector('.is-invalid');
+        var invalid = document.querySelector('.input-error, .select-error, .textarea-error');
         if (invalid) {
             invalid.scrollIntoView({ block: 'center', behavior: 'smooth' });
             if (typeof invalid.focus === 'function') { invalid.focus({ preventScroll: true }); }
             return;
         }
-        var alertBox = document.querySelector('.alert-danger');
+        var alertBox = document.querySelector('.alert-error');
         if (alertBox) {
             alertBox.setAttribute('tabindex', '-1');
             alertBox.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -301,15 +233,8 @@
 
     // ── Feedback without clutter: success notices fade away ─────
     ready(function () {
-        document.querySelectorAll('.alert-success.alert-dismissible').forEach(function (box) {
-            setTimeout(function () {
-                if (!document.body.contains(box)) { return; }
-                if (window.bootstrap && window.bootstrap.Alert) {
-                    window.bootstrap.Alert.getOrCreateInstance(box).close();
-                } else {
-                    box.style.display = 'none';
-                }
-            }, 7000);
+        document.querySelectorAll('main > .alert-success').forEach(function (box) {
+            setTimeout(function () { box.remove(); }, 7000);
         });
     });
 
@@ -337,7 +262,7 @@
             btn.style.minWidth = btn.offsetWidth + 'px';
             btn.disabled = true;
             btn.setAttribute('aria-busy', 'true');
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' +
+            btn.innerHTML = '<span class="loading loading-spinner loading-sm" aria-hidden="true"></span>' +
                             (btn.getAttribute('data-loading-text') || 'Please wait…');
         }, 0);
     });
@@ -361,7 +286,7 @@
         var t = event.target, tag = t && t.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) { return; }
         var box = null;
-        document.querySelectorAll('input[type="search"], .dataTables_filter input, input[placeholder*="earch"]')
+        document.querySelectorAll('input[type="search"], input[placeholder*="earch"]')
             .forEach(function (el) { if (!box && el.offsetParent !== null) { box = el; } });
         if (box) { event.preventDefault(); box.focus(); box.select(); }
     });
@@ -392,7 +317,6 @@
         var href = link.getAttribute('href') || '';
         if (href === '' || href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) { return; }
         if (link.target && link.target !== '_self') { return; }
-        if (link.getAttribute('data-bs-toggle')) { return; }
         if (!hasUnsavedForm()) { return; }
 
         event.preventDefault();

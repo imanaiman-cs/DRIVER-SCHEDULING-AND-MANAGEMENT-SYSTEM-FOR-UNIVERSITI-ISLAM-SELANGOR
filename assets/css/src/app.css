@@ -1,0 +1,123 @@
+/* ============================================================
+   UIS Driver Scheduling & Management System — Tailwind CSS + DaisyUI
+   Source file. Build with:  npm run build:css   (writes assets/css/app.css)
+   ============================================================ */
+@import "tailwindcss";
+
+/* Scan the PHP pages and scripts for class names */
+@source "../../../**/*.php";
+@source "../../js/**/*.js";
+@source not "../../../includes/phpmailer";
+
+@plugin "daisyui" {
+  themes: uis --default;
+}
+
+/* UIS theme: green (Islamic identity) + gold (wisdom). Everything else is plain DaisyUI. */
+@plugin "daisyui/theme" {
+  name: "uis";
+  default: true;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f4f4f5;
+  --color-base-300: #e4e4e7;
+  --color-base-content: #171717;
+
+  --color-primary: oklch(41% 0.09 158);          /* #0b5d3b UIS green */
+  --color-primary-content: oklch(98% 0.01 158);
+  --color-secondary: oklch(68% 0.14 80);         /* #c69214 UIS gold */
+  --color-secondary-content: oklch(22% 0.04 80);
+  --color-accent: oklch(52% 0.12 158);
+  --color-accent-content: oklch(98% 0.01 158);
+  --color-neutral: #262626;
+  --color-neutral-content: #fafafa;
+
+  --color-info: oklch(58% 0.11 220);
+  --color-info-content: oklch(98% 0.01 220);
+  --color-success: oklch(55% 0.14 150);
+  --color-success-content: oklch(98% 0.01 150);
+  --color-warning: oklch(78% 0.15 75);
+  --color-warning-content: oklch(25% 0.05 75);
+  --color-error: oklch(55% 0.2 27);
+  --color-error-content: oklch(98% 0.01 27);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-plate: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+}
+
+
+/* ---------- Base typography (Tailwind's reset removes these; the pages rely on them) ---------- */
+@layer base {
+  :where(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+  :where(h1) { font-size: var(--text-2xl); }
+  :where(h2) { font-size: var(--text-xl); }
+  :where(h3, h4) { font-size: var(--text-lg); }
+  :where(h5, h6) { font-size: var(--text-base); }
+  :where(main p:not(:last-child)) { margin-bottom: 0.75rem; }
+  :where(main ul:not([class]), main ol:not([class])) { padding-inline-start: 1.25rem; margin-bottom: 0.75rem; }
+  :where(main ul:not([class])) { list-style: disc; }
+  :where(main ol:not([class])) { list-style: decimal; }
+  :where(main a:not([class])) { color: var(--color-primary); text-decoration: underline; text-underline-offset: 2px; }
+  :where(main hr) { border-color: var(--color-base-300); margin-block: 1rem; }
+  :where(main code) { font-size: 0.875em; }
+}
+
+@layer components {
+  /* A 12-column grid that replaced Bootstrap's .row: children without a col-span take the full width */
+  .grid-12 > * { grid-column: 1 / -1; }
+}
+
+/* ---------- Small app-wide bits DaisyUI has no component for ---------- */
+@layer components {
+  /* Signature: a vehicle registration set like a Malaysian number plate (white on black). Used wherever a plate is shown. */
+  .plate {
+    @apply inline-block rounded-[3px] bg-neutral px-1.5 py-px align-middle font-plate text-[0.8125rem] leading-5 font-semibold tracking-wide whitespace-nowrap text-neutral-content;
+  }
+
+  :where(h1) .plate { @apply rounded px-2 py-0.5 text-xl leading-7; }
+
+  .skip-link {
+    @apply absolute -left-[9999px] top-0 z-[4000] rounded-br-box bg-primary px-4 py-2 font-semibold text-primary-content;
+  }
+  .skip-link:focus { @apply left-0; }
+
+  /* Required-field marker used by the forms */
+  .req { @apply font-bold text-error; }
+  .required-legend { @apply mb-4 text-sm text-base-content/60; }
+
+
+  /* Dashboard panels (admin, staff, head of department, driver) */
+  .dash-card { @apply rounded-box border border-base-300 bg-base-100 p-5; }
+  .grid-12 > * > .dash-card { @apply h-full; }
+  .dash-card > h6 { @apply mb-4 flex items-center justify-between gap-2 text-sm font-medium; }
+  .dash-card > h6 a { @apply link link-primary font-normal no-underline; }
+  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-field px-2 py-2 text-sm; }
+  a.dash-row { @apply -mx-2 transition-colors hover:bg-base-200; }
+  .dash-group { @apply mt-5 mb-1 text-xs font-medium text-base-content/60 first-of-type:mt-0; }
+  .dash-time { @apply inline-block min-w-24 font-medium tabular-nums; }
+  .dash-empty { @apply py-6 text-center text-sm text-base-content/60; }
+
+  /* A chart canvas wrapper; the centre label sits over a doughnut */
+  .dash-chart { @apply relative w-full; }
+  .dash-chart-centre { @apply pointer-events-none absolute inset-0 grid place-items-center text-center; }
+  @media (min-width: 640px) { .dash-chart-centre { padding-right: 38%; } }
+  .dash-chart-centre b { @apply block text-2xl leading-none; }
+  .dash-chart-centre span { @apply text-xs text-base-content/60; }
+}
+
+@media print {
+  .no-print, .drawer-side, .navbar { display: none !important; }
+}

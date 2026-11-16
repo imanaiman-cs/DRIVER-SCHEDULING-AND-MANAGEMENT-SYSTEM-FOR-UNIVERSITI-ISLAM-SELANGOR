@@ -146,7 +146,7 @@ function renderTaskSheet(array $s): void
     <style>
         .task-sheet { color: #111; font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
         .task-sheet .ts-header { text-align: center; margin-bottom: 1.5rem; }
-        .task-sheet .ts-header img { height: 80px; width: auto; margin-bottom: .5rem; }
+        .task-sheet .ts-header img { display: inline-block; height: 80px; width: auto; margin-bottom: .5rem; }
         .task-sheet .ts-uni { font-size: 1.05rem; font-weight: 700; letter-spacing: .08em; color: #0b5d3b; margin: 0; }
         .task-sheet .ts-title {
             display: inline-block; font-size: 1.6rem; font-weight: 800; letter-spacing: .06em;

@@ -8,6 +8,7 @@
 $page_title   = 'System Settings';
 $current_page = 'settings.php';
 require_once '../config/database.php';
+require_once '../includes/admin_page.php';
 requireAdmin();
 
 // key => [label, kind, min, max, help]
@@ -65,42 +66,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Settings | UIS Driver Management</title>
-    <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
-</head>
-<body>
-<?php require_once '../includes/sidebar.php'; ?>
-<main class="main-content p-4" id="mainContent">
-    <?php showFlash(); ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-sliders text-success me-2"></i>System Settings</h4>
-    <p class="text-muted small">Changes take effect immediately and are written to the audit log.</p>
+<?php adminPageStart('System Settings'); ?>
+    <h1 class="text-2xl font-medium mb-1">System Settings</h1>
+    <p class="text-base-content/60 text-sm">Changes take effect immediately and are written to the audit log.</p>
     <form method="post" novalidate>
-        <div class="card border-0 shadow-sm"><div class="card-body"><div class="row g-3">
+        <div class="card border border-base-300 bg-base-100"><div class="card-body"><div class="grid-12 grid grid-cols-12 gap-4">
         <?php foreach ($FIELDS as $k => [$label, $kind, $min, $max, $help]): ?>
-            <div class="col-md-6">
-                <label class="form-label small fw-semibold" for="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($label) ?></label>
-                <input class="form-control <?= isset($errors[$k]) ? 'is-invalid' : '' ?>" id="<?= htmlspecialchars($k) ?>" name="<?= htmlspecialchars($k) ?>"
+            <div class="col-span-12 md:col-span-6">
+                <label class="mb-1 block text-sm font-medium" for="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($label) ?></label>
+                <input class="input w-full <?= isset($errors[$k]) ? 'input-error' : '' ?>" id="<?= htmlspecialchars($k) ?>" name="<?= htmlspecialchars($k) ?>"
                        type="<?= $kind === 'time' ? 'time' : 'text' ?>" value="<?= htmlspecialchars($values[$k]) ?>" required>
-                <?php if (isset($errors[$k])): ?><div class="invalid-feedback"><?= htmlspecialchars($errors[$k]) ?></div><?php endif; ?>
-                <div class="form-text"><?= htmlspecialchars($help) ?></div>
+                <?php if (isset($errors[$k])): ?><div class="mt-1 block text-xs text-error"><?= htmlspecialchars($errors[$k]) ?></div><?php endif; ?>
+                <div class="mt-1 block text-xs text-base-content/60"><?= htmlspecialchars($help) ?></div>
             </div>
         <?php endforeach; ?>
         </div></div></div>
-        <button class="btn btn-success mt-3" type="submit"><i class="fas fa-floppy-disk me-1"></i>Save settings</button>
+        <button class="btn btn-success mt-4" type="submit"><i class="fas fa-floppy-disk me-1"></i>Save settings</button>
     </form>
-</main>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= SITE_URL ?>/assets/js/main.js"></script>
-</body>
-</html>
+<?php adminPageEnd(); ?>

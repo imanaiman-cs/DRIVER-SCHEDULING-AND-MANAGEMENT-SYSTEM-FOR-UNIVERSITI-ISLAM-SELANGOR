@@ -36,43 +36,43 @@ $cs->close();
 $open = (int)($_GET['open'] ?? 0);
 adminPageStart('My Requests');
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h4 class="fw-bold mb-0"><i class="fas fa-list-check text-success me-2"></i>My Requests</h4>
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+        <h1 class="text-2xl font-medium mb-0">My Requests</h1>
         <a class="btn btn-success btn-sm" href="request_vehicle.php"><i class="fas fa-plus me-1"></i>New request</a>
     </div>
 
-    <ul class="nav nav-pills mb-3 flex-wrap gap-1">
-        <li class="nav-item"><a class="nav-link py-1 <?= $filter === 'all' ? 'active' : '' ?>" href="?status=all">All <span class="badge bg-light text-dark"><?= array_sum($counts) ?></span></a></li>
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a role="tab" class="tab gap-2 <?= $filter === 'all' ? 'tab-active' : '' ?>" href="?status=all">All <span class="font-mono text-xs text-base-content/60"><?= array_sum($counts) ?></span></a>
         <?php foreach (['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'] as $st): if (empty($counts[$st])) { continue; } ?>
-            <li class="nav-item"><a class="nav-link py-1 <?= $filter === $st ? 'active' : '' ?>" href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="badge bg-light text-dark"><?= $counts[$st] ?></span></a></li>
+            <a role="tab" class="tab gap-2 <?= $filter === $st ? 'tab-active' : '' ?>" href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="font-mono text-xs text-base-content/60"><?= $counts[$st] ?></span></a>
         <?php endforeach; ?>
-    </ul>
+    </div>
 
     <?php if (!$requests): ?>
-        <div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">No requests yet.</div></div>
+        <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">No requests yet.</div></div>
     <?php endif; ?>
 
     <?php foreach ($requests as $r): $rules = cancelRulesFor($r); ?>
-    <details class="card border-0 shadow-sm mb-2" <?= (int)$r['request_id'] === $open ? 'open' : '' ?>>
+    <details class="card border border-base-300 bg-base-100 mb-2" <?= (int)$r['request_id'] === $open ? 'open' : '' ?>>
         <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                    <span class="fw-semibold">#<?= (int)$r['request_id'] ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <span class="font-semibold">#<?= (int)$r['request_id'] ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
+                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
                 </div>
                 <div><?= requestStatusBadge($r['status']) ?></div>
             </div>
         </summary>
-        <div class="card-body border-top pt-3">
+        <div class="card-body border-t border-base-300 pt-4">
             <?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?>
             <?php if ($rules['allowed']): ?>
-            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">
+            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= (int)$r['request_id'] ?>">
                 <input type="hidden" name="return_to" value="staff/my_requests.php?open=<?= (int)$r['request_id'] ?>">
-                <label class="form-label small" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (the reason is optional)</label>
-                <div class="input-group input-group-sm">
-                    <input class="form-control" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" placeholder="Reason">
-                    <button class="btn btn-outline-danger" data-confirm="The request will be cancelled and the vehicle released." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
+                <label class="mb-1 block text-sm font-medium" for="reason<?= (int)$r['request_id'] ?>">Cancel this request (the reason is optional)</label>
+                <div class="join w-full">
+                    <input class="input w-full" id="reason<?= (int)$r['request_id'] ?>" name="reason" maxlength="500" placeholder="Reason">
+                    <button class="btn btn-outline btn-error" data-confirm="The request will be cancelled and the vehicle released." data-confirm-title="Cancel this request?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
             </form>
             <?php endif; ?>

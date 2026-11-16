@@ -41,7 +41,7 @@ if ($driver_id > 0) {
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $tasks[] = ['kind' => 'trip', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => legLabel($r['leg_no'] !== null ? (int)$r['leg_no'] : null),
-                    'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
+                    'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']),
                     'destination' => destinationText($r['destination'], $r['destination_address']), 'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
                     'purpose' => (string)$r['purpose'], 'officer' => (string)$r['officer_name'], 'phone' => (string)$r['officer_phone'], 'sheet' => (int)$r['schedule_id']];
     }
@@ -55,7 +55,7 @@ if ($driver_id > 0) {
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $tasks[] = ['kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
-                    'ref' => '', 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
+                    'ref' => '', 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
                     'purpose' => (string)$r['description'], 'officer' => '', 'phone' => '', 'sheet' => 0];
     }
     $stmt->close();
@@ -76,45 +76,37 @@ if ($driver_id > 0) {
 
 adminPageStart('My Tasks');
 ?>
-<style>
-    .task-card { border: 0; border-left: 6px solid #198754; border-radius: .75rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-    .task-card.internal { border-left-color: #0d6efd; } .task-card.welfare { border-left-color: #6f42c1; }
-    .task-card .when { font-size: 1.15rem; font-weight: 700; }
-    .task-card dt { font-weight: 600; color: #555; }
-    .task-card dd { margin-bottom: .4rem; font-size: 1.02rem; overflow-wrap: anywhere; }
-</style>
-    <h4 class="fw-bold mb-1"><i class="fas fa-route text-success me-2"></i>My Tasks</h4>
-    <p class="text-muted small mb-3">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
-    <ul class="nav nav-tabs mb-3">
-        <li class="nav-item"><a class="nav-link <?= $tab === 'upcoming' ? 'active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a></li>
-        <li class="nav-item"><a class="nav-link <?= $tab === 'past' ? 'active' : '' ?>" href="?tab=past">Past Tasks</a></li>
-    </ul>
+    <h1 class="text-2xl font-medium mb-1">My Tasks</h1>
+    <p class="text-base-content/60 text-sm mb-4">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a role="tab" class="tab gap-2 <?= $tab === 'upcoming' ? 'tab-active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a>
+        <a role="tab" class="tab gap-2 <?= $tab === 'past' ? 'tab-active' : '' ?>" href="?tab=past">Past Tasks</a>
+    </div>
     <?php if (!$tasks): ?>
-        <div class="alert alert-light border text-center py-4"><i class="fas fa-mug-hot fa-2x text-muted mb-2 d-block"></i>
-            <?= $tab === 'past' ? 'You have no past tasks.' : 'You have no upcoming tasks.' ?></div>
+        <p class="dash-empty rounded-box border border-base-300"><?= $tab === 'past' ? 'No past tasks' : 'No upcoming tasks' ?></p>
     <?php endif; ?>
-    <div class="row g-3">
+    <div class="grid-12 grid grid-cols-12 gap-4">
     <?php foreach ($tasks as $t):
         $s = strtotime($t['start']); $e = strtotime($t['end']); ?>
-        <div class="col-12 col-lg-6">
-            <div class="card task-card <?= $h($t['kind']) ?>"><div class="card-body">
-                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <div class="col-span-12 lg:col-span-6">
+            <div class="card h-full border border-base-300 bg-base-100"><div class="card-body">
+                <div class="flex justify-between items-start gap-2 mb-2">
                     <div>
-                        <div class="when"><?= $h(date('D, d M Y', $s)) ?></div>
-                        <div class="fs-5"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . ' - ' . date('H:i', $e)) ?></div>
+                        <time class="block text-lg font-medium" datetime="<?= date('Y-m-d', $s) ?>"><?= $h(date('D, d M Y', $s)) ?></time>
+                        <div class="font-mono text-base-content/70"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . '–' . date('H:i', $e)) ?></div>
                     </div>
-                    <span class="badge fs-6 <?= $t['kind'] === 'trip' ? 'bg-success' : ($t['kind'] === 'internal' ? 'bg-primary' : '') ?>" <?= $t['kind'] === 'welfare' ? 'style="background:#6f42c1"' : '' ?>><?= $h($t['type']) ?></span>
+                    <span class="badge <?= ['trip' => 'badge-soft badge-primary', 'internal' => 'badge-ghost', 'welfare' => 'badge-soft badge-secondary'][$t['kind']] ?? 'badge-ghost' ?>"><?= $h($t['type']) ?></span>
                 </div>
-                <dl class="mb-0">
+                <dl class="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm [&_dt]:text-base-content/60 [&_dd]:break-words">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
-                    <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $h($t['vehicle']) ?></dd><?php endif; ?>
+                    <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $t['vehicle'] ?></dd><?php endif; ?>
                     <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?></dd><?php endif; ?>
                     <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?></dd><?php endif; ?>
                     <?php if ($t['purpose']): ?><dt><?= $t['kind'] === 'trip' ? 'Purpose' : 'Details' ?></dt><dd><?= $h($t['purpose']) ?></dd><?php endif; ?>
                     <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
                         <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
                 </dl>
-                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
+                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
             </div></div>
         </div>
     <?php endforeach; ?>

@@ -37,17 +37,17 @@ $steps = [
 $steps['head_admin'] = array_merge($steps['admin'], ['<strong>Approve Assignments</strong> (Head of Admin only): approve or reject each assignment, also the ones you made yourself. A rejection needs a reason.']);
 adminPageStart('Help');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-circle-question text-success me-2"></i>Help</h4>
-    <p class="text-muted small">You are signed in as <strong><?= htmlspecialchars(roleLabel($role)) ?></strong>. Every role is also Staff and can request a vehicle.</p>
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-        <h6 class="fw-bold">What to do</h6>
+    <h1 class="text-2xl font-medium mb-1">Help</h1>
+    <p class="text-base-content/60 text-sm">You are signed in as <strong><?= htmlspecialchars(roleLabel($role)) ?></strong>. Every role is also Staff and can request a vehicle.</p>
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+        <h6 class="font-bold">What to do</h6>
         <ol class="mb-0"><?php foreach ($steps[$role] ?? $steps['staff'] as $s): ?><li class="mb-1"><?= $s ?></li><?php endforeach; ?></ol>
     </div></div>
-    <div class="card border-0 shadow-sm"><div class="card-body">
-        <h6 class="fw-bold">Request statuses</h6>
-        <table class="table table-sm mb-0"><tbody>
+    <div class="card border border-base-300 bg-base-100"><div class="card-body">
+        <h6 class="font-bold">Request statuses</h6>
+        <table class="table mb-0"><tbody>
         <?php foreach ($statuses as $k => $text): ?>
-            <tr><td class="text-nowrap"><?= requestStatusBadge($k) ?></td><td><?= htmlspecialchars($text) ?></td></tr>
+            <tr><td class="whitespace-nowrap"><?= requestStatusBadge($k) ?></td><td><?= htmlspecialchars($text) ?></td></tr>
         <?php endforeach; ?>
         </tbody></table>
     </div></div>

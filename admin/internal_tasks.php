@@ -217,138 +217,139 @@ $qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['whe
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Internal Tasks');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-wrench text-success me-2"></i>Internal Tasks</h4>
-    <p class="text-muted small mb-3">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A task is never deleted: cancel it with a reason.</p>
+    <h1 class="text-2xl font-medium mb-1">Internal Tasks</h1>
+    <p class="text-base-content/60 text-sm mb-4">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A task is never deleted: cancel it with a reason.</p>
 
-    <div class="card border-0 shadow-sm mb-4" id="taskForm">
+    <div class="card border border-base-300 bg-base-100 mb-6" id="taskForm">
         <div class="card-body">
-            <h6 class="fw-bold mb-3"><?= $editId ? 'Update task #' . (int)$editId : 'Add a task' ?></h6>
-            <?php if (!empty($errors['general'])): ?><div class="alert alert-danger py-2"><?= $h($errors['general']) ?></div><?php endif; ?>
-            <form method="post" class="row g-3" novalidate>
+            <h6 class="font-bold mb-4"><?= $editId ? 'Update task #' . (int)$editId : 'Add a task' ?></h6>
+            <?php if (!empty($errors['general'])): ?><div class="alert alert-soft alert-error py-2"><?= $h($errors['general']) ?></div><?php endif; ?>
+            <form method="post" class="grid-12 grid grid-cols-12 gap-4" novalidate>
                 <input type="hidden" name="action" value="save"><input type="hidden" name="task_id" value="<?= (int)$editId ?>">
-                <div class="col-12 col-md-4">
-                    <label class="form-label fw-semibold" for="task_type">Task type</label>
-                    <select class="form-select <?= isset($errors['task_type']) ? 'is-invalid' : '' ?>" id="task_type" name="task_type" required>
+                <div class="col-span-12 md:col-span-4">
+                    <label class="mb-1 block text-sm font-medium" for="task_type">Task type</label>
+                    <select class="select w-full <?= isset($errors['task_type']) ? 'select-error' : '' ?>" id="task_type" name="task_type" required>
                         <?php foreach (INTERNAL_TASK_TYPES as $k => $lbl): ?><option value="<?= $h($k) ?>" <?= $form['task_type'] === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?>
                         <?php if (!isset(INTERNAL_TASK_TYPES[$form['task_type']])): ?><option value="<?= $h($form['task_type']) ?>" selected><?= $h(internalTaskTypeLabel($form['task_type'])) ?></option><?php endif; ?>
                     </select>
-                    <div class="invalid-feedback"><?= $h($errors['task_type'] ?? '') ?></div>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['task_type'] ?? '') ?></div>
                 </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label fw-semibold" for="task_date">Date</label>
-                    <input type="date" class="form-control <?= isset($errors['task_date']) ? 'is-invalid' : '' ?>" id="task_date" name="task_date" min="<?= date('Y-m-d') ?>" value="<?= $h($form['task_date']) ?>" required>
-                    <div class="invalid-feedback"><?= $h($errors['task_date'] ?? '') ?></div>
+                <div class="col-span-12 md:col-span-3">
+                    <label class="mb-1 block text-sm font-medium" for="task_date">Date</label>
+                    <input type="date" class="input w-full <?= isset($errors['task_date']) ? 'input-error' : '' ?>" id="task_date" name="task_date" min="<?= date('Y-m-d') ?>" value="<?= $h($form['task_date']) ?>" required>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['task_date'] ?? '') ?></div>
                 </div>
-                <div class="col-6 col-md-2">
-                    <label class="form-label fw-semibold" for="start_time">Start</label>
-                    <input type="time" class="form-control <?= isset($errors['start_time']) ? 'is-invalid' : '' ?>" id="start_time" name="start_time" value="<?= $h($form['start_time']) ?>" required>
-                    <div class="invalid-feedback"><?= $h($errors['start_time'] ?? '') ?></div>
+                <div class="col-span-6 md:col-span-2">
+                    <label class="mb-1 block text-sm font-medium" for="start_time">Start</label>
+                    <input type="time" class="input w-full <?= isset($errors['start_time']) ? 'input-error' : '' ?>" id="start_time" name="start_time" value="<?= $h($form['start_time']) ?>" required>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['start_time'] ?? '') ?></div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <label class="form-label fw-semibold" for="end_time">End</label>
-                    <input type="time" class="form-control <?= isset($errors['end_time']) ? 'is-invalid' : '' ?>" id="end_time" name="end_time" value="<?= $h($form['end_time']) ?>" required>
-                    <div class="invalid-feedback"><?= $h($errors['end_time'] ?? '') ?></div>
+                <div class="col-span-6 md:col-span-3">
+                    <label class="mb-1 block text-sm font-medium" for="end_time">End</label>
+                    <input type="time" class="input w-full <?= isset($errors['end_time']) ? 'input-error' : '' ?>" id="end_time" name="end_time" value="<?= $h($form['end_time']) ?>" required>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['end_time'] ?? '') ?></div>
                 </div>
-                <div class="col-12 col-md-6">
-                    <label class="form-label fw-semibold" for="vehicle_id">Vehicle</label>
-                    <select class="form-select <?= isset($errors['vehicle_id']) ? 'is-invalid' : '' ?>" id="vehicle_id" name="vehicle_id" required>
+                <div class="col-span-12 md:col-span-6">
+                    <label class="mb-1 block text-sm font-medium" for="vehicle_id">Vehicle</label>
+                    <select class="select w-full <?= isset($errors['vehicle_id']) ? 'select-error' : '' ?>" id="vehicle_id" name="vehicle_id" required>
                         <option value="">Choose a vehicle</option>
                         <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= (int)$form['vehicle_id'] === (int)$v['vehicle_id'] ? 'selected' : '' ?>><?= $h(vehicleText($v['plate_number'], $v['brand'], $v['model'])) ?> - licence <?= $h($v['license_required']) ?></option><?php endforeach; ?>
                     </select>
-                    <div class="invalid-feedback"><?= $h($errors['vehicle_id'] ?? '') ?></div>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['vehicle_id'] ?? '') ?></div>
                 </div>
-                <div class="col-12 col-md-6">
-                    <label class="form-label fw-semibold" for="driver_id">Driver</label>
-                    <select class="form-select <?= isset($errors['driver_id']) ? 'is-invalid' : '' ?>" id="driver_id" name="driver_id" required>
+                <div class="col-span-12 md:col-span-6">
+                    <label class="mb-1 block text-sm font-medium" for="driver_id">Driver</label>
+                    <select class="select w-full <?= isset($errors['driver_id']) ? 'select-error' : '' ?>" id="driver_id" name="driver_id" required>
                         <option value="">Choose a driver</option>
                         <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= (int)$form['driver_id'] === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?> (<?= $h($d['license_class']) ?>)</option><?php endforeach; ?>
                     </select>
-                    <div class="invalid-feedback"><?= $h($errors['driver_id'] ?? '') ?></div>
+                    <div class="mt-1 block text-xs text-error"><?= $h($errors['driver_id'] ?? '') ?></div>
                 </div>
-                <div class="col-12 col-md-5">
-                    <label class="form-label fw-semibold" for="location">Place (optional)</label>
-                    <input class="form-control" id="location" name="location" maxlength="150" value="<?= $h($form['location']) ?>" placeholder="e.g. Workshop name, fuel station">
+                <div class="col-span-12 md:col-span-5">
+                    <label class="mb-1 block text-sm font-medium" for="location">Place (optional)</label>
+                    <input class="input w-full" id="location" name="location" maxlength="150" value="<?= $h($form['location']) ?>" placeholder="e.g. Workshop name, fuel station">
                 </div>
-                <div class="col-12 col-md-7">
-                    <label class="form-label fw-semibold" for="description">Description</label>
-                    <input class="form-control" id="description" name="description" maxlength="255" value="<?= $h($form['description']) ?>">
+                <div class="col-span-12 md:col-span-7">
+                    <label class="mb-1 block text-sm font-medium" for="description">Description</label>
+                    <input class="input w-full" id="description" name="description" maxlength="255" value="<?= $h($form['description']) ?>">
                 </div>
-                <div class="col-12 d-flex gap-2">
-                    <button class="btn btn-uis-primary" type="submit"><i class="fas fa-floppy-disk me-1"></i><?= $editId ? 'Save changes' : 'Add task' ?></button>
-                    <?php if ($editId): ?><a class="btn btn-outline-secondary" href="internal_tasks.php">Cancel editing</a><?php endif; ?>
+                <div class="col-span-12 flex gap-2">
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk me-1"></i><?= $editId ? 'Save changes' : 'Add task' ?></button>
+                    <?php if ($editId): ?><a class="btn btn-outline" href="internal_tasks.php">Cancel editing</a><?php endif; ?>
                 </div>
             </form>
         </div>
     </div>
 
-    <ul class="nav nav-tabs mb-3">
-        <li class="nav-item"><a class="nav-link <?= $when === 'upcoming' ? 'active' : '' ?>" href="<?= $qs(['when' => 'upcoming', 'page' => null]) ?>">Upcoming</a></li>
-        <li class="nav-item"><a class="nav-link <?= $when === 'past' ? 'active' : '' ?>" href="<?= $qs(['when' => 'past', 'page' => null]) ?>">Past</a></li>
-    </ul>
-    <form method="get" class="row g-2 mb-3 align-items-end">
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a role="tab" class="tab gap-2 <?= $when === 'upcoming' ? 'tab-active' : '' ?>" href="<?= $qs(['when' => 'upcoming', 'page' => null]) ?>">Upcoming</a>
+        <a role="tab" class="tab gap-2 <?= $when === 'past' ? 'tab-active' : '' ?>" href="<?= $qs(['when' => 'past', 'page' => null]) ?>">Past</a>
+    </div>
+    <form method="get" class="grid-12 grid grid-cols-12 gap-2 mb-4 items-end">
         <input type="hidden" name="when" value="<?= $h($when) ?>">
-        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_status">Status</label>
-            <select class="form-select form-select-sm" id="f_status" name="status"><option value="">All</option><option value="active" <?= $fStat === 'active' ? 'selected' : '' ?>>Active</option><option value="cancelled" <?= $fStat === 'cancelled' ? 'selected' : '' ?>>Cancelled</option></select></div>
-        <div class="col-6 col-md-3"><label class="form-label small mb-0" for="f_driver">Driver</label>
-            <select class="form-select form-select-sm" id="f_driver" name="driver_id"><option value="">All drivers</option>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_status">Status</label>
+            <select class="select w-full select-sm" id="f_status" name="status"><option value="">All</option><option value="active" <?= $fStat === 'active' ? 'selected' : '' ?>>Active</option><option value="cancelled" <?= $fStat === 'cancelled' ? 'selected' : '' ?>>Cancelled</option></select></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium mb-0" for="f_driver">Driver</label>
+            <select class="select w-full select-sm" id="f_driver" name="driver_id"><option value="">All drivers</option>
                 <?php foreach ($conn->query('SELECT driver_id, name FROM drivers ORDER BY name')->fetch_all(MYSQLI_ASSOC) as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDrv === (int)$d['driver_id'] ? 'selected' : '' ?>><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
-        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_from">From</label><input type="date" class="form-control form-control-sm" id="f_from" name="from" value="<?= $h($fFrom) ?>"></div>
-        <div class="col-6 col-md-2"><label class="form-label small mb-0" for="f_to">To</label><input type="date" class="form-control form-control-sm" id="f_to" name="to" value="<?= $h($fTo) ?>"></div>
-        <div class="col-12 col-md-3 d-flex gap-2"><button class="btn btn-sm btn-outline-success">Filter</button><a class="btn btn-sm btn-outline-secondary" href="internal_tasks.php?when=<?= $h($when) ?>">Reset</a></div>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_from">From</label><input type="date" class="input w-full input-sm" id="f_from" name="from" value="<?= $h($fFrom) ?>"></div>
+        <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_to">To</label><input type="date" class="input w-full input-sm" id="f_to" name="to" value="<?= $h($fTo) ?>"></div>
+        <div class="col-span-12 md:col-span-3 flex gap-2"><button class="btn btn-sm btn-outline btn-success">Filter</button><a class="btn btn-sm btn-outline" href="internal_tasks.php?when=<?= $h($when) ?>">Reset</a></div>
     </form>
 
-    <div class="card border-0 shadow-sm"><div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light"><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
+        <table class="table [&_tbody_tr:hover]:bg-base-200/60 align-middle mb-0">
+            <thead class=""><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($tasks as $t): $canChange = $t['status'] === 'active' && strtotime($t['end_dt']) >= time(); ?>
                 <tr>
-                    <td class="text-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="small text-muted"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
+                    <td class="whitespace-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="text-sm text-base-content/60"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
                     <td><strong><?= $h(internalTaskTypeLabel($t['task_type'])) ?></strong>
-                        <?php if ($t['location'] || $t['description']): ?><div class="small text-muted"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
-                    <td class="text-nowrap"><?= $h(vehicleText($t['plate_number'], $t['brand'], $t['model'])) ?></td>
+                        <?php if ($t['location'] || $t['description']): ?><div class="text-sm text-base-content/60"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
+                    <td class="whitespace-nowrap"><?= vehicleHtml($t['plate_number'], $t['brand'], $t['model']) ?></td>
                     <td><?= $h($t['driver_name']) ?></td>
-                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge bg-danger">Cancelled</span>
-                        <div class="small text-muted mt-1"><?= $h($t['cancel_reason']) ?></div>
-                        <?php else: ?><span class="badge bg-success">Active</span><?php endif; ?></td>
-                    <td class="text-end text-nowrap">
+                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-soft badge-error">Cancelled</span>
+                        <div class="text-sm text-base-content/60 mt-1"><?= $h($t['cancel_reason']) ?></div>
+                        <?php else: ?><span class="badge badge-soft badge-success">Active</span><?php endif; ?></td>
+                    <td class="text-end whitespace-nowrap">
                         <?php if ($canChange): ?>
-                            <a class="btn btn-sm btn-outline-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="d-none d-md-inline ms-1">Update</span></a>
-                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal" data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="d-none d-md-inline ms-1">Cancel</span></button>
+                            <a class="btn btn-sm btn-outline btn-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Update</span></a>
+                            <button type="button" class="btn btn-sm btn-outline btn-error" data-cancel-task data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="hidden md:inline ms-1">Cancel</span></button>
                         <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-muted py-4">No <?= $when ?> tasks found.</td></tr><?php endif; ?>
+            <?php if (!$tasks): ?><tr><td colspan="6" class="text-center text-base-content/60 py-6">No <?= $when ?> tasks found.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>
     <?php if ($pg['total_pages'] > 1): ?>
-    <nav class="mt-3"><ul class="pagination pagination-sm flex-wrap">
-        <?php for ($i = 1; $i <= $pg['total_pages']; $i++): ?><li class="page-item <?= $i === $pg['current_page'] ? 'active' : '' ?>"><a class="page-link" href="<?= $qs(['page' => $i]) ?>"><?= $i ?></a></li><?php endfor; ?>
-    </ul></nav>
+    <nav class="join mt-4" aria-label="Pages">
+        <?php for ($i = 1; $i <= $pg['total_pages']; $i++): ?><a class="join-item btn btn-sm <?= $i === $pg['current_page'] ? 'btn-active' : '' ?>" href="<?= $qs(['page' => $i]) ?>" <?= $i === $pg['current_page'] ? 'aria-current="page"' : '' ?>><?= $i ?></a><?php endfor; ?>
+    </nav>
     <?php endif; ?>
 
-    <div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelTitle" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+    <dialog class="modal" id="cancelModal" aria-labelledby="cancelTitle">
+        <form method="post" class="modal-box">
             <input type="hidden" name="action" value="cancel"><input type="hidden" name="task_id" id="cancelId" value="">
-            <div class="modal-header"><h5 class="modal-title" id="cancelTitle">Cancel this task?</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body">
-                <p class="mb-2" id="cancelLabel"></p>
-                <label class="form-label fw-semibold" for="cancelReason">Reason for cancelling</label>
-                <textarea class="form-control" id="cancelReason" name="reason" rows="2" maxlength="255" required minlength="3"></textarea>
-                <div class="form-text">The driver is told the reason.</div>
+            <h3 class="text-lg font-medium" id="cancelTitle">Cancel this task?</h3>
+            <div class="mt-3">
+                <p class="mb-4 text-sm text-base-content/70" id="cancelLabel"></p>
+                <label class="mb-1 block text-sm font-medium" for="cancelReason">Reason for cancelling</label>
+                <textarea class="textarea w-full" id="cancelReason" name="reason" rows="2" maxlength="255" required minlength="3"></textarea>
+                <div class="mt-1 block text-xs text-base-content/60">The driver is told the reason.</div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Keep the task</button><button class="btn btn-danger" type="submit">Cancel the task</button></div>
-        </form></div>
-    </div>
+            <div class="modal-action"><button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">Keep the task</button><button class="btn btn-error" type="submit">Cancel the task</button></div>
+        </form>
+        <form method="dialog" class="modal-backdrop"><button>Close</button></form>
+    </dialog>
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var m = document.getElementById('cancelModal');
-        m.addEventListener('show.bs.modal', function (e) {
-            document.getElementById('cancelId').value = e.relatedTarget.dataset.id;
-            document.getElementById('cancelLabel').textContent = e.relatedTarget.dataset.label;
+    document.querySelectorAll('[data-cancel-task]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.getElementById('cancelId').value = b.dataset.id;
+            document.getElementById('cancelLabel').textContent = b.dataset.label;
             document.getElementById('cancelReason').value = '';
+            document.getElementById('cancelModal').showModal();
         });
     });
     </script>

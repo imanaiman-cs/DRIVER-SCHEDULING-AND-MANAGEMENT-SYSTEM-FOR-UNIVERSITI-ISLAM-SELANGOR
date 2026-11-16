@@ -73,17 +73,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cands = $conn->query("SELECT user_id, username, full_name, email FROM users WHERE role = 'driver' AND is_active = 1 AND driver_id IS NULL ORDER BY full_name")->fetch_all(MYSQLI_ASSOC);
 adminPageStart('Add Driver');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-plus text-success me-2"></i>Add Driver</h4>
-    <p class="text-muted small">Choose an existing account that has the Driver role in the UIS staff system. The name and e-mail are taken from that account.</p>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
-        <div class="mb-3"><label class="form-label" for="user_id">Driver account <span class="text-danger">*</span></label>
-            <select class="form-select" id="user_id" name="user_id" required><option value="">Choose...</option>
+    <h1 class="text-2xl font-medium mb-1">Add Driver</h1>
+    <p class="text-base-content/60 text-sm">Choose an existing account that has the Driver role in the UIS staff system. The name and e-mail are taken from that account.</p>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
+        <div class="mb-4"><label class="mb-1 block text-sm font-medium" for="user_id">Driver account <span class="text-error">*</span></label>
+            <select class="select w-full" id="user_id" name="user_id" required><option value="">Choose...</option>
                 <?php foreach ($cands as $c): ?><option value="<?= (int)$c['user_id'] ?>" <?= $sel === (int)$c['user_id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['full_name'] . ' (' . $c['username'] . ', ' . $c['email'] . ')') ?></option><?php endforeach; ?>
             </select>
-            <?php if (isset($errors['user_id'])): ?><div class="invalid-feedback d-block"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
-            <?php if (!$cands): ?><div class="form-text text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
+            <?php if (isset($errors['user_id'])): ?><div class="mt-1 block text-xs text-error"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
+            <?php if (!$cands): ?><div class="mt-1 block text-xs text-base-content/60 text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
         <?php driverFormFields($v, $errors, false); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline-secondary" href="drivers.php">Cancel</a></div>
+        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline" href="drivers.php">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

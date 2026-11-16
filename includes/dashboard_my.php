@@ -18,59 +18,67 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
     foreach ($active as $r) { if (in_array($r['status'], ['approved', 'assigned', 'processed'], true)) { $next = $r; break; } }
     $next ??= $active[0] ?? null;
     $sum = fn(array $keys) => array_sum(array_map(fn($k) => $counts[$k] ?? 0, $keys));
+    $crew = [];
+    if ($next && $next['status'] === 'processed') {
+        $crew = array_column(dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]), 'name');
+    }
     ?>
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-xl-3"><?= dashKpi('Waiting for approval', $sum(['pending']), 'hourglass-half', 'warning', $base . 'my_requests.php?status=pending') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('In progress', $sum(['approved', 'assigned']), 'person-walking-arrow-right', 'info', $base . 'my_requests.php', null, true, 'Approved or Driver Assigned') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Confirmed', $sum(['processed']), 'circle-check', 'primary', $base . 'my_requests.php?status=processed') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Rejected / cancelled / lapsed', $sum(['rejected', 'cancelled', 'lapsed']), 'ban', 'secondary', $base . 'my_requests.php') ?></div>
-    </div>
-    <div class="row g-3 mb-3">
-        <div class="col-lg-5">
-            <div class="dash-card">
-                <h6><span><i class="fas fa-route text-success me-1"></i>My next trip</span></h6>
-                <?php if (!$next): ?>
-                    <?= dashEmpty('No upcoming trip.', 'route') ?><div class="text-center"><a class="btn btn-success btn-sm" href="<?= $base ?>request_vehicle.php">Request a vehicle</a></div>
-                <?php else: ?>
-                    <div class="fs-5 fw-bold"><?= dh($next['destination']) ?></div>
-                    <div class="text-muted small mb-1"><?= requestPeriodText($next) ?> &middot; <?= (int)$next['passenger_count'] ?> pax</div>
-                    <?= dashStepper($next['status']) ?>
-                    <div class="small mt-3 dash-next">
-                        <?php if ($next['status'] === 'processed'):
-                            $a = dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]); ?>
-                            <i class="fas fa-user-tie me-1 text-success"></i>Driver: <strong><?= dh(implode(', ', array_column($a, 'name')) ?: '-') ?></strong>
-                            &middot; <i class="fas fa-car-side me-1 text-success"></i><strong><?= dh($next['plate_number'] ?? '-') ?></strong>
+    <?= dashStats([
+        ['label' => 'Waiting for approval', 'value' => $sum(['pending']), 'href' => $base . 'my_requests.php?status=pending'],
+        ['label' => 'In progress', 'value' => $sum(['approved', 'assigned']), 'href' => $base . 'my_requests.php', 'hint' => 'Approved or Driver Assigned'],
+        ['label' => 'Confirmed', 'value' => $sum(['processed']), 'href' => $base . 'my_requests.php?status=processed'],
+        ['label' => 'Rejected, cancelled or lapsed', 'value' => $sum(['rejected', 'cancelled', 'lapsed']), 'href' => $base . 'my_requests.php'],
+    ]) ?>
+    <div class="grid-12 mb-6 grid grid-cols-12 gap-6">
+        <div class="col-span-12 lg:col-span-5">
+            <?php if (!$next): ?>
+                <div class="dash-card">
+                    <h6>Next trip</h6>
+                    <?= dashEmpty('No upcoming trip') ?>
+                    <div class="text-center"><a class="btn btn-primary btn-sm" href="<?= $base ?>request_vehicle.php">Request a vehicle</a></div>
+                </div>
+            <?php else: ?>
+                <!-- The next trip, set like the trip slip the Vehicle Section issues -->
+                <article class="dash-card">
+                    <h6><span>Next trip</span><span class="font-mono font-normal text-base-content/60">#<?= (int)$next['request_id'] ?></span></h6>
+                    <p class="text-xl font-medium leading-snug"><?= dh($next['destination']) ?></p>
+                    <p class="font-mono text-sm text-base-content/70"><?= requestPeriodText($next) ?></p>
+                    <dl class="mt-5 grid grid-cols-[6rem_1fr] gap-x-4 gap-y-3 text-sm">
+                        <dt class="text-base-content/60">Passengers</dt><dd><?= (int)$next['passenger_count'] ?></dd>
+                        <dt class="text-base-content/60">Status</dt><dd><?= dashStepper($next['status']) ?></dd>
+                        <?php if ($next['status'] === 'processed'): ?>
+                            <dt class="text-base-content/60">Driver</dt><dd><?= dh(implode(', ', $crew) ?: '-') ?></dd>
+                            <dt class="text-base-content/60">Vehicle</dt><dd><?= plate($next['plate_number'] ?? '') ?: '-' ?></dd>
                         <?php else: ?>
-                            <i class="fas fa-circle-info me-1 text-muted"></i>The driver and vehicle are shown here once the request is Confirmed.
+                            <dt class="text-base-content/60">Driver</dt><dd class="text-base-content/60">Shown once Confirmed</dd>
                         <?php endif; ?>
-                    </div>
-                    <a class="small d-inline-block mt-2" href="<?= $base ?>my_requests.php?open=<?= (int)$next['request_id'] ?>">View details</a>
-                <?php endif; ?>
-            </div>
+                    </dl>
+                    <a class="link link-primary mt-5 inline-block text-sm no-underline" href="<?= $base ?>my_requests.php?open=<?= (int)$next['request_id'] ?>">View request</a>
+                </article>
+            <?php endif; ?>
         </div>
-        <div class="col-lg-7">
+        <div class="col-span-12 lg:col-span-7">
             <div class="dash-card">
-                <h6><span><i class="fas fa-list-check text-success me-1"></i>My active requests</span><a class="small fw-normal" href="<?= $base ?>my_requests.php">See all</a></h6>
-                <?php if (!$active): ?><?= dashEmpty('Nothing in progress.', 'list-check') ?><?php endif; ?>
+                <h6><span>My active requests</span><a href="<?= $base ?>my_requests.php">See all</a></h6>
+                <?php if (!$active): ?><?= dashEmpty('No requests in progress') ?><?php endif; ?>
+                <div class="space-y-1">
                 <?php foreach ($active as $r): ?>
-                    <a class="d-block text-decoration-none text-dark py-2 border-top" href="<?= $base ?>my_requests.php?open=<?= (int)$r['request_id'] ?>">
-                        <div class="d-flex flex-wrap justify-content-between gap-2">
-                            <span><strong>#<?= (int)$r['request_id'] ?></strong> <?= dh($r['destination']) ?> <span class="text-muted small">&middot; <?= requestPeriodText($r) ?></span></span>
-                            <?= requestStatusBadge($r['status']) ?>
-                        </div>
+                    <a class="dash-row block" href="<?= $base ?>my_requests.php?open=<?= (int)$r['request_id'] ?>">
+                        <span class="block"><span class="font-mono text-base-content/60">#<?= (int)$r['request_id'] ?></span> <?= dh($r['destination']) ?> <span class="text-base-content/60">&middot; <?= requestPeriodText($r) ?></span></span>
                         <?= dashStepper($r['status']) ?>
                     </a>
                 <?php endforeach; ?>
+                </div>
             </div>
         </div>
     </div>
-    <div class="dash-card mb-3">
-        <h6><span><i class="fas fa-clock-rotate-left text-success me-1"></i>Recent activity</span></h6>
-        <?php if (!$activity): ?><?= dashEmpty('No activity yet.', 'clock-rotate-left') ?><?php endif; ?>
+    <div class="dash-card mb-6">
+        <h6>Recent activity</h6>
+        <?php if (!$activity): ?><?= dashEmpty('No activity yet') ?><?php endif; ?>
         <?php foreach ($activity as $a): ?>
             <div class="dash-row">
-                <span><strong><?= dh(historyActionLabel($a['action'])) ?></strong> &middot; #<?= (int)$a['request_id'] ?> <?= dh($a['destination']) ?></span>
-                <span class="text-muted"><?= dh($a['who']) ?> &middot; <?= date('d M H:i', strtotime($a['created_at'])) ?></span>
+                <span><span class="font-medium"><?= dh(historyActionLabel($a['action'])) ?></span> <span class="font-mono text-base-content/60">#<?= (int)$a['request_id'] ?></span> <?= dh($a['destination']) ?></span>
+                <span class="text-base-content/60"><?= dh($a['who']) ?>, <span class="font-mono"><?= date('d M H:i', strtotime($a['created_at'])) ?></span></span>
             </div>
         <?php endforeach; ?>
     </div>

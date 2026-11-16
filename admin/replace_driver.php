@@ -54,44 +54,44 @@ $hist->close();
 
 adminPageStart('Replace Driver');
 ?>
-    <a class="small text-decoration-none" href="vehicle_requests.php?tab=processed"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="fw-bold my-2"><i class="fas fa-right-left text-success me-2"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h4>
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body small">
+    <a class="text-sm no-underline" href="vehicle_requests.php?tab=processed"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
+    <h1 class="text-2xl font-medium my-2">Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h1>
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body text-sm">
         <div><strong><?= htmlspecialchars($task['req_destination']) ?></strong> &middot; <?= date('D, d M Y H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?></div>
-        <div>Vehicle: <?= htmlspecialchars((string)$task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
+        <div>Vehicle: <?= plate($task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
         <div>Current driver: <strong><?= htmlspecialchars((string)$task['driver_name']) ?></strong> &middot; Request status: <?= requestStatusBadge($task['req_status']) ?></div>
     </div></div>
 
     <?php if (!$canReplace): ?>
-        <div class="alert alert-warning">The driver can be replaced only while the request is Confirmed and the task has not started.</div>
+        <div class="alert alert-soft alert-warning">The driver can be replaced only while the request is Confirmed and the task has not started.</div>
     <?php else: ?>
-    <form method="post" class="card border-0 shadow-sm"><div class="card-body">
+    <form method="post" class="card border border-base-300 bg-base-100"><div class="card-body">
         <input type="hidden" name="schedule_id" value="<?= $sid ?>">
-        <h6 class="fw-bold">Choose the new driver <span class="fw-normal text-muted small">(only drivers without a clash can be chosen)</span></h6>
-        <div class="table-responsive"><table class="table table-sm align-middle">
-            <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
+        <h6 class="font-bold">Choose the new driver <span class="font-normal text-base-content/60 text-sm">(only drivers without a clash can be chosen)</span></h6>
+        <div class="overflow-x-auto"><table class="table align-middle">
+            <thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($rec['ranked'] as $d): if ((int)$d['driver_id'] === (int)$task['driver_id']) { continue; } ?>
                 <tr>
-                    <td><input class="form-check-input" type="radio" name="new_driver" value="<?= (int)$d['driver_id'] ?>" id="nd<?= (int)$d['driver_id'] ?>" required></td>
+                    <td><input class="radio radio-sm radio-primary" type="radio" name="new_driver" value="<?= (int)$d['driver_id'] ?>" id="nd<?= (int)$d['driver_id'] ?>" required></td>
                     <td><?= (int)$d['rank'] ?></td>
                     <td><label for="nd<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label></td>
                     <td class="text-center"><?= (int)$d['tasks'] ?></td><td class="text-center"><?= (int)$d['outside'] ?></td>
-                    <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
-                    <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">Welfare duty</span>' : '' ?></td>
+                    <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                    <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-soft badge-warning">Welfare duty</span>' : '' ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table></div>
-        <label class="form-label small fw-semibold" for="reason">Reason for replacing the driver <span class="text-danger">*</span></label>
-        <input class="form-control mb-3" id="reason" name="reason" maxlength="500" required>
+        <label class="mb-1 block text-sm font-medium" for="reason">Reason for replacing the driver <span class="text-error">*</span></label>
+        <input class="input w-full mb-4" id="reason" name="reason" maxlength="500" required>
         <button class="btn btn-primary" data-confirm="The request goes back to Driver Assigned and the Head of Admin must approve again." data-confirm-title="Replace the driver?" data-confirm-button="Replace" data-confirm-tone="primary"><i class="fas fa-right-left me-1"></i>Replace driver</button>
     </div></form>
     <?php endif; ?>
 
     <?php if ($history): ?>
-    <div class="card border-0 shadow-sm mt-3"><div class="card-body small">
-        <h6 class="fw-bold">Replacement history of this task</h6>
+    <div class="card border border-base-300 bg-base-100 mt-4"><div class="card-body text-sm">
+        <h6 class="font-bold">Replacement history of this task</h6>
         <?php foreach ($history as $h): ?><div><?= date('d M Y H:i', strtotime($h['changed_at'])) ?> &middot; <?= htmlspecialchars((string)$h['old_name']) ?> &rarr; <?= htmlspecialchars((string)$h['new_name']) ?> &middot; <?= htmlspecialchars((string)$h['reason']) ?></div><?php endforeach; ?>
     </div></div>
     <?php endif; ?>

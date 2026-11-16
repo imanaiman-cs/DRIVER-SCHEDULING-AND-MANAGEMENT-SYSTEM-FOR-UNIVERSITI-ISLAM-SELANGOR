@@ -22,41 +22,41 @@ $shown = vehicleDisplayStatus($conn, $id, $v['status']);
 $trips = vehicleUpcomingTrips($conn, $id);
 adminPageStart($v['plate_number']);
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h4 class="fw-bold mb-0"><i class="fas fa-bus text-success me-2"></i><?= htmlspecialchars($v['plate_number']) ?>
-            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> fs-6 ms-2"><?= vehicleStatusLabel($shown) ?></span></h4>
-        <div class="d-flex flex-wrap gap-1">
-            <a class="btn btn-outline-secondary btn-sm" href="edit_vehicle.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
-            <a class="btn btn-outline-warning btn-sm" href="vehicle_maintenance.php?id=<?= $id ?>"><i class="fas fa-screwdriver-wrench me-1"></i>Maintenance</a>
+    <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
+        <div class="flex flex-wrap gap-1">
+            <a class="btn btn-outline btn-sm" href="edit_vehicle.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
+            <a class="btn btn-outline btn-warning btn-sm" href="vehicle_maintenance.php?id=<?= $id ?>"><i class="fas fa-screwdriver-wrench me-1"></i>Maintenance</a>
             <?php if ($v['status'] === 'inactive'): ?>
                 <button class="btn btn-success btn-sm" data-fleet-url="../ajax/update_vehicle_status.php" data-fleet-id="<?= $id ?>" data-fleet-extra="status=available" data-fleet-confirm="Make this vehicle Available again?">Reactivate</button>
             <?php else: ?>
-                <button class="btn btn-outline-danger btn-sm" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this vehicle Inactive?">Deactivate</button>
+                <button class="btn btn-outline btn-error btn-sm" data-fleet-url="../ajax/deactivate_vehicle.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this vehicle Inactive?">Deactivate</button>
             <?php endif; ?>
-            <a class="btn btn-outline-secondary btn-sm" href="vehicles.php">Back</a>
+            <a class="btn btn-outline btn-sm" href="vehicles.php">Back</a>
         </div>
     </div>
     <div id="fleetResult"></div>
-    <div class="row g-3">
-        <div class="col-lg-5"><div class="card border-0 shadow-sm"><div class="card-body">
-            <img src="<?= htmlspecialchars(vehiclePhotoUrl($v['photo'], $v['vehicle_type'])) ?>" alt="" class="rounded mb-3" style="max-height:140px;max-width:100%">
-            <dl class="row mb-0 small">
-                <dt class="col-5">Type</dt><dd class="col-7"><?= htmlspecialchars($v['vehicle_type']) ?></dd>
-                <dt class="col-5">Model</dt><dd class="col-7"><?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?></dd>
-                <dt class="col-5">Passenger capacity</dt><dd class="col-7"><?= (int)$v['capacity'] ?></dd>
-                <dt class="col-5">Licence required</dt><dd class="col-7"><span class="badge bg-light text-dark border"><?= htmlspecialchars($v['license_required']) ?></span></dd>
-                <?php if ($v['year']): ?><dt class="col-5">Year</dt><dd class="col-7"><?= (int)$v['year'] ?></dd><?php endif; ?>
-                <dt class="col-5">Fuel</dt><dd class="col-7"><?= htmlspecialchars($v['fuel_type']) ?></dd>
-                <?php if ($v['notes']): ?><dt class="col-5">Notes</dt><dd class="col-7"><?= nl2br(htmlspecialchars($v['notes'])) ?></dd><?php endif; ?>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12 lg:col-span-5"><div class="card border border-base-300 bg-base-100"><div class="card-body">
+            <img src="<?= htmlspecialchars(vehiclePhotoUrl($v['photo'], $v['vehicle_type'])) ?>" alt="" class="rounded mb-4" style="max-height:140px;max-width:100%">
+            <dl class="grid-12 grid grid-cols-12 gap-x-6 mb-0 text-sm">
+                <dt class="col-span-5">Type</dt><dd class="col-span-7"><?= htmlspecialchars($v['vehicle_type']) ?></dd>
+                <dt class="col-span-5">Model</dt><dd class="col-span-7"><?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?></dd>
+                <dt class="col-span-5">Passenger capacity</dt><dd class="col-span-7"><?= (int)$v['capacity'] ?></dd>
+                <dt class="col-span-5">Licence required</dt><dd class="col-span-7"><span class="badge badge-ghost"><?= htmlspecialchars($v['license_required']) ?></span></dd>
+                <?php if ($v['year']): ?><dt class="col-span-5">Year</dt><dd class="col-span-7"><?= (int)$v['year'] ?></dd><?php endif; ?>
+                <dt class="col-span-5">Fuel</dt><dd class="col-span-7"><?= htmlspecialchars($v['fuel_type']) ?></dd>
+                <?php if ($v['notes']): ?><dt class="col-span-5">Notes</dt><dd class="col-span-7"><?= nl2br(htmlspecialchars($v['notes'])) ?></dd><?php endif; ?>
             </dl>
             <?php if ($v['status'] === 'maintenance' && $v['back_on']): ?>
-                <div class="alert alert-warning mt-3 mb-0 small"><strong>Under maintenance</strong> at <?= htmlspecialchars((string)$v['workshop']) ?> since <?= date('d M Y', strtotime($v['maint_from'])) ?>.
+                <div class="alert alert-soft alert-warning mt-4 mb-0 text-sm"><strong>Under maintenance</strong> at <?= htmlspecialchars((string)$v['workshop']) ?> since <?= date('d M Y', strtotime($v['maint_from'])) ?>.
                     Expected back: <strong><?= date('d M Y', strtotime($v['back_on'])) ?></strong>.</div>
             <?php endif; ?>
         </div></div></div>
-        <div class="col-lg-7"><div class="card border-0 shadow-sm"><div class="card-body">
-            <h6 class="fw-bold">Upcoming trips</h6>
-            <?php if (!$trips): ?><p class="text-muted small mb-0">No upcoming trips. This vehicle can be deactivated.</p>
+        <div class="col-span-12 lg:col-span-7"><div class="card border border-base-300 bg-base-100"><div class="card-body">
+            <h6 class="font-bold">Upcoming trips</h6>
+            <?php if (!$trips): ?><p class="text-base-content/60 text-sm mb-0">No upcoming trips. This vehicle can be deactivated.</p>
             <?php else: ?><?= fleetItemsList($trips) ?><?php endif; ?>
         </div></div></div>
     </div>

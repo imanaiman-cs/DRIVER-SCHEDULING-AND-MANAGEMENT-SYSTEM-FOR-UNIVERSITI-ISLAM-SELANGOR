@@ -59,13 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Edit Vehicle');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-pen text-success me-2"></i>Edit Vehicle</h4>
-    <p class="text-muted small">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
+    <h1 class="text-2xl font-medium mb-1">Edit Vehicle</h1>
+    <p class="text-base-content/60 text-sm">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
         &middot; <a href="vehicle_maintenance.php?id=<?= $id ?>">change status / maintenance</a></p>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
+    <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <input type="hidden" name="id" value="<?= $id ?>">
         <?php vehicleFormFields($v, $errors, $cur['photo']); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline-secondary" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
+        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>
