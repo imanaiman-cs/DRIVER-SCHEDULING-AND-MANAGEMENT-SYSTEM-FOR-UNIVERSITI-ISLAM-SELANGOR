@@ -233,10 +233,12 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)$user_ids))));
     foreach ($ids as $uid) {
         $msg = mb_substr($message, 0, 500);
+        $nid = 0;
         try {
             $stmt = $conn->prepare('INSERT INTO notifications (user_id, message, link) VALUES (?, ?, ?)');
             $stmt->bind_param('iss', $uid, $msg, $link);
             $stmt->execute();
+            $nid = (int)$stmt->insert_id;
             $stmt->close();
         } catch (Throwable $e) {
             error_log('notifyUsers (in-system): ' . $e->getMessage());
@@ -258,6 +260,12 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
                 $res = sendMail($conn, $u['email'], '[UIS Vehicle Section] ' . mb_substr($body, 0, 70), $html, $text, ['kind' => $kind ?: 'notice', 'user_id' => $uid]);
                 $out[$res['status']] = ($out[$res['status']] ?? 0) + 1;
                 if ($res['status'] === 'failed') { $out['errors'][] = $res['message']; }
+                if ($res['status'] === 'sent' && $nid > 0) {                       // class Notification: emailSent
+                    $es = $conn->prepare('UPDATE notifications SET email_sent = 1 WHERE notification_id = ?');
+                    $es->bind_param('i', $nid);
+                    $es->execute();
+                    $es->close();
+                }
             }
         } catch (Throwable $e) {
             $out['failed']++;
@@ -732,10 +740,16 @@ function changeRequestStatus(mysqli $conn, int $request_id, string $to, array $o
         $sets = ['status = ?', 'status_reason = ?'];
         $args = [$to, $reason];
         $types = 'ss';
-        if ($to === 'approved' && $req['status'] === 'pending') { $sets[] = 'reviewed_at = NOW()'; }
+        if ($to === 'approved' && $req['status'] === 'pending') {
+            $sets[] = 'reviewed_at = NOW()';
+            $sets[] = 'approved_by = ?'; $args[] = $actor; $types .= 'i';           // class Request: approvedBy
+        }
         if ($to === 'rejected') {
             $sets[] = 'reviewed_at = NOW()';
             $sets[] = 'supervisor_notes = ?'; $args[] = (string)$reason; $types .= 's';
+            $sets[] = 'reject_reason = ?';    $args[] = $reason; $types .= 's';      // class Request: rejectReason, rejectedBy, rejectedDate
+            $sets[] = 'rejected_by = ?';      $args[] = $actor;  $types .= 'i';
+            $sets[] = 'rejected_at = NOW()';
         }
         if ($to === 'cancelled') {
             $sets[] = 'cancelled_at = NOW()';

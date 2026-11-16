@@ -6,6 +6,9 @@ Final year project (UiTM) by Muhammad Nur Iman Aiman. The requirements are in **
 exceptions, notes) before changing code, and follow it step by step. Anything the use cases do not describe is out of scope,
 except what Iman asked for on top: the optional WhatsApp (OpenWA) channel in `notifyUsers()`, for drivers only (`docs/OPENWA_SETUP.md`).
 
+The database follows Iman's class diagram (`docs/class_diagram.png`); `docs/CLASS_DIAGRAM_MAPPING.md` maps every class, attribute and
+method to its table, column and function. Keep them in line when the schema changes.
+
 `docs/UC_14Nov_GAPS.md` lists what was changed for the 14 Nov revision and what is still open.
 `docs/SRS_ALIGNMENT_PLAN.md` describes the earlier alignment work and the shared API; it is still valid for the API.
 

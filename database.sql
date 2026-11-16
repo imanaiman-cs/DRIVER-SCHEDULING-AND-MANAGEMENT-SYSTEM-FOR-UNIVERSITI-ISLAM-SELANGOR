@@ -198,6 +198,10 @@ CREATE TABLE `vehicle_requests` (
   `supervisor_id` int(11) DEFAULT NULL,
   `supervisor_notes` text DEFAULT NULL,
   `reviewed_at` timestamp NULL DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL COMMENT 'the Head of Department who approved',
+  `reject_reason` varchar(500) DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
   `cancelled_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -289,6 +293,7 @@ CREATE TABLE `notifications` (
   `message` varchar(500) NOT NULL,
   `link` varchar(255) DEFAULT NULL,
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `email_sent` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = the e-mail of this notification was sent',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`notification_id`),
   KEY `idx_notif_user` (`user_id`,`is_read`,`created_at`),
@@ -584,6 +589,10 @@ VALUES
   'Norliza binti Abdul Rahman', '012-300 0001', 'Main entrance', NULL, 'completed', 3, NULL, DATE_SUB(NOW(), INTERVAL 17 DAY), DATE_SUB(NOW(), INTERVAL 18 DAY));
 UPDATE vehicle_requests SET cancelled_at = DATE_SUB(NOW(), INTERVAL 2 DAY), cancelled_by = 8, cancelled_by_role = 'staff' WHERE request_id = 7;
 
+-- Who approved / rejected the demo requests (class Request: approvedBy, rejectReason, rejectedBy, rejectedDate)
+UPDATE vehicle_requests SET approved_by = supervisor_id WHERE status IN ('approved', 'assigned', 'processed', 'cancelled', 'completed') AND reviewed_at IS NOT NULL;
+UPDATE vehicle_requests SET rejected_by = supervisor_id, rejected_at = reviewed_at, reject_reason = status_reason WHERE status = 'rejected';
+
 -- Vehicle locks of the active requests (the requested period)
 INSERT INTO vehicle_locks (request_id, vehicle_id, start_dt, end_dt)
 SELECT request_id, vehicle_id, depart_at, return_at FROM vehicle_requests WHERE status IN ('pending','approved','assigned','processed');
@@ -680,4 +689,4 @@ SELECT 'welfare', w.duty_id, 'welfare', ELT(1 + (DAYOFMONTH(d.day_date) MOD 10),
  ORDER BY d.day_date;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments'), ('2026_11_class_diagram_attributes');
