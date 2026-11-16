@@ -46,7 +46,7 @@ $shown = vehicleDisplayStatus($conn, $id, $v['status']);
 adminPageStart('Vehicle Maintenance');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><?= plate($v['plate_number']) ?>
             <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
         <a class="btn btn-outline btn-sm" href="view_vehicle.php?id=<?= $id ?>">Back to vehicle</a>
     </div>
@@ -80,7 +80,7 @@ adminPageStart('Vehicle Maintenance');
                     <tr><td><?= htmlspecialchars((string)($h['workshop'] ?? '-')) ?></td>
                         <td class="whitespace-nowrap"><?= date('d M Y', strtotime($h['start_date'])) ?></td>
                         <td class="whitespace-nowrap"><?= date('d M Y', strtotime($h['end_date'])) ?></td>
-                        <td class="whitespace-nowrap"><?= $h['closed_at'] ? date('d M Y H:i', strtotime($h['closed_at'])) : '<span class="badge badge-soft badge-warning">Open</span>' ?></td></tr>
+                        <td class="whitespace-nowrap"><?= $h['closed_at'] ? date('d M Y H:i', strtotime($h['closed_at'])) : '<span class="badge badge-warning">Open</span>' ?></td></tr>
                 <?php endforeach; ?>
                 <?php if (!$history): ?><tr><td colspan="4" class="text-center text-base-content/60 py-4">No maintenance recorded.</td></tr><?php endif; ?>
                 </tbody>

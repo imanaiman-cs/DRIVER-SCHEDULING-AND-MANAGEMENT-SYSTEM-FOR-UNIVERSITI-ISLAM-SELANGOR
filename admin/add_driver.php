@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cands = $conn->query("SELECT user_id, username, full_name, email FROM users WHERE role = 'driver' AND is_active = 1 AND driver_id IS NULL ORDER BY full_name")->fetch_all(MYSQLI_ASSOC);
 adminPageStart('Add Driver');
 ?>
-    <h1 class="text-2xl font-medium mb-1">Add Driver</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-plus me-2 text-[0.8em] text-primary"></i>Add Driver</h1>
     <p class="text-base-content/60 text-sm">Choose an existing account that has the Driver role in the UIS staff system. The name and e-mail are taken from that account.</p>
     <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">

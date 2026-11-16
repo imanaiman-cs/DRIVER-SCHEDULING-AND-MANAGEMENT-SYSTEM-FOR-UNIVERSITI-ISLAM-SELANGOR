@@ -217,7 +217,7 @@ $qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['whe
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Internal Tasks');
 ?>
-    <h1 class="text-2xl font-medium mb-1">Internal Tasks</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-wrench me-2 text-[0.8em] text-primary"></i>Internal Tasks</h1>
     <p class="text-base-content/60 text-sm mb-4">Workshop runs, refuelling, test drives and document delivery. They count in the driver's workload. A task is never deleted: cancel it with a reason.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-6" id="taskForm">
@@ -308,9 +308,9 @@ adminPageStart('Internal Tasks');
                         <?php if ($t['location'] || $t['description']): ?><div class="text-sm text-base-content/60"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
                     <td class="whitespace-nowrap"><?= vehicleHtml($t['plate_number'], $t['brand'], $t['model']) ?></td>
                     <td><?= $h($t['driver_name']) ?></td>
-                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-soft badge-error">Cancelled</span>
+                    <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-error">Cancelled</span>
                         <div class="text-sm text-base-content/60 mt-1"><?= $h($t['cancel_reason']) ?></div>
-                        <?php else: ?><span class="badge badge-soft badge-success">Active</span><?php endif; ?></td>
+                        <?php else: ?><span class="badge badge-success">Active</span><?php endif; ?></td>
                     <td class="text-end whitespace-nowrap">
                         <?php if ($canChange): ?>
                             <a class="btn btn-sm btn-outline btn-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Update</span></a>

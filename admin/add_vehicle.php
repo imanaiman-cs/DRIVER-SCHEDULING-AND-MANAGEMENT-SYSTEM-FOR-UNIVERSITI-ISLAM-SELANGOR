@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Add Vehicle');
 ?>
-    <h1 class="text-2xl font-medium mb-4">Add Vehicle</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-plus me-2 text-[0.8em] text-primary"></i>Add Vehicle</h1>
     <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <?php vehicleFormFields($v, $errors); ?>

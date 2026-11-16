@@ -32,7 +32,7 @@ if (!$schedule) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tugasan Pemandu #<?php echo (int)$schedule['schedule_id']; ?></title>
     <link rel="icon" type="image/png" href="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="<?php echo SITE_URL; ?>/assets/css/app.css?v=<?php echo @filemtime(__DIR__ . '/../assets/css/app.css'); ?>" rel="stylesheet">
     <style>
         body { background: var(--color-base-200); }

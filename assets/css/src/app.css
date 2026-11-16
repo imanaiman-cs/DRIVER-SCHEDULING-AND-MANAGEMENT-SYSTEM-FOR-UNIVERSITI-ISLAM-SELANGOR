@@ -13,16 +13,16 @@
   themes: uis --default;
 }
 
-/* UIS theme: green (Islamic identity) + gold (wisdom). Everything else is plain DaisyUI. */
+/* UIS theme: green (Islamic identity) + gold (wisdom), on a light green-grey page, as in the original design. */
 @plugin "daisyui/theme" {
   name: "uis";
   default: true;
   color-scheme: light;
 
   --color-base-100: #ffffff;
-  --color-base-200: #f4f4f5;
-  --color-base-300: #e4e4e7;
-  --color-base-content: #171717;
+  --color-base-200: #f3f5f4;
+  --color-base-300: #e2e8e4;
+  --color-base-content: #1e293b;
 
   --color-primary: oklch(41% 0.09 158);          /* #0b5d3b UIS green */
   --color-primary-content: oklch(98% 0.01 158);
@@ -30,21 +30,21 @@
   --color-secondary-content: oklch(22% 0.04 80);
   --color-accent: oklch(52% 0.12 158);
   --color-accent-content: oklch(98% 0.01 158);
-  --color-neutral: #262626;
-  --color-neutral-content: #fafafa;
+  --color-neutral: #1f2a24;
+  --color-neutral-content: #f8faf9;
 
-  --color-info: oklch(58% 0.11 220);
+  --color-info: #0e7490;
   --color-info-content: oklch(98% 0.01 220);
-  --color-success: oklch(55% 0.14 150);
+  --color-success: #15803d;
   --color-success-content: oklch(98% 0.01 150);
   --color-warning: oklch(78% 0.15 75);
   --color-warning-content: oklch(25% 0.05 75);
-  --color-error: oklch(55% 0.2 27);
+  --color-error: #b91c1c;
   --color-error-content: oklch(98% 0.01 27);
 
   --radius-selector: 0.5rem;
   --radius-field: 0.5rem;
-  --radius-box: 0.75rem;
+  --radius-box: 0.875rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -53,8 +53,8 @@
 }
 
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;   /* times and counts: Inter with tabular figures */
   --font-plate: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
 }
 
@@ -99,16 +99,75 @@
   .required-legend { @apply mb-4 text-sm text-base-content/60; }
 
 
-  /* Dashboard panels (admin, staff, head of department, driver) */
-  .dash-card { @apply rounded-box border border-base-300 bg-base-100 p-5; }
-  .grid-12 > * > .dash-card { @apply h-full; }
-  .dash-card > h6 { @apply mb-4 flex items-center justify-between gap-2 text-sm font-medium; }
-  .dash-card > h6 a { @apply link link-primary font-normal no-underline; }
-  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-field px-2 py-2 text-sm; }
-  a.dash-row { @apply -mx-2 transition-colors hover:bg-base-200; }
-  .dash-group { @apply mt-5 mb-1 text-xs font-medium text-base-content/60 first-of-type:mt-0; }
-  .dash-time { @apply inline-block min-w-24 font-medium tabular-nums; }
-  .dash-empty { @apply py-6 text-center text-sm text-base-content/60; }
+  /* ---------- Dashboards (admin, staff, head of department, driver): the original UIS look ---------- */
+  .dash-hero {
+    @apply relative overflow-hidden rounded-[18px] px-7 py-6 text-white shadow-md;
+    background: radial-gradient(circle at 85% 20%, rgb(198 146 20 / .35) 0, transparent 38%),
+                linear-gradient(120deg, #122018 0%, var(--color-primary) 55%, #15804f 100%);
+  }
+  .dash-hero::after {
+    content: '\f1b9'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+    @apply pointer-events-none absolute right-6 -bottom-5 rotate-[-12deg] text-[7.5rem] text-white/[.07];
+  }
+  .dash-hero > * { @apply relative z-[1]; }
+  .dash-hero h4 { @apply text-[1.45rem] font-bold tracking-tight text-white; }
+  .dash-hero .text-base-content\/60 { @apply text-white/80; }
+  .dash-chip { @apply me-1.5 mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-0.5 text-[0.8rem]; }
+
+  .dash-kpi {
+    @apply relative flex h-full items-center gap-3.5 rounded-2xl border border-base-300 bg-base-100 px-4 py-4 shadow-sm transition;
+    --kpi: var(--color-success);
+  }
+  .dash-kpi::before { content: ''; @apply absolute inset-y-[18%] left-0 w-1 rounded-r; background: var(--kpi); }
+  a:hover > .dash-kpi { @apply -translate-y-0.5 border-primary/25 shadow-md; }
+  .dash-kpi-icon { @apply grid size-12 shrink-0 place-items-center rounded-[14px] text-xl text-white; background: var(--kpi); box-shadow: 0 4px 10px -2px var(--kpi); }
+  .dash-kpi-body { @apply min-w-0; }
+  .dash-kpi-value { @apply flex flex-wrap items-baseline gap-x-2 text-[1.75rem] leading-tight font-extrabold tracking-tight text-base-content; }
+  .dash-kpi-label { @apply text-[0.8rem] leading-snug font-medium text-base-content/70; }
+  .dash-kpi-hint { @apply mt-0.5 text-xs text-base-content/50; }
+  .dash-trend { @apply rounded-full bg-base-content/5 px-2 py-px text-[0.68rem] font-bold; }
+  .dash-trend.text-success { @apply bg-success/10; }
+  .dash-trend.text-error { @apply bg-error/10; }
+  .dash-kpi-success { --kpi: var(--color-success); }
+  .dash-kpi-info { --kpi: var(--color-info); }
+  .dash-kpi-warning { --kpi: var(--color-secondary); }
+  .dash-kpi-primary { --kpi: #1d4ed8; }
+  .dash-kpi-danger { --kpi: var(--color-error); }
+  .dash-kpi-secondary { --kpi: #475569; }
+
+  .dash-card { @apply h-full rounded-2xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm; }
+  .dash-card > h6 { @apply mb-3 flex items-center justify-between gap-2 border-b border-base-200 pb-2.5 text-[0.95rem] font-bold; }
+  .dash-card > h6 small { @apply text-xs; }
+  .dash-card > h6 .fas { --fa-display: inline-grid; @apply me-1.5 size-7 place-items-center rounded-lg bg-primary/10 align-middle text-[0.8rem]; }
+  .dash-card > h6 a { @apply text-primary; }
+  .dash-empty { @apply py-6 text-center text-sm text-base-content/50; }
+  .dash-empty i { --fa-display: block; @apply mb-1.5 text-3xl text-base-content/20; }
+  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 text-sm transition-colors; }
+  .dash-row + .dash-row { border-top: 1px dashed var(--color-base-300); }
+  a.dash-row:hover { @apply bg-primary/5; }
+  .dash-group { @apply mt-3 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-wide text-base-content/60 uppercase first:mt-0; }
+  .dash-group::before { content: ''; @apply size-2 rounded-full bg-success; }
+  .dash-group.warn::before { @apply bg-secondary; }
+  .dash-group.info::before { @apply bg-info; }
+  .dash-alert { @apply mb-2 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm text-base-content; }
+  .dash-alert i { --fa-display: grid; @apply size-7 shrink-0 place-items-center rounded-full bg-white/75; }
+  .dash-alert-danger { @apply border-error/25 bg-error/10; } .dash-alert-danger i { @apply text-error; }
+  .dash-alert-warning { @apply border-secondary/30 bg-secondary/10; } .dash-alert-warning i { @apply text-secondary; }
+  .dash-alert-info { @apply border-info/25 bg-info/10; } .dash-alert-info i { @apply text-info; }
+  .dash-time { @apply inline-block min-w-24 font-bold tabular-nums text-primary; }
+  .dash-next { @apply rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5; }
+  .dash-bar { @apply mt-1 h-2 overflow-hidden rounded-full bg-base-200; }
+  .dash-bar > span { @apply block h-full rounded-full; background: var(--bar, var(--color-success)); }
+
+  /* The four steps of a request: small dots joined by a line */
+  .dash-steps { @apply mt-2.5 flex list-none p-0; }
+  .dash-steps li { @apply relative flex-1 text-center text-[0.68rem] leading-tight text-base-content/40; }
+  .dash-steps li::before { content: ''; @apply absolute top-2 -left-1/2 h-[3px] w-full bg-base-300; }
+  .dash-steps li:first-child::before { display: none; }
+  .dash-steps .dot { @apply relative z-[1] mx-auto mb-1 block size-[17px] rounded-full border-[3px] border-base-300 bg-base-100; }
+  .dash-steps li.done, .dash-steps li.now { @apply font-semibold text-primary; }
+  .dash-steps li.done .dot, .dash-steps li.now .dot { @apply border-success bg-success; }
+  .dash-steps li.done::before, .dash-steps li.now::before { @apply bg-success; }
 
   /* A chart canvas wrapper; the centre label sits over a doughnut */
   .dash-chart { @apply relative w-full; }
@@ -116,6 +175,49 @@
   @media (min-width: 640px) { .dash-chart-centre { padding-right: 38%; } }
   .dash-chart-centre b { @apply block text-2xl leading-none; }
   .dash-chart-centre span { @apply text-xs text-base-content/60; }
+}
+
+/* ---------- The original UIS look, applied over DaisyUI (must sit in the utilities layer to win over DaisyUI) ---------- */
+@layer utilities {
+  /* Dark green sidebar */
+  .app-sidebar { background: #0e1f17; color: rgb(255 255 255 / .82); --color-base-content: #ffffff; }
+  .app-sidebar .menu { --menu-active-bg: rgb(21 128 79 / .38); --menu-active-fg: #ffffff; font-size: .845rem; }
+  .app-sidebar .menu-title { padding-top: .9rem; font-size: .6rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(255 255 255 / .4); }
+  .app-sidebar .menu li > a { position: relative; font-weight: 500; }
+  .app-sidebar .menu li > a i { opacity: .75; }
+  .app-sidebar .menu li > a.menu-active { font-weight: 600; box-shadow: inset 0 0 0 1px rgb(21 128 79 / .5); }
+  .app-sidebar .menu li > a.menu-active::before { content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--color-secondary); }
+  .app-sidebar .menu li > a.menu-active i, .app-sidebar .menu li > a:hover i { color: var(--color-secondary); opacity: 1; }
+  .app-sidebar .menu a.logout { color: rgb(255 255 255 / .5); }
+  .app-sidebar .menu a.logout:hover { background: rgb(220 38 38 / .2); color: #fca5a5; }
+
+  /* Buttons without a colour: white with a hairline, so they show on the grey page */
+  .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active, .btn-circle) {
+    --btn-color: var(--color-base-100); border-color: var(--color-base-300); box-shadow: 0 1px 2px rgb(18 32 24 / .05);
+  }
+  .btn { font-weight: 600; }
+
+  /* Hero banner buttons */
+  .dash-hero .btn { border-radius: 999px; border: 0; --btn-color: #ffffff; color: var(--color-primary); }
+  .dash-hero .btn.btn-hero-outline { --btn-color: transparent; border: 1px solid rgb(255 255 255 / .5); color: #ffffff; box-shadow: none; }
+  .dash-hero .btn.btn-hero-outline:hover { --btn-color: rgb(255 255 255 / .15); }
+
+  /* Cards: white with a soft shadow on the grey page */
+  .card { box-shadow: 0 1px 3px rgb(18 32 24 / .06), 0 1px 2px rgb(18 32 24 / .04); }
+  .card:has(> .overflow-x-auto > .table), .card:has(> .table) { overflow: hidden; }
+
+  /* Tables: the green header row */
+  .table :where(thead) th {
+    background: var(--color-primary); color: #ffffff; font-size: .72rem; font-weight: 700;
+    letter-spacing: .06em; text-transform: uppercase; padding-block: .8rem;
+  }
+  .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 5%, transparent); }
+
+  /* Focus rings in UIS green */
+  .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus { outline-color: var(--color-primary); border-color: var(--color-primary); }
+
+  /* Badges: small and bold, as before */
+  .badge { font-weight: 700; }
 }
 
 @media print {

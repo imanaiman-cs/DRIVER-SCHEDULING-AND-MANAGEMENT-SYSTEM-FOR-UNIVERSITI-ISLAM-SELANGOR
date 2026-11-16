@@ -115,74 +115,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Sign in | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
 </head>
-<body class="flex min-h-screen flex-col bg-base-200">
+<body class="flex min-h-screen flex-col bg-gradient-to-br from-[#07301f] via-primary to-[#15804f]">
 
     <main class="flex flex-1 items-center justify-center px-4 py-10">
-        <div class="w-full max-w-sm">
+        <div class="w-full max-w-md overflow-hidden rounded-3xl bg-base-100 shadow-2xl">
 
-            <div class="mb-6 flex flex-col items-center text-center">
-                <img src="assets/images/uis-favicon.png" alt="Universiti Islam Selangor" class="mb-4 size-12">
-                <h1 class="text-xl font-medium">Sign in to UIS Driver Management</h1>
+            <div class="relative bg-gradient-to-br from-[#07301f] to-primary px-6 pt-9 pb-7 text-center text-white">
+                <span class="mx-auto mb-4 grid size-20 place-items-center rounded-full bg-white shadow-lg ring-4 ring-secondary/60">
+                    <img src="assets/images/uis-favicon.png" alt="UIS crest" class="size-14 object-contain">
+                </span>
+                <h1 class="text-xl font-bold">Universiti Islam Selangor</h1>
+                <div class="mx-auto my-3 h-0.5 w-12 rounded-full bg-secondary"></div>
+                <p class="text-xs tracking-[0.12em] text-white/75 uppercase">Driver Scheduling &amp; Management System</p>
             </div>
 
-            <div class="card border border-base-300 bg-base-100">
-                <div class="card-body gap-4">
+            <div class="px-8 pt-7 pb-6">
+                <h2 class="text-lg font-bold text-primary">Welcome Back</h2>
+                <p class="mb-5 text-sm text-base-content/60">Sign in to your account to continue</p>
 
-                    <?php if (!empty($error)): ?>
-                    <div class="alert alert-soft alert-error text-sm" role="alert">
-                        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-                        <span><?= htmlspecialchars($error) ?></span>
-                    </div>
-                    <?php endif; ?>
-
-                    <?php if (!empty($success)): ?>
-                    <div class="alert alert-soft alert-success text-sm" role="alert">
-                        <i class="fas fa-circle-check" aria-hidden="true"></i>
-                        <span><?= htmlspecialchars($success) ?></span>
-                    </div>
-                    <?php endif; ?>
-
-                    <form method="POST" action="login.php" id="loginForm" novalidate autocomplete="off" class="flex flex-col gap-4">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
-
-                        <div>
-                            <label for="username" class="mb-1 block text-sm font-medium">Username</label>
-                            <label class="input w-full">
-                                <i class="fas fa-user text-base-content/40" aria-hidden="true"></i>
-                                <input type="text" id="username" name="username" class="grow" placeholder="Your username"
-                                       value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus autocomplete="username" maxlength="100">
-                            </label>
-                        </div>
-
-                        <div>
-                            <label for="password" class="mb-1 block text-sm font-medium">Password</label>
-                            <label class="input w-full">
-                                <i class="fas fa-lock text-base-content/40" aria-hidden="true"></i>
-                                <input type="password" id="password" name="password" class="grow" placeholder="Your password"
-                                       required autocomplete="current-password" maxlength="255">
-                                <button type="button" class="btn btn-ghost btn-xs btn-square" id="togglePassword" aria-label="Show password" title="Show / hide password">
-                                    <i class="fas fa-eye" id="toggleIcon" aria-hidden="true"></i>
-                                </button>
-                            </label>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
-                            <span class="loading loading-spinner loading-sm hidden" id="loginSpinner" aria-hidden="true"></span>
-                            <span id="loginBtnText">Sign in</span>
-                        </button>
-                    </form>
+                <?php if (!empty($error)): ?>
+                <div class="alert alert-soft alert-error mb-4 text-sm" role="alert">
+                    <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                    <span><?= htmlspecialchars($error) ?></span>
                 </div>
+                <?php endif; ?>
+
+                <?php if (!empty($success)): ?>
+                <div class="alert alert-soft alert-success mb-4 text-sm" role="alert">
+                    <i class="fas fa-circle-check" aria-hidden="true"></i>
+                    <span><?= htmlspecialchars($success) ?></span>
+                </div>
+                <?php endif; ?>
+
+                <form method="POST" action="login.php" id="loginForm" novalidate autocomplete="off" class="flex flex-col gap-4">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
+
+                    <div>
+                        <label for="username" class="mb-1.5 block text-xs font-bold tracking-wider uppercase">Username</label>
+                        <label class="input input-lg w-full">
+                            <i class="fas fa-user text-primary" aria-hidden="true"></i>
+                            <input type="text" id="username" name="username" class="grow text-base" placeholder="Enter your username"
+                                   value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus autocomplete="username" maxlength="100">
+                        </label>
+                    </div>
+
+                    <div>
+                        <label for="password" class="mb-1.5 block text-xs font-bold tracking-wider uppercase">Password</label>
+                        <label class="input input-lg w-full">
+                            <i class="fas fa-lock text-primary" aria-hidden="true"></i>
+                            <input type="password" id="password" name="password" class="grow text-base" placeholder="Enter your password"
+                                   required autocomplete="current-password" maxlength="255">
+                            <button type="button" class="btn btn-ghost btn-xs btn-square" id="togglePassword" aria-label="Show password" title="Show / hide password">
+                                <i class="fas fa-eye" id="toggleIcon" aria-hidden="true"></i>
+                            </button>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg btn-block mt-1 bg-gradient-to-r from-primary to-[#15804f]" id="loginBtn">
+                        <span class="loading loading-spinner loading-sm hidden" id="loginSpinner" aria-hidden="true"></span>
+                        <i class="fas fa-right-to-bracket" aria-hidden="true"></i>
+                        <span id="loginBtnText">Sign In</span>
+                    </button>
+                </form>
             </div>
 
+            <div class="border-t border-base-300 bg-base-200 px-6 py-3.5 text-center text-sm text-base-content/70">
+                <i class="fas fa-shield-halved me-1 text-primary" aria-hidden="true"></i>Authorised personnel only &mdash; <strong class="text-primary">UIS</strong> Internal System
+            </div>
         </div>
     </main>
 
-    <footer class="pb-6 text-center text-xs text-base-content/60">
-        &copy; <?= date('Y') ?> Universiti Islam Selangor. For authorised staff only.
+    <footer class="pb-6 text-center text-xs text-white/60">
+        &copy; <?= date('Y') ?> Universiti Islam Selangor. All rights reserved.
     </footer>
 
     <script>

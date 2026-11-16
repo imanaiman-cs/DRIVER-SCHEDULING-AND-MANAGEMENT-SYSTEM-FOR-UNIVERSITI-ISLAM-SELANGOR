@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 adminPageStart('Request a Vehicle');
 ?>
-    <h1 class="text-2xl font-medium mb-4">Request a Vehicle</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-car-side me-2 text-[0.8em] text-primary"></i>Request a Vehicle</h1>
 
     <?php if (!$approver_id): ?>
         <div class="alert alert-soft alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>

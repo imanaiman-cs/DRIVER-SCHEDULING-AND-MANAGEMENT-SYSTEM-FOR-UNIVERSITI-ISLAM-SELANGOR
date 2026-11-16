@@ -56,7 +56,7 @@ $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $wi
 adminPageStart('Assign Driver');
 ?>
     <a class="text-sm no-underline" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h1 class="text-2xl font-medium my-2">Assign driver &mdash; request #<?= $rid ?></h1>
+    <h1 class="text-2xl font-extrabold tracking-tight my-2"><i class="fas fa-user-plus me-2 text-[0.8em] text-primary"></i>Assign driver &mdash; request #<?= $rid ?></h1>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
 
     <form method="post">
@@ -76,8 +76,8 @@ adminPageStart('Assign Driver');
                         <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-base-content/60 text-sm"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
                         <td class="text-center"><?= (int)$d['tasks'] ?></td>
                         <td class="text-center"><?= (int)$d['outside'] ?></td>
-                        <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
-                        <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-soft badge-warning">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '' ?></td>
+                        <td class="text-center"><span class="badge badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                        <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-warning">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge badge-primary">Recommended</span>' : '' ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-error">No driver is available for this trip. See the list below for the reasons.</td></tr><?php endif; ?>
@@ -138,8 +138,8 @@ adminPageStart('Assign Driver');
             box.innerHTML = '<table class="table align-middle"><thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Outside hours</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
                 d.drivers.map(function (x) {
                     return '<tr><td><input class="radio radio-sm radio-primary" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
-                           '</td><td class="text-center">' + x.outside + '</td><td class="text-center"><span class="badge badge-soft badge-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
-                           (x.welfare ? '<span class="badge badge-soft badge-warning">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '') + '</td></tr>';
+                           '</td><td class="text-center">' + x.outside + '</td><td class="text-center"><span class="badge badge-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
+                           (x.welfare ? '<span class="badge badge-warning">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge badge-primary">Recommended</span>' : '') + '</td></tr>';
                 }).join('') + '</tbody></table>';
         });
     }

@@ -144,7 +144,7 @@ foreach ($roster as $r) { $count[$r['driver_name']] = ($count[$r['driver_name']]
 arsort($count);
 adminPageStart('Welfare Duty');
 ?>
-    <h1 class="text-2xl font-medium mb-1">Welfare Duty</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-moon me-2 text-[0.8em] text-primary"></i>Welfare Duty</h1>
     <p class="text-base-content/60 text-sm mb-4">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-6"><div class="card-body">

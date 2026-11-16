@@ -76,7 +76,7 @@ if ($driver_id > 0) {
 
 adminPageStart('My Tasks');
 ?>
-    <h1 class="text-2xl font-medium mb-1">My Tasks</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-route me-2 text-[0.8em] text-primary"></i>My Tasks</h1>
     <p class="text-base-content/60 text-sm mb-4">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
     <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
         <a role="tab" class="tab gap-2 <?= $tab === 'upcoming' ? 'tab-active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a>
@@ -95,7 +95,7 @@ adminPageStart('My Tasks');
                         <time class="block text-lg font-medium" datetime="<?= date('Y-m-d', $s) ?>"><?= $h(date('D, d M Y', $s)) ?></time>
                         <div class="font-mono text-base-content/70"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . '–' . date('H:i', $e)) ?></div>
                     </div>
-                    <span class="badge <?= ['trip' => 'badge-soft badge-primary', 'internal' => 'badge-ghost', 'welfare' => 'badge-soft badge-secondary'][$t['kind']] ?? 'badge-ghost' ?>"><?= $h($t['type']) ?></span>
+                    <span class="badge <?= ['trip' => 'badge-primary', 'internal' => 'badge-ghost', 'welfare' => 'badge-secondary'][$t['kind']] ?? 'badge-ghost' ?>"><?= $h($t['type']) ?></span>
                 </div>
                 <dl class="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm [&_dt]:text-base-content/60 [&_dd]:break-words">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>

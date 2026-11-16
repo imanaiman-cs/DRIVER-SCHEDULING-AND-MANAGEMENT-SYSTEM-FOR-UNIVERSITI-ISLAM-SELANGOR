@@ -16,7 +16,7 @@ function appHead(string $title): void
     <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
 <?php
@@ -38,7 +38,7 @@ function adminPageStart(string $title): void
 <head>
 <?php appHead($title); ?>
 </head>
-<body class="min-h-screen bg-base-100">
+<body class="min-h-screen bg-base-200">
 <?php require __DIR__ . '/sidebar.php'; ?>
 <main class="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8" id="mainContent">
     <?php showFlash(); ?>

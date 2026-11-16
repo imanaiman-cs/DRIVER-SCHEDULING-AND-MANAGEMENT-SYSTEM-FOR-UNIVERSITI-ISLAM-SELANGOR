@@ -33,7 +33,7 @@ $counts = driverMonthCounts($conn, date('Y-m'));
 adminPageStart('Drivers');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h1 class="text-2xl font-medium mb-0">Drivers</h1>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><i class="fas fa-id-card me-2 text-[0.8em] text-primary"></i>Drivers</h1>
         <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add driver</a>
     </div>
     <p class="text-base-content/60 text-sm">Driver accounts come from the UIS staff system. Here you register an existing driver account as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>
@@ -64,7 +64,7 @@ adminPageStart('Drivers');
                         <td class="whitespace-nowrap"><?= htmlspecialchars((string)$d['phone']) ?></td>
                         <td><?= licenceBadges($d['license_class']) ?></td>
                         <td class="text-end"><?= (int)$c['tasks'] ?></td>
-                        <td><span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?>"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></td>
+                        <td><span class="badge <?= $d['status'] === 'active' ? 'badge-success' : 'border-0 bg-slate-500 text-white' ?>"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></td>
                         <td class="text-end whitespace-nowrap">
                             <a class="btn btn-sm btn-outline btn-success" href="view_driver.php?id=<?= $id ?>" title="View"><i class="fas fa-eye"></i></a>
                             <a class="btn btn-sm btn-outline" href="edit_driver.php?id=<?= $id ?>" title="Edit"><i class="fas fa-pen"></i></a>
@@ -86,7 +86,7 @@ adminPageStart('Drivers');
                         <div><a class="font-bold no-underline" href="view_driver.php?id=<?= $id ?>"><?= htmlspecialchars($d['name']) ?></a>
                             <div class="text-sm text-base-content/60"><?= htmlspecialchars($d['employee_id']) ?> &middot; <?= htmlspecialchars((string)$d['phone']) ?> &middot; <?= (int)$c['tasks'] ?> task(s) this month</div>
                             <div class="mt-1"><?= licenceBadges($d['license_class']) ?></div></div>
-                        <span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?>"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span>
+                        <span class="badge <?= $d['status'] === 'active' ? 'badge-success' : 'border-0 bg-slate-500 text-white' ?>"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span>
                     </div>
                     <div class="mt-2 flex flex-wrap gap-1">
                         <a class="btn btn-sm btn-outline btn-success" href="view_driver.php?id=<?= $id ?>">View</a>

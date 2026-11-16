@@ -37,7 +37,7 @@ $open = (int)($_GET['open'] ?? 0);
 adminPageStart('My Requests');
 ?>
     <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <h1 class="text-2xl font-medium mb-0">My Requests</h1>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><i class="fas fa-list-check me-2 text-[0.8em] text-primary"></i>My Requests</h1>
         <a class="btn btn-success btn-sm" href="request_vehicle.php"><i class="fas fa-plus me-1"></i>New request</a>
     </div>
 

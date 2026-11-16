@@ -31,7 +31,7 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
 ?>
-    <h1 class="text-2xl font-medium mb-4">Vehicle Requests</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-file-signature me-2 text-[0.8em] text-primary"></i>Vehicle Requests</h1>
     <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
         <?php foreach ($tabs as $k => [$label]): ?>
             <a role="tab" class="tab gap-2 <?= $tab === $k ? 'tab-active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="font-mono text-xs text-base-content/60"><?= $tabCount($k) ?></span></a>

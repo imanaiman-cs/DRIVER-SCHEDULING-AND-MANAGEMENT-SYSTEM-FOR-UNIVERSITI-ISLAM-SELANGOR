@@ -128,27 +128,37 @@ if ($_is_admin_role) {
 
 <aside class="drawer-side z-40" aria-label="Main navigation">
     <label for="app-drawer" class="drawer-overlay" aria-label="Close navigation menu"></label>
-    <div class="flex min-h-full w-64 flex-col border-e border-base-300 bg-base-100">
+    <div class="app-sidebar flex min-h-full w-64 flex-col">
 
-        <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="flex h-16 shrink-0 items-center gap-3 border-b border-base-300 px-5">
-            <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="" class="size-8">
+        <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
+            <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-white p-1 ring-2 ring-secondary/50"><img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="" class="size-full object-contain"></span>
             <span class="leading-tight">
-                <span class="block font-semibold">Driver Management</span>
-                <span class="block text-xs text-base-content/60">Universiti Islam Selangor</span>
+                <span class="block font-extrabold tracking-wide text-white">UIS</span>
+                <span class="block text-[0.65rem] tracking-wider text-white/50 uppercase">Driver Management</span>
             </span>
         </a>
 
-        <ul class="menu w-full grow gap-0.5 px-3 py-3 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
+        <div class="mx-3 mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3">
+            <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-secondary to-amber-300 text-sm font-extrabold text-neutral shadow"><?php echo htmlspecialchars($initials); ?></span>
+            <span class="min-w-0">
+                <span class="block truncate text-sm font-semibold text-white" title="<?php echo htmlspecialchars($full_name); ?>"><?php echo htmlspecialchars($full_name); ?></span>
+                <span class="mt-0.5 inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/15 px-2 py-px text-[0.62rem] font-bold tracking-wide text-secondary uppercase">
+                    <i class="fas <?php echo $_is_admin_role ? 'fa-shield-halved' : 'fa-id-card'; ?> text-[0.55rem]" aria-hidden="true"></i><?php echo htmlspecialchars($role_label); ?>
+                </span>
+            </span>
+        </div>
+
+        <ul class="menu w-full grow gap-0.5 px-3 py-2">
             <?php foreach ($_menu as $_section => $_items): ?>
-            <li class="menu-title pt-4 first:pt-1"><?php echo htmlspecialchars($_section); ?></li>
+            <li class="menu-title"><?php echo htmlspecialchars($_section); ?></li>
                 <?php foreach ($_items as [$_pages, $_url, $_icon, $_label, $_bk]): ?>
             <li>
-                <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="<?php echo sidebarActive($_pages, $current_page) ? 'menu-active font-medium' : ''; ?>"
+                <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="<?php echo sidebarActive($_pages, $current_page) ? 'menu-active' : ''; ?>"
                    <?php echo sidebarActive($_pages, $current_page) ? 'aria-current="page"' : ''; ?>>
-                    <i class="fas fa-<?php echo $_icon; ?> w-4 text-center opacity-70" aria-hidden="true"></i>
+                    <i class="fas fa-<?php echo $_icon; ?> w-5 text-center" aria-hidden="true"></i>
                     <span class="grow"><?php echo htmlspecialchars($_label); ?></span>
                     <?php if ($_bk !== null && $_badge[$_bk] > 0): ?>
-                    <span class="font-mono text-xs text-base-content/60"><?php echo (int)$_badge[$_bk]; ?></span>
+                    <span class="badge badge-sm border-0 bg-success font-bold text-white"><?php echo (int)$_badge[$_bk]; ?></span>
                     <?php endif; ?>
                 </a>
             </li>
@@ -156,21 +166,12 @@ if ($_is_admin_role) {
             <?php endforeach; ?>
         </ul>
 
-        <div class="border-t border-base-300 p-3">
-            <div class="flex items-center gap-3 px-2 py-2">
-                <div class="avatar avatar-placeholder">
-                    <div class="w-9 rounded-full bg-primary text-primary-content"><span class="text-xs font-semibold"><?php echo htmlspecialchars($initials); ?></span></div>
-                </div>
-                <div class="min-w-0 leading-tight">
-                    <div class="truncate text-sm font-medium" title="<?php echo htmlspecialchars($full_name); ?>"><?php echo htmlspecialchars($full_name); ?></div>
-                    <div class="truncate text-xs text-base-content/60"><?php echo htmlspecialchars($role_label); ?></div>
-                </div>
-            </div>
-            <ul class="menu w-full p-0 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
-                <li><a href="<?php echo SITE_URL; ?>/help.php" class="<?php echo $current_page === 'help.php' ? 'menu-active font-medium' : ''; ?>"><i class="fas fa-circle-question w-4 text-center opacity-70" aria-hidden="true"></i>Help &amp; guide</a></li>
-                <li><a href="<?php echo SITE_URL; ?>/logout.php"
+        <div class="border-t border-white/10 p-3">
+            <ul class="menu w-full gap-1 p-0">
+                <li><a href="<?php echo SITE_URL; ?>/help.php" class="bg-white/5 <?php echo $current_page === 'help.php' ? 'menu-active' : ''; ?>"><i class="fas fa-circle-question w-5 text-center" aria-hidden="true"></i>Help &amp; Guide</a></li>
+                <li><a href="<?php echo SITE_URL; ?>/logout.php" class="logout"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
-                    <i class="fas fa-right-from-bracket w-4 text-center opacity-70" aria-hidden="true"></i>Log out</a></li>
+                    <i class="fas fa-right-from-bracket w-5 text-center" aria-hidden="true"></i>Log Out</a></li>
             </ul>
         </div>
     </div>
@@ -178,36 +179,38 @@ if ($_is_admin_role) {
 
 <div class="drawer-content flex min-h-screen min-w-0 flex-col">
 
-<header class="navbar sticky top-0 z-30 min-h-16 gap-2 border-b border-base-300 bg-base-100/90 px-4 backdrop-blur sm:px-6 no-print">
-    <label for="app-drawer" class="btn btn-square btn-ghost lg:hidden" aria-label="Open navigation menu">
+<header class="navbar sticky top-0 z-30 min-h-16 gap-3 border-b border-base-300 bg-base-100/95 px-4 backdrop-blur sm:px-6 no-print">
+    <label for="app-drawer" class="btn btn-square btn-sm border-0 bg-primary/10 text-primary hover:bg-primary hover:text-white lg:hidden" aria-label="Open navigation menu">
         <i class="fas fa-bars" aria-hidden="true"></i>
     </label>
 
     <div class="breadcrumbs min-w-0 flex-1 text-sm">
         <ul>
-            <li><a href="<?php echo SITE_URL; ?>/<?php echo $_role_home; ?>">Home</a></li>
-            <li class="truncate font-medium" aria-current="page"><?php echo htmlspecialchars($page_title ?? ''); ?></li>
+            <li><a href="<?php echo SITE_URL; ?>/<?php echo $_role_home; ?>" class="text-primary"><i class="fas fa-house me-1.5" aria-hidden="true"></i>Home</a></li>
+            <li class="truncate text-base-content/60" aria-current="page"><?php echo htmlspecialchars($page_title ?? ''); ?></li>
         </ul>
     </div>
 
+    <span id="dhClock" class="hidden text-sm font-bold tabular-nums tracking-wide text-primary xl:inline"></span>
+
     <!-- Notifications -->
     <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-square btn-ghost" aria-label="Notifications<?php echo $_app_unread ? ' (' . $_app_unread . ' unread)' : ''; ?>">
+        <div tabindex="0" role="button" class="btn btn-circle btn-sm h-9 w-9 border border-base-300 bg-base-100" aria-label="Notifications<?php echo $_app_unread ? ' (' . $_app_unread . ' unread)' : ''; ?>">
             <div class="indicator">
-                <i class="fas fa-bell" aria-hidden="true"></i>
+                <i class="fas fa-bell text-primary" aria-hidden="true"></i>
                 <?php if ($_app_unread > 0): ?>
                 <span class="indicator-item badge badge-xs badge-error"><?php echo $_app_unread; ?></span>
                 <?php endif; ?>
             </div>
         </div>
         <div tabindex="0" class="dropdown-content z-50 mt-2 w-80 rounded-box border border-base-300 bg-base-100 shadow-lg">
-            <div class="border-b border-base-300 px-4 py-3 text-sm font-semibold">Notifications</div>
+            <div class="border-b border-base-300 px-4 py-3 text-xs font-bold tracking-wider text-primary uppercase">Notifications</div>
             <ul class="menu w-full">
                 <?php foreach ($_app_notifs as $_n): ?>
                 <li>
                     <a href="<?php echo SITE_URL; ?>/notifications.php?open=<?php echo (int)$_n['notification_id']; ?>" class="flex-col items-start gap-0.5">
-                        <span class="text-sm <?php echo $_n['is_read'] ? 'text-base-content/70' : 'font-medium'; ?>">
-                            <?php if (!$_n['is_read']): ?><span class="status status-primary me-1 align-middle"></span><?php endif; ?>
+                        <span class="text-sm <?php echo $_n['is_read'] ? 'text-base-content/70' : 'font-semibold'; ?>">
+                            <?php if (!$_n['is_read']): ?><span class="badge badge-xs badge-success me-1">New</span><?php endif; ?>
                             <?php echo htmlspecialchars($_n['message']); ?>
                         </span>
                         <span class="text-xs text-base-content/50"><?php echo date('d M Y, H:i', strtotime($_n['created_at'])); ?></span>
@@ -215,33 +218,31 @@ if ($_is_admin_role) {
                 </li>
                 <?php endforeach; ?>
                 <?php if (!$_app_notifs): ?>
-                <li class="disabled"><span class="justify-center py-4 text-sm">No notifications</span></li>
+                <li class="disabled"><span class="justify-center py-4 text-sm"><i class="fas fa-check-circle text-success" aria-hidden="true"></i>All clear</span></li>
                 <?php endif; ?>
             </ul>
             <div class="border-t border-base-300 p-2">
-                <a class="btn btn-ghost btn-sm btn-block" href="<?php echo SITE_URL; ?>/notifications.php">See all notifications</a>
+                <a class="btn btn-ghost btn-sm btn-block text-primary" href="<?php echo SITE_URL; ?>/notifications.php">See all notifications</a>
             </div>
         </div>
     </div>
 
     <!-- Account -->
     <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-ghost gap-2 px-2">
-            <div class="avatar avatar-placeholder">
-                <div class="w-8 rounded-full bg-primary text-primary-content"><span class="text-xs font-semibold"><?php echo htmlspecialchars($initials); ?></span></div>
-            </div>
-            <span class="hidden max-w-48 truncate text-sm font-medium sm:inline"><?php echo htmlspecialchars($full_name); ?></span>
-            <i class="fas fa-chevron-down text-xs opacity-50" aria-hidden="true"></i>
+        <div tabindex="0" role="button" class="btn btn-sm h-9 gap-2 rounded-xl border border-base-300 bg-base-100 px-2">
+            <span class="grid size-7 place-items-center rounded-full bg-gradient-to-br from-primary to-[#15804f] text-[0.65rem] font-bold text-white"><?php echo htmlspecialchars($initials); ?></span>
+            <span class="hidden max-w-48 truncate text-sm font-semibold sm:inline"><?php echo htmlspecialchars($full_name); ?></span>
+            <i class="fas fa-chevron-down text-[0.6rem] opacity-50" aria-hidden="true"></i>
         </div>
-        <ul tabindex="0" class="menu dropdown-content z-50 mt-2 w-60 rounded-box border border-base-300 bg-base-100 shadow-lg">
+        <ul tabindex="0" class="menu dropdown-content z-50 mt-2 w-64 rounded-box border border-base-300 bg-base-100 shadow-lg">
             <li class="menu-title normal-case">
-                <span class="block truncate font-medium text-base-content"><?php echo htmlspecialchars($full_name); ?></span>
-                <span class="block text-xs font-normal"><?php echo htmlspecialchars($role_label); ?></span>
+                <span class="block truncate font-semibold text-base-content"><?php echo htmlspecialchars($full_name); ?></span>
+                <span class="mt-1 badge badge-sm badge-neutral"><?php echo htmlspecialchars($role_label); ?></span>
             </li>
-            <li><a href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4 opacity-70" aria-hidden="true"></i>Help</a></li>
+            <li><a href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4" aria-hidden="true"></i>Help</a></li>
             <li><a href="<?php echo SITE_URL; ?>/logout.php" class="text-error"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
-                <i class="fas fa-right-from-bracket w-4" aria-hidden="true"></i>Log out</a></li>
+                <i class="fas fa-right-from-bracket w-4" aria-hidden="true"></i>Log Out</a></li>
         </ul>
     </div>
 </header>
@@ -305,4 +306,13 @@ if ($_is_admin_role) {
 </script>
 <script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 
-
+<script>
+/* Live clock in the top bar */
+(function () {
+    var el = document.getElementById('dhClock');
+    if (!el) { return; }
+    function tick() { el.textContent = new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).toUpperCase(); }
+    tick();
+    setInterval(tick, 1000);
+})();
+</script>

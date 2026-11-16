@@ -22,8 +22,8 @@ $expired = $d['license_expiry'] && $d['license_expiry'] < date('Y-m-d');
 adminPageStart($d['name']);
 ?>
     <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-        <h1 class="text-2xl font-medium mb-0"><?= htmlspecialchars($d['name']) ?>
-            <span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?> text-base ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h1>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><i class="fas fa-id-card me-2 text-[0.8em] text-primary"></i><?= htmlspecialchars($d['name']) ?>
+            <span class="badge <?= $d['status'] === 'active' ? 'badge-success' : 'border-0 bg-slate-500 text-white' ?> text-base ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h1>
         <div class="flex flex-wrap gap-1">
             <a class="btn btn-outline btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <?php if ($d['status'] === 'active'): ?>
@@ -45,7 +45,7 @@ adminPageStart($d['name']);
                 <dt class="col-span-5">Licence classes</dt><dd class="col-span-7"><?= licenceBadges($d['license_class']) ?></dd>
                 <dt class="col-span-5">Licence no.</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['license_number'] ?? '-')) ?></dd>
                 <dt class="col-span-5">Licence expiry</dt><dd class="col-span-7"><?= $d['license_expiry'] ? date('d M Y', strtotime($d['license_expiry'])) : '-' ?>
-                    <?= $expired ? '<span class="badge badge-soft badge-error ms-1">Expired</span>' : '' ?></dd>
+                    <?= $expired ? '<span class="badge badge-error ms-1">Expired</span>' : '' ?></dd>
                 <dt class="col-span-5">Address</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['address'] ?? '-')) ?></dd>
             </dl>
         </div></div></div>

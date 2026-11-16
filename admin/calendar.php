@@ -55,7 +55,7 @@ adminPageStart('Schedule Calendar');
     }
 </style>
 
-    <h1 class="text-2xl font-medium mb-1">Schedule Calendar</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-calendar-days me-2 text-[0.8em] text-primary"></i>Schedule Calendar</h1>
     <p class="text-base-content/60 text-sm mb-4">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
