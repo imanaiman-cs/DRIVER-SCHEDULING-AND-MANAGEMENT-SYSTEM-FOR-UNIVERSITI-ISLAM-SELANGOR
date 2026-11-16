@@ -50,8 +50,6 @@ function adminPageEnd(): void
     ?>
 </main>
 <?php appLayoutEnd(); ?>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="<?= SITE_URL ?>/assets/js/main.js"></script>
 </body>
 </html>
 <?php

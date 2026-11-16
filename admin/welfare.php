@@ -144,18 +144,18 @@ foreach ($roster as $r) { $count[$r['driver_name']] = ($count[$r['driver_name']]
 arsort($count);
 adminPageStart('Welfare Duty');
 ?>
-    <h4 class="font-bold mb-1"><i class="fas fa-moon text-success me-2"></i>Welfare Duty</h4>
+    <h1 class="text-2xl font-medium mb-1">Welfare Duty</h1>
     <p class="text-base-content/60 text-sm mb-4">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-6"><div class="card-body">
         <h6 class="font-bold mb-4">Set welfare duty for a month</h6>
         <form method="post" class="grid-12 grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-3">
-                <label class="mb-1 block text-sm font-medium font-semibold" for="gen_month">Month</label>
+                <label class="mb-1 block text-sm font-medium" for="gen_month">Month</label>
                 <input type="month" class="input w-full" id="gen_month" name="month" value="<?= $h($month) ?>" required>
             </div>
             <div class="col-span-12 md:col-span-9">
-                <div class="mb-1 block text-sm font-medium font-semibold">Drivers in rotation order <span class="text-base-content/60 font-normal text-sm">(tick the drivers and number them: 1 is on duty on day 1)</span></div>
+                <div class="mb-1 block text-sm font-medium">Drivers in rotation order <span class="text-base-content/60 font-normal text-sm">(tick the drivers and number them: 1 is on duty on day 1)</span></div>
                 <div class="grid-12 grid grid-cols-12 gap-2">
                 <?php foreach ($drivers as $i => $d): $id = (int)$d['driver_id']; ?>
                     <div class="col-span-12 sm:col-span-6 lg:col-span-4">
@@ -197,7 +197,7 @@ adminPageStart('Welfare Duty');
                         <?php else: ?><span class="text-base-content/60">Not set</span><?php endif; ?></td>
                     <td class="text-end">
                         <?php if ($date >= $today): ?>
-                        <button type="button" class="btn btn-sm btn-outline btn-success" data-bs-toggle="modal" data-bs-target="#dayModal"
+                        <button type="button" class="btn btn-sm" data-welfare-day
                                 data-date="<?= $date ?>" data-nice="<?= $h(date('D, d M Y', strtotime($date))) ?>" data-driver="<?= $w ? (int)$w['driver_id'] : 0 ?>" data-has="<?= $w ? 1 : 0 ?>">
                             <?= $w ? 'Change' : 'Set' ?></button>
                         <?php endif; ?>
@@ -208,34 +208,35 @@ adminPageStart('Welfare Duty');
         </table>
     </div></div>
 
-    <div class="modal" id="dayModal" tabindex="-1" aria-labelledby="dayTitle" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
+    <dialog class="modal" id="dayModal" aria-labelledby="dayTitle">
+        <form method="post" class="modal-box">
             <input type="hidden" name="action" value="update"><input type="hidden" name="month" value="<?= $h($month) ?>"><input type="hidden" name="duty_date" id="dayDate">
-            <div class="modal-header"><h5 class="modal-title" id="dayTitle">Welfare duty</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body">
-                <label class="mb-1 block text-sm font-medium font-semibold" for="dayDriver">Driver on duty</label>
+            <h3 class="text-lg font-medium" id="dayTitle">Welfare duty</h3>
+            <div class="mt-4">
+                <label class="mb-1 block text-sm font-medium" for="dayDriver">Driver on duty</label>
                 <select class="select w-full mb-4" id="dayDriver" name="driver_id" required>
                     <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= $h($d['name']) ?></option><?php endforeach; ?>
                 </select>
                 <div id="reasonBox">
-                    <label class="mb-1 block text-sm font-medium font-semibold" for="dayReason">Reason for the change</label>
+                    <label class="mb-1 block text-sm font-medium" for="dayReason">Reason for the change</label>
                     <textarea class="textarea w-full" id="dayReason" name="reason" rows="2" maxlength="500"></textarea>
                     <div class="mt-1 block text-xs text-base-content/60">Both the old and the new driver are notified.</div>
                 </div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal">Close</button><button class="btn btn-primary" type="submit">Save</button></div>
-        </form></div>
-    </div>
+            <div class="modal-action"><button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">Close</button><button class="btn btn-primary" type="submit">Save</button></div>
+        </form>
+        <form method="dialog" class="modal-backdrop"><button>Close</button></form>
+    </dialog>
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var m = document.getElementById('dayModal');
-        m.addEventListener('show.bs.modal', function (e) {
-            var b = e.relatedTarget, has = b.dataset.has === '1';
+    document.querySelectorAll('[data-welfare-day]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var has = b.dataset.has === '1';
             document.getElementById('dayDate').value = b.dataset.date;
-            document.getElementById('dayTitle').textContent = b.dataset.nice;
+            document.getElementById('dayTitle').textContent = 'Welfare duty, ' + b.dataset.nice;
             if (b.dataset.driver !== '0') { document.getElementById('dayDriver').value = b.dataset.driver; }
             var r = document.getElementById('dayReason'); r.value = ''; r.required = has;
             document.getElementById('reasonBox').style.display = has ? '' : 'none';
+            document.getElementById('dayModal').showModal();
         });
     });
     </script>

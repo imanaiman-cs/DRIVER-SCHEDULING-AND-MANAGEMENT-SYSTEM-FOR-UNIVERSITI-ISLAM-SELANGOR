@@ -113,7 +113,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php if ($tasks): ?>
         <div class="col-span-12">
             <div class="text-base-content/60">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
-            <table class="table mb-0">
+            <div class="overflow-x-auto"><table class="table mb-0">
                 <tbody>
                 <?php foreach ($tasks as $t): ?>
                     <tr>
@@ -124,7 +124,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
-            </table>
+            </table></div>
         </div>
         <?php endif; ?>
         <?php endif; ?>
@@ -142,9 +142,9 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <div class="col-span-12">
             <div class="text-base-content/60">Comments</div>
             <?php foreach ($comments as $c): ?>
-                <div class="border-s border-base-300 border-4 ps-2 mb-1" style="border-color:#15803d !important;">
+                <div class="mb-2 border-s-2 border-base-300 ps-3">
                     <?= nl2br(reqH($c['comment'])) ?>
-                    <div class="text-base-content/60" style="font-size:.75rem;"><?= reqH($c['full_name']) ?> (<?= reqH($c['role_label']) ?>), <?= date('d M Y H:i', strtotime($c['created_at'])) ?></div>
+                    <div class="text-xs text-base-content/60"><?= reqH($c['full_name']) ?> (<?= reqH($c['role_label']) ?>), <?= date('d M Y H:i', strtotime($c['created_at'])) ?></div>
                 </div>
             <?php endforeach; ?>
         </div>

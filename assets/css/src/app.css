@@ -87,6 +87,8 @@
     @apply inline-block rounded-[3px] bg-neutral px-1.5 py-px align-middle font-plate text-[0.8125rem] leading-5 font-semibold tracking-wide whitespace-nowrap text-neutral-content;
   }
 
+  :where(h1) .plate { @apply rounded px-2 py-0.5 text-xl leading-7; }
+
   .skip-link {
     @apply absolute -left-[9999px] top-0 z-[4000] rounded-br-box bg-primary px-4 py-2 font-semibold text-primary-content;
   }

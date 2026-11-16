@@ -169,7 +169,7 @@ if ($_is_admin_role) {
             <ul class="menu w-full p-0 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
                 <li><a href="<?php echo SITE_URL; ?>/help.php" class="<?php echo $current_page === 'help.php' ? 'menu-active font-medium' : ''; ?>"><i class="fas fa-circle-question w-4 text-center opacity-70" aria-hidden="true"></i>Help &amp; guide</a></li>
                 <li><a href="<?php echo SITE_URL; ?>/logout.php"
-                       data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
+                       data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
                     <i class="fas fa-right-from-bracket w-4 text-center opacity-70" aria-hidden="true"></i>Log out</a></li>
             </ul>
         </div>
@@ -189,8 +189,6 @@ if ($_is_admin_role) {
             <li class="truncate font-medium" aria-current="page"><?php echo htmlspecialchars($page_title ?? ''); ?></li>
         </ul>
     </div>
-
-    <span id="dhClock" class="hidden font-mono text-sm text-base-content/60 xl:inline"></span>
 
     <!-- Notifications -->
     <div class="dropdown dropdown-end">
@@ -242,7 +240,7 @@ if ($_is_admin_role) {
             </li>
             <li><a href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4 opacity-70" aria-hidden="true"></i>Help</a></li>
             <li><a href="<?php echo SITE_URL; ?>/logout.php" class="text-error"
-                   data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
+                   data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
                 <i class="fas fa-right-from-bracket w-4" aria-hidden="true"></i>Log out</a></li>
         </ul>
     </div>
@@ -305,19 +303,6 @@ if ($_is_admin_role) {
     };
 })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 
 
-<script>
-/* Live clock in the top bar */
-(function () {
-    var el = document.getElementById('dhClock');
-    if (!el) { return; }
-    function tick() {
-        el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    }
-    tick();
-    setInterval(tick, 15000);
-})();
-</script>

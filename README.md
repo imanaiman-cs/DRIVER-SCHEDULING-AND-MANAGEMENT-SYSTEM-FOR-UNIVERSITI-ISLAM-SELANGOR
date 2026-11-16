@@ -4,7 +4,8 @@ A web system for the UIS Vehicle Section: staff request a vehicle, the Head of D
 Administrative Assistant assigns a driver (with a recommendation), the Head of Admin confirms, and drivers see
 their tasks. Aligned with the final SRS.
 
-Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5. No framework, no build step.
+Plain PHP 8 + MySQL/MariaDB (mysqli). No PHP framework. The interface uses Tailwind CSS + DaisyUI (see *Styling*); the
+built stylesheet is committed, so the server needs no Node.
 
 ## Roles (five)
 
@@ -96,6 +97,23 @@ It also runs opportunistically on page load.
 `W_TASKS`, `W_AFTER_HOURS` (must add up to 1), `WORK_START` 08:00, `WORK_END` 17:30, `TASK_DURATION_HOURS` 2,
 `LAPSE_HOURS` 48, `SESSION_TIMEOUT_MIN` 15, `MAX_FAILED_ATTEMPTS` 5, `LOCKOUT_MINUTES` 15.
 
+## Styling
+
+The pages use [Tailwind CSS 4](https://tailwindcss.com) and [DaisyUI 5](https://daisyui.com) components (drawer, menu,
+card, stats, table, tabs, modal, badge, alert). There is no Bootstrap and no jQuery.
+
+- **Source:** `assets/css/src/app.css`, with the `uis` DaisyUI theme (UIS green as the one accent colour, a grey
+  ramp for surfaces), the IBM Plex fonts and the few app-specific classes (dashboard panels, number plates).
+- **Built file:** `assets/css/app.css`, which is committed and linked by every page.
+- **Rebuild after changing classes** in a PHP file or the source CSS (Tailwind only keeps classes it finds in the files):
+  ```
+  npm install
+  npm run build:css      # or: npm run watch:css while editing
+  ```
+- **Dialogs:** `assets/js/ui.js` gives `UIS.confirm()`, `UIS.alert()`, `UIS.askReason()` and `data-confirm="…"` on
+  links/buttons, built on DaisyUI's `<dialog class="modal">`.
+- **Plates:** print a registration number with `plate($plateNumber)` (PHP), which sets it like a number plate.
+
 ## Tests
 
 ```
@@ -114,6 +132,7 @@ cron/run_jobs.php                   command-line job runner
 migrations/                         SQL for existing databases
 tools/                              staff importer
 tests/                              unit tests (php) and HTTP suites
+assets/css/src/app.css              Tailwind + DaisyUI source (built to assets/css/app.css)
 ```
 
 ## Assumptions and limits

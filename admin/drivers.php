@@ -33,7 +33,7 @@ $counts = driverMonthCounts($conn, date('Y-m'));
 adminPageStart('Drivers');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h4 class="font-bold mb-0"><i class="fas fa-id-card text-success me-2"></i>Drivers</h4>
+        <h1 class="text-2xl font-medium mb-0">Drivers</h1>
         <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add driver</a>
     </div>
     <p class="text-base-content/60 text-sm">Driver accounts come from the UIS staff system. Here you register an existing driver account as a driver and record the licence classes. Drivers are never deleted: they are made Inactive.</p>

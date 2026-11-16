@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 adminPageStart('Request a Vehicle');
 ?>
-    <h4 class="font-bold mb-4"><i class="fas fa-car-side text-success me-2"></i>Request a Vehicle</h4>
+    <h1 class="text-2xl font-medium mb-4">Request a Vehicle</h1>
 
     <?php if (!$approver_id): ?>
         <div class="alert alert-soft alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>
@@ -248,20 +248,20 @@ adminPageStart('Request a Vehicle');
                 notice.style.display = 'none'; confirmRow.style.display = 'none';
                 if (!d.success) { msg.textContent = d.message; return; }
                 if (d.timing === 'reject') {
-                    notice.className = 'alert alert-danger mt-3'; notice.textContent = d.notice; notice.style.display = '';
+                    notice.className = 'alert alert-soft alert-error mt-4 text-sm'; notice.textContent = d.notice; notice.style.display = '';
                     msg.textContent = 'This request cannot be submitted online.'; return;
                 }
                 if (d.timing === 'warn') {
-                    notice.className = 'alert alert-warning mt-3'; notice.textContent = d.notice; notice.style.display = ''; confirmRow.style.display = '';
+                    notice.className = 'alert alert-soft alert-warning mt-4 text-sm'; notice.textContent = d.notice; notice.style.display = ''; confirmRow.style.display = '';
                 }
                 msg.textContent = d.vehicles.length ? d.vehicles.length + ' vehicle(s) available for this period.' : 'No vehicle is available for this period. Try other times or fewer passengers.';
                 d.vehicles.forEach(function (v) {
                     var col = document.createElement('div');
-                    col.className = 'col-12 col-md-6 col-lg-4';
-                    col.innerHTML = '<label class="card border border-base-300 bg-base-100 h-full p-2" style="cursor:pointer;"><div class="flex items-center gap-2">' +
+                    col.className = 'col-span-12 md:col-span-6 lg:col-span-4';
+                    col.innerHTML = '<label class="flex h-full cursor-pointer flex-col gap-1 rounded-box border border-base-300 p-3 transition-colors hover:bg-base-200 has-[:checked]:border-primary has-[:checked]:bg-primary/5"><div class="flex items-center gap-2">' +
                         '<input class="radio radio-sm radio-primary" type="radio" name="vehicle_choice" value="' + v.vehicle_id + '"' + (chosen === v.vehicle_id ? ' checked' : '') + '>' +
-                        '<span class="font-semibold ms-1">' + esc(v.plate_number) + '</span></div>' +
-                        '<div class="text-sm text-base-content/60 ms-6">' + esc(v.vehicle_type) + ' &middot; ' + esc(v.model) + ' &middot; ' + v.capacity + ' seats &middot; licence ' + esc(v.license_required) + '</div></label>';
+                        '<span class="plate">' + esc(v.plate_number) + '</span></div>' +
+                        '<div class="ms-6 text-sm text-base-content/60">' + esc(v.vehicle_type) + ' &middot; ' + esc(v.model) + ' &middot; ' + v.capacity + ' seats &middot; licence ' + esc(v.license_required) + '</div></label>';
                     col.querySelector('input').addEventListener('change', function () { chosen = v.vehicle_id; el('vehicle_id').value = v.vehicle_id; });
                     list.appendChild(col);
                 });

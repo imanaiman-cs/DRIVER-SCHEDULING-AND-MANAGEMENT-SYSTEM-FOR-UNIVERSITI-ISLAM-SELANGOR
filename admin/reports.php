@@ -23,12 +23,12 @@ $h = fn($s) => htmlspecialchars(reportCellText($s), ENT_QUOTES, 'UTF-8');
 $q = http_build_query(['type' => $type, 'month' => $month]);
 adminPageStart('Reports');
 ?>
-    <h4 class="font-bold mb-1 no-print"><i class="fas fa-chart-column text-success me-2"></i>Reports</h4>
+    <h1 class="text-2xl font-medium mb-1 no-print">Reports</h1>
     <p class="text-base-content/60 text-sm mb-4 no-print">Choose a report and a month. You can print it or export it as PDF or Excel.</p>
     <form method="get" class="grid-12 grid grid-cols-12 gap-2 items-end mb-4 no-print">
-        <div class="col-span-12 md:col-span-5"><label class="mb-1 block text-sm font-medium font-semibold" for="type">Report</label>
+        <div class="col-span-12 md:col-span-5"><label class="mb-1 block text-sm font-medium" for="type">Report</label>
             <select class="select w-full" id="type" name="type"><?php foreach ($types as $k => $lbl): ?><option value="<?= $k ?>" <?= $k === $type ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select></div>
-        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium font-semibold" for="month">Month</label>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="month">Month</label>
             <input type="month" class="input w-full" id="month" name="month" value="<?= $h($month) ?>" required></div>
         <div class="col-span-6 md:col-span-2"><button class="btn btn-primary w-full" type="submit"><i class="fas fa-table me-1"></i>Show</button></div>
     </form>

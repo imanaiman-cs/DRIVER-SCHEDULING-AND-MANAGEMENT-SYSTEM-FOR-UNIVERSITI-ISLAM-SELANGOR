@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <?php adminPageStart('System Settings'); ?>
-    <h4 class="font-bold mb-1"><i class="fas fa-sliders text-success me-2"></i>System Settings</h4>
+    <h1 class="text-2xl font-medium mb-1">System Settings</h1>
     <p class="text-base-content/60 text-sm">Changes take effect immediately and are written to the audit log.</p>
     <form method="post" novalidate>
         <div class="card border border-base-300 bg-base-100"><div class="card-body"><div class="grid-12 grid grid-cols-12 gap-4">

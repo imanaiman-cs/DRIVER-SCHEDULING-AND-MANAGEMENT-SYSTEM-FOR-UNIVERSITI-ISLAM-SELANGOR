@@ -23,8 +23,8 @@ $trips = vehicleUpcomingTrips($conn, $id);
 adminPageStart($v['plate_number']);
 ?>
     <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-        <h4 class="font-bold mb-0"><?= plate($v['plate_number']) ?>
-            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h4>
+        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
         <div class="flex flex-wrap gap-1">
             <a class="btn btn-outline btn-sm" href="edit_vehicle.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <a class="btn btn-outline btn-warning btn-sm" href="vehicle_maintenance.php?id=<?= $id ?>"><i class="fas fa-screwdriver-wrench me-1"></i>Maintenance</a>

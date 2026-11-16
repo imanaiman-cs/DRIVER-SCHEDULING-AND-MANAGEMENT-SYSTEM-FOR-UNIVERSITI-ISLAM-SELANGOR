@@ -63,10 +63,10 @@ function dashStepper(string $status): string
 /** The heading of a dashboard: the day as the title, then at most one primary and one secondary action (HTML). */
 function dashHeader(string $title, string $actions = ''): string
 {
-    return '<div class="mb-6 flex flex-wrap items-center justify-between gap-4">'
+    return '<header class="mb-6 flex flex-wrap items-center justify-between gap-4" data-dashboard>'
          . '<h1 class="text-2xl font-medium">' . dh($title) . '</h1>'
          . ($actions !== '' ? '<div class="flex flex-wrap gap-2">' . $actions . '</div>' : '')
-         . '</div>';
+         . '</header>';
 }
 
 /** An empty state: the plain fact, nothing else. */

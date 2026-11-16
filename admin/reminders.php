@@ -32,7 +32,7 @@ $lapse = lapseWindowText($conn);
 
 adminPageStart('Approval Reminders');
 ?>
-    <h4 class="font-bold mb-1"><i class="fas fa-bell-concierge text-success me-2"></i>Approval Reminders</h4>
+    <h1 class="text-2xl font-medium mb-1">Approval Reminders</h1>
     <p class="text-base-content/60 text-sm">Requests waiting for the Head of Department. A request that is still Pending after <?= htmlspecialchars($lapse) ?> lapses. Reminders are sent by you, never automatically.</p>
     <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
         <table class="table align-middle mb-0">

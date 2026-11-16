@@ -31,12 +31,12 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
 ?>
-    <h4 class="font-bold mb-4"><i class="fas fa-file-signature text-success me-2"></i>Vehicle Requests</h4>
-    <ul class="nav nav-pills mb-4 flex-wrap gap-1">
+    <h1 class="text-2xl font-medium mb-4">Vehicle Requests</h1>
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
         <?php foreach ($tabs as $k => [$label]): ?>
-            <li class="nav-item"><a class="nav-link py-1 <?= $tab === $k ? 'active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="badge badge-ghost"><?= $tabCount($k) ?></span></a></li>
+            <a role="tab" class="tab gap-2 <?= $tab === $k ? 'tab-active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="font-mono text-xs text-base-content/60"><?= $tabCount($k) ?></span></a>
         <?php endforeach; ?>
-    </ul>
+    </div>
 
     <?php if (!$requests): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">Nothing here.</div></div><?php endif; ?>
 
@@ -71,7 +71,7 @@ adminPageStart('Vehicle Requests');
             <?php if ($rules['allowed']): ?>
             <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                <label class="mb-1 block text-sm font-medium font-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
+                <label class="mb-1 block text-sm font-medium" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
                 <div class="join w-full">
                     <input class="input w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
                     <button class="btn btn-outline btn-error" data-confirm="The request is cancelled, the vehicle is released, the driver is removed and everybody involved is told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>

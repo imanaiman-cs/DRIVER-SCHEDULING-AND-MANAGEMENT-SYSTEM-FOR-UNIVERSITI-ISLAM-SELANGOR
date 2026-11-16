@@ -41,12 +41,12 @@ $cs->close();
 $open = (int)($_GET['open'] ?? 0);
 adminPageStart('Vehicle Approvals');
 ?>
-    <h4 class="font-bold mb-4"><i class="fas fa-stamp text-success me-2"></i>Vehicle Approvals <small class="text-base-content/60 text-base"><?= htmlspecialchars((string)$dept) ?></small></h4>
-    <ul class="nav nav-pills mb-4 gap-1">
-        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'pending' ? 'active' : '' ?>" href="?tab=pending">Waiting for me <span class="badge badge-ghost"><?= $n['pending'] ?? 0 ?></span></a></li>
-        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'active' ? 'active' : '' ?>" href="?tab=active">Approved <span class="badge badge-ghost"><?= $n['active'] ?? 0 ?></span></a></li>
-        <li class="nav-item"><a class="nav-link py-1 <?= $tab === 'history' ? 'active' : '' ?>" href="?tab=history">History <span class="badge badge-ghost"><?= $n['history'] ?? 0 ?></span></a></li>
-    </ul>
+    <h1 class="text-2xl font-medium mb-4">Vehicle Approvals <small class="text-base-content/60 text-base"><?= htmlspecialchars((string)$dept) ?></small></h1>
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a role="tab" class="tab gap-2 <?= $tab === 'pending' ? 'tab-active' : '' ?>" href="?tab=pending">Waiting for me <span class="font-mono text-xs text-base-content/60"><?= $n['pending'] ?? 0 ?></span></a>
+        <a role="tab" class="tab gap-2 <?= $tab === 'active' ? 'tab-active' : '' ?>" href="?tab=active">Approved <span class="font-mono text-xs text-base-content/60"><?= $n['active'] ?? 0 ?></span></a>
+        <a role="tab" class="tab gap-2 <?= $tab === 'history' ? 'tab-active' : '' ?>" href="?tab=history">History <span class="font-mono text-xs text-base-content/60"><?= $n['history'] ?? 0 ?></span></a>
+    </div>
 
     <?php if (!$requests): ?>
         <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">Nothing here.</div></div>
@@ -71,13 +71,13 @@ adminPageStart('Vehicle Approvals');
             <div class="grid-12 grid grid-cols-12 gap-4 mt-2 border-t border-base-300 pt-4">
                 <form method="post" action="<?= SITE_URL ?>/ajax/request_action.php" class="col-span-12 md:col-span-6">
                     <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="approve"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                    <label class="mb-1 block text-sm font-medium font-semibold" for="ac<?= $rid ?>">Approve <span class="text-base-content/60 font-normal">(comment optional)</span></label>
+                    <label class="mb-1 block text-sm font-medium" for="ac<?= $rid ?>">Approve <span class="text-base-content/60 font-normal">(comment optional)</span></label>
                     <textarea class="textarea w-full textarea-sm mb-2" id="ac<?= $rid ?>" name="comment" rows="2" maxlength="1000"></textarea>
                     <button class="btn btn-success btn-sm" data-confirm="The staff member and the Administrative Assistant will be told." data-confirm-title="Approve request #<?= $rid ?>?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve</button>
                 </form>
                 <form method="post" action="<?= SITE_URL ?>/ajax/request_action.php" class="col-span-12 md:col-span-6">
                     <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="action" value="reject"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                    <label class="mb-1 block text-sm font-medium font-semibold" for="rr<?= $rid ?>">Reject <span class="text-error">(reason required)</span></label>
+                    <label class="mb-1 block text-sm font-medium" for="rr<?= $rid ?>">Reject <span class="text-error">(reason required)</span></label>
                     <input class="input w-full input-sm mb-2" id="rr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
                     <textarea class="textarea w-full textarea-sm mb-2" name="comment" rows="1" maxlength="1000" placeholder="Comment (optional)"></textarea>
                     <button class="btn btn-outline btn-error btn-sm"><i class="fas fa-xmark me-1"></i>Reject</button>
@@ -88,7 +88,7 @@ adminPageStart('Vehicle Approvals');
             <?php if ($rules['allowed']): ?>
             <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                <label class="mb-1 block text-sm font-medium font-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
+                <label class="mb-1 block text-sm font-medium" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
                 <div class="join w-full">
                     <input class="input w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
                     <button class="btn btn-outline btn-error" data-confirm="The request is cancelled, the vehicle is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
@@ -99,7 +99,7 @@ adminPageStart('Vehicle Approvals');
             <?php if (!in_array($r['status'], ['rejected', 'lapsed'], true)): ?>
             <form method="post" action="<?= SITE_URL ?>/ajax/add_comment.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                <label class="mb-1 block text-sm font-medium font-semibold" for="cm<?= $rid ?>">Add a comment <span class="text-base-content/60 font-normal">(the staff member is told)</span></label>
+                <label class="mb-1 block text-sm font-medium" for="cm<?= $rid ?>">Add a comment <span class="text-base-content/60 font-normal">(the staff member is told)</span></label>
                 <div class="join w-full">
                     <input class="input w-full" id="cm<?= $rid ?>" name="comment" maxlength="1000" required>
                     <button class="btn btn-outline">Add comment</button>

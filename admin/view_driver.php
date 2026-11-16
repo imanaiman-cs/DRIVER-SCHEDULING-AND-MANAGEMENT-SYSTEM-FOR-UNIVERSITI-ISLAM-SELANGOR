@@ -22,8 +22,8 @@ $expired = $d['license_expiry'] && $d['license_expiry'] < date('Y-m-d');
 adminPageStart($d['name']);
 ?>
     <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-        <h4 class="font-bold mb-0"><i class="fas fa-id-card text-success me-2"></i><?= htmlspecialchars($d['name']) ?>
-            <span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?> text-base ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h4>
+        <h1 class="text-2xl font-medium mb-0"><?= htmlspecialchars($d['name']) ?>
+            <span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?> text-base ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h1>
         <div class="flex flex-wrap gap-1">
             <a class="btn btn-outline btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <?php if ($d['status'] === 'active'): ?>

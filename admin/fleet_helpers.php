@@ -315,14 +315,14 @@ document.addEventListener('click', function (e) {
             if (!box) { window.alert(j.message); return; }
             box.innerHTML = '';
             var a = document.createElement('div');
-            a.className = 'alert alert-danger';
+            a.className = 'alert alert-soft alert-error mb-4 block text-sm';
             a.setAttribute('role', 'alert');
             a.appendChild(document.createTextNode(j.message));
             if (j.items && j.items.length) {
-                var ul = document.createElement('ul'); ul.className = 'mb-0 mt-2 small';
+                var ul = document.createElement('ul'); ul.className = 'mt-2 list-disc ps-5';
                 j.items.forEach(function (it) {
                     var li = document.createElement('li'); li.appendChild(document.createTextNode(it.text));
-                    if (it.replace_url) { var l = document.createElement('a'); l.href = it.replace_url; l.className = 'fw-semibold ms-1'; l.textContent = 'Replace driver'; li.appendChild(l); }
+                    if (it.replace_url) { var l = document.createElement('a'); l.href = it.replace_url; l.className = 'link link-primary ms-1 font-medium'; l.textContent = 'Replace driver'; li.appendChild(l); }
                     ul.appendChild(li);
                 });
                 a.appendChild(ul);

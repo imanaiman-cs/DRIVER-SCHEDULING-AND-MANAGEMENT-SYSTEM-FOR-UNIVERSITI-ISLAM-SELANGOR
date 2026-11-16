@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Edit Vehicle');
 ?>
-    <h4 class="font-bold mb-1"><i class="fas fa-pen text-success me-2"></i>Edit Vehicle</h4>
+    <h1 class="text-2xl font-medium mb-1">Edit Vehicle</h1>
     <p class="text-base-content/60 text-sm">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
         &middot; <a href="vehicle_maintenance.php?id=<?= $id ?>">change status / maintenance</a></p>
     <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>

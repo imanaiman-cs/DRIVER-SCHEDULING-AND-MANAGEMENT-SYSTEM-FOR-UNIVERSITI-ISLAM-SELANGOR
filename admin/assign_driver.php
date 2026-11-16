@@ -56,7 +56,7 @@ $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $wi
 adminPageStart('Assign Driver');
 ?>
     <a class="text-sm no-underline" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="font-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign driver &mdash; request #<?= $rid ?></h4>
+    <h1 class="text-2xl font-medium my-2">Assign driver &mdash; request #<?= $rid ?></h1>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
 
     <form method="post">

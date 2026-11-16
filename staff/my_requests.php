@@ -37,16 +37,16 @@ $open = (int)($_GET['open'] ?? 0);
 adminPageStart('My Requests');
 ?>
     <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <h4 class="font-bold mb-0"><i class="fas fa-list-check text-success me-2"></i>My Requests</h4>
+        <h1 class="text-2xl font-medium mb-0">My Requests</h1>
         <a class="btn btn-success btn-sm" href="request_vehicle.php"><i class="fas fa-plus me-1"></i>New request</a>
     </div>
 
-    <ul class="nav nav-pills mb-4 flex-wrap gap-1">
-        <li class="nav-item"><a class="nav-link py-1 <?= $filter === 'all' ? 'active' : '' ?>" href="?status=all">All <span class="badge badge-ghost"><?= array_sum($counts) ?></span></a></li>
+    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a role="tab" class="tab gap-2 <?= $filter === 'all' ? 'tab-active' : '' ?>" href="?status=all">All <span class="font-mono text-xs text-base-content/60"><?= array_sum($counts) ?></span></a>
         <?php foreach (['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'] as $st): if (empty($counts[$st])) { continue; } ?>
-            <li class="nav-item"><a class="nav-link py-1 <?= $filter === $st ? 'active' : '' ?>" href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="badge badge-ghost"><?= $counts[$st] ?></span></a></li>
+            <a role="tab" class="tab gap-2 <?= $filter === $st ? 'tab-active' : '' ?>" href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="font-mono text-xs text-base-content/60"><?= $counts[$st] ?></span></a>
         <?php endforeach; ?>
-    </ul>
+    </div>
 
     <?php if (!$requests): ?>
         <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">No requests yet.</div></div>

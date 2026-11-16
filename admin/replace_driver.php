@@ -55,7 +55,7 @@ $hist->close();
 adminPageStart('Replace Driver');
 ?>
     <a class="text-sm no-underline" href="vehicle_requests.php?tab=processed"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="font-bold my-2"><i class="fas fa-right-left text-success me-2"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h4>
+    <h1 class="text-2xl font-medium my-2">Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h1>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body text-sm">
         <div><strong><?= htmlspecialchars($task['req_destination']) ?></strong> &middot; <?= date('D, d M Y H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?></div>
         <div>Vehicle: <?= plate($task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
@@ -83,7 +83,7 @@ adminPageStart('Replace Driver');
             <?php endforeach; ?>
             </tbody>
         </table></div>
-        <label class="mb-1 block text-sm font-medium font-semibold" for="reason">Reason for replacing the driver <span class="text-error">*</span></label>
+        <label class="mb-1 block text-sm font-medium" for="reason">Reason for replacing the driver <span class="text-error">*</span></label>
         <input class="input w-full mb-4" id="reason" name="reason" maxlength="500" required>
         <button class="btn btn-primary" data-confirm="The request goes back to Driver Assigned and the Head of Admin must approve again." data-confirm-title="Replace the driver?" data-confirm-button="Replace" data-confirm-tone="primary"><i class="fas fa-right-left me-1"></i>Replace driver</button>
     </div></form>

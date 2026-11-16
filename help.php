@@ -37,7 +37,7 @@ $steps = [
 $steps['head_admin'] = array_merge($steps['admin'], ['<strong>Approve Assignments</strong> (Head of Admin only): approve or reject each assignment, also the ones you made yourself. A rejection needs a reason.']);
 adminPageStart('Help');
 ?>
-    <h4 class="font-bold mb-1"><i class="fas fa-circle-question text-success me-2"></i>Help</h4>
+    <h1 class="text-2xl font-medium mb-1">Help</h1>
     <p class="text-base-content/60 text-sm">You are signed in as <strong><?= htmlspecialchars(roleLabel($role)) ?></strong>. Every role is also Staff and can request a vehicle.</p>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
         <h6 class="font-bold">What to do</h6>

@@ -46,8 +46,8 @@ $shown = vehicleDisplayStatus($conn, $id, $v['status']);
 adminPageStart('Vehicle Maintenance');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h4 class="font-bold mb-0"><?= plate($v['plate_number']) ?>
-            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h4>
+        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+            <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
         <a class="btn btn-outline btn-sm" href="view_vehicle.php?id=<?= $id ?>">Back to vehicle</a>
     </div>
     <?php if ($error): ?><div class="alert alert-soft alert-error" role="alert"><?= htmlspecialchars($error) ?><?= fleetItemsList($blocked) ?></div><?php endif; ?>

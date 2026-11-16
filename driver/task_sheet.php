@@ -29,23 +29,22 @@ if (!$schedule) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="ms" data-theme="uis">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tugasan Pemandu #<?php echo (int)$schedule['schedule_id']; ?></title>
     <link rel="icon" type="image/png" href="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="<?php echo SITE_URL; ?>/assets/css/app.css?v=<?php echo @filemtime(__DIR__ . '/../assets/css/app.css'); ?>" rel="stylesheet">
     <style>
-        body { background: #eef1f0; }
+        body { background: var(--color-base-200); }
         .sheet-card {
             width: 210mm; max-width: 100%; min-height: 297mm;
             margin: 1.5rem auto; padding: 20mm;
             background: #fff; border: 2px solid #0b5d3b; border-radius: 4px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
         }
-        .btn-uis { background: #0b5d3b; border-color: #0b5d3b; color: #fff; }
-        .btn-uis:hover { background: #094a2f; border-color: #094a2f; color: #fff; }
         .toolbar { width: 210mm; max-width: 100%; margin: 1.5rem auto 0; }
 
         @page { size: A4; margin: 15mm; }
@@ -62,7 +61,7 @@ if (!$schedule) {
 </head>
 <body>
     <div class="toolbar no-print flex gap-2 px-2">
-        <button type="button" class="btn btn-sm" onclick="window.print()">Print</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="window.print()">Print</button>
         <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="btn btn-outline btn-sm">Back</a>
     </div>
 
