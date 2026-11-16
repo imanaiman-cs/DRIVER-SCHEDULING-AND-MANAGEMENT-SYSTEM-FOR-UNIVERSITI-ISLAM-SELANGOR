@@ -159,37 +159,6 @@ function dashAlerts(mysqli $conn): array
     return $a;
 }
 
-/** Today's request tasks (outbound / return) and internal tasks, by time. */
-function dashToday(mysqli $conn): array
-{
-    $today = date('Y-m-d');
-    $rows = dashRows(
-        $conn,
-        "SELECT s.start_dt, s.end_dt, s.trip_type, s.location AS destination, d.name AS driver, v.plate_number, vr.status AS req_status
-           FROM tasks s LEFT JOIN drivers d ON d.driver_id = s.driver_id LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
-           LEFT JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.task_source = 'request' AND s.status <> 'cancelled' AND s.task_date = ?", 's', [$today]
-    );
-    $items = [];
-    foreach ($rows as $t) {
-        $items[] = ['start' => $t['start_dt'], 'end' => $t['end_dt'], 'kind' => $t['trip_type'] === 'return' ? 'Return' : ($t['trip_type'] === 'outbound' ? 'Outbound' : 'Trip'),
-                    'title' => $t['destination'], 'who' => (string)$t['driver'], 'vehicle' => (string)$t['plate_number'], 'status' => $t['req_status']];
-    }
-    foreach (dashRows($conn, "SELECT t.task_type, t.start_dt, t.end_dt, d.name AS driver, v.plate_number FROM tasks t JOIN drivers d ON d.driver_id = t.driver_id
-                               LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id WHERE t.task_source = 'internal' AND t.status IN ('approved', 'completed') AND t.task_date = ?", 's', [$today]) as $t) {
-        $items[] = ['start' => $t['start_dt'], 'end' => $t['end_dt'], 'kind' => 'Internal', 'title' => ucfirst(str_replace('_', ' ', $t['task_type'])),
-                    'who' => $t['driver'], 'vehicle' => (string)$t['plate_number'], 'status' => null];
-    }
-    usort($items, fn($a, $b) => strcmp($a['start'], $b['start']));
-    return $items;
-}
-
-function dashWelfareToday(mysqli $conn): ?string
-{
-    $n = dashValue($conn, "SELECT d.name FROM tasks w JOIN drivers d ON d.driver_id = w.driver_id WHERE w.task_source = 'welfare' AND w.status IN ('approved', 'completed') AND w.task_date = ?", 's', [date('Y-m-d')]);
-    return $n !== null ? (string)$n : null;
-}
-
 /** Latest steps of the requests of one person (their own requests, or those they approve), without the Vehicle Section's internal steps. */
 function dashActivity(mysqli $conn, int $userId, bool $asApprover = false, int $limit = 8): array
 {

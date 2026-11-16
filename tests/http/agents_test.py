@@ -236,15 +236,14 @@ ok('past tab shows completed request #8 tasks for driver 8', 'Past Tasks' in hp 
 ok('past tab hides upcoming', 'Request #4' not in main_html(drv[1].get('driver/schedules.php', tab='past')))
 ok('past tab shows past internal task (workshop send, driver 2)', 'Workshop' in main_html(drv[2].get('driver/schedules.php', tab='past')))
 ok('legacy schedules without a request are hidden', 'Request #' not in main_html(drv[6].get('driver/schedules.php', tab='past')))
-r = drv[1].get('driver/dashboard.php'); ok('driver dashboard is its own page (today, next 7 days) and links to My Tasks', r.status_code == 200 and 'dash-hero' in r.text and 'driver/schedules.php' not in r.url and 'schedules.php' in r.text)
-dates = re.findall(r'class="when">[A-Za-z]{3}, (\d\d [A-Za-z]{3} \d{4})', main_html(drv[1].get('driver/schedules.php')))
-ds = [datetime.datetime.strptime(d, '%d %b %Y') for d in dates]; ok('upcoming sorted by date', ds == sorted(ds) and len(ds) >= 3)
+r = drv[1].get('driver/dashboard.php'); ok('driver dashboard is its own page (today, next 7 days) and links to My Tasks', r.status_code == 200 and 'data-dashboard' in r.text and 'driver/schedules.php' not in r.url and 'schedules.php' in r.text)
+dates = re.findall(r'<time[^>]*datetime="(\d{4}-\d\d-\d\d)"', main_html(drv[1].get('driver/schedules.php')))
+ds = [datetime.datetime.strptime(d, '%Y-%m-%d') for d in dates]; ok('upcoming sorted by date', ds == sorted(ds) and len(ds) >= 3)
 
 # ---------------- notifications ----------------
 sql("delete from notifications where user_id=8")
 sql("insert into notifications (user_id,message,link,is_read,created_at) values (8,'old read','staff/my_requests.php',1,now()), (8,'unread older','staff/my_requests.php',0,now() - interval 2 hour), (8,'unread newer','staff/my_requests.php?x=1',0,now() - interval 1 hour), (8,'external','https://evil.example.com/x',0,now()), (8,'protocol relative','//evil.example.com',0,now()), (8,'js','javascript:alert(1)',0,now()), (8,'dots','../../etc/passwd',0,now()), (8,'nolink',NULL,0,now()), (8,'backslash','\\\\evil.example.com',0,now())")
 r = stf.get('notifications.php'); h = main_html(r)
-msgs = re.findall(r'<div class="(?:fw-semibold)?">([^<]+)</div>', h)
 ok('notifications page ok', r.status_code == 200 and not errs(r))
 pos = {m: h.find(m) for m in ('unread newer', 'unread older', 'old read')}
 ok('unread first, newest first, read last', pos['unread newer'] < pos['unread older'] < pos['old read'] and pos['unread newer'] > 0)

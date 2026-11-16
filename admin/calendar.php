@@ -16,80 +16,88 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Schedule Calendar');
 ?>
 <style>
+    /* Trip = UIS green, internal task = grey (as on the dispatch board), welfare duty = UIS gold */
     .cal-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-    .cal-title { font-weight: 700; font-size: 1.15rem; min-width: 11rem; text-align: center; }
-    .cal-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-left: 1px solid #dee2e6; border-top: 1px solid #dee2e6; background: #fff; }
-    .cal-month .cal-dow { padding: .35rem .25rem; font-size: .75rem; font-weight: 600; text-align: center; background: #f1f5f3; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; }
-    .cal-cell { min-height: 7rem; padding: .2rem; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6; overflow: hidden; cursor: pointer; }
-    .cal-cell.other { background: #f8f9fa; color: #9aa5a0; }
-    .cal-cell.today { background: #e8f5ee; }
-    .cal-cell .cal-num { font-size: .8rem; font-weight: 600; }
-    .cal-chip { display: block; width: 100%; text-align: left; border: 0; border-radius: .25rem; padding: .05rem .3rem; margin-top: .15rem; font-size: .72rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cal-chip.trip { background: #198754; } .cal-chip.internal { background: #0d6efd; } .cal-chip.welfare { background: #6f42c1; }
-    .cal-more { font-size: .7rem; color: #555; margin-top: .1rem; }
+    .cal-title { font-weight: 500; font-size: 1.125rem; min-width: 11rem; text-align: center; }
+    .cal-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-left: 1px solid var(--color-base-300); border-top: 1px solid var(--color-base-300); }
+    .cal-month .cal-dow { padding: .375rem .25rem; font-size: .75rem; font-weight: 500; text-align: center; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); }
+    .cal-cell { min-height: 7rem; padding: .25rem; border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); overflow: hidden; cursor: pointer; }
+    .cal-cell:hover { background: var(--color-base-200); }
+    .cal-cell.other { color: color-mix(in oklab, var(--color-base-content) 40%, transparent); }
+    .cal-cell.today .cal-num { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--color-base-content); color: var(--color-base-100); }
+    .cal-cell .cal-num { font-size: .8125rem; font-family: var(--font-mono); }
+    .cal-chip { display: block; width: 100%; text-align: left; border: 0; border-radius: 4px; padding: 0 .375rem; margin-top: .25rem; font-size: .75rem; line-height: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-chip.trip, .cal-dots i.trip, .cal-key.trip { background: var(--color-primary); color: var(--color-primary-content); }
+    .cal-chip.internal, .cal-dots i.internal, .cal-key.internal { background: var(--color-base-300); color: var(--color-base-content); }
+    /* Welfare duty is on every day, so it stays a quiet tint; trips are the solid colour */
+    .cal-chip.welfare, .cal-key.welfare { background: color-mix(in oklab, var(--color-secondary) 22%, var(--color-base-100)); color: var(--color-base-content); }
+    .cal-dots i.welfare { background: var(--color-secondary); }
+    .cal-more { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); margin-top: .125rem; }
     .cal-dots { display: none; flex-wrap: wrap; gap: 2px; margin-top: .25rem; }
     .cal-dots i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-    .cal-dots i.trip { background: #198754; } .cal-dots i.internal { background: #0d6efd; } .cal-dots i.welfare { background: #6f42c1; }
     .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .5rem; }
-    .cal-daycol { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: .5rem; min-width: 0; }
-    .cal-daycol.today { border-color: #198754; box-shadow: 0 0 0 1px #198754 inset; }
-    .cal-daycol h6 { font-size: .85rem; margin-bottom: .4rem; }
-    .cal-item { display: block; width: 100%; text-align: left; border: 0; border-left: 4px solid; background: #f6f8f7; border-radius: .25rem; padding: .35rem .5rem; margin-bottom: .35rem; font-size: .82rem; }
-    .cal-item.trip { border-color: #198754; } .cal-item.internal { border-color: #0d6efd; } .cal-item.welfare { border-color: #6f42c1; }
-    .cal-item .t { font-weight: 600; } .cal-item .s { color: #555; font-size: .76rem; }
-    .cal-day .cal-item { font-size: .95rem; padding: .6rem .75rem; }
-    .cal-legend span { display: inline-flex; align-items: center; gap: .3rem; margin-right: .9rem; font-size: .8rem; }
-    .cal-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .cal-daycol { border: 1px solid var(--color-base-300); border-radius: var(--radius-box); padding: .5rem; min-width: 0; }
+    .cal-daycol.today { border-color: var(--color-base-content); }
+    .cal-daycol h6 { font-size: .8125rem; font-weight: 500; margin-bottom: .5rem; }
+    .cal-item { display: block; width: 100%; text-align: left; border: 0; border-left: 3px solid; background: var(--color-base-200); border-radius: 4px; padding: .375rem .5rem; margin-bottom: .375rem; font-size: .8125rem; }
+    .cal-item:hover { background: var(--color-base-300); }
+    .cal-item.trip { border-color: var(--color-primary); } .cal-item.internal { border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent); } .cal-item.welfare { border-color: var(--color-secondary); }
+    .cal-item .t { font-weight: 500; } .cal-item .s { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); font-size: .75rem; }
+    .cal-day .cal-item { font-size: .9375rem; padding: .625rem .75rem; }
+    .cal-legend span { display: inline-flex; align-items: center; gap: .375rem; margin-right: 1rem; font-size: .8125rem; }
+    .cal-key { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
     @media (max-width: 767.98px) {
         .cal-week { grid-template-columns: 1fr; }
-        .cal-cell { min-height: 3.6rem; }
+        .cal-cell { min-height: 3.5rem; }
         .cal-cell .cal-chip, .cal-cell .cal-more { display: none; }
         .cal-cell .cal-dots { display: flex; }
         .cal-title { order: -1; flex-basis: 100%; }
     }
 </style>
 
-    <h4 class="fw-bold mb-1"><i class="fas fa-calendar-days text-success me-2"></i>Schedule Calendar</h4>
-    <p class="text-muted small mb-3">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
+    <h1 class="text-2xl font-medium mb-1">Schedule Calendar</h1>
+    <p class="text-base-content/60 text-sm mb-4">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
 
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
         <div class="cal-bar mb-2">
-            <div class="btn-group" role="group" aria-label="Move">
-                <button class="btn btn-sm btn-outline-success" id="calPrev" aria-label="Previous"><i class="fas fa-chevron-left"></i></button>
-                <button class="btn btn-sm btn-outline-success" id="calToday">Today</button>
-                <button class="btn btn-sm btn-outline-success" id="calNext" aria-label="Next"><i class="fas fa-chevron-right"></i></button>
+            <div class="join" role="group" aria-label="Move">
+                <button class="btn btn-sm join-item" id="calPrev" aria-label="Previous"><i class="fas fa-chevron-left"></i></button>
+                <button class="btn btn-sm join-item" id="calToday">Today</button>
+                <button class="btn btn-sm join-item" id="calNext" aria-label="Next"><i class="fas fa-chevron-right"></i></button>
             </div>
             <div class="cal-title" id="calTitle" aria-live="polite"></div>
-            <div class="btn-group ms-md-auto" role="group" aria-label="View">
-                <button class="btn btn-sm btn-outline-success" data-view="day">Day</button>
-                <button class="btn btn-sm btn-outline-success" data-view="week">Week</button>
-                <button class="btn btn-sm btn-outline-success active" data-view="month">Month</button>
+            <div class="join md:ms-auto" role="group" aria-label="View">
+                <button class="btn btn-sm join-item" data-view="day">Day</button>
+                <button class="btn btn-sm join-item" data-view="week">Week</button>
+                <button class="btn btn-sm join-item btn-active" data-view="month">Month</button>
             </div>
         </div>
-        <div class="row g-2">
-            <div class="col-6 col-md-3"><label class="visually-hidden" for="calDriver">Driver</label>
-                <select class="form-select form-select-sm" id="calDriver"><option value="">All drivers</option>
+        <div class="grid-12 grid grid-cols-12 gap-2">
+            <div class="col-span-6 md:col-span-3"><label class="sr-only" for="calDriver">Driver</label>
+                <select class="select w-full select-sm" id="calDriver"><option value="">All drivers</option>
                     <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
-            <div class="col-6 col-md-3"><label class="visually-hidden" for="calVehicle">Vehicle</label>
-                <select class="form-select form-select-sm" id="calVehicle"><option value="">All vehicles</option>
+            <div class="col-span-6 md:col-span-3"><label class="sr-only" for="calVehicle">Vehicle</label>
+                <select class="select w-full select-sm" id="calVehicle"><option value="">All vehicles</option>
                     <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= $h(vehicleText($v['plate_number'], $v['brand'], $v['model'])) ?></option><?php endforeach; ?></select></div>
-            <div class="col-12 col-md-6 cal-legend d-flex align-items-center">
-                <span><i style="background:#198754"></i>Trip</span><span><i style="background:#0d6efd"></i>Internal task</span><span><i style="background:#6f42c1"></i>Welfare duty</span>
+            <div class="col-span-12 md:col-span-6 cal-legend flex items-center">
+                <span><i class="cal-key trip"></i>Trip</span><span><i class="cal-key internal"></i>Internal task</span><span><i class="cal-key welfare"></i>Welfare duty</span>
             </div>
         </div>
     </div></div>
 
     <div id="calBody" aria-busy="false"></div>
-    <div id="calMsg" class="text-muted small mt-2"></div>
+    <div id="calMsg" class="text-base-content/60 text-sm mt-2"></div>
 
-    <div class="modal fade" id="calModal" tabindex="-1" aria-labelledby="calModalTitle" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title" id="calModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body"><dl class="row mb-0" id="calModalBody"></dl></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button></div>
-        </div></div>
-    </div>
+    <dialog class="modal" id="calModal" aria-labelledby="calModalTitle">
+        <div class="modal-box">
+            <h3 class="text-lg font-medium" id="calModalTitle"></h3>
+            <dl class="mt-4 grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-sm" id="calModalBody"></dl>
+            <form method="dialog" class="modal-action">
+                <button class="btn btn-sm btn-primary">Close</button>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>Close</button></form>
+    </dialog>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -168,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var d = addDays(w, i), col = el('div', 'cal-daycol' + (ymd(d) === today ? ' today' : ''));
             col.appendChild(el('h6', '', DAYS[i] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()].substr(0, 3)));
             var list = eventsOn(d);
-            if (!list.length) { col.appendChild(el('div', 'text-muted small', 'Nothing scheduled')); }
+            if (!list.length) { col.appendChild(el('div', 'text-sm text-base-content/60', 'Nothing scheduled')); }
             list.forEach(function (ev) { col.appendChild(item(ev)); });
             grid.appendChild(col);
         }
@@ -176,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function renderDay() {
         var wrap = el('div', 'cal-day'), list = eventsOn(cursor);
-        if (!list.length) { wrap.appendChild(el('div', 'alert alert-light border', 'Nothing is scheduled on this day.')); }
+        if (!list.length) { wrap.appendChild(el('p', 'rounded-box border border-base-300 p-4 text-sm text-base-content/60', 'Nothing is scheduled on this day')); }
         list.forEach(function (ev) { wrap.appendChild(item(ev)); });
         body.replaceChildren(wrap);
     }
@@ -199,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     function setView(v) {
         view = v;
-        document.querySelectorAll('[data-view]').forEach(function (b) { b.classList.toggle('active', b.dataset.view === v); });
+        document.querySelectorAll('[data-view]').forEach(function (b) { b.classList.toggle('btn-active', b.dataset.view === v); b.setAttribute('aria-pressed', b.dataset.view === v); });
         load();
     }
     function move(n) {
@@ -208,7 +216,6 @@ document.addEventListener('DOMContentLoaded', function () {
         load();
     }
 
-    var modal = null;
     function showDetails(ev) {
         var dl = document.getElementById('calModalBody'); dl.replaceChildren();
         document.getElementById('calModalTitle').textContent = ev.title;
@@ -219,10 +226,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     ['When', when], ['Driver', ev.driver], ['Vehicle', ev.vehicle],
                     ['Destination', ev.destination], ['Waiting place', ev.waiting], ['Purpose', ev.purpose], ['Officer', ev.officer]];
         if (ev.kind === 'welfare' && ev.purpose) { rows[7] = ['Replacement reason', ev.purpose]; }
-        rows.forEach(function (r) { if (!r[1]) { return; } dl.appendChild(el('dt', 'col-4 col-sm-3', r[0])); dl.appendChild(el('dd', 'col-8 col-sm-9', r[1])); });
-        var sheet = document.getElementById('calSheet');
-        modal = modal || new bootstrap.Modal(document.getElementById('calModal'));
-        modal.show();
+        rows.forEach(function (r) { if (!r[1]) { return; } dl.appendChild(el('dt', 'text-base-content/60', r[0])); dl.appendChild(el('dd', '', r[1])); });
+        document.getElementById('calModal').showModal();
     }
 
     document.getElementById('calPrev').addEventListener('click', function () { move(-1); });
@@ -231,7 +236,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('[data-view]').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
     document.getElementById('calDriver').addEventListener('change', load);
     document.getElementById('calVehicle').addEventListener('change', load);
-    if (window.matchMedia('(max-width: 767.98px)').matches) { view = 'day'; document.querySelectorAll('[data-view]').forEach(function (b) { b.classList.toggle('active', b.dataset.view === 'day'); }); }
+    if (window.matchMedia('(max-width: 767.98px)').matches) { view = 'day'; document.querySelectorAll('[data-view]').forEach(function (b) { b.classList.toggle('btn-active', b.dataset.view === 'day'); b.setAttribute('aria-pressed', b.dataset.view === 'day'); }); }
     load();
 });
 </script>

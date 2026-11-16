@@ -3,8 +3,6 @@ uploads/vehicles/*
 uploads/drivers/*
 !uploads/vehicles/.gitkeep
 !uploads/drivers/.gitkeep
-uploads/reports/*
-!uploads/reports/.gitkeep
 
 # Supporting documents for vehicle requests (private; keep folder + protection only)
 uploads/documents/*
@@ -18,5 +16,8 @@ config/whatsapp.php
 # Server settings (database password)
 config/local.php
 
-# Python cache of the HTTP tests
+# Node (only used to build assets/css/app.css)
+node_modules/
+
+# Python bytecode from the HTTP test suites
 __pycache__/

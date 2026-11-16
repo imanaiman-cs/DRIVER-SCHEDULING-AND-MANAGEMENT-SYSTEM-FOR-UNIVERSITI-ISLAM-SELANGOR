@@ -81,50 +81,50 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 adminPageStart('Users');
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-        <h4 class="fw-bold mb-0"><i class="fas fa-users text-success me-2"></i>User accounts</h4>
+    <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
+        <h1 class="text-2xl font-medium mb-0">User accounts</h1>
         <a href="add_driver.php" class="btn btn-success btn-sm"><i class="fas fa-user-plus me-1"></i>Create driver account</a>
     </div>
-    <p class="text-muted small">Staff and Heads of Department register their own accounts. Here you create driver accounts, view and update accounts (department, role, licence details) and deactivate an account. Accounts are never deleted.</p>
-    <form method="get" class="row g-2 mb-3">
-        <div class="col-12 col-md-4"><input class="form-control form-control-sm" name="q" value="<?= $h($q) ?>" placeholder="Name, staff ID, e-mail or PTJ" aria-label="Search"></div>
-        <div class="col-6 col-md-3"><select class="form-select form-select-sm" name="role" aria-label="Role"><option value="">All roles</option>
+    <p class="text-base-content/60 text-sm">Staff and Heads of Department register their own accounts. Here you create driver accounts, view and update accounts (department, role, licence details) and deactivate an account. Accounts are never deleted.</p>
+    <form method="get" class="grid-12 grid grid-cols-12 gap-2 mb-3">
+        <div class="col-span-12 md:col-span-4"><input class="input w-full input-sm" name="q" value="<?= $h($q) ?>" placeholder="Name, staff ID, e-mail or PTJ" aria-label="Search"></div>
+        <div class="col-span-6 md:col-span-3"><select class="select w-full select-sm" name="role" aria-label="Role"><option value="">All roles</option>
             <?php foreach (ACCOUNT_ROLES as $k => $lbl): ?><option value="<?= $k ?>" <?= $role === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select></div>
-        <div class="col-6 col-md-2"><select class="form-select form-select-sm" name="status" aria-label="Status"><option value="">All</option>
+        <div class="col-span-6 md:col-span-2"><select class="select w-full select-sm" name="status" aria-label="Status"><option value="">All</option>
             <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option><option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option></select></div>
-        <div class="col-12 col-md-2"><button class="btn btn-sm btn-success w-100" type="submit"><i class="fas fa-search me-1"></i>Search</button></div>
+        <div class="col-span-12 md:col-span-2"><button class="btn btn-sm btn-success w-full" type="submit"><i class="fas fa-search me-1"></i>Search</button></div>
     </form>
-    <div class="card border-0 shadow-sm"><div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light"><tr><th>Name</th><th>Staff ID</th><th>Role</th><th>PTJ</th><th>Approver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Name</th><th>Staff ID</th><th>Role</th><th>PTJ</th><th>Approver</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             <?php foreach ($users as $u): $manage = canManageUser($u, $actorRole, $me); ?>
                 <tr>
-                    <td><strong><?= $h($u['full_name']) ?></strong><div class="small text-muted"><?= $h($u['email']) ?><?= $u['phone'] ? ' &middot; ' . $h($u['phone']) : '' ?></div>
-                        <?php if ($u['drv']): ?><div class="small text-muted">Licence <?= $h($u['drv']['license_class']) ?> &middot; expires <?= $u['drv']['license_expiry'] ? $h(date('d M Y', strtotime($u['drv']['license_expiry']))) : '-' ?> &middot; in service since <?= $u['drv']['date_joined'] ? $h(date('d M Y', strtotime($u['drv']['date_joined']))) : '-' ?></div><?php endif; ?></td>
-                    <td class="text-nowrap"><?= $h($u['username']) ?></td>
+                    <td><strong><?= $h($u['full_name']) ?></strong><div class="text-sm text-base-content/60"><?= $h($u['email']) ?><?= $u['phone'] ? ' &middot; ' . $h($u['phone']) : '' ?></div>
+                        <?php if ($u['drv']): ?><div class="text-sm text-base-content/60">Licence <?= $h($u['drv']['license_class']) ?> &middot; expires <?= $u['drv']['license_expiry'] ? $h(date('d M Y', strtotime($u['drv']['license_expiry']))) : '-' ?> &middot; in service since <?= $u['drv']['date_joined'] ? $h(date('d M Y', strtotime($u['drv']['date_joined']))) : '-' ?></div><?php endif; ?></td>
+                    <td class="whitespace-nowrap"><?= $h($u['username']) ?></td>
                     <td><?= $h(ACCOUNT_ROLES[$u['role']] ?? $u['role']) ?></td>
                     <td><?= $h($u['department'] ?? '-') ?></td>
-                    <td class="small"><?= $h($u['approver_name'] ?? '-') ?></td>
-                    <td><span class="badge <?= (int)$u['is_active'] ? 'bg-success' : 'bg-secondary' ?>"><?= (int)$u['is_active'] ? 'Active' : 'Inactive' ?></span></td>
-                    <td class="text-end text-nowrap">
+                    <td class="text-sm"><?= $h($u['approver_name'] ?? '-') ?></td>
+                    <td><span class="badge <?= (int)$u['is_active'] ? 'badge-soft badge-success' : 'badge-ghost' ?>"><?= (int)$u['is_active'] ? 'Active' : 'Inactive' ?></span></td>
+                    <td class="text-end whitespace-nowrap">
                         <?php if ($manage): ?>
-                            <a class="btn btn-sm btn-outline-success" href="edit_user.php?id=<?= (int)$u['user_id'] ?>"><i class="fas fa-pen"></i><span class="d-none d-md-inline ms-1">Edit</span></a>
+                            <a class="btn btn-sm btn-outline btn-success" href="edit_user.php?id=<?= (int)$u['user_id'] ?>"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Edit</span></a>
                             <?php if ((int)$u['user_id'] !== $me): ?>
-                            <form method="post" class="d-inline">
+                            <form method="post" class="inline">
                                 <input type="hidden" name="user_id" value="<?= (int)$u['user_id'] ?>"><input type="hidden" name="back" value="<?= $h($back) ?>">
                                 <?php if ((int)$u['is_active']): ?>
-                                    <button class="btn btn-sm btn-outline-danger" name="action" value="deactivate" data-confirm="<?= $h($u['full_name']) ?> will not be able to sign in. The history is kept." data-confirm-title="Make this account Inactive?" data-confirm-button="Make Inactive" data-confirm-tone="danger"><i class="fas fa-user-slash"></i><span class="d-none d-md-inline ms-1">Deactivate</span></button>
+                                    <button class="btn btn-sm btn-outline btn-error" name="action" value="deactivate" data-confirm="<?= $h($u['full_name']) ?> will not be able to sign in. The history is kept." data-confirm-title="Make this account Inactive?" data-confirm-button="Make Inactive" data-confirm-tone="danger"><i class="fas fa-user-slash"></i><span class="hidden md:inline ms-1">Deactivate</span></button>
                                 <?php endif; ?>
                             </form>
                             <?php endif; ?>
-                        <?php else: ?><span class="small text-muted">Head of Admin only</span><?php endif; ?>
+                        <?php else: ?><span class="text-sm text-base-content/60">Head of Admin only</span><?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$users): ?><tr><td colspan="7" class="text-center text-muted py-4">No record is found.</td></tr><?php endif; ?>
+            <?php if (!$users): ?><tr><td colspan="7" class="text-center text-base-content/60 py-4">No record is found.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>
-    <p class="text-muted small mt-2"><?= count($users) ?> account(s)</p>
+    <p class="text-base-content/60 text-sm mt-2"><?= count($users) ?> account(s)</p>
 <?php adminPageEnd(); ?>

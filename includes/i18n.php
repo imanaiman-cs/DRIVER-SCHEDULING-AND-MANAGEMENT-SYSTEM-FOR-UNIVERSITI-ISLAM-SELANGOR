@@ -239,10 +239,10 @@ function languageSwitcher(string $class = ''): string
 {
     $cur = currentLanguage();
     $back = $_SERVER['REQUEST_URI'] ?? '';
-    $html = '<div class="lang-switch ' . htmlspecialchars($class) . '" aria-label="Language">';
+    $html = '<div class="lang-switch join ' . htmlspecialchars($class) . '" aria-label="Language">';
     foreach (['en' => 'EN', 'ms' => 'BM'] as $code => $label) {
         $html .= '<a href="' . htmlspecialchars(SITE_URL) . '/set_language.php?lang=' . $code . '&amp;back=' . rawurlencode($back) . '" lang="' . $code . '" title="' . htmlspecialchars(LANGUAGES[$code]) . '"'
-              . ' class="lang-link' . ($cur === $code ? ' active' : '') . '"' . ($cur === $code ? ' aria-current="true"' : '') . '>' . $label . '</a>';
+              . ' class="lang-link join-item btn btn-xs' . ($cur === $code ? ' active btn-primary' : ' btn-ghost') . '"' . ($cur === $code ? ' aria-current="true"' : '') . '>' . $label . '</a>';
     }
     return $html . '</div>';
 }

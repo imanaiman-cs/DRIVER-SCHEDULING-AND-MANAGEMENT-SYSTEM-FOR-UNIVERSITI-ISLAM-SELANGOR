@@ -21,45 +21,45 @@ $upcoming = driverUpcomingTasks($conn, $id);
 $expired = $d['license_expiry'] && $d['license_expiry'] < date('Y-m-d');
 adminPageStart($d['name']);
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <h4 class="fw-bold mb-0"><i class="fas fa-id-card text-success me-2"></i><?= htmlspecialchars($d['name']) ?>
-            <span class="badge <?= $d['status'] === 'active' ? 'bg-success' : 'bg-secondary' ?> fs-6 ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h4>
-        <div class="d-flex flex-wrap gap-1">
-            <a class="btn btn-outline-secondary btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
+    <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+        <h1 class="text-2xl font-medium mb-0"><?= htmlspecialchars($d['name']) ?>
+            <span class="badge <?= $d['status'] === 'active' ? 'badge-soft badge-success' : 'badge-ghost' ?> text-base ms-2"><?= $d['status'] === 'active' ? 'Active' : 'Inactive' ?></span></h1>
+        <div class="flex flex-wrap gap-1">
+            <a class="btn btn-outline btn-sm" href="edit_driver.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
             <?php if ($d['status'] === 'active'): ?>
-                <button class="btn btn-outline-danger btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this driver Inactive?">Deactivate</button>
+                <button class="btn btn-outline btn-error btn-sm" data-fleet-url="../ajax/deactivate_driver.php" data-fleet-id="<?= $id ?>" data-fleet-confirm="Make this driver Inactive?">Deactivate</button>
             <?php endif; ?>
-            <a class="btn btn-outline-secondary btn-sm" href="drivers.php">Back</a>
+            <a class="btn btn-outline btn-sm" href="drivers.php">Back</a>
         </div>
     </div>
     <div id="fleetResult"></div>
-    <div class="row g-3">
-        <div class="col-lg-5"><div class="card border-0 shadow-sm"><div class="card-body">
-            <img src="<?= htmlspecialchars(driverPhotoUrl($d['photo'])) ?>" alt="" class="rounded-circle mb-3" style="width:90px;height:90px;object-fit:cover">
-            <dl class="row mb-0 small">
-                <dt class="col-5">Staff no.</dt><dd class="col-7"><?= htmlspecialchars($d['employee_id']) ?></dd>
-                <dt class="col-5">E-mail</dt><dd class="col-7 text-break"><?= htmlspecialchars((string)$d['email']) ?></dd>
-                <dt class="col-5">Phone</dt><dd class="col-7"><?= htmlspecialchars((string)$d['phone']) ?></dd>
-                <dt class="col-5">Licence classes</dt><dd class="col-7"><?= licenceBadges($d['license_class']) ?></dd>
-                <dt class="col-5">Licence no.</dt><dd class="col-7"><?= htmlspecialchars((string)($d['license_number'] ?? '-')) ?></dd>
-                <dt class="col-5">Licence expiry</dt><dd class="col-7"><?= $d['license_expiry'] ? date('d M Y', strtotime($d['license_expiry'])) : '-' ?>
-                    <?= $expired ? '<span class="badge bg-danger ms-1">Expired</span>' : '' ?></dd>
-                <dt class="col-5">Date joined</dt><dd class="col-7"><?= !empty($d['date_joined']) ? date('d M Y', strtotime($d['date_joined'])) . ' (' . driverExperienceYears($d['date_joined']) . ' years)' : '-' ?></dd>
-                <dt class="col-5">Address</dt><dd class="col-7"><?= htmlspecialchars((string)($d['address'] ?? '-')) ?></dd>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12 lg:col-span-5"><div class="card border border-base-300 bg-base-100"><div class="card-body">
+            <img src="<?= htmlspecialchars(driverPhotoUrl($d['photo'])) ?>" alt="" class="rounded-full mb-3" style="width:90px;height:90px;object-fit:cover">
+            <dl class="grid-12 grid grid-cols-12 gap-x-6 gap-y-1 mb-0 text-sm">
+                <dt class="col-span-5">Staff no.</dt><dd class="col-span-7"><?= htmlspecialchars($d['employee_id']) ?></dd>
+                <dt class="col-span-5">E-mail</dt><dd class="col-span-7 break-words"><?= htmlspecialchars((string)$d['email']) ?></dd>
+                <dt class="col-span-5">Phone</dt><dd class="col-span-7"><?= htmlspecialchars((string)$d['phone']) ?></dd>
+                <dt class="col-span-5">Licence classes</dt><dd class="col-span-7"><?= licenceBadges($d['license_class']) ?></dd>
+                <dt class="col-span-5">Licence no.</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['license_number'] ?? '-')) ?></dd>
+                <dt class="col-span-5">Licence expiry</dt><dd class="col-span-7"><?= $d['license_expiry'] ? date('d M Y', strtotime($d['license_expiry'])) : '-' ?>
+                    <?= $expired ? '<span class="badge badge-soft badge-error ms-1">Expired</span>' : '' ?></dd>
+                <dt class="col-span-5">Date joined</dt><dd class="col-span-7"><?= !empty($d['date_joined']) ? date('d M Y', strtotime($d['date_joined'])) . ' (' . driverExperienceYears($d['date_joined']) . ' years)' : '-' ?></dd>
+                <dt class="col-span-5">Address</dt><dd class="col-span-7"><?= htmlspecialchars((string)($d['address'] ?? '-')) ?></dd>
             </dl>
         </div></div></div>
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-                <h6 class="fw-bold">Workload in <?= date('F Y') ?></h6>
-                <div class="row text-center g-2">
-                    <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['tasks'] ?></div><div class="small text-muted">Tasks</div></div>
-                    <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['weekend'] ?></div><div class="small text-muted">Weekend tasks</div></div>
-                    <div class="col-4"><div class="fs-4 fw-bold"><?= (int)$c['welfare'] ?></div><div class="small text-muted">Welfare duty days</div></div>
+        <div class="col-span-12 lg:col-span-7">
+            <div class="card border border-base-300 bg-base-100 mb-3"><div class="card-body">
+                <h6 class="font-bold">Workload in <?= date('F Y') ?></h6>
+                <div class="grid-12 grid grid-cols-12 gap-2 text-center">
+                    <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['tasks'] ?></div><div class="text-sm text-base-content/60">Tasks</div></div>
+                    <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['weekend'] ?></div><div class="text-sm text-base-content/60">Weekend tasks</div></div>
+                    <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['welfare'] ?></div><div class="text-sm text-base-content/60">Welfare duty days</div></div>
                 </div>
             </div></div>
-            <div class="card border-0 shadow-sm"><div class="card-body">
-                <h6 class="fw-bold">Upcoming tasks</h6>
-                <?php if (!$upcoming): ?><p class="text-muted small mb-0">No upcoming tasks.</p>
+            <div class="card border border-base-300 bg-base-100"><div class="card-body">
+                <h6 class="font-bold">Upcoming tasks</h6>
+                <?php if (!$upcoming): ?><p class="text-base-content/60 text-sm mb-0">No upcoming tasks.</p>
                 <?php else: ?><?= fleetItemsList($upcoming, true) ?><?php endif; ?>
             </div></div>
         </div>

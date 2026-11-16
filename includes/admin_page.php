@@ -7,31 +7,41 @@
 // Needs $page_title / $current_page to be set before adminPageStart() (the sidebar reads them).
 // ============================================================
 
+/** The <head> tags every signed-in page shares (Tailwind + DaisyUI build, Font Awesome icons, IBM Plex). */
+function appHead(string $title): void
+{
+    ?>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
+    <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
+    <script src="<?= SITE_URL ?>/assets/js/uis-flow.js" defer></script>
+<?php
+}
+
+/** Closes the drawer opened by sidebar.php (the page column, then the drawer itself). */
+function appLayoutEnd(): void
+{
+    echo "</div><!-- /.drawer-content -->\n</div><!-- /.drawer -->\n";
+}
+
 function adminPageStart(string $title): void
 {
     global $conn, $page_title, $current_page;
     $page_title = $title;
     ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="uis">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
-    <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
-    <link href="<?= SITE_URL ?>/assets/css/uis-theme-premium.css" rel="stylesheet">
-    <link href="<?= SITE_URL ?>/assets/css/uis-polish.css" rel="stylesheet">
-    <link href="<?= SITE_URL ?>/assets/css/uis-flow.css" rel="stylesheet">
-    <script src="<?= SITE_URL ?>/assets/js/uis-theme.js"></script>
+<?php appHead($title); ?>
 </head>
-<body>
+<body class="min-h-screen bg-base-100">
 <?php require __DIR__ . '/sidebar.php'; ?>
-<main class="main-content p-4" id="mainContent">
+<main class="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8" id="mainContent">
     <?php showFlash(); ?>
 <?php
 }
@@ -40,10 +50,7 @@ function adminPageEnd(): void
 {
     ?>
 </main>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= SITE_URL ?>/assets/js/main.js"></script>
-<script src="<?= SITE_URL ?>/assets/js/uis-flow.js"></script>
+<?php appLayoutEnd(); ?>
 </body>
 </html>
 <?php

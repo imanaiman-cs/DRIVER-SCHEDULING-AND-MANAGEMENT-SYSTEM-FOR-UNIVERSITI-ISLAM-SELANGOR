@@ -4,7 +4,8 @@ A web system for the UIS Vehicle Section: staff request a vehicle, the Head of D
 Administrative Assistant assigns a driver (with a recommendation), the Head of Admin confirms, and drivers see
 their tasks. Aligned with the final SRS.
 
-Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5. No framework, no build step.
+Plain PHP 8 + MySQL/MariaDB (mysqli). No PHP framework. The interface uses Tailwind CSS + DaisyUI (see *Styling*); the
+built stylesheet is committed, so the server needs no Node.
 
 ## Roles (five)
 
@@ -61,7 +62,7 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Bahasa Melayu** — the new pages and messages of this round are in `includes/lang/ms.php`.
 - **Assign another vehicle to a booking (UC002.3 / UC002.4)** — when a vehicle cannot go Under Maintenance or be deactivated because of upcoming bookings (requests, internal tasks, welfare duty days), *Assign another vehicle to each booking* (`admin/reassign_vehicle.php`) moves each booking to another vehicle: a request needs a vehicle of the requested type with enough seats, free for the whole period and that the assigned drivers may drive; a welfare duty day needs a car or van. The requester and drivers are told.
 - **Replace Driver for internal tasks and welfare duty days (UC008)** — an Approved task that has not started (*Replace driver* in Internal Tasks and in the welfare week) gets a new driver from the recommendation with a required reason; it is recorded, the task returns to Driver Assigned and the Head of Admin approves in Approve Assignments; the previous driver and the Head of Admin are told.
-- **Flow design layer** (`assets/css/uis-flow.css`, `assets/js/uis-flow.js`; views only, no rule changes) — a **request journey** on every request (stepper in the details, thin rail in the lists: Submitted → Head of Department → Vehicle Section → Head of Admin → Trip → Completed; a Personal Rental has no Head of Department step, Pay and Claim no Vehicle Section step; a rejected, cancelled or lapsed request shows where it stopped), a **countdown chip** for coming trips, a **dispatch board** on the admin dashboard (one time lane per vehicle for a day, 06:00–22:00, with request tasks, internal tasks, welfare duty and a "now" line; `dispatchBoardHtml()` reads `calendarEvents()`), a **fuel gauge** and mileage in the vehicle list, and **score bars** with the best match highlighted in the driver recommendation tables. Works in dark mode and respects reduced motion.
+- **Flow design layer** (styles in `assets/css/src/app.css`, `assets/js/uis-flow.js`; views only, no rule changes) — a **request journey** on every request (stepper in the details, thin rail in the lists: Submitted → Head of Department → Vehicle Section → Head of Admin → Trip → Completed; a Personal Rental has no Head of Department step, Pay and Claim no Vehicle Section step; a rejected, cancelled or lapsed request shows where it stopped), a **countdown chip** for coming trips, a **dispatch board** on the admin dashboard (one time lane per vehicle for a day, 06:00–22:00, with request tasks, internal tasks, welfare duty and a "now" line; `dispatchBoardHtml()` reads `calendarEvents()`), a **fuel gauge** and mileage in the vehicle list, and **score bars** with the best match highlighted in the driver recommendation tables. Works in dark mode and respects reduced motion.
 - **WhatsApp (OpenWA), optional extra channel (Iman's decision, 16 Nov; not in the use cases)** — when `config/whatsapp.php` is switched on, every `notifyUsers()` message to a **driver** also goes to the driver's WhatsApp through an OpenWA server, in the driver's language with a link. Only drivers get WhatsApp; every other role gets the in-system notification and e-mail. Off by default; a failure or a missing number is logged in `whatsapp_log` (migration `2026_11_whatsapp_openwa`) and never stops the e-mail or the in-system notification; failures show as a dashboard alert. Needs a VPS (Docker, always on): `docs/OPENWA_SETUP.md`, `docs/VPS_SETUP.md`. Unofficial gateway: use a dedicated number.
 - **Tasks (class diagram, 16 Nov)** — one table `tasks` holds every task (class *Task*): request tasks (`task_source` `request`, `trip_type` outbound / return), internal tasks (`internal`, `task_type` workshop, refuel ...) and welfare duty days (`welfare`, 24 hours from midnight). Status: Waiting for Driver (`waiting`) → Driver Assigned (`assigned`) → Approved (`approved`) → `completed`, or `cancelled`; who assigned, approved or rejected it (with the reason) and when are kept on the task. A welfare week is one row in `welfare_duties` (class *WelfareDuty*, 1..7 tasks, its status follows its days). `task_reports`, `driver_replacements` (with `status` pending → approved / rejected by the Head of Admin) and `vehicle_usage_log` point to `tasks.task_id`. Migration `2026_11_class_diagram_tasks` moves the old `schedules`, `internal_tasks` and `welfare_roster` rows. Migrations run in the order of `MIGRATION_ORDER` in `config/database.php` (the order they were written), so an old database upgrades in one go; a failed migration stops the run and is retried.
 - **Class diagram (16 Nov)** — `docs/class_diagram.png`; `docs/CLASS_DIAGRAM_MAPPING.md` shows the table, column and function of every class, attribute and method. A request also keeps `approved_by`, `reject_reason`, `rejected_by`, `rejected_at`; a notification keeps `email_sent` (migration `2026_11_class_diagram_attributes`).
@@ -75,8 +76,8 @@ The requester sees the driver and vehicle only after **Confirmed**; a driver see
 - **Verification code limit (Iman's decision, 16 Nov; not in the use cases)** — Register Account and Reset Password send at most one code a minute and five an hour to one e-mail (counted in `email_log`); a refused request shows the reason and the earlier code stays valid. Nobody can flood a mailbox or keep cancelling someone's code.
 - **My Profile (UC016)** — `profile.php` for every role: view, update name/phone/address, change the password (current password needed); the staff ID, e-mail, department and role cannot be changed; a driver sees the licence details read-only (the Assistant updates them). `driver/profile.php` redirects here.
 - **User accounts (UC001, 14 Nov)** — *Users* (`admin/users.php`, `edit_user.php`; Administrative Assistant and Head of Admin): view and search the accounts (by staff ID or name, filter by role), **Create driver account** (*Register driver*), **update** the department and role (and, for a driver, the licence class, licence expiry date and start date of service; the user is told by e-mail) and **deactivate**. Staff and Heads of Department register themselves (UC013); users change their own name, phone, address and password in the profile and reset a forgotten password themselves (UC015). A deactivated account cannot sign in and is never activated again or deleted; a driver with upcoming tasks (they are listed: replace the driver first) and a Head of Department with pending requests cannot be deactivated. Only the Head of Admin changes Administrative Assistant and Head of Admin accounts.
-- **Look and feel** — `assets/css/uis-theme-premium.css` (design system export) with `assets/css/uis-polish.css` on top: deep UIS green sidebar, gradient hero banners with readable white text, tinted KPI icon tiles, soft rounded cards, pill status badges, dark-mode toggle (header on desktop, top bar on phone). All three CSS files are loaded after `style.css` in `includes/header.php`, `includes/admin_page.php` and `admin/settings.php`; remove the two extra `<link>` lines to go back to the plain look.
-- **Bilingual interface: English / Bahasa Melayu (outside the SRS)** — the *EN | BM* switch is in the sidebar, the mobile top bar and the login page. The choice is kept in the cookie `dsms_lang` and on the account (`users.language`, migration `2026_11_user_language`); a language chosen on the login page is saved at login, and a new browser gets the language of the account. The pages stay written in English: `includes/i18n.php` translates the finished page (text, placeholders, titles, texts in scripts, AJAX answers) with the dictionary `includes/lang/ms.php`. A text that is missing from the dictionary simply stays English. To add or fix a translation, edit `includes/lang/ms.php` (English text => Malay); entries with a space also work as fragments of longer messages. Notification e-mails are sent in the language of the receiver; in-system notifications are stored in English and shown in the viewer's language. PDF/Excel exports, the printed task sheet header and the user's own data (names, destinations, comments) are not translated.
+- **Look and feel** — Tailwind CSS + DaisyUI with the `uis` theme (UIS green + gold, IBM Plex fonts, number plates), drawer layout with the sidebar; see *Styling* below.
+- **Bilingual interface: English / Bahasa Melayu (outside the SRS)** — the *EN | BM* switch is in the top bar of every page and on the login page. The choice is kept in the cookie `dsms_lang` and on the account (`users.language`, migration `2026_11_user_language`); a language chosen on the login page is saved at login, and a new browser gets the language of the account. The pages stay written in English: `includes/i18n.php` translates the finished page (text, placeholders, titles, texts in scripts, AJAX answers) with the dictionary `includes/lang/ms.php`. A text that is missing from the dictionary simply stays English. To add or fix a translation, edit `includes/lang/ms.php` (English text => Malay); entries with a space also work as fragments of longer messages. Notification e-mails are sent in the language of the receiver; in-system notifications are stored in English and shown in the viewer's language. PDF/Excel exports, the printed task sheet header and the user's own data (names, destinations, comments) are not translated.
 - **Reports (UC011 / UC012, 14 Nov)** — three monthly reports: **Driver Workload** (request tasks, internal tasks, welfare duties and weekend tasks of each driver), **Driver Replacement** (date, task, previous driver, new driver, reason, who) and **Vehicle Usage** (number of trips and total mileage from the task reports of each vehicle); export as PDF or Excel. A month without data shows "No data for the selected month".
 - **History** — each request keeps its own history (the `auditLog()` function); there is no audit-log page.
 
@@ -127,6 +128,23 @@ It also runs opportunistically on page load.
 `W_TASKS`, `W_WEEKEND`, `W_EXPERIENCE` (must add up to 1, tasks the highest; an old `W_AFTER_HOURS` row stays in existing databases but is not used), `WORK_START` 08:00, `WORK_END` 17:30, `TASK_DURATION_HOURS` 2,
 `LAPSE_HOURS` 48, `SESSION_TIMEOUT_MIN` 15, `MAX_FAILED_ATTEMPTS` 5, `LOCKOUT_MINUTES` 15.
 
+## Styling
+
+The pages use [Tailwind CSS 4](https://tailwindcss.com) and [DaisyUI 5](https://daisyui.com) components (drawer, menu,
+card, stats, table, tabs, modal, badge, alert). There is no Bootstrap and no jQuery.
+
+- **Source:** `assets/css/src/app.css`, with the `uis` DaisyUI theme (UIS green as the one accent colour, a grey
+  ramp for surfaces), the IBM Plex fonts and the few app-specific classes (dashboard panels, number plates).
+- **Built file:** `assets/css/app.css`, which is committed and linked by every page.
+- **Rebuild after changing classes** in a PHP file or the source CSS (Tailwind only keeps classes it finds in the files):
+  ```
+  npm install
+  npm run build:css      # or: npm run watch:css while editing
+  ```
+- **Dialogs:** `assets/js/ui.js` gives `UIS.confirm()`, `UIS.alert()`, `UIS.askReason()` and `data-confirm="…"` on
+  links/buttons, built on DaisyUI's `<dialog class="modal">`.
+- **Plates:** print a registration number with `plate($plateNumber)` (PHP), which sets it like a number plate.
+
 ## Tests
 
 ```
@@ -145,6 +163,7 @@ cron/run_jobs.php                   command-line job runner
 migrations/                         SQL for existing databases
 tools/                              staff importer
 tests/                              unit tests (php) and HTTP suites
+assets/css/src/app.css              Tailwind + DaisyUI source (built to assets/css/app.css)
 ```
 
 ## Assumptions and limits

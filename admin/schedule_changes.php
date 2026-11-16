@@ -31,30 +31,30 @@ $decided = $conn->query("SELECT r.*, d.name AS driver_name FROM schedule_changes
 $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 adminPageStart('Schedule Changes');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-calendar-xmark text-success me-2"></i>Schedule Change Requests</h4>
-    <p class="text-muted small">Requests of the drivers to be unavailable on some dates or to be withdrawn from a task.</p>
-    <?php if (!$pending): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5"><i class="fas fa-circle-check fa-2x text-success mb-2"></i><div>There are no pending requests.</div></div></div><?php endif; ?>
+    <h1 class="text-2xl font-medium mb-1">Schedule Change Requests</h1>
+    <p class="text-base-content/60 text-sm mb-4">Requests of the drivers to be unavailable on some dates or to be withdrawn from a task.</p>
+    <?php if (!$pending): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12"><i class="fas fa-circle-check fa-2x text-success mb-2"></i><div>There are no pending requests.</div></div></div><?php endif; ?>
     <?php foreach ($pending as $r): $dates = scheduleChangeDatesOf($conn, (int)$r['change_id']); $tasks = scheduleChangeAffectedTasks($conn, $r); $cid = (int)$r['change_id']; ?>
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-        <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
-            <div class="fw-bold">Request #<?= $cid ?> &middot; <?= $h($r['driver_name']) ?></div>
-            <span class="badge bg-warning text-dark">Pending</span></div>
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+        <div class="flex flex-wrap justify-between gap-2 mb-1">
+            <div class="font-bold">Request #<?= $cid ?> &middot; <?= $h($r['driver_name']) ?></div>
+            <span class="badge badge-soft badge-warning">Pending</span></div>
         <div><strong><?= $r['change_type'] === 'withdraw' ? 'Withdraw from a task' : 'Unavailable' ?></strong> &middot; <?= $h(scheduleChangeDatesText($dates)) ?></div>
-        <div class="small text-muted mb-2">Reason: <?= $h($r['reason']) ?> &middot; sent <?= $h(date('d M Y H:i', strtotime($r['created_at']))) ?></div>
-        <div class="small fw-semibold">The driver's tasks <?= $r['change_type'] === 'withdraw' ? 'for this request' : 'on these dates' ?></div>
-        <?php if (!$tasks): ?><div class="small text-muted mb-2">None.</div><?php endif; ?>
-        <?php foreach ($tasks as $t): ?><div class="small">&bull; <?= $h(date('D, d M H:i', strtotime($t['start_dt']))) ?> &middot; <?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?> (request #<?= (int)$t['request_id'] ?>, <?= $h(requestStatusLabel($t['req_status'])) ?>)</div><?php endforeach; ?>
-        <form method="post" class="row g-2 mt-2">
+        <div class="text-sm text-base-content/60 mb-2">Reason: <?= $h($r['reason']) ?> &middot; sent <?= $h(date('d M Y H:i', strtotime($r['created_at']))) ?></div>
+        <div class="text-sm font-semibold">The driver's tasks <?= $r['change_type'] === 'withdraw' ? 'for this request' : 'on these dates' ?></div>
+        <?php if (!$tasks): ?><div class="text-sm text-base-content/60 mb-2">None.</div><?php endif; ?>
+        <?php foreach ($tasks as $t): ?><div class="text-sm">&bull; <?= $h(date('D, d M H:i', strtotime($t['start_dt']))) ?> &middot; <?= $t['trip_type'] === 'return' ? 'Return' : 'Outbound' ?> &middot; <?= $h($t['destination']) ?> (request #<?= (int)$t['request_id'] ?>, <?= $h(requestStatusLabel($t['req_status'])) ?>)</div><?php endforeach; ?>
+        <form method="post" class="grid-12 grid grid-cols-12 gap-2 mt-2">
             <input type="hidden" name="change_id" value="<?= $cid ?>">
-            <div class="col-12 col-md-7"><input class="form-control form-control-sm" name="comment" maxlength="500" placeholder="Reason (required when rejecting)"></div>
-            <div class="col-12 col-md-5 d-flex gap-2">
+            <div class="col-span-12 md:col-span-7"><input class="input input-sm w-full" name="comment" maxlength="500" placeholder="Reason (required when rejecting)"></div>
+            <div class="col-span-12 md:col-span-5 flex gap-2">
                 <button class="btn btn-success btn-sm" name="decision" value="approve" data-confirm="The driver is marked unavailable and told. <?= $tasks ? 'You will replace the driver on the tasks above.' : '' ?>" data-confirm-title="Approve request #<?= $cid ?>?" data-confirm-button="Approve" data-confirm-tone="primary"><i class="fas fa-check me-1"></i>Approve</button>
-                <button class="btn btn-outline-danger btn-sm" name="decision" value="reject"><i class="fas fa-xmark me-1"></i>Reject</button></div>
+                <button class="btn btn-outline btn-error btn-sm" name="decision" value="reject"><i class="fas fa-xmark me-1"></i>Reject</button></div>
         </form>
     </div></div>
     <?php endforeach; ?>
     <?php if ($decided): ?>
-    <h6 class="fw-bold mt-4">Decided recently</h6>
-    <?php foreach ($decided as $r): ?><div class="small border-top py-1">#<?= (int)$r['change_id'] ?> &middot; <?= $h($r['driver_name']) ?> &middot; <?= $r['change_type'] === 'withdraw' ? 'withdraw' : 'unavailable' ?> &middot; <strong><?= $h(ucfirst($r['status'])) ?></strong> <?= $h(date('d M H:i', strtotime((string)($r['approved_at'] ?? $r['rejected_at'] ?? $r['created_at'])))) ?><?= $r['reject_reason'] ? ' &middot; ' . $h($r['reject_reason']) : '' ?></div><?php endforeach; ?>
+    <h2 class="text-lg font-medium mt-6 mb-2">Decided recently</h2>
+    <?php foreach ($decided as $r): ?><div class="text-sm border-t border-base-300 py-1">#<?= (int)$r['change_id'] ?> &middot; <?= $h($r['driver_name']) ?> &middot; <?= $r['change_type'] === 'withdraw' ? 'withdraw' : 'unavailable' ?> &middot; <strong><?= $h(ucfirst($r['status'])) ?></strong> <?= $h(date('d M H:i', strtotime((string)($r['approved_at'] ?? $r['rejected_at'] ?? $r['created_at'])))) ?><?= $r['reject_reason'] ? ' &middot; ' . $h($r['reject_reason']) : '' ?></div><?php endforeach; ?>
     <?php endif; ?>
 <?php adminPageEnd(); ?>

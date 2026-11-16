@@ -60,28 +60,27 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 adminPageStart('Notifications');
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h4 class="fw-bold mb-0"><i class="fas fa-bell text-success me-2"></i>Notifications <?php if ($unread): ?><span class="badge bg-danger fs-6"><?= $unread ?> new</span><?php endif; ?></h4>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h1 class="text-2xl font-medium">Notifications<?php if ($unread): ?> <span class="font-mono text-base font-normal text-base-content/60"><?= $unread ?> new</span><?php endif; ?></h1>
         <?php if ($unread): ?>
-        <form method="post"><input type="hidden" name="action" value="read_all"><button class="btn btn-sm btn-outline-success"><i class="fas fa-check-double me-1"></i>Mark all as read</button></form>
+        <form method="post"><input type="hidden" name="action" value="read_all"><button class="btn btn-sm">Mark all as read</button></form>
         <?php endif; ?>
     </div>
-    <div class="card border-0 shadow-sm"><div class="list-group list-group-flush">
+    <div class="divide-y divide-base-300 rounded-box border border-base-300">
     <?php foreach ($rows as $n): ?>
-        <a class="list-group-item list-group-item-action d-flex gap-3 align-items-start <?= $n['is_read'] ? '' : 'bg-success-subtle' ?>" href="notifications.php?open=<?= (int)$n['notification_id'] ?>">
-            <i class="fas <?= $n['is_read'] ? 'fa-envelope-open text-muted' : 'fa-envelope text-success' ?> mt-1"></i>
-            <div class="flex-grow-1">
-                <div class="<?= $n['is_read'] ? '' : 'fw-semibold' ?>"><?= $h($n['message']) ?></div>
-                <div class="small text-muted"><?= $h(date('d M Y, H:i', strtotime($n['created_at']))) ?></div>
+        <a class="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-base-200" href="notifications.php?open=<?= (int)$n['notification_id'] ?>">
+            <span class="mt-2 size-2 shrink-0 rounded-full <?= $n['is_read'] ? '' : 'bg-primary' ?>" aria-hidden="true"></span>
+            <div class="grow">
+                <div class="<?= $n['is_read'] ? 'text-base-content/70' : 'font-medium' ?>"><?= $h($n['message']) ?><?= $n['is_read'] ? '' : '<span class="sr-only"> (new)</span>' ?></div>
+                <div class="font-mono text-xs text-base-content/60"><?= $h(date('d M Y, H:i', strtotime($n['created_at']))) ?></div>
             </div>
-            <?php if (!$n['is_read']): ?><span class="badge bg-success align-self-center">New</span><?php endif; ?>
         </a>
     <?php endforeach; ?>
-    <?php if (!$rows): ?><div class="list-group-item text-center text-muted py-4">You have no notifications.</div><?php endif; ?>
-    </div></div>
+    <?php if (!$rows): ?><p class="dash-empty">No notifications</p><?php endif; ?>
+    </div>
     <?php if ($pg['total_pages'] > 1): ?>
-    <nav class="mt-3" aria-label="Pages"><ul class="pagination pagination-sm flex-wrap">
-        <?php for ($i = 1; $i <= $pg['total_pages']; $i++): ?><li class="page-item <?= $i === $pg['current_page'] ? 'active' : '' ?>"><a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a></li><?php endfor; ?>
-    </ul></nav>
+    <nav class="join mt-4" aria-label="Pages">
+        <?php for ($i = 1; $i <= $pg['total_pages']; $i++): ?><a class="join-item btn btn-sm <?= $i === $pg['current_page'] ? 'btn-active' : '' ?>" href="?page=<?= $i ?>" <?= $i === $pg['current_page'] ? 'aria-current="page"' : '' ?>><?= $i ?></a><?php endfor; ?>
+    </nav>
     <?php endif; ?>
 <?php adminPageEnd(); ?>

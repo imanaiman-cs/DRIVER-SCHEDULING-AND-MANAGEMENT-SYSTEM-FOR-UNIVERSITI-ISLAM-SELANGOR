@@ -23,9 +23,9 @@ function licenceBadges(?string $list): string
 {
     $html = '';
     foreach (array_filter(array_map('trim', explode(',', (string)$list))) as $c) {
-        if (isset(LICENCE_CLASSES[$c])) { $html .= '<span class="badge bg-light text-dark border me-1">' . htmlspecialchars($c) . '</span>'; }
+        if (isset(LICENCE_CLASSES[$c])) { $html .= '<span class="badge badge-ghost me-1">' . htmlspecialchars($c) . '</span>'; }
     }
-    return $html !== '' ? $html : '<span class="text-muted">-</span>';
+    return $html !== '' ? $html : '<span class="text-base-content/60">-</span>';
 }
 
 /** Date + time of a trip row for messages. */
@@ -164,7 +164,7 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status): array
 function fuelGaugeHtml(?string $level): string
 {
     $n = ['empty' => 0, 'quarter' => 1, 'half' => 2, 'three_quarters' => 3, 'full' => 4][$level ?? ''] ?? null;
-    if ($n === null) { return '<span class="text-muted small">-</span>'; }
+    if ($n === null) { return '<span class="text-sm text-base-content/60">-</span>'; }
     $h = '<span class="fuel-gauge is-l' . $n . '" title="Fuel level: ' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '"><i class="fas fa-gas-pump" aria-hidden="true"></i>';
     for ($i = 1; $i <= 4; $i++) { $h .= '<b class="' . ($i <= $n ? 'on' : '') . '"></b>'; }
     return $h . '<span>' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '</span></span>';
@@ -271,13 +271,13 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 function fleetItemsList(array $items, bool $withReplaceLink = false, int $vehicleLink = 0): string
 {
     if (!$items) { return ''; }
-    $html = '<ul class="mb-0 mt-2 small">';
+    $html = '<ul class="mt-2 list-disc ps-5 text-sm">';
     foreach ($items as $i) {
         $html .= '<li>' . htmlspecialchars($i['text']);
         if ($withReplaceLink && !empty($i['schedule_id']) && $i['kind'] === 'request') {
-            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="fw-semibold">Replace driver</a>';
+            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="link font-semibold">Replace driver</a>';
         } elseif ($withReplaceLink && in_array($i['kind'], ['internal', 'welfare'], true) && !empty($i['id']) && ($i['task_status'] ?? '') === 'approved') {     // UC008 A1
-            $html .= ' <a href="replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] . '" class="fw-semibold">Replace driver</a>';
+            $html .= ' <a href="replace_task_driver.php?' . $i['kind'] . '=' . (int)$i['id'] . '" class="link font-semibold">Replace driver</a>';
         }
         $html .= '</li>';
     }
@@ -331,14 +331,14 @@ document.addEventListener('click', function (e) {
             if (!box) { window.alert(j.message); return; }
             box.innerHTML = '';
             var a = document.createElement('div');
-            a.className = 'alert alert-danger';
+            a.className = 'alert alert-soft alert-error mb-4 block text-sm';
             a.setAttribute('role', 'alert');
             a.appendChild(document.createTextNode(j.message));
             if (j.items && j.items.length) {
-                var ul = document.createElement('ul'); ul.className = 'mb-0 mt-2 small';
+                var ul = document.createElement('ul'); ul.className = 'mt-2 list-disc ps-5';
                 j.items.forEach(function (it) {
                     var li = document.createElement('li'); li.appendChild(document.createTextNode(it.text));
-                    if (it.replace_url) { var l = document.createElement('a'); l.href = it.replace_url; l.className = 'fw-semibold ms-1'; l.textContent = 'Replace driver'; li.appendChild(l); }
+                    if (it.replace_url) { var l = document.createElement('a'); l.href = it.replace_url; l.className = 'link link-primary ms-1 font-medium'; l.textContent = 'Replace driver'; li.appendChild(l); }
                     ul.appendChild(li);
                 });
                 a.appendChild(ul);
@@ -405,36 +405,36 @@ function validateVehicle(mysqli $conn, array $in, int $except_id = 0, bool $with
 /** The form fields. $v = current values, $errors = messages, $photo = stored photo path (edit). */
 function vehicleFormFields(array $v, array $errors, ?string $photo = null, bool $withUsage = false): void
 {
-    $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
+    $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
     $licByType = [];
     foreach (VEHICLE_TYPES as $t => $_) { $licByType[$t] = licenceForVehicleType($t); }
     ?>
-    <div class="row g-3">
-        <div class="col-12 col-md-6"><label class="form-label" for="plate_number">Registration number <span class="text-danger">*</span></label>
-            <input class="form-control" id="plate_number" name="plate_number" maxlength="20" required value="<?= $val('plate_number') ?>" style="text-transform:uppercase"><?= $err('plate_number') ?></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="vehicle_type">Type <span class="text-danger">*</span></label>
-            <select class="form-select" id="vehicle_type" name="vehicle_type" required><option value="">Choose...</option>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="plate_number">Registration number <span class="text-error">*</span></label>
+            <input class="input w-full" id="plate_number" name="plate_number" maxlength="20" required value="<?= $val('plate_number') ?>" style="text-transform:uppercase"><?= $err('plate_number') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="vehicle_type">Type <span class="text-error">*</span></label>
+            <select class="select w-full" id="vehicle_type" name="vehicle_type" required><option value="">Choose...</option>
                 <?php foreach (VEHICLE_TYPES as $k => $l): ?><option value="<?= $k ?>" <?= ($v['vehicle_type'] ?? '') === $k ? 'selected' : '' ?>><?= htmlspecialchars($l) ?></option><?php endforeach; ?>
             </select><?= $err('vehicle_type') ?></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="model">Model <span class="text-danger">*</span></label>
-            <input class="form-control" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="capacity">Passenger capacity <span class="text-danger">*</span></label>
-            <input type="number" min="1" max="999" class="form-control" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="licence_shown">Licence class required <span class="text-danger">*</span></label>
-            <select class="form-select" id="licence_shown" name="license_required" required aria-describedby="licHelp"><option value="">Choose...</option>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="model">Model <span class="text-error">*</span></label>
+            <input class="input w-full" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="capacity">Passenger capacity <span class="text-error">*</span></label>
+            <input type="number" min="1" max="999" class="input w-full" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_shown">Licence class required <span class="text-error">*</span></label>
+            <select class="select w-full" id="licence_shown" name="license_required" required aria-describedby="licHelp"><option value="">Choose...</option>
                 <?php foreach (['D' => 'D (car / van)', 'GDL' => 'GDL (lorry)', 'PSV' => 'PSV (bus)'] as $k => $l): ?><option value="<?= $k ?>" <?= ($v['license_required'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select>
-            <div class="form-text" id="licHelp">Used to find drivers. Suggested from the type.</div><?= $err('license_required') ?></div>
+            <div class="mt-1 block text-xs text-base-content/60" id="licHelp">Used to find drivers. Suggested from the type.</div><?= $err('license_required') ?></div>
         <?php if ($withUsage): ?>
-        <div class="col-6 col-md-3"><label class="form-label" for="mileage">Current mileage (km) <span class="text-danger">*</span></label>
-            <input type="number" min="0" max="9999999" class="form-control" id="mileage" name="mileage" required value="<?= $val('mileage') ?>"><?= $err('mileage') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="fuel_level">Current fuel level <span class="text-danger">*</span></label>
-            <select class="form-select" id="fuel_level" name="fuel_level" required><option value="">Choose...</option>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="mileage">Current mileage (km) <span class="text-error">*</span></label>
+            <input type="number" min="0" max="9999999" class="input w-full" id="mileage" name="mileage" required value="<?= $val('mileage') ?>"><?= $err('mileage') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="fuel_level">Current fuel level <span class="text-error">*</span></label>
+            <select class="select w-full" id="fuel_level" name="fuel_level" required><option value="">Choose...</option>
                 <?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($v['fuel_level'] ?? '') === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select><?= $err('fuel_level') ?></div>
         <?php endif; ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="fuel_type">Fuel type <span class="text-danger">*</span></label>
-            <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option value="<?= $f ?>" <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="brand">Brand</label><input class="input w-full" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="fuel_type">Fuel type <span class="text-error">*</span></label>
+            <select class="select w-full" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option value="<?= $f ?>" <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
     </div>
     <script>
     (function () {
@@ -476,30 +476,30 @@ function driverInput(array $p, bool $withPhone, bool $rejectPastExpiry = false, 
 /** Licence ticks + optional fields. */
 function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null, bool $withJoined = false): void
 {
-    $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
+    $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
     $have = array_filter(explode(',', (string)($v['license_class'] ?? '')));
     ?>
-    <div class="row g-3">
-        <div class="col-12"><span class="form-label d-block">Licence classes <span class="text-danger">*</span></span>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12"><span class="mb-1 block text-sm font-medium">Licence classes <span class="text-error">*</span></span>
             <?php foreach (LICENCE_CLASSES as $k => $l): ?>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="lc_<?= $k ?>"><?= htmlspecialchars($l) ?></label></div>
+                <div class="inline-flex items-center gap-2 me-4"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
+                    <label class="text-sm" for="lc_<?= $k ?>"><?= htmlspecialchars($l) ?></label></div>
             <?php endforeach; ?><?= $err('license_class') ?></div>
         <?php if ($withPhone): ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" maxlength="20" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="phone">Phone</label><input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
         <?php endif; ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="license_number">Licence number</label><input class="form-control" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="license_expiry">Licence expiry date</label><input type="date" class="form-control" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_number">Licence number</label><input class="input w-full" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_expiry">Licence expiry date</label><input type="date" class="input w-full" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
         <?php if ($withJoined): ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="date_joined">Date joined the Vehicle Section <span class="text-danger">*</span></label><input type="date" class="form-control" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $val('date_joined') ?>"><?= $err('date_joined') ?>
-            <div class="form-text">Used to calculate the experience in the driver recommendation.</div></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="date_joined">Date joined the Vehicle Section <span class="text-error">*</span></label><input type="date" class="input w-full" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $val('date_joined') ?>"><?= $err('date_joined') ?>
+            <div class="mt-1 block text-xs text-base-content/60">Used to calculate the experience in the driver recommendation.</div></div>
         <?php endif; ?>
-        <div class="col-12"><label class="form-label" for="address">Address</label><textarea class="form-control" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
-        <div class="col-12"><label class="form-label" for="photo">Photo</label>
-            <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>
-            <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png"><?= $err('photo') ?>
-            <div class="form-text">JPG or PNG, up to 2 MB.</div></div>
+        <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="address">Address</label><textarea class="textarea w-full" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
+        <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
+            <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>
+            <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png"><?= $err('photo') ?>
+            <div class="mt-1 block text-xs text-base-content/60">JPG or PNG, up to 2 MB.</div></div>
     </div>
     <?php
 }

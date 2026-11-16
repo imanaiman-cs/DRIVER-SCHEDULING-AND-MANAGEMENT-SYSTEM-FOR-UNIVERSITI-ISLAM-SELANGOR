@@ -85,118 +85,118 @@ $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $wi
 $vendorOutAllowed = $licence === 'PSV' && !$rec['ranked'];          // UC017 A2: no UIS driver with a PSV licence is available
 $vendorRetAllowed = $licence === 'PSV';                             // checked again on the server for the return window
 $vendorBox = function (string $p): string {
-    return '<div class="row g-2 mt-1">'
-        . '<div class="col-md-6"><label class="form-label small" for="' . $p . '_vendor_name">Vendor name *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_name" name="' . $p . '_vendor_name" maxlength="150"></div>'
-        . '<div class="col-md-6"><label class="form-label small" for="' . $p . '_vendor_plate">Bus plate number *</label><input class="form-control form-control-sm" id="' . $p . '_vendor_plate" name="' . $p . '_vendor_plate" maxlength="20"></div></div>';
+    return '<div class="grid-12 grid grid-cols-12 gap-2 mt-1">'
+        . '<div class="md:col-span-6"><label class="mb-1 block text-sm font-medium" for="' . $p . '_vendor_name">Vendor name *</label><input class="input input-sm w-full" id="' . $p . '_vendor_name" name="' . $p . '_vendor_name" maxlength="150"></div>'
+        . '<div class="md:col-span-6"><label class="mb-1 block text-sm font-medium" for="' . $p . '_vendor_plate">Bus plate number *</label><input class="input input-sm w-full" id="' . $p . '_vendor_plate" name="' . $p . '_vendor_plate" maxlength="20"></div></div>';
 };
 
 adminPageStart('Assign Driver');
 ?>
-    <a class="small text-decoration-none" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="fw-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign driver &mdash; request #<?= $rid ?></h4>
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
+    <a class="text-sm no-underline" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
+    <h1 class="text-2xl font-medium my-2">Assign driver &mdash; request #<?= $rid ?></h1>
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
 
     <?php if ($warnDriver): ?>
-    <div class="alert alert-warning">
+    <div class="alert alert-soft alert-warning mb-4"><div>
         <strong>This driver is not the top recommendation.</strong>
         <?= htmlspecialchars($warnDriver['chosen']['name']) ?> has <?= (int)$warnDriver['chosen']['tasks'] ?> task(s) this month; the recommended driver, <?= htmlspecialchars($warnDriver['top']['name']) ?>, has <?= (int)$warnDriver['top']['tasks'] ?>. Assign anyway?
         <form method="post" class="mt-2">
             <?php $flat = function ($a, $pre = '') use (&$flat) { foreach ($a as $k => $v) { $n = $pre === '' ? $k : $pre . '[' . $k . ']'; if (is_array($v)) { $flat($v, $n); } else { echo '<input type="hidden" name="' . htmlspecialchars($n) . '" value="' . htmlspecialchars((string)$v) . '">'; } } }; $flat($confirmPost); ?>
             <input type="hidden" name="confirmed" value="1">
-            <button class="btn btn-warning btn-sm">Confirm and assign</button> <a class="btn btn-outline-secondary btn-sm" href="assign_driver.php?request_id=<?= $rid ?>">Choose again</a>
+            <button class="btn btn-warning btn-sm">Confirm and assign</button> <a class="btn btn-ghost btn-sm" href="assign_driver.php?request_id=<?= $rid ?>">Choose again</a>
         </form>
-    </div>
+    </div></div>
     <?php endif; ?>
 
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
         <?php if (isPersonalRental($req)): ?>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Personal Rental <span class="fw-normal text-muted small">no Head of Department; the Head of Admin approves after you</span></h6>
-            <label class="form-label small" for="distance_km">Round-trip distance (km): confirm or correct what the requester entered</label>
-            <input type="number" step="0.1" min="0.1" max="5000" class="form-control" style="max-width:12rem" id="distance_km" name="distance_km" required value="<?= htmlspecialchars((string)$req['distance_km']) ?>">
-            <div class="form-text">Charge = distance x RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per km. The requester entered <?= htmlspecialchars((string)$req['distance_km']) ?> km (estimated RM <?= htmlspecialchars(number_format((float)$req['charge'], 2)) ?>).</div>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Personal Rental <span class="font-normal text-base-content/60 text-sm">no Head of Department; the Head of Admin approves after you</span></h6>
+            <label class="mb-1 block text-sm font-medium" for="distance_km">Round-trip distance (km): confirm or correct what the requester entered</label>
+            <input type="number" step="0.1" min="0.1" max="5000" class="input w-full" style="max-width:12rem" id="distance_km" name="distance_km" required value="<?= htmlspecialchars((string)$req['distance_km']) ?>">
+            <div class="mt-1 text-xs text-base-content/60">Charge = distance x RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per km. The requester entered <?= htmlspecialchars((string)$req['distance_km']) ?> km (estimated RM <?= htmlspecialchars(number_format((float)$req['charge'], 2)) ?>).</div>
         </div></div>
         <?php endif; ?>
         <?php if (!$vid && $req['vehicle_type']): ?>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Vehicle <span class="fw-normal text-muted small">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others are chosen below)' : '' ?></span></h6>
-            <?php if (!$chooseVehicles): ?><div class="text-danger small">No <?= htmlspecialchars((string)$req['vehicle_type']) ?> is free for this period.</div><?php endif; ?>
-            <div class="row g-2">
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Vehicle <span class="font-normal text-base-content/60 text-sm">the request reserved <?= (int)$req['quantity'] > 1 ? (int)$req['quantity'] . ' x ' : 'a ' ?><?= htmlspecialchars((string)$req['vehicle_type']) ?>; choose the vehicle<?= (int)$req['quantity'] > 1 ? ' (the first one; the others are chosen below)' : '' ?></span></h6>
+            <?php if (!$chooseVehicles): ?><div class="text-error text-sm">No <?= htmlspecialchars((string)$req['vehicle_type']) ?> is free for this period.</div><?php endif; ?>
+            <div class="grid-12 grid grid-cols-12 gap-2">
             <?php foreach ($chooseVehicles as $v): ?>
-                <div class="col-12 col-md-6 col-lg-4"><label class="card h-100 p-2" style="cursor:pointer;"><div class="form-check">
-                    <input class="form-check-input" type="radio" name="vehicle_id" value="<?= (int)$v['vehicle_id'] ?>" id="veh<?= (int)$v['vehicle_id'] ?>" <?= $chooseVehicles && count($chooseVehicles) === 1 ? 'checked' : '' ?>>
-                    <span class="fw-semibold ms-1"><?= htmlspecialchars($v['plate_number']) ?></span></div>
-                    <div class="small text-muted ms-4"><?= htmlspecialchars($v['model']) ?> &middot; <?= (int)$v['capacity'] ?> seats &middot; licence <?= htmlspecialchars($v['license_required']) ?></div></label></div>
+                <div class="col-span-12 md:col-span-6 lg:col-span-4"><label class="card border border-base-300 h-full p-2 hover:bg-base-200" style="cursor:pointer;"><div class="flex items-center gap-2">
+                    <input class="radio radio-sm radio-primary" type="radio" name="vehicle_id" value="<?= (int)$v['vehicle_id'] ?>" id="veh<?= (int)$v['vehicle_id'] ?>" <?= $chooseVehicles && count($chooseVehicles) === 1 ? 'checked' : '' ?>>
+                    <span class="ms-1"><?= plate($v['plate_number']) ?></span></div>
+                    <div class="text-sm text-base-content/60 ms-4"><?= htmlspecialchars($v['model']) ?> &middot; <?= (int)$v['capacity'] ?> seats &middot; licence <?= htmlspecialchars($v['license_required']) ?></div></label></div>
             <?php endforeach; ?>
             </div>
         </div></div>
         <?php endif; ?>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Outbound trip <span class="fw-normal text-muted small">
-                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)($req['plate_number'] ?: $req['vehicle_type'])) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
-            <p class="small text-muted mb-2">Recommendation: fewer tasks this month, fewer weekend tasks and more experience rank higher (weights <?= htmlspecialchars((string)round($rec['weights']['tasks'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['weekend'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['experience'], 2)) ?>). You make the final choice.</p>
-            <div class="table-responsive">
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Outbound trip <span class="font-normal text-base-content/60 text-sm">
+                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= $req['plate_number'] ? plate($req['plate_number']) : htmlspecialchars((string)$req['vehicle_type']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
+            <p class="text-sm text-base-content/60 mb-2">Recommendation: fewer tasks this month, fewer weekend tasks and more experience rank higher (weights <?= htmlspecialchars((string)round($rec['weights']['tasks'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['weekend'], 2)) ?> / <?= htmlspecialchars((string)round($rec['weights']['experience'], 2)) ?>). You make the final choice.</p>
+            <div class="overflow-x-auto">
             <table class="table table-sm align-middle">
-                <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th><th>Note</th></tr></thead>
+                <thead><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th><th>Note</th></tr></thead>
                 <tbody>
                 <?php foreach ($rec['ranked'] as $d): ?>
                     <tr>
-                        <td><input class="form-check-input" type="radio" name="out_driver" value="<?= (int)$d['driver_id'] ?>" id="od<?= (int)$d['driver_id'] ?>" required></td>
+                        <td><input class="radio radio-sm radio-primary" type="radio" name="out_driver" value="<?= (int)$d['driver_id'] ?>" id="od<?= (int)$d['driver_id'] ?>" required></td>
                         <td><?= (int)$d['rank'] ?></td>
-                        <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-muted small"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
+                        <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-base-content/60 text-sm"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
                         <td class="text-center"><?= (int)$d['tasks'] ?></td>
                         <td class="text-center"><?= (int)$d['weekend'] ?></td>
                         <td class="text-center"><?= number_format((float)$d['experience'], 1) ?></td>
-                        <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
-                        <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '' ?></td>
+                        <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                        <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-soft badge-warning">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '' ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rec['ranked']): ?><tr><td colspan="8" class="text-danger">No driver is available for this trip. See the list below for the reasons.<?= $vendorOutAllowed ? '' : ' You can cancel the request with a reason.' ?></td></tr><?php endif; ?>
+                <?php if (!$rec['ranked']): ?><tr><td colspan="8" class="text-error">No driver is available for this trip. See the list below for the reasons.<?= $vendorOutAllowed ? '' : ' You can cancel the request with a reason.' ?></td></tr><?php endif; ?>
                 </tbody>
             </table>
             </div>
             <?php if ($vendorOutAllowed): ?>
-            <div class="alert alert-warning py-2 mt-2 mb-2"><input type="hidden" name="out_mode" value="vendor"><strong>Vendor bus.</strong> No UIS driver with a PSV licence is available, so use a vendor bus. The quotation and payment are handled outside DSMS.
-                <?= $vendorBox('out') ?></div>
+            <div class="alert alert-soft alert-warning py-2 mt-2 mb-2"><input type="hidden" name="out_mode" value="vendor"><div><strong>Vendor bus.</strong> No UIS driver with a PSV licence is available, so use a vendor bus. The quotation and payment are handled outside DSMS.
+                <?= $vendorBox('out') ?></div></div>
             <?php endif; ?>
             <?php if ($rec['excluded']): ?>
-            <details class="small"><summary class="text-muted" style="cursor:pointer;">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
+            <details class="text-sm"><summary class="text-base-content/60" style="cursor:pointer;">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
                 <ul class="mb-0"><?php foreach ($rec['excluded'] as $x): ?><li><?= htmlspecialchars($x['name']) ?> &mdash; <?= htmlspecialchars($x['reason']) ?></li><?php endforeach; ?></ul>
             </details>
             <?php endif; ?>
         </div></div>
 
         <?php if ((int)$req['quantity'] > 1 && !isPayClaimRequest($req)): ?>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Other vehicles <span class="fw-normal text-muted small">the request needs <?= (int)$req['quantity'] ?> vehicles; each one gets a driver for the outbound and the return trip</span></h6>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Other vehicles <span class="font-normal text-base-content/60 text-sm">the request needs <?= (int)$req['quantity'] ?> vehicles; each one gets a driver for the outbound and the return trip</span></h6>
             <?php for ($k = 2; $k <= (int)$req['quantity']; $k++): ?>
-            <div class="row g-2 mb-2">
-                <div class="col-md-6"><label class="form-label small" for="xv<?= $k ?>">Vehicle <?= $k ?></label>
-                    <select class="form-select form-select-sm" id="xv<?= $k ?>" name="extra_vehicle[]" required><option value="">Choose a vehicle</option>
+            <div class="grid-12 grid grid-cols-12 gap-2 mb-2">
+                <div class="md:col-span-6"><label class="mb-1 block text-sm font-medium" for="xv<?= $k ?>">Vehicle <?= $k ?></label>
+                    <select class="select select-sm w-full" id="xv<?= $k ?>" name="extra_vehicle[]" required><option value="">Choose a vehicle</option>
                         <?php foreach ($chooseVehicles ?: vehicleTypeAvailability($conn, (string)$req['vehicle_type'], requestDepartDT($req), reservationEnd(requestReturnDT($req)), 0, 1, $rid)['vehicles'] as $v): ?>
                         <option value="<?= (int)$v['vehicle_id'] ?>"><?= htmlspecialchars($v['plate_number'] . ' - ' . $v['model'] . ' (' . $v['capacity'] . ' seats)') ?></option><?php endforeach; ?></select></div>
-                <div class="col-md-6"><label class="form-label small" for="xd<?= $k ?>">Driver of vehicle <?= $k ?> <span class="text-muted">(ranked by the recommendation)</span></label>
-                    <select class="form-select form-select-sm" id="xd<?= $k ?>" name="extra_driver[]" required><option value="">Choose a driver</option>
+                <div class="md:col-span-6"><label class="mb-1 block text-sm font-medium" for="xd<?= $k ?>">Driver of vehicle <?= $k ?> <span class="text-base-content/60">(ranked by the recommendation)</span></label>
+                    <select class="select select-sm w-full" id="xd<?= $k ?>" name="extra_driver[]" required><option value="">Choose a driver</option>
                         <?php foreach ($rec['ranked'] as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= (int)$d['rank'] ?>. <?= htmlspecialchars($d['name']) ?> (<?= (int)$d['tasks'] ?> tasks this month)</option><?php endforeach; ?></select></div>
             </div>
             <?php endfor; ?>
         </div></div>
         <?php endif; ?>
 
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Return trip <span class="fw-normal text-muted small"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>
-            <div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_same" value="same" checked>
-                <label class="form-check-label" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_sep" value="separate">
-                <label class="form-check-label" for="rm_sep">A separate driver and vehicle for the return trip</label></div>
-            <?php if ($vendorRetAllowed): ?><div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_vendor" value="vendor">
-                <label class="form-check-label" for="rm_vendor">A vendor bus for the return trip <span class="text-muted small">(only when no UIS driver with a PSV licence is free then)</span></label></div>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Return trip <span class="font-normal text-base-content/60 text-sm"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>
+            <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_same" value="same" checked>
+                <label class="text-sm" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
+            <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_sep" value="separate">
+                <label class="text-sm" for="rm_sep">A separate driver and vehicle for the return trip</label></div>
+            <?php if ($vendorRetAllowed): ?><div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_vendor" value="vendor">
+                <label class="text-sm" for="rm_vendor">A vendor bus for the return trip <span class="text-base-content/60 text-sm">(only when no UIS driver with a PSV licence is free then)</span></label></div>
             <div id="vendorBox" class="mt-2" style="display:none;"><?= $vendorBox('ret') ?></div><?php endif; ?>
             <div id="sepBox" class="mt-3" style="display:none;">
-                <label class="form-label small" for="ret_vehicle">Return vehicle (free in the return period, enough seats)</label>
-                <select class="form-select form-select-sm mb-2" id="ret_vehicle" name="ret_vehicle"><option value="">Loading&hellip;</option></select>
-                <div id="retDrivers" class="small text-muted">Choose a vehicle to see the recommendation for the return trip.</div>
+                <label class="mb-1 block text-sm font-medium" for="ret_vehicle">Return vehicle (free in the return period, enough seats)</label>
+                <select class="select select-sm w-full mb-2" id="ret_vehicle" name="ret_vehicle"><option value="">Loading&hellip;</option></select>
+                <div id="retDrivers" class="text-sm text-base-content/60">Choose a vehicle to see the recommendation for the return trip.</div>
             </div>
         </div></div>
         <button class="btn btn-success"><i class="fas fa-check me-1"></i>Assign and send to the Head of Admin</button>
@@ -234,12 +234,12 @@ adminPageStart('Assign Driver');
         if (!sel.value) { box.textContent = 'Choose a vehicle to see the recommendation for the return trip.'; return; }
         var q = new URLSearchParams({ start: R.start, end: R.end, licence: sel.options[sel.selectedIndex].getAttribute('data-lic') });
         fetch(base + 'get_available_drivers.php?' + q, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-            if (!d.success || !d.drivers.length) { box.innerHTML = '<span class="text-danger">No driver is available for the return trip.</span>'; return; }
-            box.innerHTML = '<table class="table table-sm align-middle"><thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Weekend</th><th class="text-center">Experience</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
+            if (!d.success || !d.drivers.length) { box.innerHTML = '<span class="text-error">No driver is available for the return trip.</span>'; return; }
+            box.innerHTML = '<table class="table table-sm align-middle"><thead><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Weekend</th><th class="text-center">Experience</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
                 d.drivers.map(function (x) {
-                    return '<tr><td><input class="form-check-input" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
-                           '</td><td class="text-center">' + x.weekend + '</td><td class="text-center">' + Number(x.experience).toFixed(1) + '</td><td class="text-center"><span class="badge bg-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
-                           (x.welfare ? '<span class="badge bg-warning text-dark">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '') + '</td></tr>';
+                    return '<tr><td><input class="radio radio-sm radio-primary" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
+                           '</td><td class="text-center">' + x.weekend + '</td><td class="text-center">' + Number(x.experience).toFixed(1) + '</td><td class="text-center"><span class="badge badge-soft badge-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
+                           (x.welfare ? '<span class="badge badge-soft badge-warning">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '') + '</td></tr>';
                 }).join('') + '</tbody></table>';
         });
     }

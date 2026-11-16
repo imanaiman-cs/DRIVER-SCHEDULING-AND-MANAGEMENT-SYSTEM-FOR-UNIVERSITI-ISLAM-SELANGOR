@@ -60,52 +60,55 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 $q = $kind . '=' . $task_id;
 adminPageStart('Task Report');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-clipboard-check text-success me-2"></i>Task report</h4>
-    <p class="text-muted mb-3"><?= $h($veh['plate_number']) ?> &middot; <?= $h(trim(($veh['brand'] ?? '') . ' ' . ($veh['model'] ?? ''))) ?> &middot; current mileage <strong><?= (int)$veh['mileage'] ?> km</strong></p>
-    <?php if ($error): ?><div class="alert alert-danger" role="alert"><?= $h($error) ?></div><?php endif; ?>
+    <h1 class="text-2xl font-medium mb-1">Task report</h1>
+    <p class="text-base-content/70 mb-4"><?= plate($veh['plate_number']) ?> <?= $h(trim(($veh['brand'] ?? '') . ' ' . ($veh['model'] ?? ''))) ?> &middot; current mileage <strong><?= (int)$veh['mileage'] ?> km</strong></p>
+    <?php if ($error): ?><div class="alert alert-soft alert-error mb-4" role="alert"><?= $h($error) ?></div><?php endif; ?>
     <?php if ($view): ?>
-        <div class="card border-0 shadow-sm"><div class="card-body">
-            <dl class="row mb-0">
-                <dt class="col-sm-4">Actual departure</dt><dd class="col-sm-8"><?= $h(date('d M Y, H:i', strtotime($report['actual_depart']))) ?></dd>
-                <dt class="col-sm-4">Actual return</dt><dd class="col-sm-8"><?= $h(date('d M Y, H:i', strtotime($report['actual_return']))) ?></dd>
-                <dt class="col-sm-4">End mileage</dt><dd class="col-sm-8"><?= (int)$report['end_mileage'] ?> km</dd>
-                <dt class="col-sm-4">Fuel level</dt><dd class="col-sm-8"><?= $h(VEHICLE_FUEL_LEVELS[$report['fuel_level']] ?? $report['fuel_level']) ?></dd>
-                <dt class="col-sm-4">Vehicle condition</dt><dd class="col-sm-8"><?= $report['vehicle_condition'] === 'ok' ? 'No problem' : '<span class="badge bg-danger">Problem</span> ' . $h($report['problem_type']) . ': ' . $h($report['problem_desc']) . ($report['can_be_used'] === '0' ? ' <span class="badge bg-warning text-dark">Cannot be used: Under Maintenance</span>' : ' (can still be used)') ?></dd>
-                <?php if ($report['photo']): ?><dt class="col-sm-4">Photo</dt><dd class="col-sm-8"><a href="<?= $h(SITE_URL . '/uploads/reports/' . basename($report['photo'])) ?>" target="_blank" rel="noopener">View photo</a></dd><?php endif; ?>
+        <div class="card border border-base-300 bg-base-100"><div class="card-body">
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-[12rem_1fr] sm:gap-y-3 [&_dt]:text-base-content/60 [&_dd]:mb-2 sm:[&_dd]:mb-0">
+                <dt>Actual departure</dt><dd><?= $h(date('d M Y, H:i', strtotime($report['actual_depart']))) ?></dd>
+                <dt>Actual return</dt><dd><?= $h(date('d M Y, H:i', strtotime($report['actual_return']))) ?></dd>
+                <dt>End mileage</dt><dd><?= (int)$report['end_mileage'] ?> km</dd>
+                <dt>Fuel level</dt><dd><?= $h(VEHICLE_FUEL_LEVELS[$report['fuel_level']] ?? $report['fuel_level']) ?></dd>
+                <dt>Vehicle condition</dt><dd><?= $report['vehicle_condition'] === 'ok' ? 'No problem' : '<span class="badge badge-soft badge-error">Problem</span> ' . $h($report['problem_type']) . ': ' . $h($report['problem_desc']) . ($report['can_be_used'] === '0' ? ' <span class="badge badge-soft badge-warning">Cannot be used: Under Maintenance</span>' : ' (can still be used)') ?></dd>
+                <?php if ($report['photo']): ?><dt>Photo</dt><dd><a class="link link-primary" href="<?= $h(SITE_URL . '/uploads/reports/' . basename($report['photo'])) ?>" target="_blank" rel="noopener">View photo</a></dd><?php endif; ?>
             </dl>
-            <div class="d-flex gap-2 mt-3"><a class="btn btn-success" href="task_report.php?<?= $h($q) ?>&amp;edit=1"><i class="fas fa-pen me-1"></i>Edit</a><a class="btn btn-outline-secondary" href="schedules.php">Back</a></div>
-            <p class="small text-muted mt-3 mb-0">A report cannot be deleted because it updates the vehicle's records.</p>
+            <div class="mt-4 flex gap-2"><a class="btn btn-primary" href="task_report.php?<?= $h($q) ?>&amp;edit=1"><i class="fas fa-pen"></i>Edit</a><a class="btn btn-ghost" href="schedules.php">Back</a></div>
+            <p class="mt-3 text-sm text-base-content/60">A report cannot be deleted because it updates the vehicle's records.</p>
         </div></div>
     <?php else: ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <input type="hidden" name="<?= $kind ?>" value="<?= $task_id ?>">
-        <div class="row g-3">
-            <div class="col-12 col-md-6"><label class="form-label fs-5" for="actual_depart">Actual departure *</label><input type="datetime-local" class="form-control form-control-lg" id="actual_depart" name="actual_depart" value="<?= $h($f['actual_depart']) ?>" required></div>
-            <div class="col-12 col-md-6"><label class="form-label fs-5" for="actual_return">Actual return *</label><input type="datetime-local" class="form-control form-control-lg" id="actual_return" name="actual_return" value="<?= $h($f['actual_return']) ?>" required></div>
-            <div class="col-12"><label class="form-label fs-5" for="end_mileage">End mileage (km) *</label>
-                <input class="form-control form-control-lg" id="end_mileage" name="end_mileage" inputmode="numeric" pattern="[0-9]*" maxlength="7" value="<?= $h($f['end_mileage']) ?>" required></div>
-            <div class="col-12"><span class="form-label fs-5 d-block">Fuel level *</span>
+        <div class="grid-12 grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-lg" for="actual_depart">Actual departure *</label><input type="datetime-local" class="input input-lg w-full" id="actual_depart" name="actual_depart" value="<?= $h($f['actual_depart']) ?>" required></div>
+            <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-lg" for="actual_return">Actual return *</label><input type="datetime-local" class="input input-lg w-full" id="actual_return" name="actual_return" value="<?= $h($f['actual_return']) ?>" required></div>
+            <div class="col-span-12"><label class="mb-1 block text-lg" for="end_mileage">End mileage (km) *</label>
+                <input class="input input-lg w-full" id="end_mileage" name="end_mileage" inputmode="numeric" pattern="[0-9]*" maxlength="7" value="<?= $h($f['end_mileage']) ?>" required></div>
+            <fieldset class="col-span-12"><legend class="mb-2 text-lg">Fuel level *</legend>
+                <div class="flex flex-wrap gap-x-6 gap-y-3">
                 <?php foreach (VEHICLE_FUEL_LEVELS as $k => $l): ?>
-                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="fuel_level" id="fl_<?= $k ?>" value="<?= $k ?>" <?= $f['fuel_level'] === $k ? 'checked' : '' ?>><label class="form-check-label fs-5" for="fl_<?= $k ?>"><?= $h($l) ?></label></div>
-                <?php endforeach; ?></div>
-            <div class="col-12"><span class="form-label fs-5 d-block">Vehicle condition *</span>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="vehicle_condition" id="vc_ok" value="ok" <?= $f['vehicle_condition'] !== 'problem' ? 'checked' : '' ?>><label class="form-check-label fs-5" for="vc_ok">No problem</label></div>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="vehicle_condition" id="vc_problem" value="problem" <?= $f['vehicle_condition'] === 'problem' ? 'checked' : '' ?>><label class="form-check-label fs-5" for="vc_problem">Problem</label></div></div>
+                    <label class="flex items-center gap-2 text-lg" for="fl_<?= $k ?>"><input class="radio radio-primary" type="radio" name="fuel_level" id="fl_<?= $k ?>" value="<?= $k ?>" <?= $f['fuel_level'] === $k ? 'checked' : '' ?>><?= $h($l) ?></label>
+                <?php endforeach; ?></div></fieldset>
+            <fieldset class="col-span-12"><legend class="mb-2 text-lg">Vehicle condition *</legend>
+                <div class="flex flex-wrap gap-x-6 gap-y-3">
+                <label class="flex items-center gap-2 text-lg" for="vc_ok"><input class="radio radio-primary" type="radio" name="vehicle_condition" id="vc_ok" value="ok" <?= $f['vehicle_condition'] !== 'problem' ? 'checked' : '' ?>>No problem</label>
+                <label class="flex items-center gap-2 text-lg" for="vc_problem"><input class="radio radio-primary" type="radio" name="vehicle_condition" id="vc_problem" value="problem" <?= $f['vehicle_condition'] === 'problem' ? 'checked' : '' ?>>Problem</label></div></fieldset>
         </div>
-        <div id="problemBox" class="border rounded p-3 mt-3" style="display:none;">
-            <h6 class="fw-bold">Vehicle problem</h6>
-            <div class="row g-3">
-                <div class="col-12 col-md-6"><label class="form-label" for="problem_type">Problem type *</label>
-                    <select class="form-select" id="problem_type" name="problem_type"><option value="">Choose...</option>
+        <div id="problemBox" class="mt-4 rounded-box border border-base-300 p-4" style="display:none;">
+            <h2 class="mb-3 font-semibold">Vehicle problem</h2>
+            <div class="grid-12 grid grid-cols-12 gap-4">
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="problem_type">Problem type *</label>
+                    <select class="select w-full" id="problem_type" name="problem_type"><option value="">Choose...</option>
                         <?php foreach (REPORT_PROBLEM_TYPES as $t): ?><option value="<?= htmlspecialchars($t) ?>" <?= $f['problem_type'] === $t ? 'selected' : '' ?>><?= $h($t) ?></option><?php endforeach; ?></select></div>
-                <div class="col-12"><label class="form-label" for="problem_desc">Description *</label><textarea class="form-control" id="problem_desc" name="problem_desc" rows="3" maxlength="500"><?= $h($f['problem_desc']) ?></textarea></div>
-                <div class="col-12 col-md-6"><label class="form-label" for="photo">Photo <span class="text-muted">(JPG or PNG, up to 5 MB)</span></label><input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"></div>
-                <div class="col-12"><span class="form-label d-block">Can the vehicle still be used? *</span>
-                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="can_be_used" id="cu1" value="1" <?= $f['can_be_used'] === '1' ? 'checked' : '' ?>><label class="form-check-label" for="cu1">Yes, it can still be used</label></div>
-                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="can_be_used" id="cu0" value="0" <?= $f['can_be_used'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="cu0">No (the vehicle becomes Under Maintenance)</label></div></div>
+                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="problem_desc">Description *</label><textarea class="textarea w-full" id="problem_desc" name="problem_desc" rows="3" maxlength="500"><?= $h($f['problem_desc']) ?></textarea></div>
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="photo">Photo <span class="font-normal text-base-content/60">(JPG or PNG, up to 5 MB)</span></label><input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"></div>
+                <fieldset class="col-span-12"><legend class="mb-2 text-sm font-medium">Can the vehicle still be used? *</legend>
+                    <div class="flex flex-col gap-3">
+                    <label class="flex items-center gap-2" for="cu1"><input class="radio radio-primary" type="radio" name="can_be_used" id="cu1" value="1" <?= $f['can_be_used'] === '1' ? 'checked' : '' ?>>Yes, it can still be used</label>
+                    <label class="flex items-center gap-2" for="cu0"><input class="radio radio-primary" type="radio" name="can_be_used" id="cu0" value="0" <?= $f['can_be_used'] === '0' ? 'checked' : '' ?>>No (the vehicle becomes Under Maintenance)</label></div></fieldset>
             </div>
         </div>
-        <div class="d-flex gap-2 mt-4"><button class="btn btn-success btn-lg" type="submit"><?= $report ? 'Save changes' : 'Submit report' ?></button><a class="btn btn-outline-secondary btn-lg" href="schedules.php">Cancel</a></div>
+        <div class="mt-6 flex flex-wrap gap-2"><button class="btn btn-primary btn-lg" type="submit"><?= $report ? 'Save changes' : 'Submit report' ?></button><a class="btn btn-ghost btn-lg" href="schedules.php">Cancel</a></div>
     </div></form>
     <script>
     (function () {

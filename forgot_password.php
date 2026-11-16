@@ -7,6 +7,7 @@
 // Nothing tells a visitor whether an account exists except 2.1, as the SRS asks.
 // ============================================================
 require_once 'config/database.php';
+require_once 'includes/admin_page.php';     // appHead()
 
 if (isLoggedIn()) { header('Location: ' . roleHomeUrl()); exit(); }
 
@@ -72,65 +73,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($_SESSION['pwreset']); $step = 'start'; $errors['username'] = 'Please start again.';
     }
 }
-$err = fn($k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
+$err = fn($k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
 $tok = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken()) . '">';
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="uis">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot password | UIS Driver Management</title>
-    <link rel="icon" type="image/png" href="assets/images/uis-favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body{background:linear-gradient(160deg,#06291b,#0b5d3b 55%,#15804f);min-height:100vh}
-        .reg-card{max-width:30rem;margin:8vh auto;border:0;border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden}
-        .reg-head{background:#fff;text-align:center;padding:1.5rem 1.5rem .5rem}.reg-head img{height:64px}
-        .btn-uis{background:linear-gradient(135deg,#0b5d3b,#15804f);color:#fff;border:0;font-weight:600;padding:.65rem}.btn-uis:hover{color:#fff;filter:brightness(1.08)}
-        .form-label{font-weight:600;font-size:.82rem}
-        .lang-switch{position:fixed;top:12px;right:12px;z-index:50;display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;font-size:.8rem;font-weight:600;background:#fff}
-        .lang-switch .lang-link{padding:.25rem .65rem;color:#475569;text-decoration:none}.lang-switch .lang-link.active{background:#0b5d3b;color:#fff}
-    </style>
+<?php appHead('Forgot password'); ?>
 </head>
-<body>
-<?= languageSwitcher() ?>
-<div class="card reg-card">
-    <div class="reg-head"><img src="assets/images/uis-favicon.png" alt="UIS"><h5 class="fw-bold mt-2 mb-0" style="color:#0b5d3b">Reset password</h5><p class="text-muted small mb-2">Use the verification code sent to your UIS e-mail.</p></div>
-    <div class="card-body p-4 pt-2">
-    <?php if ($info): ?><div class="alert alert-success py-2"><i class="fas fa-envelope-circle-check me-1"></i><?= htmlspecialchars($info) ?></div><?php endif; ?>
+<body class="flex min-h-screen flex-col bg-base-200">
+<div class="fixed end-3 top-3 z-50"><?= languageSwitcher() ?></div>
+<main class="flex flex-1 items-center justify-center px-4 py-10">
+<div class="w-full max-w-sm">
+    <div class="mb-6 flex flex-col items-center text-center">
+        <img src="assets/images/uis-favicon.png" alt="UIS" class="mb-4 size-12">
+        <h1 class="text-xl font-medium">Reset password</h1>
+        <p class="text-sm text-base-content/60">Use the verification code sent to your UIS e-mail.</p>
+    </div>
+    <div class="card border border-base-300 bg-base-100"><div class="card-body">
+    <?php if ($info): ?><div class="alert alert-soft alert-success mb-4 text-sm"><i class="fas fa-envelope-circle-check me-1"></i><?= htmlspecialchars($info) ?></div><?php endif; ?>
     <?php if ($step === 'start'): ?>
         <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="request_code">
-            <div class="mb-3"><label class="form-label" for="username">Staff ID *</label>
-                <input class="form-control" id="username" name="username" maxlength="50" required autocomplete="username" value="<?= htmlspecialchars($v['username']) ?>"><?= $err('username') ?></div>
-            <div class="mb-3"><label class="form-label" for="email">UIS e-mail *</label>
-                <input type="email" class="form-control" id="email" name="email" maxlength="100" required autocomplete="email" value="<?= htmlspecialchars($v['email']) ?>"><?= $err('email') ?></div>
-            <button class="btn btn-uis w-100" type="submit"><i class="fas fa-paper-plane me-1"></i>Request code</button>
-            <p class="text-center small mt-3 mb-0"><a href="login.php">Back to sign in</a></p>
+            <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="username">Staff ID *</label>
+                <input class="input w-full" id="username" name="username" maxlength="50" required autocomplete="username" value="<?= htmlspecialchars($v['username']) ?>"><?= $err('username') ?></div>
+            <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="email">UIS e-mail *</label>
+                <input type="email" class="input w-full" id="email" name="email" maxlength="100" required autocomplete="email" value="<?= htmlspecialchars($v['email']) ?>"><?= $err('email') ?></div>
+            <button class="btn btn-primary btn-block" type="submit"><i class="fas fa-paper-plane me-1"></i>Request code</button>
+            <p class="text-center text-sm mt-3 mb-0"><a class="link link-primary" href="login.php">Back to sign in</a></p>
         </form>
     <?php elseif ($step === 'code'): ?>
-        <p class="small text-muted">A verification code was sent to <strong><?= htmlspecialchars($state['email']) ?></strong>. It is valid for <?= VERIFICATION_MINUTES ?> minutes.</p>
+        <p class="text-sm text-base-content/60">A verification code was sent to <strong><?= htmlspecialchars($state['email']) ?></strong>. It is valid for <?= VERIFICATION_MINUTES ?> minutes.</p>
         <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="verify">
-            <div class="mb-3"><label class="form-label" for="code">Verification code *</label>
-                <input class="form-control form-control-lg text-center" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required style="letter-spacing:.3em"><?= $err('code') ?></div>
-            <button class="btn btn-uis w-100" type="submit"><i class="fas fa-check me-1"></i>Submit</button>
+            <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="code">Verification code *</label>
+                <input class="input input-lg w-full text-center" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" required style="letter-spacing:.3em"><?= $err('code') ?></div>
+            <button class="btn btn-primary btn-block" type="submit"><i class="fas fa-check me-1"></i>Submit</button>
         </form>
-        <div class="d-flex justify-content-between mt-3 small">
-            <form method="post" class="d-inline"><?= $tok ?><input type="hidden" name="action" value="resend"><button class="btn btn-link p-0 small" type="submit">Resend code</button></form>
-            <form method="post" class="d-inline"><?= $tok ?><input type="hidden" name="action" value="restart"><button class="btn btn-link p-0 small" type="submit">Start again</button></form>
+        <div class="flex justify-between mt-3 text-sm">
+            <form method="post" class="inline"><?= $tok ?><input type="hidden" name="action" value="resend"><button class="link link-primary text-sm" type="submit">Resend code</button></form>
+            <form method="post" class="inline"><?= $tok ?><input type="hidden" name="action" value="restart"><button class="link link-primary text-sm" type="submit">Start again</button></form>
         </div>
     <?php else: ?>
         <form method="post" novalidate><?= $tok ?><input type="hidden" name="action" value="save">
-            <div class="mb-3"><label class="form-label" for="password">New password *</label>
-                <input type="password" class="form-control" id="password" name="password" required autocomplete="new-password" maxlength="72"><?= $err('password') ?>
-                <div class="form-text">At least 8 characters, with letters and digits.</div></div>
-            <div class="mb-3"><label class="form-label" for="confirm_password">Confirm password *</label>
-                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password" maxlength="72"><?= $err('confirm_password') ?></div>
-            <button class="btn btn-uis w-100" type="submit"><i class="fas fa-key me-1"></i>Save</button>
+            <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="password">New password *</label>
+                <input type="password" class="input w-full" id="password" name="password" required autocomplete="new-password" maxlength="72"><?= $err('password') ?>
+                <div class="mt-1 block text-xs text-base-content/60">At least 8 characters, with letters and digits.</div></div>
+            <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="confirm_password">Confirm password *</label>
+                <input type="password" class="input w-full" id="confirm_password" name="confirm_password" required autocomplete="new-password" maxlength="72"><?= $err('confirm_password') ?></div>
+            <button class="btn btn-primary btn-block" type="submit"><i class="fas fa-key me-1"></i>Save</button>
         </form>
     <?php endif; ?>
-    </div>
+    </div></div>
 </div>
+</main>
 </body>
 </html>

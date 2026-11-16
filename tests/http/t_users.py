@@ -41,7 +41,7 @@ r = anon.post('register.php', {'action': 'verify', 'code': code4}); ok('the righ
 for name, bad in [('short password', dict(password='a1', confirm_password='a1')), ('no digits', dict(password='abcdefgh', confirm_password='abcdefgh')),
                   ('password mismatch (4.1)', dict(confirm_password='Other1234')), ('empty name', dict(full_name='')), ('PTJ not in the list', dict(department='Nowhere')), ('bad phone', dict(phone='abc')),
                   ('Head of Department of a PTJ that has one (4.2)', dict(role='supervisor'))]:
-    r = reg_details(anon, **bad); ok('registration refused: ' + name, r.status_code == 200 and not exists('NEW001') and 'invalid-feedback' in r.text)
+    r = reg_details(anon, **bad); ok('registration refused: ' + name, r.status_code == 200 and not exists('NEW001') and 'text-xs text-error' in r.text)
 ok('the message names the existing Head of Department (4.2)', 'already has a Head of Department' in reg_details(anon, role='supervisor').text)
 r = reg_details(anon, role='head_admin'); ok('registered: a role other than Staff or Head of Department becomes Staff', r.status_code == 302 and r.headers['Location'].endswith('login.php') and sql("SELECT role FROM users WHERE username='NEW001'") == 'staff')
 ok('the staff ID and e-mail are the verified ones; approver = the Head of Department of the PTJ; password hashed', sql("SELECT email FROM users WHERE username='NEW001'") == 'aminah@uis.edu.my'

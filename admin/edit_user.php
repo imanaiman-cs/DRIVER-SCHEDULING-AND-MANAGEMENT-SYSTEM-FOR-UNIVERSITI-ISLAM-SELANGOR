@@ -92,32 +92,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 }
-$err = fn($k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . $h($errors[$k]) . '</div>' : '';   // after the checks: an arrow function copies $errors when it is created
+$err = fn($k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . $h($errors[$k]) . '</div>' : '';   // after the checks: an arrow function copies $errors when it is created
 adminPageStart('Update account');
 $have = array_filter(explode(',', (string)$v['license_class']));
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-user-pen text-success me-2"></i>Update account <span class="badge <?= (int)$u['is_active'] ? 'bg-success' : 'bg-secondary' ?> ms-2"><?= (int)$u['is_active'] ? 'Active' : 'Inactive' ?></span></h4>
-    <p class="text-muted small"><?= $h($u['full_name']) ?> &middot; <?= $h($u['username']) ?> &middot; <?= $h($u['email']) ?>. The name, phone, address and password are changed by the user in the profile.</p>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.</div><?php endif; ?>
-    <div class="card border-0 shadow-sm"><div class="card-body">
+    <h1 class="text-2xl font-medium mb-1">Update account <span class="badge <?= (int)$u['is_active'] ? 'badge-soft badge-success' : 'badge-ghost' ?> ms-2"><?= (int)$u['is_active'] ? 'Active' : 'Inactive' ?></span></h1>
+    <p class="text-base-content/60 text-sm"><?= $h($u['full_name']) ?> &middot; <?= $h($u['username']) ?> &middot; <?= $h($u['email']) ?>. The name, phone, address and password are changed by the user in the profile.</p>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error mb-4" role="alert">Please correct the highlighted fields.</div><?php endif; ?>
+    <div class="card border border-base-300 bg-base-100"><div class="card-body">
         <form method="post" novalidate>
             <input type="hidden" name="id" value="<?= $id ?>">
-            <div class="row g-3">
-                <div class="col-12 col-md-6"><label class="form-label" for="department">Department <span class="text-danger">*</span></label>
-                    <select class="form-select" id="department" name="department" required><option value="">Choose...</option>
+            <div class="grid-12 grid grid-cols-12 gap-4">
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="department">Department <span class="text-error">*</span></label>
+                    <select class="select w-full" id="department" name="department" required><option value="">Choose...</option>
                         <?php foreach ($departments as $d): ?><option value="<?= $h($d) ?>" <?= $v['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
-                <div class="col-12 col-md-6"><label class="form-label" for="role">Role <span class="text-danger">*</span></label>
-                    <select class="form-select" id="role" name="role" <?= $lockRole ? 'disabled' : 'required' ?>>
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="role">Role <span class="text-error">*</span></label>
+                    <select class="select w-full" id="role" name="role" <?= $lockRole ? 'disabled' : 'required' ?>>
                         <?php foreach ($roles as $k => $lbl): ?><option value="<?= $k ?>" <?= $v['role'] === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select>
-                    <?php if ($lockRole): ?><input type="hidden" name="role" value="<?= $h($v['role']) ?>"><div class="form-text"><?= $h($lockRole) ?></div><?php endif; ?><?= $err('role') ?></div>
+                    <?php if ($lockRole): ?><input type="hidden" name="role" value="<?= $h($v['role']) ?>"><div class="mt-1 block text-xs text-base-content/60"><?= $h($lockRole) ?></div><?php endif; ?><?= $err('role') ?></div>
                 <?php if ($drv): ?>
-                <div class="col-12"><span class="form-label d-block">Licence class <span class="text-danger">*</span></span>
-                    <?php foreach (LICENCE_CLASSES as $k => $l): ?><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>><label class="form-check-label" for="lc_<?= $k ?>"><?= $h($l) ?></label></div><?php endforeach; ?><?= $err('license_class') ?></div>
-                <div class="col-12 col-md-6"><label class="form-label" for="license_expiry">Licence expiry date <span class="text-danger">*</span></label><input type="date" class="form-control" id="license_expiry" name="license_expiry" value="<?= $h($v['license_expiry']) ?>"><?= $err('license_expiry') ?></div>
-                <div class="col-12 col-md-6"><label class="form-label" for="date_joined">Start date of service <span class="text-danger">*</span></label><input type="date" class="form-control" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $h($v['date_joined']) ?>"><?= $err('date_joined') ?></div>
+                <div class="col-span-12"><span class="mb-1 block text-sm font-medium">Licence class <span class="text-error">*</span></span>
+                    <?php foreach (LICENCE_CLASSES as $k => $l): ?><div class="inline-flex items-center gap-2 me-4"><input class="checkbox checkbox-sm" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>><label class="text-sm" for="lc_<?= $k ?>"><?= $h($l) ?></label></div><?php endforeach; ?><?= $err('license_class') ?></div>
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_expiry">Licence expiry date <span class="text-error">*</span></label><input type="date" class="input w-full" id="license_expiry" name="license_expiry" value="<?= $h($v['license_expiry']) ?>"><?= $err('license_expiry') ?></div>
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="date_joined">Start date of service <span class="text-error">*</span></label><input type="date" class="input w-full" id="date_joined" name="date_joined" max="<?= date('Y-m-d') ?>" value="<?= $h($v['date_joined']) ?>"><?= $err('date_joined') ?></div>
                 <?php endif; ?>
             </div>
-            <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit"><i class="fas fa-save me-1"></i>Save</button><a class="btn btn-outline-secondary" href="users.php">Cancel</a></div>
+            <div class="mt-4 flex gap-2"><button class="btn btn-success" type="submit"><i class="fas fa-save me-1"></i>Save</button><a class="btn btn-outline" href="users.php">Cancel</a></div>
         </form>
     </div></div>
 <?php adminPageEnd(); ?>

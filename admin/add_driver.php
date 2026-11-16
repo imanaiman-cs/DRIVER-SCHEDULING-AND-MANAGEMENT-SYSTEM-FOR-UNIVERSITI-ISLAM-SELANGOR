@@ -134,33 +134,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['mode'] ?? '') !== 'registe
 $cands = $conn->query("SELECT user_id, username, full_name, email FROM users WHERE role = 'driver' AND is_active = 1 AND driver_id IS NULL ORDER BY full_name")->fetch_all(MYSQLI_ASSOC);
 adminPageStart('Register Driver');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-plus text-success me-2"></i>Register Driver</h4>
-    <p class="text-muted small">Register a driver: the system creates the account with a default password and e-mails the login details to the UIS e-mail address.</p>
-    <?php if ($nerrors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($nerrors['_']) ? ' ' . htmlspecialchars($nerrors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm mb-4" novalidate><div class="card-body">
+    <h1 class="text-2xl font-medium mb-1">Register Driver</h1>
+    <p class="text-base-content/60 text-sm">Register a driver: the system creates the account with a default password and e-mails the login details to the UIS e-mail address.</p>
+    <?php if ($nerrors): ?><div class="alert alert-soft alert-error mb-4" role="alert">Please correct the highlighted fields.<?= isset($nerrors['_']) ? ' ' . htmlspecialchars($nerrors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100 mb-4" novalidate><div class="card-body">
         <input type="hidden" name="mode" value="register">
-        <?php $nerr = fn($k) => isset($nerrors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($nerrors[$k]) . '</div>' : ''; $nval = fn($k) => htmlspecialchars((string)($nv[$k] ?? '')); ?>
-        <div class="row g-3 mb-1">
-            <div class="col-12 col-md-4"><label class="form-label" for="username">Staff ID <span class="text-danger">*</span></label><input class="form-control" id="username" name="username" maxlength="50" value="<?= $nval('username') ?>"><?= $nerr('username') ?></div>
-            <div class="col-12 col-md-8"><label class="form-label" for="full_name">Name <span class="text-danger">*</span></label><input class="form-control" id="full_name" name="full_name" maxlength="100" value="<?= $nval('full_name') ?>"><?= $nerr('full_name') ?></div>
-            <div class="col-12 col-md-6"><label class="form-label" for="email">UIS e-mail <span class="text-danger">*</span></label><input type="email" class="form-control" id="email" name="email" maxlength="100" value="<?= $nval('email') ?>"><?= $nerr('email') ?></div>
-            <div class="col-12 col-md-6"><label class="form-label" for="phone">Phone number <span class="text-danger">*</span></label><input class="form-control" id="phone" name="phone" maxlength="20" value="<?= $nval('phone') ?>"><?= $nerr('phone') ?></div>
+        <?php $nerr = fn($k) => isset($nerrors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($nerrors[$k]) . '</div>' : ''; $nval = fn($k) => htmlspecialchars((string)($nv[$k] ?? '')); ?>
+        <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
+            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="username">Staff ID <span class="text-error">*</span></label><input class="input w-full" id="username" name="username" maxlength="50" value="<?= $nval('username') ?>"><?= $nerr('username') ?></div>
+            <div class="col-span-12 md:col-span-8"><label class="mb-1 block text-sm font-medium" for="full_name">Name <span class="text-error">*</span></label><input class="input w-full" id="full_name" name="full_name" maxlength="100" value="<?= $nval('full_name') ?>"><?= $nerr('full_name') ?></div>
+            <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="email">UIS e-mail <span class="text-error">*</span></label><input type="email" class="input w-full" id="email" name="email" maxlength="100" value="<?= $nval('email') ?>"><?= $nerr('email') ?></div>
+            <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="phone">Phone number <span class="text-error">*</span></label><input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= $nval('phone') ?>"><?= $nerr('phone') ?></div>
         </div>
         <?php driverFormFields($nv, $nerrors, false, null, true); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit"><i class="fas fa-save me-1"></i>Register driver</button><a class="btn btn-outline-secondary" href="drivers.php">Cancel</a></div>
+        <div class="mt-4 flex gap-2"><button class="btn btn-success" type="submit"><i class="fas fa-save me-1"></i>Register driver</button><a class="btn btn-outline" href="drivers.php">Cancel</a></div>
     </div></form>
 
-    <h6 class="fw-bold">Link an existing driver account</h6>
-    <p class="text-muted small">Choose an existing account that has the Driver role and is not linked to a driver record yet. The name and e-mail are taken from that account.</p>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
-        <div class="mb-3"><label class="form-label" for="user_id">Driver account <span class="text-danger">*</span></label>
-            <select class="form-select" id="user_id" name="user_id" required><option value="">Choose...</option>
+    <h2 class="text-lg font-medium">Link an existing driver account</h2>
+    <p class="text-base-content/60 text-sm">Choose an existing account that has the Driver role and is not linked to a driver record yet. The name and e-mail are taken from that account.</p>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error mb-4" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
+        <div class="mb-3"><label class="mb-1 block text-sm font-medium" for="user_id">Driver account <span class="text-error">*</span></label>
+            <select class="select w-full" id="user_id" name="user_id" required><option value="">Choose...</option>
                 <?php foreach ($cands as $c): ?><option value="<?= (int)$c['user_id'] ?>" <?= $sel === (int)$c['user_id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['full_name'] . ' (' . $c['username'] . ', ' . $c['email'] . ')') ?></option><?php endforeach; ?>
             </select>
-            <?php if (isset($errors['user_id'])): ?><div class="invalid-feedback d-block"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
-            <?php if (!$cands): ?><div class="form-text text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
+            <?php if (isset($errors['user_id'])): ?><div class="mt-1 block text-xs text-error"><?= htmlspecialchars($errors['user_id']) ?></div><?php endif; ?>
+            <?php if (!$cands): ?><div class="mt-1 block text-xs text-base-content/60 text-warning">There is no driver account waiting to be registered. New accounts arrive from the staff system import.</div><?php endif; ?></div>
         <?php driverFormFields($v, $errors, false, null, true); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline-secondary" href="drivers.php">Cancel</a></div>
+        <div class="mt-4 flex gap-2"><button class="btn btn-success" type="submit">Save driver</button><a class="btn btn-outline" href="drivers.php">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

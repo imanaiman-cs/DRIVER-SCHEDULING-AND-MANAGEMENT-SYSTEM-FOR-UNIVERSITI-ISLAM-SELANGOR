@@ -55,21 +55,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'usage
 $shown = $cur['status'] === 'maintenance' ? 'maintenance' : ($cur['status'] === 'inactive' ? 'inactive' : 'available');
 adminPageStart('Edit Vehicle');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-pen text-success me-2"></i>Update Vehicle <?= htmlspecialchars($cur['plate_number']) ?></h4>
-    <p class="text-muted small">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
+    <h1 class="text-2xl font-medium mb-1">Update Vehicle <?= htmlspecialchars($cur['plate_number']) ?></h1>
+    <p class="mb-4 text-sm text-base-content/60">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
         &middot; Deactivate the vehicle in the vehicle list.</p>
-    <?php if ($usageError): ?><div class="alert alert-danger" role="alert"><?= htmlspecialchars($usageError) ?><?= fleetItemsList($usageItems, false, $id) ?></div><?php endif; ?>
-    <form method="post" class="card border-0 shadow-sm mb-3" novalidate><div class="card-body">
+    <?php if ($usageError): ?><div class="alert alert-soft alert-error mb-4 block" role="alert"><?= htmlspecialchars($usageError) ?><?= fleetItemsList($usageItems, false, $id) ?></div><?php endif; ?>
+    <form method="post" class="card border border-base-300 bg-base-100 mb-4" novalidate><div class="card-body">
         <input type="hidden" name="id" value="<?= $id ?>"><input type="hidden" name="action" value="usage">
-        <div class="row g-3">
-            <div class="col-6 col-md-3"><label class="form-label" for="mileage">Current mileage (km) <span class="text-danger">*</span></label>
-                <input type="number" min="<?= (int)$cur['mileage'] ?>" max="9999999" class="form-control" id="mileage" name="mileage" required value="<?= htmlspecialchars((string)($_POST['mileage'] ?? $cur['mileage'])) ?>"></div>
-            <div class="col-6 col-md-3"><label class="form-label" for="fuel_level">Current fuel level <span class="text-danger">*</span></label>
-                <select class="form-select" id="fuel_level" name="fuel_level" required><?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($_POST['fuel_level'] ?? $cur['fuel_level']) === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
-            <div class="col-12 col-md-3"><label class="form-label" for="status">Status</label>
-                <select class="form-select" id="status" name="status" <?= $cur['status'] === 'inactive' ? 'disabled' : '' ?>><option value="available" <?= $shown === 'available' ? 'selected' : '' ?>>Active</option><option value="maintenance" <?= $shown === 'maintenance' ? 'selected' : '' ?>>Under Maintenance</option></select></div>
+        <div class="grid-12 grid grid-cols-12 gap-4">
+            <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="mileage">Current mileage (km) <span class="text-error">*</span></label>
+                <input type="number" min="<?= (int)$cur['mileage'] ?>" max="9999999" class="input w-full" id="mileage" name="mileage" required value="<?= htmlspecialchars((string)($_POST['mileage'] ?? $cur['mileage'])) ?>"></div>
+            <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="fuel_level">Current fuel level <span class="text-error">*</span></label>
+                <select class="select w-full" id="fuel_level" name="fuel_level" required><?php foreach (array_reverse(VEHICLE_FUEL_LEVELS, true) as $k => $l): ?><option value="<?= $k ?>" <?= ($_POST['fuel_level'] ?? $cur['fuel_level']) === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
+            <div class="col-span-12 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="status">Status</label>
+                <select class="select w-full" id="status" name="status" <?= $cur['status'] === 'inactive' ? 'disabled' : '' ?>><option value="available" <?= $shown === 'available' ? 'selected' : '' ?>>Active</option><option value="maintenance" <?= $shown === 'maintenance' ? 'selected' : '' ?>>Under Maintenance</option></select></div>
         </div>
-        <div class="mt-3 d-flex gap-2"><button class="btn btn-success" type="submit">Save</button><a class="btn btn-outline-secondary" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
+        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save</button><a class="btn btn-outline" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
     </div></form>
 
 <?php adminPageEnd(); ?>

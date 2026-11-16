@@ -15,7 +15,9 @@ method to its table, column and function. Keep them in line when the schema chan
 
 ## Stack and running
 
-- Plain PHP 8 + MySQL/MariaDB (mysqli), Bootstrap 5, XAMPP on Windows. No framework, no Composer, no build step. Keep it that way.
+- Plain PHP 8 + MySQL/MariaDB (mysqli), XAMPP on Windows. No PHP framework, no Composer. The interface is Tailwind CSS 4 + DaisyUI 5
+  (no Bootstrap, no jQuery): after changing classes in a PHP file run `npm install` once and `npm run build:css`, and commit
+  `assets/css/app.css` (the server needs no Node). Dialogs: `assets/js/ui.js` (`data-confirm`, `UIS.confirm()`, `UIS.askReason()`).
 - Database `uis_driver_db`: full schema + demo data in `database.sql`; changes for existing databases go in `migrations/`.
 - App URL: `http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php`. Demo accounts: `LOGIN_ACCOUNTS.txt`.
 - Hourly jobs: `php cron/run_jobs.php` (also run lightly on page load).

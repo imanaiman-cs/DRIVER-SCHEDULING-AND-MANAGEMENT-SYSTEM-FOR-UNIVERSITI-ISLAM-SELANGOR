@@ -183,86 +183,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 adminPageStart('Request a Vehicle');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-car-side text-success me-2"></i>Request a Vehicle</h4>
+    <h1 class="text-2xl font-medium mb-4">Request a Vehicle</h1>
+
     <?php if (!$approver_id): ?>
-        <div class="alert alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>
+        <div class="alert alert-soft alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>
     <?php endif; ?>
     <?php if ($errors): ?>
-        <div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?></ul></div>
+        <div class="alert alert-soft alert-error"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?></ul></div>
     <?php endif; ?>
 
     <form method="post" enctype="multipart/form-data" id="requestForm" novalidate>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Type of request</h6>
-            <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_uis" value="uis" <?= $f['request_type'] !== 'pay_claim' ? 'checked' : '' ?>>
-                <label class="form-check-label" for="rt_uis"><strong>UIS vehicle</strong> <span class="text-muted">with a driver, or without a driver (you drive it yourself: self drive)</span></label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="request_type" id="rt_pc" value="pay_claim" <?= $f['request_type'] === 'pay_claim' ? 'checked' : '' ?>>
-                <label class="form-check-label" for="rt_pc"><strong>Pay and Claim</strong> <span class="text-muted">you use your own car and claim the cost. No UIS vehicle or driver is booked. Approved by your Head of Department, then the Head of Admin.</span></label></div>
-            <div id="ownVehicleRow" class="mt-3" style="display:none;"><label class="form-label small" for="own_vehicle_plate">Registration number of your own vehicle *</label>
-                <input class="form-control" id="own_vehicle_plate" name="own_vehicle_plate" maxlength="20" style="max-width:16rem;text-transform:uppercase" value="<?= htmlspecialchars($f['own_vehicle_plate']) ?>"></div>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Type of request</h6>
+            <label class="flex items-start gap-2" for="rt_uis"><input class="radio radio-sm radio-primary mt-0.5" type="radio" name="request_type" id="rt_uis" value="uis" <?= $f['request_type'] !== 'pay_claim' ? 'checked' : '' ?>>
+                <span><strong>UIS vehicle</strong> <span class="text-base-content/60">with a driver, or without a driver (you drive it yourself: self drive)</span></span></label>
+            <label class="flex items-start gap-2" for="rt_pc"><input class="radio radio-sm radio-primary mt-0.5" type="radio" name="request_type" id="rt_pc" value="pay_claim" <?= $f['request_type'] === 'pay_claim' ? 'checked' : '' ?>>
+                <span><strong>Pay and Claim</strong> <span class="text-base-content/60">you use your own car and claim the cost. No UIS vehicle or driver is booked. Approved by your Head of Department, then the Head of Admin.</span></span></label>
+            <div id="ownVehicleRow" class="mt-3" style="display:none;"><label class="mb-1 block text-sm font-medium" for="own_vehicle_plate">Registration number of your own vehicle *</label>
+                <input class="input w-full max-w-64 uppercase" id="own_vehicle_plate" name="own_vehicle_plate" maxlength="20" value="<?= htmlspecialchars($f['own_vehicle_plate']) ?>"></div>
         </div></div>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">1. When and how many</h6>
-            <div class="row g-3">
-                <div class="col-6 col-md-3"><label class="form-label small" for="depart_date">Departure date *</label>
-                    <input type="date" class="form-control" id="depart_date" name="depart_date" value="<?= htmlspecialchars($f['depart_date']) ?>" required></div>
-                <div class="col-6 col-md-3"><label class="form-label small" for="depart_time">Departure time *</label>
-                    <input type="time" class="form-control" id="depart_time" name="depart_time" value="<?= htmlspecialchars($f['depart_time']) ?>" required></div>
-                <div class="col-6 col-md-3"><label class="form-label small" for="return_date">Return date *</label>
-                    <input type="date" class="form-control" id="return_date" name="return_date" value="<?= htmlspecialchars($f['return_date']) ?>" required></div>
-                <div class="col-6 col-md-3"><label class="form-label small" for="return_time">Return time *</label>
-                    <input type="time" class="form-control" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
-                <div class="col-6 col-md-3"><label class="form-label small" for="passengers">Number of passengers *</label>
-                    <input type="number" class="form-control" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
-                <div class="col-12 col-md-6" id="needDriverRow" data-can-self-drive="<?= $canSelfDrive ? '1' : '0' ?>"><label class="form-label small d-block">Do you need a driver? * <span class="text-muted">(Self Drive: lorry, GDL drivers only)</span></label>
-                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd1" value="1" <?= $f['need_driver'] !== '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd1">With driver</label></div>
-                    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="need_driver" id="nd0" value="0" <?= $f['need_driver'] === '0' ? 'checked' : '' ?>><label class="form-check-label" for="nd0">Without driver</label></div>
-                    <div class="form-text">Without a driver, no driver is assigned. The approval steps and the vehicle booking stay the same.</div></div>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">1. When and how many</h6>
+            <div class="grid-12 grid grid-cols-12 gap-4">
+                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_date">Departure date *</label>
+                    <input type="date" class="input w-full" id="depart_date" name="depart_date" value="<?= htmlspecialchars($f['depart_date']) ?>" required></div>
+                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_time">Departure time *</label>
+                    <input type="time" class="input w-full" id="depart_time" name="depart_time" value="<?= htmlspecialchars($f['depart_time']) ?>" required></div>
+                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="return_date">Return date *</label>
+                    <input type="date" class="input w-full" id="return_date" name="return_date" value="<?= htmlspecialchars($f['return_date']) ?>" required></div>
+                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="return_time">Return time *</label>
+                    <input type="time" class="input w-full" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
+                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="passengers">Number of passengers *</label>
+                    <input type="number" class="input w-full" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
+                <div class="col-span-12 md:col-span-6" id="needDriverRow" data-can-self-drive="<?= $canSelfDrive ? '1' : '0' ?>"><span class="mb-1 block text-sm font-medium">Do you need a driver? * <span class="font-normal text-base-content/60">(Self Drive: lorry, GDL drivers only)</span></span>
+                    <div class="flex flex-wrap gap-4">
+                        <label class="flex items-center gap-2 text-sm" for="nd1"><input class="radio radio-sm radio-primary" type="radio" name="need_driver" id="nd1" value="1" <?= $f['need_driver'] !== '0' ? 'checked' : '' ?>>With driver</label>
+                        <label class="flex items-center gap-2 text-sm" for="nd0"><input class="radio radio-sm radio-primary" type="radio" name="need_driver" id="nd0" value="0" <?= $f['need_driver'] === '0' ? 'checked' : '' ?>>Without driver</label>
+                    </div>
+                    <p class="mt-1 text-xs text-base-content/60">Without a driver, no driver is assigned. The approval steps and the vehicle booking stay the same.</p></div>
             </div>
-            <div id="timingNotice" class="mt-3" style="display:none;"></div>
+            <div id="timingNotice" class="mt-4" style="display:none;"></div>
         </div></div>
 
-        <div class="card border-0 shadow-sm mb-3" id="vehicleCard"><div class="card-body">
-            <h6 class="fw-bold">2. Choose a vehicle type <span class="fw-normal text-muted small">(the Vehicle Section chooses the exact vehicle; the type is reserved from departure until 1 hour after the return)</span></h6>
-            <div id="vehicleMsg" class="text-muted small">Enter the departure, the return and the number of passengers to see the available vehicle types.</div>
-            <div id="vehicleList" class="row g-2 mt-1"></div>
-            <div class="row g-3 mt-1"><div class="col-6 col-md-3"><label class="form-label small" for="quantity">Number of vehicles *</label>
-                <input type="number" class="form-control" id="quantity" name="quantity" min="1" max="20" value="<?= htmlspecialchars($f['quantity']) ?>"></div></div>
+        <div class="card border border-base-300 bg-base-100 mb-4" id="vehicleCard"><div class="card-body">
+            <h6 class="font-bold">2. Choose a vehicle type <span class="font-normal text-base-content/60 text-sm">(the Vehicle Section chooses the exact vehicle; the type is reserved from departure until 1 hour after the return)</span></h6>
+            <div id="vehicleMsg" class="text-base-content/60 text-sm">Enter the departure, the return and the number of passengers to see the available vehicle types.</div>
+            <div id="vehicleList" class="grid-12 grid grid-cols-12 gap-2 mt-1"></div>
+            <div class="grid-12 grid grid-cols-12 gap-4 mt-2"><div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="quantity">Number of vehicles *</label>
+                <input type="number" class="input w-full" id="quantity" name="quantity" min="1" max="20" value="<?= htmlspecialchars($f['quantity']) ?>"></div></div>
         </div></div>
 
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">3. Trip details</h6>
-            <div class="row g-3">
-                <div class="col-md-6"><label class="form-label small" for="destination">Destination (name) *</label>
-                    <input class="form-control" id="destination" name="destination" maxlength="255" value="<?= htmlspecialchars($f['destination']) ?>" required></div>
-                <div class="col-md-6"><label class="form-label small" for="destination_address">Destination (full address) *</label>
-                    <input class="form-control" id="destination_address" name="destination_address" maxlength="500" value="<?= htmlspecialchars($f['destination_address']) ?>" required></div>
-                <div class="col-12"><label class="form-label small d-block">Purpose type *</label>
-                    <?php foreach (PURPOSE_TYPES as $k => $lbl): ?><div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="purpose_type" id="pt_<?= $k ?>" value="<?= $k ?>" <?= $f['purpose_type'] === $k ? 'checked' : '' ?>><label class="form-check-label" for="pt_<?= $k ?>"><?= $lbl ?></label></div><?php endforeach; ?>
-                    <div class="form-check form-check-inline" id="ptRentalWrap" style="display:none;"><input class="form-check-input" type="radio" name="purpose_type" id="pt_personal_rental" value="personal_rental" <?= $f['purpose_type'] === 'personal_rental' ? 'checked' : '' ?>><label class="form-check-label" for="pt_personal_rental">Personal Rental</label></div>
-                    <div id="rentalRow" class="mt-2" style="display:none;"><label class="form-label small" for="distance_km">Round-trip distance (km) *</label>
-                        <input type="number" step="0.1" min="0.1" max="5000" class="form-control" id="distance_km" name="distance_km" style="max-width:12rem" value="<?= htmlspecialchars($f['distance_km']) ?>">
-                        <div class="form-text" id="rentalCharge">Charge: RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per kilometre of the round trip. No supporting letter and no Head of Department: the Administrative Assistant confirms the distance, then the Head of Admin approves.</div></div>
-                    <div class="form-text">Official: an official university programme. Unofficial: a programme that is not official. Both need a supporting letter.</div></div>
-                <div class="col-12"><label class="form-label small" for="purpose">Purpose *</label>
-                    <textarea class="form-control" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
-                <div class="col-12"><label class="form-label small" for="passenger_names">Passenger names *</label>
-                    <textarea class="form-control" id="passenger_names" name="passenger_names" rows="2" required><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
-                <div class="col-md-4"><label class="form-label small" for="phone">Phone number *</label>
-                    <input class="form-control" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
-                <div class="col-md-4"><label class="form-label small" for="waiting_place">Waiting location *</label>
-                    <select class="form-select" id="waiting_place" name="waiting_place">
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">3. Trip details</h6>
+            <div class="grid-12 grid grid-cols-12 gap-4">
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="destination">Destination (name) *</label>
+                    <input class="input w-full" id="destination" name="destination" maxlength="255" value="<?= htmlspecialchars($f['destination']) ?>" required></div>
+                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="destination_address">Destination (full address) *</label>
+                    <input class="input w-full" id="destination_address" name="destination_address" maxlength="500" value="<?= htmlspecialchars($f['destination_address']) ?>" required></div>
+                <div class="col-span-12"><span class="mb-1 block text-sm font-medium">Purpose type *</span>
+                    <div class="flex flex-wrap gap-4">
+                    <?php foreach (PURPOSE_TYPES as $k => $lbl): ?><label class="flex items-center gap-2 text-sm" for="pt_<?= $k ?>"><input class="radio radio-sm radio-primary" type="radio" name="purpose_type" id="pt_<?= $k ?>" value="<?= $k ?>" <?= $f['purpose_type'] === $k ? 'checked' : '' ?>><?= $lbl ?></label><?php endforeach; ?>
+                    <label class="flex items-center gap-2 text-sm" id="ptRentalWrap" for="pt_personal_rental" style="display:none;"><input class="radio radio-sm radio-primary" type="radio" name="purpose_type" id="pt_personal_rental" value="personal_rental" <?= $f['purpose_type'] === 'personal_rental' ? 'checked' : '' ?>>Personal Rental</label>
+                    </div>
+                    <div id="rentalRow" class="mt-2" style="display:none;"><label class="mb-1 block text-sm font-medium" for="distance_km">Round-trip distance (km) *</label>
+                        <input type="number" step="0.1" min="0.1" max="5000" class="input w-full max-w-48" id="distance_km" name="distance_km" value="<?= htmlspecialchars($f['distance_km']) ?>">
+                        <p class="mt-1 text-xs text-base-content/60" id="rentalCharge">Charge: RM <?= htmlspecialchars(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per kilometre of the round trip. No supporting letter and no Head of Department: the Administrative Assistant confirms the distance, then the Head of Admin approves.</p></div>
+                    <p class="mt-1 text-xs text-base-content/60">Official: an official university programme. Unofficial: a programme that is not official. Both need a supporting letter.</p></div>
+                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="purpose">Purpose *</label>
+                    <textarea class="textarea w-full" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
+                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="passenger_names">Passenger names *</label>
+                    <textarea class="textarea w-full" id="passenger_names" name="passenger_names" rows="2" required><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
+                <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="phone">Phone number *</label>
+                    <input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
+                <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="waiting_place">Waiting location *</label>
+                    <select class="select w-full" id="waiting_place" name="waiting_place">
                         <?php foreach (WAITING_LOCATIONS as $w): ?><option value="<?= htmlspecialchars($w) ?>" <?= $f['waiting_place'] === $w ? 'selected' : '' ?>><?= htmlspecialchars($w) ?></option><?php endforeach; ?>
                     </select></div>
-                <div class="col-md-4" id="otherRow" style="display:none;"><label class="form-label small" for="waiting_address">Address of the waiting location *</label>
-                    <input class="form-control" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>
-                <div class="col-12"><label class="form-label small" for="docs">Supporting letter * <span class="text-muted">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
-                    <input type="file" class="form-control" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple required></div>
+                <div class="col-span-12 md:col-span-4" id="otherRow" style="display:none;"><label class="mb-1 block text-sm font-medium" for="waiting_address">Address of the waiting location *</label>
+                    <input class="input w-full" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>
+                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="docs">Supporting letter * <span class="font-normal text-base-content/60">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
+                    <input type="file" class="file-input w-full" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple required></div>
             </div>
         </div></div>
 
         <input type="hidden" name="vehicle_type" id="vehicle_type" value="<?= htmlspecialchars($f['vehicle_type']) ?>">
-        <button class="btn btn-success" type="submit" id="submitBtn"><i class="fas fa-paper-plane me-1"></i>Submit request</button>
+        <button class="btn btn-primary" type="submit" id="submitBtn"><i class="fas fa-paper-plane"></i>Submit request</button>
     </form>
 
 <script>
@@ -287,16 +292,16 @@ adminPageStart('Request a Vehicle');
                 notice.style.display = 'none';
                 if (!d.success) { msg.textContent = d.message; return; }
                 if (d.timing === 'urgent') {
-                    notice.className = 'alert alert-warning mt-3'; notice.textContent = d.notice; notice.style.display = '';
+                    notice.className = 'alert alert-soft alert-warning mt-4 text-sm'; notice.textContent = d.notice; notice.style.display = '';
                 }
                 msg.textContent = 'Choose the type of vehicle. The number shows how many are free for your trip.';
                 d.types.forEach(function (t) {
                     var col = document.createElement('div');
-                    col.className = 'col-6 col-md-4 col-lg-2';
-                    col.innerHTML = '<label class="card h-100 p-2 text-center' + (t.enough ? '' : ' bg-light text-muted') + '" style="cursor:' + (t.enough ? 'pointer' : 'not-allowed') + ';">' +
-                        '<input class="form-check-input mx-auto" type="radio" name="vehicle_choice" value="' + esc(t.type) + '"' + (t.enough ? '' : ' disabled') + (chosen === t.type ? ' checked' : '') + '>' +
-                        '<span class="fw-semibold">' + esc(t.label) + '</span>' +
-                        '<span class="small">' + (t.enough ? t.free + ' free' : (t.free === 0 ? 'none free' : (t.can_seat ? 'only ' + t.free + ' free' : 'too few seats'))) + '</span></label>';
+                    col.className = 'col-span-6 md:col-span-4 lg:col-span-2';
+                    col.innerHTML = '<label class="flex h-full flex-col items-center gap-1 rounded-box border border-base-300 p-3 text-center transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5' + (t.enough ? ' cursor-pointer hover:bg-base-200' : ' cursor-not-allowed bg-base-200 text-base-content/50') + '">' +
+                        '<input class="radio radio-sm radio-primary" type="radio" name="vehicle_choice" value="' + esc(t.type) + '"' + (t.enough ? '' : ' disabled') + (chosen === t.type ? ' checked' : '') + '>' +
+                        '<span class="font-semibold">' + esc(t.label) + '</span>' +
+                        '<span class="text-sm">' + (t.enough ? t.free + ' free' : (t.free === 0 ? 'none free' : (t.can_seat ? 'only ' + t.free + ' free' : 'too few seats'))) + '</span></label>';
                     var inp = col.querySelector('input');
                     inp.addEventListener('change', function () { chosen = t.type; el('vehicle_type').value = t.type; syncType(); });
                     list.appendChild(col);

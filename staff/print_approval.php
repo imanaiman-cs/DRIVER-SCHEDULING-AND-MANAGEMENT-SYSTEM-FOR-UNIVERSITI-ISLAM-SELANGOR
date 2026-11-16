@@ -6,6 +6,7 @@
 // The claim payment and the rental payment are handled by the Bursary outside the system.
 // ============================================================
 require_once '../config/database.php';
+require_once '../includes/admin_page.php';     // appHead()
 requireLogin();
 
 $id = (int)($_GET['id'] ?? 0);
@@ -27,47 +28,44 @@ $title = $rental ? 'Personal Rental Approval' : 'Claim Approval';
 $fmt = fn($d) => date('d M Y, H:i', strtotime($d));
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="uis">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $h($title) ?> #<?= $id ?> | UIS Vehicle Section</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<?php appHead($title . ' #' . $id); ?>
     <style>
-        body{background:#eef2ef}.sheet{max-width:48rem;margin:2rem auto;background:#fff;padding:2.2rem 2.5rem;border:1px solid #cfd8d2}
-        h1{font-size:1.25rem;letter-spacing:.04em;text-transform:uppercase}dt{color:#5b6b62;font-weight:600;font-size:.85rem}dd{margin-bottom:.7rem}
-        .sign{border-top:1px solid #000;margin-top:3rem;padding-top:.3rem;font-size:.85rem}
-        @media print{body{background:#fff}.sheet{border:0;margin:0;padding:0}.no-print{display:none!important}}
+        .sheet h1{letter-spacing:.04em;text-transform:uppercase}
+        .sheet dd{margin-bottom:.5rem}
+        .sign{border-top:1px solid currentColor;margin-top:3rem;padding-top:.3rem;font-size:.85rem}
+        @media print{body{background:#fff}.sheet{border:0!important;margin:0!important;padding:0!important}}
     </style>
 </head>
-<body>
-<div class="sheet">
+<body class="min-h-screen bg-base-200">
+<div class="sheet mx-auto my-8 max-w-3xl border border-base-300 bg-base-100 px-6 py-8 sm:px-10">
     <div class="text-center mb-4">
-        <div class="fw-bold">UNIVERSITI ISLAM SELANGOR</div>
+        <div class="font-bold">UNIVERSITI ISLAM SELANGOR</div>
         <div>Vehicle Section</div>
-        <h1 class="mt-3"><?= $h($title) ?> Letter</h1>
-        <div class="text-muted small">Request #<?= $id ?> &middot; printed <?= date('d M Y, H:i') ?></div>
+        <h1 class="mt-3 text-xl font-semibold"><?= $h($title) ?> Letter</h1>
+        <div class="text-base-content/60 text-sm">Request #<?= $id ?> &middot; printed <?= date('d M Y, H:i') ?></div>
     </div>
-    <dl class="row">
-        <dt class="col-sm-4">Requester</dt><dd class="col-sm-8"><?= $h($req['staff_name']) ?> (<?= $h($req['staff_department']) ?>)</dd>
-        <dt class="col-sm-4">Type</dt><dd class="col-sm-8"><?= $rental ? 'Personal Rental of a ' . $h($req['vehicle_type']) : 'Pay and Claim (own vehicle ' . $h($req['own_vehicle_plate']) . ')' ?></dd>
-        <dt class="col-sm-4">Destination</dt><dd class="col-sm-8"><?= $h($req['destination']) ?><br><?= $h($req['destination_address']) ?></dd>
-        <dt class="col-sm-4">Departure</dt><dd class="col-sm-8"><?= $h($fmt(requestDepartDT($req))) ?></dd>
-        <dt class="col-sm-4">Return</dt><dd class="col-sm-8"><?= $h($fmt(requestReturnDT($req))) ?></dd>
+    <dl class="grid-12 grid grid-cols-12 gap-x-6 gap-y-1">
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Requester</dt><dd class="col-span-12 sm:col-span-8"><?= $h($req['staff_name']) ?> (<?= $h($req['staff_department']) ?>)</dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Type</dt><dd class="col-span-12 sm:col-span-8"><?= $rental ? 'Personal Rental of a ' . $h($req['vehicle_type']) : 'Pay and Claim (own vehicle ' . $h($req['own_vehicle_plate']) . ')' ?></dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Destination</dt><dd class="col-span-12 sm:col-span-8"><?= $h($req['destination']) ?><br><?= $h($req['destination_address']) ?></dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Departure</dt><dd class="col-span-12 sm:col-span-8"><?= $h($fmt(requestDepartDT($req))) ?></dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Return</dt><dd class="col-span-12 sm:col-span-8"><?= $h($fmt(requestReturnDT($req))) ?></dd>
         <?php if (!$rental): ?>
-        <dt class="col-sm-4">Purpose</dt><dd class="col-sm-8"><?= nl2br($h($req['purpose'])) ?> (<?= $h(ucfirst($req['purpose_type'])) ?>)</dd>
-        <dt class="col-sm-4">Passengers</dt><dd class="col-sm-8"><?= (int)$req['passenger_count'] ?><?= $req['passenger_names'] ? ': ' . $h($req['passenger_names']) : '' ?></dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Purpose</dt><dd class="col-span-12 sm:col-span-8"><?= nl2br($h($req['purpose'])) ?> (<?= $h(ucfirst($req['purpose_type'])) ?>)</dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Passengers</dt><dd class="col-span-12 sm:col-span-8"><?= (int)$req['passenger_count'] ?><?= $req['passenger_names'] ? ': ' . $h($req['passenger_names']) : '' ?></dd>
         <?php else: ?>
-        <dt class="col-sm-4">Round-trip distance</dt><dd class="col-sm-8"><?= $h(rtrim(rtrim(number_format((float)$req['distance_km'], 1), '0'), '.')) ?> km</dd>
-        <dt class="col-sm-4">Charge</dt><dd class="col-sm-8"><strong>RM <?= $h(number_format((float)$req['charge'], 2)) ?></strong> (RM <?= $h(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per km)</dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Round-trip distance</dt><dd class="col-span-12 sm:col-span-8"><?= $h(rtrim(rtrim(number_format((float)$req['distance_km'], 1), '0'), '.')) ?> km</dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Charge</dt><dd class="col-span-12 sm:col-span-8"><strong>RM <?= $h(number_format((float)$req['charge'], 2)) ?></strong> (RM <?= $h(number_format((float)getSetting($conn, 'RENTAL_RATE_PER_KM', '3.00'), 2)) ?> per km)</dd>
         <?php endif; ?>
-        <dt class="col-sm-4">Submitted</dt><dd class="col-sm-8"><?= $submitted ? $h($fmt($submitted['created_at'])) : $h($fmt($req['created_at'])) ?></dd>
-        <?php if (!$rental): ?><dt class="col-sm-4">Approved by Head of Department</dt><dd class="col-sm-8"><?= $hod ? $h($hod['who']) . ', ' . $h($fmt($hod['created_at'])) : '-' ?></dd><?php endif; ?>
-        <dt class="col-sm-4">Approved by Head of Admin</dt><dd class="col-sm-8"><?= $hoa ? $h($hoa['who']) . ', ' . $h($fmt($hoa['created_at'])) : '-' ?></dd>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Submitted</dt><dd class="col-span-12 sm:col-span-8"><?= $submitted ? $h($fmt($submitted['created_at'])) : $h($fmt($req['created_at'])) ?></dd>
+        <?php if (!$rental): ?><dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Approved by Head of Department</dt><dd class="col-span-12 sm:col-span-8"><?= $hod ? $h($hod['who']) . ', ' . $h($fmt($hod['created_at'])) : '-' ?></dd><?php endif; ?>
+        <dt class="col-span-12 sm:col-span-4 text-sm font-semibold text-base-content/60">Approved by Head of Admin</dt><dd class="col-span-12 sm:col-span-8"><?= $hoa ? $h($hoa['who']) . ', ' . $h($fmt($hoa['created_at'])) : '-' ?></dd>
     </dl>
-    <p class="small text-muted"><?= $rental ? 'The rental payment is handled by the Bursary outside the system.' : 'The claim payment is handled by the Bursary outside the system.' ?></p>
-    <div class="row"><div class="col-6"><div class="sign">Requester</div></div><div class="col-6"><div class="sign">Head of Admin</div></div></div>
-    <div class="text-center mt-4 no-print"><button class="btn btn-success" onclick="window.print()">Print or save as PDF</button> <a class="btn btn-outline-secondary" href="javascript:history.back()">Back</a></div>
+    <p class="text-sm text-base-content/60"><?= $rental ? 'The rental payment is handled by the Bursary outside the system.' : 'The claim payment is handled by the Bursary outside the system.' ?></p>
+    <div class="grid grid-cols-2 gap-8"><div><div class="sign">Requester</div></div><div><div class="sign">Head of Admin</div></div></div>
+    <div class="mt-6 flex justify-center gap-2 no-print"><button class="btn btn-success" onclick="window.print()">Print or save as PDF</button><a class="btn btn-outline" href="javascript:history.back()">Back</a></div>
 </div>
 </body>
 </html>

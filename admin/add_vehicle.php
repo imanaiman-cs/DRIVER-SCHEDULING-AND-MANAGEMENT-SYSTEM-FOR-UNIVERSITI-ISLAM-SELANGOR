@@ -47,10 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Add Vehicle');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-plus text-success me-2"></i>Add Vehicle</h4>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
+    <h1 class="text-2xl font-medium mb-4">Add Vehicle</h1>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error mb-4" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <?php vehicleFormFields($v, $errors, null, true); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save vehicle</button><a class="btn btn-outline-secondary" href="vehicles.php">Cancel</a></div>
+        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save vehicle</button><a class="btn btn-outline" href="vehicles.php">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

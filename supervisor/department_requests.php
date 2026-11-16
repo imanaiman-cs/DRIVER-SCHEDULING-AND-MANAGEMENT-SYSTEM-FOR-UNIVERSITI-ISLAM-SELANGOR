@@ -22,28 +22,28 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Department Requests');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-building text-success me-2"></i>Department Requests <small class="text-muted fs-6"><?= htmlspecialchars((string)$dept) ?></small></h4>
+    <h1 class="text-2xl font-medium mb-4">Department Requests <small class="text-base-content/60 text-base"><?= htmlspecialchars((string)$dept) ?></small></h1>
     <?php requestFilterForm($fv); ?>
-    <?php if (!$requests): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">No record is found.</div></div><?php endif; ?>
+    <?php if (!$requests): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">No record is found.</div></div><?php endif; ?>
     <?php foreach ($requests as $r): $rid = (int)$r['request_id']; ?>
-    <details class="card border-0 shadow-sm mb-2" <?= $rid === $open ? 'open' : '' ?>>
+    <details class="card border border-base-300 bg-base-100 mb-2" <?= $rid === $open ? 'open' : '' ?>>
         <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                    <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= htmlspecialchars((string)($r['vehicle_type'] ?: ($r['request_type'] === 'pay_claim' ? 'Pay and Claim' : ''))) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
-                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
+                    <span class="font-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
+                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= htmlspecialchars((string)($r['vehicle_type'] ?: ($r['request_type'] === 'pay_claim' ? 'Pay and Claim' : ''))) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-2"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
-                <div><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= requestStatusBadge($r['status']) ?></div>
+                <div class="flex gap-1"><?= !empty($r['is_urgent']) ? '<span class="badge badge-soft badge-error">Urgent</span>' : '' ?><?= requestStatusBadge($r['status']) ?></div>
             </div>
         </summary>
-        <div class="card-body border-top pt-3"><?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?>
+        <div class="card-body border-t border-base-300 pt-4"><?= requestDetailsHtml($conn, $r, ['show_after_confirmed' => true]) ?>
             <?php $rules = cancelRulesFor($r); if ($rules['allowed']): ?>
-            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">          <!-- UC021 A1: the Head of Department cancels a request of the department -->
+            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">          <!-- UC021 A1: the Head of Department cancels a request of the department -->
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="supervisor/department_requests.php?open=<?= $rid ?>">
-                <label class="form-label small fw-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-danger">(reason required)</span></label>
-                <div class="input-group input-group-sm"><input class="form-control" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
-                    <button class="btn btn-outline-danger" data-confirm="The request is cancelled, the reservation is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button></div>
+                <label class="mb-1 block text-sm font-medium" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
+                <div class="join w-full"><input class="input join-item w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline btn-error join-item" data-confirm="The request is cancelled, the reservation is released and the people involved are told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button></div>
             </form>
             <?php endif; ?></div>
     </details>

@@ -18,7 +18,7 @@ r = ad.s.get(B + '/set_language.php', params={'lang': 'ms', 'back': back}, allow
 ok('set_language redirects back to the page and sets the cookie', r.status_code == 302 and r.headers['Location'] == back and back.endswith('/admin/dashboard.php') and 'dsms_lang=ms' in r.headers.get('Set-Cookie', ''))
 ok('the choice is saved on the account', lang('admin') == 'ms')
 pg = ad.get('admin/dashboard.php'); t = text(pg)
-ok('dashboard in Bahasa Melayu: html lang=ms, menu, greeting, buttons', '<html lang="ms"' in pg.text and 'Papan pemuka' in t and 'Permohonan Kenderaan' in t and 'Log Keluar' in t and not errs(pg))
+ok('dashboard in Bahasa Melayu: html lang=ms, menu, greeting, buttons', '<html lang="ms"' in pg.text and 'Papan pemuka' in t and 'Permohonan Kenderaan' in t and ('Log Keluar' in t or 'Log keluar' in t) and not errs(pg))
 ok('the menu no longer shows the English labels', 'Vehicle Requests' not in t and 'Internal Tasks' not in t)
 ok('dates use Malay day and month names', re.search(r'(Isnin|Selasa|Rabu|Khamis|Jumaat|Sabtu|Ahad), \d+ (Januari|Februari|Mac|April|Mei|Jun|Julai|Ogos|September|Oktober|November|Disember) \d{4}', t) is not None)
 for p in ['admin/vehicle_requests.php?tab=all', 'admin/drivers.php', 'admin/vehicles.php', 'admin/internal_tasks.php', 'admin/welfare.php', 'admin/calendar.php', 'admin/reports.php', 'admin/settings.php', 'notifications.php', 'admin/add_driver.php', 'staff/request_vehicle.php']:

@@ -37,6 +37,14 @@ function legLabel(int|string|null $trip_type): string
 }
 
 /** "BHW 8595 (Toyota Hiace)" - plate plus model. */
+/** The same as vehicleText(), as HTML: the plate set as a number plate, then the model in muted text. */
+function vehicleHtml(?string $plate, ?string $brand = null, ?string $model = null): string
+{
+    if ($plate === null || $plate === '') { return ''; }
+    $m = trim(trim((string)$brand) . ' ' . trim((string)$model));
+    return plate($plate) . ($m !== '' ? ' <span class="text-base-content/60">' . htmlspecialchars($m, ENT_QUOTES, 'UTF-8') . '</span>' : '');
+}
+
 function vehicleText(?string $plate, ?string $brand = null, ?string $model = null): string
 {
     if ($plate === null || $plate === '') { return ''; }
@@ -203,50 +211,113 @@ function taskSheetRow(mysqli $conn, int $task_id, int $driver_id = 0): ?array
 }
 
 /**
- * Dispatch board: one lane per vehicle for ONE day (06:00 - 22:00), with the request tasks, internal tasks and welfare duty of that day drawn
- * as bars on a time line (UC010 View Driver Schedule, shown on the dashboard). Read only; built from calendarEvents().
+ * Dispatch board (UC010 View Driver Schedule, shown on the admin dashboard): one row per active vehicle across ONE day, with the
+ * request tasks, internal tasks and welfare duty of that day (from calendarEvents()) as blocks. Busy vehicles first; a row with no
+ * block is a free vehicle. Filled = Approved (Confirmed), outlined = waiting for the Head of Admin, grey = internal task or finished,
+ * thin line = welfare duty. Arrows move a day back or forward (?board=Y-m-d). Read only.
  */
 function dispatchBoardHtml(mysqli $conn, string $date): string
 {
     $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-    $from = 6; $to = 22; $span = ($to - $from) * 3600;
     $dayStart = strtotime($date . ' 00:00:00');
-    $events = calendarEvents($conn, $date . ' 00:00:00', date('Y-m-d H:i:s', $dayStart + 86400));
-    $lanes = [];
-    foreach ($events as $e) {
-        $key = $e['vehicle'] !== '' ? $e['vehicle'] : ($e['kind'] === 'welfare' ? 'Welfare duty' : 'No vehicle');
-        $lanes[$key][] = $e;
-    }
-    ksort($lanes);
-    $prev = date('Y-m-d', $dayStart - 86400); $next = date('Y-m-d', $dayStart + 86400);
+    $dayEnd = $dayStart + 86400;
     $isToday = $date === date('Y-m-d');
-    $out = '<div class="dash-card board"><h6><span><i class="fas fa-tower-broadcast text-success me-1"></i>Dispatch board</span>'
-         . '<span class="board-nav"><a href="?board=' . $h($prev) . '#board" aria-label="Previous day"><i class="fas fa-chevron-left"></i></a>'
-         . '<strong>' . $h($isToday ? 'Today, ' . date('d M', $dayStart) : date('D, d M Y', $dayStart)) . '</strong>'
-         . '<a href="?board=' . $h($next) . '#board" aria-label="Next day"><i class="fas fa-chevron-right"></i></a></span></h6>';
-    if (!$lanes) {
-        return $out . '<div class="dash-empty"><i class="fas fa-road"></i>No trip, internal task or welfare duty on this day.</div></div>';
+    $nowTs = time();
+    $events = calendarEvents($conn, $date . ' 00:00:00', date('Y-m-d H:i:s', $dayEnd));
+
+    $vehicles = [];
+    $vs = $conn->prepare("SELECT vehicle_id, plate_number, vehicle_type, brand, model, status FROM vehicles WHERE status <> 'inactive' ORDER BY plate_number");
+    $vs->execute();
+    foreach ($vs->get_result()->fetch_all(MYSQLI_ASSOC) as $v) { $vehicles[(int)$v['vehicle_id']] = $v; }
+    $vs->close();
+
+    // The window: 07:00 to 19:00, widened to whole hours when a task starts earlier or ends later (welfare duty does not widen it)
+    $from = 7; $to = 19;
+    foreach ($events as $e) {
+        if ($e['kind'] === 'welfare') { continue; }
+        $s = strtotime($e['start']); $en = strtotime($e['end']);
+        $from = min($from, $s < $dayStart ? 0 : (int)date('G', $s));
+        $to = max($to, $en > $dayEnd ? 24 : (int)ceil(((int)date('G', $en) * 60 + (int)date('i', $en)) / 60));
     }
-    $out .= '<div class="board-scroll"><div class="board-grid" id="board"><div class="board-hours"><span></span><div class="board-track">';
-    for ($t = $from; $t <= $to; $t += 2) { $out .= '<i style="left:' . round(($t - $from) * 100 / ($to - $from), 2) . '%">' . sprintf('%02d:00', $t) . '</i>'; }
-    $out .= '</div></div>';
-    $nowPct = null;
-    if ($isToday) { $n = time() - ($dayStart + $from * 3600); if ($n > 0 && $n < $span) { $nowPct = round($n * 100 / $span, 2); } }
-    foreach ($lanes as $vehicle => $list) {
-        $out .= '<div class="board-lane"><span class="board-veh" title="' . $h($vehicle) . '">' . $h($vehicle) . '</span><div class="board-track">';
-        if ($nowPct !== null) { $out .= '<b class="board-now" style="left:' . $nowPct . '%" title="Now"></b>'; }
-        foreach ($list as $e) {
-            $s = max(strtotime($e['start']), $dayStart + $from * 3600); $en = min(strtotime($e['end']), $dayStart + $to * 3600);
-            if ($e['kind'] === 'welfare') { $s = $dayStart + $from * 3600; $en = $dayStart + $to * 3600; }
-            if ($en <= $s) { continue; }
-            $left = round(($s - ($dayStart + $from * 3600)) * 100 / $span, 2); $width = max(1.5, round(($en - $s) * 100 / $span, 2));
-            $time = $e['kind'] === 'welfare' ? '24 hours' : date('H:i', strtotime($e['start'])) . '-' . date('H:i', strtotime($e['end']));
-            $tip = $e['title'] . ' | ' . $time . ($e['driver'] !== '' ? ' | ' . $e['driver'] : '') . ($e['destination'] !== '' ? ' | ' . $e['destination'] : '') . ($e['request_status'] !== '' ? ' | ' . $e['request_status'] : '');
-            $out .= '<a class="board-bar is-' . $h($e['kind']) . '" href="calendar.php" style="left:' . $left . '%;width:' . $width . '%" title="' . $h($tip) . '">'
-                  . '<span>' . $h($e['kind'] === 'trip' ? ($e['request_id'] ? '#' . $e['request_id'] . ' ' : '') . ($e['driver'] ?: 'No driver') : ($e['kind'] === 'welfare' ? 'Welfare: ' . $e['driver'] : $e['title'] . ($e['driver'] ? ' - ' . $e['driver'] : ''))) . '</span></a>';
+    $t0 = $dayStart + $from * 3600; $span = ($to - $from) * 3600;
+    $pos = fn(int $ts) => max(0, min(100, ($ts - $t0) / $span * 100));
+
+    $rows = [];
+    foreach ($vehicles as $id => $v) { $rows['v' . $id] = ['v' => $v, 'label' => '', 'items' => []]; }
+    $welfare = [];
+    foreach ($events as $e) {
+        if ($e['kind'] === 'welfare') { $welfare[] = $e['driver']; }
+        if ($e['vehicle_id'] && isset($rows['v' . $e['vehicle_id']])) { $key = 'v' . $e['vehicle_id']; }
+        else {
+            $key = 'x' . ($e['vehicle'] !== '' ? $e['vehicle'] : ($e['kind'] === 'welfare' ? 'Welfare duty' : 'No vehicle'));
+            $rows[$key] ??= ['v' => null, 'label' => substr($key, 1), 'items' => []];
         }
-        $out .= '</div></div>';
+        $rows[$key]['items'][] = $e;
     }
-    return $out . '</div></div><div class="board-legend"><span><i class="is-trip"></i>Request task</span><span><i class="is-internal"></i>Internal task</span><span><i class="is-welfare"></i>Welfare duty</span>'
-         . ($nowPct !== null ? '<span><i class="is-now"></i>Now</span>' : '') . '</div></div>';
+    uasort($rows, fn($a, $b) => (count($b['items']) > 0) <=> (count($a['items']) > 0));
+
+    $hours = '';
+    for ($hr = $from; $hr <= $to; $hr++) {
+        $x = ($hr - $from) / ($to - $from) * 100;
+        $shift = $hr === $from ? '' : ($hr === $to ? '-translate-x-full' : '-translate-x-1/2');
+        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/50" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
+    }
+    $lines = '';
+    for ($hr = $from + 1; $hr < $to; $hr++) {
+        $lines .= '<span class="absolute inset-y-0 w-px bg-base-200" style="left:' . (($hr - $from) / ($to - $from) * 100) . '%"></span>';
+    }
+    $now = '';
+    if ($isToday && $nowTs > $t0 && $nowTs < $t0 + $span) {
+        $now = '<span class="absolute inset-y-0 w-px bg-base-content" style="left:' . $pos($nowTs) . '%"></span>'
+             . '<span class="absolute -top-5 -translate-x-1/2 rounded-sm bg-base-content px-1 font-mono text-[0.6875rem] text-base-100" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
+    }
+
+    $prev = date('Y-m-d', $dayStart - 86400); $next = date('Y-m-d', $dayEnd);
+    $title = $isToday ? 'Vehicles today' : 'Vehicles on ' . date('D, j M Y', $dayStart);
+    $out = '<section class="dash-card mb-6" id="board" aria-labelledby="boardTitle">'
+         . '<h6><span id="boardTitle">' . $h($title) . '</span><span class="flex items-center gap-1">'
+         . '<a class="btn btn-ghost btn-xs" href="?board=' . $h($prev) . '#board" aria-label="Previous day"><i class="fas fa-chevron-left"></i></a>'
+         . ($isToday ? '' : '<a class="btn btn-ghost btn-xs" href="?#board">Today</a>')
+         . '<a class="btn btn-ghost btn-xs" href="?board=' . $h($next) . '#board" aria-label="Next day"><i class="fas fa-chevron-right"></i></a>'
+         . '<a class="ms-2" href="calendar.php">Open calendar</a></span></h6>';
+
+    $out .= '<div class="overflow-x-auto"><div class="min-w-[44rem]">'
+          . '<div class="grid grid-cols-[11rem_1fr]"><div></div><div class="relative mb-2 h-4">' . $hours . '</div></div>'
+          . '<div class="relative grid grid-cols-[11rem_1fr]">'
+          . '<div class="pointer-events-none absolute inset-y-0 right-0 left-[11rem]">' . $lines . $now . '</div>';
+    $assigned = requestStatusLabel('assigned');
+    foreach ($rows as $r) {
+        $v = $r['v'];
+        $label = $v ? plate($v['plate_number']) . '<span class="mt-0.5 block truncate text-xs text-base-content/60">'
+                    . $h($v['status'] === 'maintenance' ? 'In maintenance' : trim($v['vehicle_type'] . ' · ' . trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? '')), ' ·')) . '</span>'
+                    : '<span class="truncate text-sm text-base-content/60">' . $h($r['label']) . '</span>';
+        $blocks = '';
+        foreach ($r['items'] as $e) {
+            $s = strtotime($e['start']); $en = strtotime($e['end']);
+            $left = $pos($s); $width = max(1.5, $pos($en) - $left);
+            $time = $e['kind'] === 'welfare' ? '24 hours' : date('H:i', strtotime($e['start'])) . '–' . date('H:i', strtotime($e['end']));
+            $tip = $time . ' ' . $e['title'] . ($e['driver'] !== '' ? ', ' . $e['driver'] : '') . ($e['destination'] !== '' ? ', ' . $e['destination'] : '') . ($e['request_status'] !== '' ? ' (' . $e['request_status'] . ')' : '');
+            if ($e['kind'] === 'welfare') {          // a thin strip under the row: the vehicle is reserved for the whole day
+                $blocks .= '<a class="absolute bottom-0 h-1 rounded-full bg-secondary/60" href="calendar.php" style="left:0;width:100%" title="' . $h($tip) . '" aria-label="' . $h($tip) . '"></a>';
+                continue;
+            }
+            if ($e['kind'] === 'internal') {
+                $style = 'bg-base-200 text-base-content/60'; $name = $e['title'];
+            } else {
+                $style = $en < $nowTs ? 'bg-base-200 text-base-content/60' : ($e['request_status'] === $assigned ? 'border border-primary/50 bg-base-100' : 'bg-primary/10');
+                $name = ($e['request_id'] ? '#' . $e['request_id'] . ' ' : '') . $e['destination'];
+            }
+            $blocks .= '<a class="absolute inset-y-1 overflow-hidden rounded-field px-2 py-1 text-xs leading-tight ' . $style . '" href="calendar.php" style="left:' . $left . '%;width:' . $width . '%" title="' . $h($tip) . '">'
+                     . '<span class="block truncate"><span class="font-mono">' . date('H:i', strtotime($e['start'])) . '</span> <span class="font-medium">' . $h($name) . '</span></span>'
+                     . '<span class="block truncate text-base-content/60">' . $h($e['driver'] ?: 'No driver') . '</span></a>';
+        }
+        $track = $v && $v['status'] === 'maintenance' ? 'bg-base-200' : '';
+        $out .= '<div class="flex h-14 flex-col items-start justify-center border-t border-base-200 pe-3">' . $label . '</div>'
+              . '<div class="relative h-14 border-t border-base-200 ' . $track . '">' . $blocks . '</div>';
+    }
+    $out .= '</div></div></div>';
+    if (!$events) { $out .= '<p class="dash-empty">No trip, internal task or welfare duty on this day.</p>'; }
+    $out .= '<p class="mt-3 text-xs text-base-content/60">Green: Approved (Confirmed). Outlined: waiting for the Head of Admin. Grey: internal task or finished. Thin line: welfare duty. An empty row is a free vehicle.</p>';
+    $out .= '<p class="mt-1 text-xs text-base-content/60">Welfare duty ' . ($isToday ? 'today' : 'on this day') . ': <span class="font-medium text-base-content">' . $h($welfare ? implode(', ', $welfare) : 'not set') . '</span></p>';
+    return $out . '</section>';
 }

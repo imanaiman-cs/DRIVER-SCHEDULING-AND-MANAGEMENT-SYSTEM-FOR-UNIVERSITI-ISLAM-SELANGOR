@@ -52,38 +52,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 adminPageStart('Assign Welfare Duty');
 ?>
-    <a class="small text-decoration-none" href="welfare.php?week=<?= $h($week) ?>"><i class="fas fa-arrow-left me-1"></i>Welfare duty</a>
-    <h4 class="fw-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign welfare duty &mdash; week of <?= $h(date('d M Y', strtotime($week))) ?></h4>
+    <a class="text-sm no-underline" href="welfare.php?week=<?= $h($week) ?>"><i class="fas fa-arrow-left me-1"></i>Welfare duty</a>
+    <h1 class="text-2xl font-medium my-2">Assign welfare duty &mdash; week of <?= $h(date('d M Y', strtotime($week))) ?></h1>
 
     <?php if ($warn): ?>
-    <div class="alert alert-warning"><strong>Some drivers are not the top recommendation.</strong>
+    <div class="alert alert-soft alert-warning mb-4"><div><strong>Some drivers are not the top recommendation.</strong>
         <ul class="mb-2"><?php foreach ($warn as $date => $d): ?><li><?= $h(date('D d M', strtotime($date))) ?>: <?= $h($d['name']) ?> has <?= (int)$d['tasks'] ?> task(s) this month (the recommended driver has <?= (int)$rec[$date]['ranked'][0]['tasks'] ?>).</li><?php endforeach; ?></ul>
         <form method="post">
             <input type="hidden" name="week" value="<?= $h($week) ?>"><input type="hidden" name="confirmed" value="1">
             <?php foreach ($_POST['driver'] as $date => $id): ?><input type="hidden" name="driver[<?= $h($date) ?>]" value="<?= (int)$id ?>"><?php endforeach; ?>
-            <button class="btn btn-warning btn-sm">Confirm and submit</button> <a class="btn btn-outline-secondary btn-sm" href="assign_welfare.php?week=<?= $h($week) ?>">Choose again</a>
+            <button class="btn btn-warning btn-sm">Confirm and submit</button> <a class="btn btn-ghost btn-sm" href="assign_welfare.php?week=<?= $h($week) ?>">Choose again</a>
         </form>
-    </div>
+    </div></div>
     <?php endif; ?>
 
     <form method="post">
         <input type="hidden" name="week" value="<?= $h($week) ?>">
         <?php foreach ($rows as $date => $r): ?>
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold"><?= $h(date('D, d M', strtotime($date))) ?> <span class="fw-normal text-muted small">24 hours &middot; <?= $h(trim(($r['plate_number'] ?? '') . ' ' . ($r['model'] ?? ''))) ?></span></h6>
-            <?php if ($r['reject_reason']): ?><div class="small text-danger mb-1">Last assignment was rejected: <?= $h($r['reject_reason']) ?></div><?php endif; ?>
-            <?php if (!$rec[$date]['ranked']): ?><div class="text-danger small">No driver is available on this day.</div><?php else: ?>
-            <div class="table-responsive"><table class="table table-sm align-middle mb-0">
-                <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th></tr></thead>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold"><?= $h(date('D, d M', strtotime($date))) ?> <span class="font-normal text-base-content/60 text-sm">24 hours &middot; <?= plate($r['plate_number'] ?? null) ?> <?= $h((string)($r['model'] ?? '')) ?></span></h6>
+            <?php if ($r['reject_reason']): ?><div class="text-sm text-error mb-1">Last assignment was rejected: <?= $h($r['reject_reason']) ?></div><?php endif; ?>
+            <?php if (!$rec[$date]['ranked']): ?><div class="text-error text-sm">No driver is available on this day.</div><?php else: ?>
+            <div class="overflow-x-auto"><table class="table table-sm align-middle mb-0">
+                <thead><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Weekend tasks</th><th class="text-center">Experience (years)</th><th class="text-center">Score</th></tr></thead>
                 <tbody>
                 <?php foreach ($rec[$date]['ranked'] as $d): $id = (int)$d['driver_id']; ?>
                     <tr>
-                        <td><input class="form-check-input" type="radio" name="driver[<?= $h($date) ?>]" value="<?= $id ?>" id="d<?= $h($date) ?>_<?= $id ?>" <?= (int)($_POST['driver'][$date] ?? 0) === $id ? 'checked' : '' ?>></td>
+                        <td><input class="radio radio-sm radio-primary" type="radio" name="driver[<?= $h($date) ?>]" value="<?= $id ?>" id="d<?= $h($date) ?>_<?= $id ?>" <?= (int)($_POST['driver'][$date] ?? 0) === $id ? 'checked' : '' ?>></td>
                         <td><?= (int)$d['rank'] ?></td>
-                        <td><label for="d<?= $h($date) ?>_<?= $id ?>" class="mb-0"><?= $h($d['name']) ?></label><?= $d['rank'] === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '' ?></td>
+                        <td><label for="d<?= $h($date) ?>_<?= $id ?>" class="mb-0"><?= $h($d['name']) ?></label><?= $d['rank'] === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '' ?></td>
                         <td class="text-center"><?= (int)$d['tasks'] ?></td><td class="text-center"><?= (int)$d['weekend'] ?></td>
                         <td class="text-center"><?= number_format((float)$d['experience'], 1) ?></td>
-                        <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                        <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
