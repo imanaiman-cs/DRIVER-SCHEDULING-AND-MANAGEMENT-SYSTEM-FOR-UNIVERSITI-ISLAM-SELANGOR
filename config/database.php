@@ -178,7 +178,7 @@ function runSecurityChecks(mysqli $conn): void
     // 2. the account itself
     try {
         $uid = (int)$_SESSION['user_id'];
-        $stmt = $conn->prepare('SELECT is_active, role, department FROM users WHERE user_id = ?');
+        $stmt = $conn->prepare('SELECT u.is_active, u.role, u.department_id, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $u = $stmt->get_result()->fetch_assoc();
@@ -190,6 +190,7 @@ function runSecurityChecks(mysqli $conn): void
         }
         $_SESSION['role'] = $u['role'];                 // a role changed in the UIS staff system applies at once
         $_SESSION['department'] = $u['department'];
+        $_SESSION['department_id'] = $u['department_id'] !== null ? (int)$u['department_id'] : null;
     } catch (Throwable $e) {
         // columns not created yet (very first request): nothing to check
     }

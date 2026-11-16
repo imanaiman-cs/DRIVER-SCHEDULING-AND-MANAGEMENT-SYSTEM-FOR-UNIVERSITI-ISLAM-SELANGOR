@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } else {
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
+        $stmt = $conn->prepare("SELECT u.*, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.username = ? LIMIT 1");
         $stmt->bind_param('s', $username);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
@@ -97,6 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
             $_SESSION['driver_id'] = $driver_id;
             $_SESSION['department']    = $user['department']    ?? null;
+            $_SESSION['department_id'] = $user['department_id'] !== null ? (int)$user['department_id'] : null;
             $_SESSION['last_activity'] = time();
             if (isset($_COOKIE['dsms_lang'])) { setLanguage($conn, (string)$_COOKIE['dsms_lang']); } else { syncLanguageFromAccount($conn); }   // a language chosen on the login page is kept
 

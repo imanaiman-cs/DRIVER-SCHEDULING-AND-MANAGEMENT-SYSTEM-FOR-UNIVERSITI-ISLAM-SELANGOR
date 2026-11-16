@@ -16,10 +16,10 @@ s1 = user('stf001')
 ok('Edit shows the name, phone and address only', all(x in s1.get('profile.php', edit=1).text for x in ['name="full_name"', 'name="phone"', 'name="address"']) and 'name="email"' not in s1.get('profile.php', edit=1).text)
 r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza', 'phone': '', 'address': ''}); ok('an empty field: fill in all required fields (A1.1)', 'fill in all required' in r.text)
 r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza binti Abdul Rahman', 'phone': 'abc', 'address': 'No 1 Jalan Setia'}); ok('an invalid phone number is refused', 'valid phone' in r.text)
-orig = rows("SELECT full_name, email, department, role, username FROM users WHERE username='stf001'")
+orig = rows("SELECT full_name, email, department_id, role, username FROM users WHERE username='stf001'")
 r = s1.post('profile.php', {'action': 'update', 'full_name': 'Norliza binti Abdul Rahman Jr', 'phone': '019-1234567', 'address': 'No 1 Jalan Setia, 40000 Shah Alam', 'email': 'hacker@evil.com', 'department': 'Rectory', 'role': 'head_admin', 'username': 'x'})
 ok('updated: name, phone and address change', r.status_code == 302 and rows("SELECT full_name, phone, address FROM users WHERE username='stf001'") == [['Norliza binti Abdul Rahman Jr', '019-1234567', 'No 1 Jalan Setia, 40000 Shah Alam']])
-now_ = rows("SELECT email, department, role, username FROM users WHERE username='stf001'")[0]
+now_ = rows("SELECT email, department_id, role, username FROM users WHERE username='stf001'")[0]
 ok('the staff ID, e-mail, department and role are unchanged', now_ == [orig[0][1], orig[0][2], orig[0][3], orig[0][4]])
 ok('the history log has it and the page shows the new name', cnt("SELECT COUNT(*) FROM audit_log WHERE action='profile_update'") == 1 and 'Jr' in s1.get('profile.php').text)
 # driver: the driver record follows; licence fields in the post are ignored

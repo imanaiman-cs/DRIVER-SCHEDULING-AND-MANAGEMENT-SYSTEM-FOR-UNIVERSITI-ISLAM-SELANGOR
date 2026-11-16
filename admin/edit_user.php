@@ -14,7 +14,7 @@ requireAdmin();
 $me = (int)$_SESSION['user_id'];
 $actorRole = (string)$_SESSION['role'];
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
-$stmt = $conn->prepare('SELECT * FROM users WHERE user_id = ?');
+$stmt = $conn->prepare('SELECT u.*, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
 $stmt->bind_param('i', $id);
 $stmt->execute();
 $u = $stmt->get_result()->fetch_assoc();
@@ -39,7 +39,7 @@ if (!isset($roles[$u['role']])) { $roles[$u['role']] = ACCOUNT_ROLES[$u['role']]
 $lockRole = '';
 if ($id === $me) { $lockRole = 'You cannot change your own role.'; }
 elseif ($drv) { $lockRole = 'This account is linked to a driver record, so the role stays Driver.'; }
-$departments = departmentChoices($conn);
+$departments = allDepartments($conn);
 $v = ['department' => (string)$u['department'], 'role' => $u['role'],
       'license_class' => $drv ? (string)$drv['license_class'] : '', 'license_expiry' => $drv ? (string)$drv['license_expiry'] : '', 'date_joined' => $drv ? (string)$drv['date_joined'] : ''];
 $errors = [];
@@ -48,7 +48,8 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $v['department'] = trim((string)($_POST['department'] ?? ''));
     $v['role'] = $lockRole !== '' ? $u['role'] : (string)($_POST['role'] ?? '');
-    if ($v['department'] === '' || mb_strlen($v['department']) > 100) { $errors['department'] = 'Fill in the department.'; }                  // 3.1
+    if ($v['department'] === '') { $errors['department'] = 'Fill in the department.'; }                                      // 3.1
+    elseif (departmentIdByName($conn, $v['department']) === null) { $errors['department'] = 'Choose the department from the list.'; }
     if ($lockRole === '' && !isset($roles[$v['role']])) { $errors['role'] = 'You cannot give this role.'; }
     if ($drv) {
         [$dv, $de] = driverInput($_POST, false, false, true);
@@ -65,15 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['role'] = 'This Head of Department has pending requests. Handle the pending requests first.';
     }
     if (!$errors) {
-        $stmt = $conn->prepare('UPDATE users SET department = ?, role = ? WHERE user_id = ?');
-        $stmt->bind_param('ssi', $v['department'], $v['role'], $id);
+        $deptId = departmentIdByName($conn, $v['department']);
+        $stmt = $conn->prepare('UPDATE users SET department_id = ?, role = ? WHERE user_id = ?');
+        $stmt->bind_param('isi', $deptId, $v['role'], $id);
         $stmt->execute(); $stmt->close();
-        if ($v['role'] === 'supervisor') {
-            $stmt = $conn->prepare('UPDATE users SET supervisor_id = NULL WHERE user_id = ?'); $stmt->bind_param('i', $id); $stmt->execute(); $stmt->close();
-        } else {
-            $ap = approverIdForDepartment($conn, $v['department'], $v['role']);
-            $stmt = $conn->prepare('UPDATE users SET supervisor_id = ? WHERE user_id = ?'); $stmt->bind_param('ii', $ap, $id); $stmt->execute(); $stmt->close();
-        }
+        // a Head of Department heads the department; somebody else stops heading any department
+        setDepartmentHead($conn, $v['role'] === 'supervisor' ? $v['department'] : null, $id);
         refreshApprovers($conn, $oldDept);
         refreshApprovers($conn, $v['department']);
         $changes = [];
@@ -106,8 +104,8 @@ $have = array_filter(explode(',', (string)$v['license_class']));
             <input type="hidden" name="id" value="<?= $id ?>">
             <div class="row g-3">
                 <div class="col-12 col-md-6"><label class="form-label" for="department">Department <span class="text-danger">*</span></label>
-                    <input class="form-control" id="department" name="department" maxlength="100" list="deptList" required value="<?= $h($v['department']) ?>"><?= $err('department') ?>
-                    <datalist id="deptList"><?php foreach ($departments as $d): ?><option value="<?= $h($d) ?>"><?php endforeach; ?></datalist></div>
+                    <select class="form-select" id="department" name="department" required><option value="">Choose...</option>
+                        <?php foreach ($departments as $d): ?><option <?= $v['department'] === $d ? 'selected' : '' ?>><?= $h($d) ?></option><?php endforeach; ?></select><?= $err('department') ?></div>
                 <div class="col-12 col-md-6"><label class="form-label" for="role">Role <span class="text-danger">*</span></label>
                     <select class="form-select" id="role" name="role" <?= $lockRole ? 'disabled' : 'required' ?>>
                         <?php foreach ($roles as $k => $lbl): ?><option value="<?= $k ?>" <?= $v['role'] === $k ? 'selected' : '' ?>><?= $h($lbl) ?></option><?php endforeach; ?></select>

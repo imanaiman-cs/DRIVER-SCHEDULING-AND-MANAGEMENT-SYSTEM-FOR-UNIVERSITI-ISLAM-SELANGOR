@@ -45,7 +45,7 @@ for name, bad in [('short password', dict(password='a1', confirm_password='a1'))
 ok('the message names the existing Head of Department (4.2)', 'already has a Head of Department' in reg_details(anon, role='supervisor').text)
 r = reg_details(anon, role='head_admin'); ok('registered: a role other than Staff or Head of Department becomes Staff', r.status_code == 302 and r.headers['Location'].endswith('login.php') and sql("SELECT role FROM users WHERE username='NEW001'") == 'staff')
 ok('the staff ID and e-mail are the verified ones; approver = the Head of Department of the PTJ; password hashed', sql("SELECT email FROM users WHERE username='NEW001'") == 'aminah@uis.edu.my'
-   and sql("SELECT a.username FROM users u JOIN users a ON a.user_id=u.supervisor_id WHERE u.username='NEW001'") == 'hos002' and sql("SELECT password LIKE '$%' FROM users WHERE username='NEW001'") == '1')
+   and sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='NEW001'") == 'hos002' and sql("SELECT password LIKE '$%' FROM users WHERE username='NEW001'") == '1')
 ok('the code cannot be used again and the registration is in the history log', cnt("SELECT COUNT(*) FROM verification_codes WHERE email='aminah@uis.edu.my'") == 0 and cnt("SELECT COUNT(*) FROM audit_log WHERE action='user_register' AND reason LIKE '%NEW001%'") == 1)
 ok('the sign-in page shows the success message', 'Your account was created' in anon.get('login.php').text)
 nu = C(); r = nu.login('NEW001', 'Secret123')
@@ -56,7 +56,7 @@ ok('the new account cannot open admin pages', nu.get('admin/users.php').status_c
 sql("UPDATE users SET is_active=0 WHERE username='hos004'")
 a2 = C(); start(a2, username='HOD777', email='head777@uis.edu.my'); a2.post('register.php', {'action': 'verify', 'code': last_code('head777@uis.edu.my')})
 r = reg_details(a2, role='supervisor', department='Student Affairs Division', full_name='Zulkifli Head'); ok('a Head of Department can register for a PTJ that has none', r.status_code == 302 and sql("SELECT role FROM users WHERE username='HOD777'") == 'supervisor')
-ok('and the staff of that PTJ now have him as approver', sql("SELECT a.username FROM users u JOIN users a ON a.user_id=u.supervisor_id WHERE u.username='stf003'") in ('HOD777', 'hos004'))
+ok('and the staff of that PTJ now have him as approver', sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='stf003'") in ('HOD777', 'hos004'))
 sql("UPDATE users SET is_active=1 WHERE username='hos004'")
 
 # ---- managing accounts: roles ----
@@ -76,8 +76,8 @@ ok('Update page opens with the department and role', 'Registrar Office' in ad.ge
 r = ad.post('admin/edit_user.php', dict(id=uid, department='', role='staff'))
 ok('3.1: an empty department is refused', 'Fill in the department' in r.text)
 r = ad.post('admin/edit_user.php', dict(id=uid, department='Registrar Office', role='staff'))
-ok('department saved, the approver follows the new department, the user is told', r.status_code == 302 and sql("SELECT department FROM users WHERE username='NEW001'") == 'Registrar Office'
-   and sql("SELECT a.username FROM users u JOIN users a ON a.user_id=u.supervisor_id WHERE u.username='NEW001'") == 'hos003'
+ok('department saved, the approver follows the new department, the user is told', r.status_code == 302 and sql("SELECT d.department_name FROM users u JOIN departments d ON d.department_id=u.department_id WHERE u.username='NEW001'") == 'Registrar Office'
+   and sql("SELECT a.username FROM users u JOIN departments d ON d.department_id=u.department_id LEFT JOIN departments p ON p.department_id=d.parent_department_id JOIN users a ON a.user_id=IF(d.head_user_id=u.user_id, p.head_user_id, d.head_user_id) WHERE u.username='NEW001'") == 'hos003'
    and cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='NEW001' AND n.message LIKE 'The Vehicle Section updated your account%'") == 1)
 ok('the name, e-mail and phone are NOT changed here (the user does it in the profile)', 'name="full_name"' not in ad.get('admin/edit_user.php', id=uid).text and 'name="email"' not in ad.get('admin/edit_user.php', id=uid).text)
 r = ad.post('admin/edit_user.php', dict(id=uid, department='Registrar Office', role='head_admin'))
@@ -114,8 +114,8 @@ sql("UPDATE vehicle_requests SET status='pending' WHERE request_id=1")
 hod = sql("SELECT supervisor_id FROM vehicle_requests WHERE request_id=1")
 act(ad, 'deactivate', hod)
 ok('3.2: a Head of Department with pending requests cannot be made Inactive: handle them first', sql("SELECT is_active FROM users WHERE user_id=%s" % hod) == '1')
-hdept = sql("SELECT department FROM users WHERE user_id=%s" % hod)
-other = sql("SELECT user_id FROM users WHERE role='staff' AND department<>'%s' LIMIT 1" % hdept)
+hdept = sql("SELECT d.department_name FROM users u JOIN departments d ON d.department_id=u.department_id WHERE u.user_id=%s" % hod)
+other = sql("SELECT user_id FROM users WHERE role='staff' AND department_id<>(SELECT department_id FROM users WHERE user_id=%s) LIMIT 1" % hod)
 r = ad.post('admin/edit_user.php', dict(id=other, department=hdept, role='supervisor'))
 ok('UC001.3 3.2: a second Head of Department for the same department is refused', 'already has a Head of Department' in r.text and sql("SELECT role FROM users WHERE user_id=%s" % other) == 'staff')
 sql("UPDATE vehicle_requests SET status='approved' WHERE request_id=1")

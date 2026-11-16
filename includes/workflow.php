@@ -1346,7 +1346,7 @@ function requestComments(mysqli $conn, int $request_id): array
  */
 function requestForCurrentUser(mysqli $conn, int $request_id): ?array
 {
-    $stmt = $conn->prepare('SELECT vr.*, s.department AS staff_department, s.full_name AS staff_name, s.role AS staff_role
+    $stmt = $conn->prepare('SELECT vr.*, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = s.department_id) AS staff_department, s.full_name AS staff_name, s.role AS staff_role
                               FROM vehicle_requests vr JOIN users s ON s.user_id = vr.staff_id WHERE vr.request_id = ? LIMIT 1');
     $stmt->bind_param('i', $request_id);
     $stmt->execute();

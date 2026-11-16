@@ -46,7 +46,7 @@ if mine and not rows("SELECT 1 FROM vehicle_requests WHERE staff_id=(SELECT user
 
 # Head of Department: only their own PTJ in the "To approve" list
 r = S['hos002'].get('supervisor/dashboard.php')
-ids = [str(x[0]) for x in rows("SELECT vr.request_id FROM vehicle_requests vr JOIN users u ON u.user_id=vr.staff_id WHERE vr.status='pending' AND NOT (vr.supervisor_id=(SELECT user_id FROM users WHERE username='hos002') AND (u.role='supervisor' OR u.department <=> (SELECT department FROM users WHERE username='hos002')))")]
+ids = [str(x[0]) for x in rows("SELECT vr.request_id FROM vehicle_requests vr JOIN users u ON u.user_id=vr.staff_id WHERE vr.status='pending' AND NOT (vr.supervisor_id=(SELECT user_id FROM users WHERE username='hos002') AND (u.role='supervisor' OR u.department_id <=> (SELECT department_id FROM users WHERE username='hos002')))")]
 shown = set(re.findall(r'<strong>#(\d+)</strong>', r.text.split('My own requests')[0]))
 ok('HoD: "To approve" lists only requests of their own PTJ', not (shown & set(ids)))
 ok('HoD cannot open the admin dashboard', S['hos002'].get('admin/dashboard.php').url.endswith('supervisor/dashboard.php') or 'dash-hero' not in S['hos002'].get('admin/dashboard.php').text)

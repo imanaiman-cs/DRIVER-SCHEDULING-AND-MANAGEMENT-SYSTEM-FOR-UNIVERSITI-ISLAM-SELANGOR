@@ -11,7 +11,7 @@ require_once 'admin/fleet_helpers.php';          // licenceBadges()
 requireLogin();
 
 $uid = (int)$_SESSION['user_id'];
-$stmt = $conn->prepare('SELECT * FROM users WHERE user_id = ?');
+$stmt = $conn->prepare('SELECT u.*, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
 $stmt->bind_param('i', $uid);
 $stmt->execute();
 $me = $stmt->get_result()->fetch_assoc();

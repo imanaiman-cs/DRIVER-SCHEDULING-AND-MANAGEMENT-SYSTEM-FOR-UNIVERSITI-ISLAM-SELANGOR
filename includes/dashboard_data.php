@@ -212,7 +212,7 @@ function dashHodPending(mysqli $conn, int $hodId, ?string $department, int $limi
         "SELECT vr.request_id, vr.destination, vr.trip_date, vr.start_time, vr.return_date, vr.end_time, vr.status, u.full_name AS staff_name,
                 TIMESTAMPDIFF(HOUR, vr.created_at, NOW()) AS waiting_h
            FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-          WHERE vr.status = 'pending' AND vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department IS NULL OR u.department <=> ?)
+          WHERE vr.status = 'pending' AND vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department_id IS NULL OR (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) <=> ?)
           ORDER BY vr.created_at LIMIT $limit",
         'is', [$hodId, $department]
     );

@@ -16,10 +16,11 @@ require_once __DIR__ . '/upload.php';
 
 function requestSelectSql(): string
 {
-    return "SELECT vr.*, u.full_name AS staff_name, u.department AS staff_department, u.role AS staff_role, u.phone AS staff_phone,
+    return "SELECT vr.*, u.full_name AS staff_name, udp.department_name AS staff_department, u.department_id AS staff_department_id, u.role AS staff_role, u.phone AS staff_phone,
                    hod.full_name AS hod_name, v.plate_number, v.model AS vehicle_model, v.capacity
               FROM vehicle_requests vr
               JOIN users u ON u.user_id = vr.staff_id
+              LEFT JOIN departments udp ON udp.department_id = u.department_id
               LEFT JOIN users hod ON hod.user_id = vr.supervisor_id
               LEFT JOIN vehicles v ON v.vehicle_id = vr.vehicle_id";
 }
@@ -39,7 +40,7 @@ function requestListFilter(array $get, bool $withDepartment = false): array
     if ($f['status'] !== '') { $sql .= ' AND vr.status = ?'; $types .= 's'; $p[] = $f['status']; }
     if ($f['from'] !== '')   { $sql .= ' AND vr.trip_date >= ?'; $types .= 's'; $p[] = $f['from']; }
     if ($f['to'] !== '')     { $sql .= ' AND vr.trip_date <= ?'; $types .= 's'; $p[] = $f['to']; }
-    if ($f['department'] !== '') { $sql .= ' AND u.department = ?'; $types .= 's'; $p[] = $f['department']; }
+    if ($f['department'] !== '') { $sql .= ' AND udp.department_name = ?'; $types .= 's'; $p[] = $f['department']; }
     return [$sql, $types, $p, $f];
 }
 

@@ -39,7 +39,7 @@ if ($fParams) { $stmt->bind_param($fTypes, ...$fParams); }
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-$deptList = array_column($conn->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department <> '' ORDER BY department")->fetch_all(MYSQLI_ASSOC), 'department');
+$deptList = allDepartments($conn);
 $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');

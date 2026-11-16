@@ -22,7 +22,7 @@ $where = match ($tab) {
     default   => "vr.status IN ('rejected', 'cancelled', 'lapsed', 'completed')",
 };
 // own PTJ: requests of people in his department, or of the Heads of Department he heads
-$stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) AND $where
+$stmt = $conn->prepare(requestSelectSql() . " WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR udp.department_name <=> ?) AND $where
                         ORDER BY vr.is_urgent DESC, vr.depart_at, vr.request_id");
 $stmt->bind_param('is', $uid, $dept);
 $stmt->execute();
@@ -32,7 +32,7 @@ $stmt->close();
 $n = [];
 $cs = $conn->prepare("SELECT CASE WHEN status = 'pending' THEN 'pending' WHEN status IN ('approved','assigned','processed') THEN 'active' ELSE 'history' END AS grp, COUNT(*) AS c
                         FROM vehicle_requests vr JOIN users u ON u.user_id = vr.staff_id
-                       WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR u.department <=> ?) GROUP BY grp");
+                       WHERE vr.supervisor_id = ? AND (u.role = 'supervisor' OR (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) <=> ?) GROUP BY grp");
 $cs->bind_param('is', $uid, $dept);
 $cs->execute();
 foreach ($cs->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $n[$r['grp']] = (int)$r['c']; }

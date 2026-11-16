@@ -9,7 +9,7 @@ function t_user(string $role = 'staff', ?string $dept = 'Test PTJ'): int
     global $conn;
     static $n = 0; $n++;
     $u = 't_' . $role . '_' . $n . '_' . mt_rand(1000, 9999);
-    $stmt = $conn->prepare("INSERT INTO users (username, password, email, full_name, role, department) VALUES (?, 'x', ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO users (username, password, email, full_name, role, department_id) VALUES (?, 'x', ?, ?, ?, (SELECT department_id FROM departments WHERE department_name = ?))");
     $mail = $u . '@test.test';
     $stmt->bind_param('sssss', $u, $mail, $u, $role, $dept);
     $stmt->execute();

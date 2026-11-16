@@ -2,9 +2,9 @@ import lib, re, json
 from lib import *
 lib.reseed()
 a = user('admin')
-sql("INSERT INTO users (username,password,email,full_name,role,department) SELECT 'drv099',password,'new.driver@uis.edu.my','New Driver','driver','Transport Unit' FROM users WHERE username='drv001'")
+sql("INSERT INTO users (username,password,email,full_name,role,department_id) SELECT 'drv099',password,'new.driver@uis.edu.my','New Driver','driver',(SELECT department_id FROM departments WHERE department_name='Transport Unit') FROM users WHERE username='drv001'")
 uid = sql("SELECT user_id FROM users WHERE username='drv099'")
-sql("INSERT INTO users (username,password,email,full_name,role,department) SELECT 'drv098',password,'x@uis.edu.my','Other Driver','driver','Transport Unit' FROM users WHERE username='drv001'")
+sql("INSERT INTO users (username,password,email,full_name,role,department_id) SELECT 'drv098',password,'x@uis.edu.my','Other Driver','driver',(SELECT department_id FROM departments WHERE department_name='Transport Unit') FROM users WHERE username='drv001'")
 
 # every page renders
 pages = ['admin/vehicles.php','admin/vehicles.php?q=BGN&type=Bus&status=available','admin/vehicles.php?status=in_use','admin/vehicles.php?status=maintenance',

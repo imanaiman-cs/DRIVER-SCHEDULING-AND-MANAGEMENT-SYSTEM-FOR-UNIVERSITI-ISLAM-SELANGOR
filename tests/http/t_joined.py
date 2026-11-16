@@ -4,7 +4,7 @@ from lib import *
 
 reseed()
 ad = user('admin'); s1 = user('stf001'); hd = user('head001')
-sql("INSERT INTO users (username,password,email,full_name,role,department) SELECT 'drv099',password,'new.driver@uis.edu.my','New Driver','driver','Transport Unit' FROM users WHERE username='drv001'")
+sql("INSERT INTO users (username,password,email,full_name,role,department_id) SELECT 'drv099',password,'new.driver@uis.edu.my','New Driver','driver',(SELECT department_id FROM departments WHERE department_name='Transport Unit') FROM users WHERE username='drv001'")
 uid = sql("SELECT user_id FROM users WHERE username='drv099'")
 today_ = today(); future = (today_ + datetime.timedelta(days=3)).isoformat(); joined = (today_ - datetime.timedelta(days=3 * 365)).isoformat()
 form = lambda **kw: dict({'user_id': uid, 'license_class[]': ['D'], 'license_expiry': (today_ + datetime.timedelta(days=400)).isoformat(), 'date_joined': joined}, **kw)

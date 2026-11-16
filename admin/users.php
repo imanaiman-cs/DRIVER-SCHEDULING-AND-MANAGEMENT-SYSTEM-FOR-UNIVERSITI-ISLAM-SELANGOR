@@ -22,7 +22,7 @@ function canManageUser(array $u, string $actorRole, int $me): bool
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id  = (int)($_POST['user_id'] ?? 0);
     $act = (string)($_POST['action'] ?? '');
-    $stmt = $conn->prepare('SELECT u.*, (SELECT COUNT(*) FROM drivers d WHERE d.driver_id = u.driver_id AND d.status = \'active\') AS active_driver FROM users u WHERE u.user_id = ?');
+    $stmt = $conn->prepare('SELECT u.*, (SELECT COUNT(*) FROM drivers d WHERE d.driver_id = u.driver_id AND d.status = \'active\') AS active_driver, (SELECT dn.department_name FROM departments dn WHERE dn.department_id = u.department_id) AS department FROM users u WHERE u.user_id = ?');
     $stmt->bind_param('i', $id);
     $stmt->execute();
     $u = $stmt->get_result()->fetch_assoc();
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $stmt = $conn->prepare('UPDATE users SET is_active = 0 WHERE user_id = ?');
                 $stmt->bind_param('i', $id); $stmt->execute(); $stmt->close();
-                if ($u['role'] === 'supervisor') { refreshApprovers($conn, $u['department']); }
+                if ($u['role'] === 'supervisor') { setDepartmentHead($conn, null, $id); refreshApprovers($conn, $u['department']); }
                 auditLog($conn, 'user_deactivate', null, $u['full_name'] . ' (' . $u['username'] . ') made Inactive');
                 setFlash('success', $u['full_name'] . ' is now Inactive and cannot sign in. The history is kept.');
             }
@@ -58,9 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $q      = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
 $role   = isset(ACCOUNT_ROLES[$_GET['role'] ?? '']) ? $_GET['role'] : '';
 $status = in_array($_GET['status'] ?? '', ['active', 'inactive'], true) ? $_GET['status'] : '';
-$sql = 'SELECT u.*, a.full_name AS approver_name FROM users u LEFT JOIN users a ON a.user_id = u.supervisor_id WHERE 1=1';
+$sql = 'SELECT u.*, dp.department_name AS department, a.full_name AS approver_name FROM users u LEFT JOIN departments dp ON dp.department_id = u.department_id
+                  LEFT JOIN departments pd ON pd.department_id = dp.parent_department_id
+                  LEFT JOIN users a ON a.user_id = IF(dp.head_user_id <=> u.user_id, pd.head_user_id, dp.head_user_id) AND a.user_id <> u.user_id WHERE 1=1';
 $types = ''; $args = [];
-if ($q !== '') { $sql .= ' AND (u.full_name LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR u.department LIKE ?)'; $like = '%' . $q . '%'; $types .= 'ssss'; array_push($args, $like, $like, $like, $like); }
+if ($q !== '') { $sql .= ' AND (u.full_name LIKE ? OR u.username LIKE ? OR u.email LIKE ? OR dp.department_name LIKE ?)'; $like = '%' . $q . '%'; $types .= 'ssss'; array_push($args, $like, $like, $like, $like); }
 if ($role !== '')   { $sql .= ' AND u.role = ?'; $types .= 's'; $args[] = $role; }
 if ($status !== '') { $sql .= ' AND u.is_active = ?'; $types .= 'i'; $args[] = $status === 'active' ? 1 : 0; }
 $sql .= ' ORDER BY u.is_active DESC, u.full_name';

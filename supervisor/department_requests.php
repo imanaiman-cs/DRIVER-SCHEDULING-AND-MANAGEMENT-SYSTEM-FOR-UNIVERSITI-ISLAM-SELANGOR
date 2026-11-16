@@ -13,7 +13,7 @@ requireSupervisor();
 $uid  = (int)$_SESSION['user_id'];
 $dept = $_SESSION['department'] ?? null;
 [$fSql, $fTypes, $fParams, $fv] = requestListFilter($_GET);
-$stmt = $conn->prepare(requestSelectSql() . " WHERE u.department <=> ?$fSql ORDER BY vr.trip_date DESC, vr.request_id DESC");
+$stmt = $conn->prepare(requestSelectSql() . " WHERE udp.department_name <=> ?$fSql ORDER BY vr.trip_date DESC, vr.request_id DESC");
 $stmt->bind_param('s' . $fTypes, $dept, ...$fParams);
 $stmt->execute();
 $requests = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

@@ -23,21 +23,13 @@ requireRequester();
 $staff_id  = (int)$_SESSION['user_id'];
 $full_name = (string)($_SESSION['full_name'] ?? '');
 
-// The approver (read fresh from the database: the staff system may have changed it)
-$q = $conn->prepare("SELECT u.supervisor_id, u.phone FROM users u JOIN users a ON a.user_id = u.supervisor_id
-                      WHERE u.user_id = ? AND a.role = 'supervisor' AND a.is_active = 1");
+// The approver (read fresh from the database): the head of the department, or for a Head of Department the head of the parent department (UC019 1.1)
+$approver_id = approverIdForUser($conn, (int)$staff_id);
+$q = $conn->prepare('SELECT phone FROM users WHERE user_id = ?');
 $q->bind_param('i', $staff_id);
 $q->execute();
-$me = $q->get_result()->fetch_assoc();
+$me = $q->get_result()->fetch_assoc() ?: ['phone' => ''];
 $q->close();
-$approver_id = $me ? (int)$me['supervisor_id'] : null;
-if (!$me) {
-    $q = $conn->prepare('SELECT phone FROM users WHERE user_id = ?');
-    $q->bind_param('i', $staff_id);
-    $q->execute();
-    $me = $q->get_result()->fetch_assoc() ?: ['phone' => ''];
-    $q->close();
-}
 
 $canSelfDrive = canSelfDriveLorry($conn, $staff_id);   // UC018 A2: Self Drive is only for a lorry and a driver with the GDL licence
 $errors = [];

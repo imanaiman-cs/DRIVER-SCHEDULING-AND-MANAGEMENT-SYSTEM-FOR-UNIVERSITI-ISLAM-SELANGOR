@@ -25,17 +25,36 @@ function passwordProblem(string $password): ?string
     return null;
 }
 
-/** Every PTJ (department) known in the system (UC013 step 4: the user selects the department). */
+// ------------------------------------------------------------
+// Departments (class Department, PTJ): a user belongs to one department; a department is headed by one Head of Department
+// (departments.head_user_id). The request of a Head of Department goes to the head of the parent department (UC019, Iman 16 Nov).
+// ------------------------------------------------------------
+
+/** Every PTJ (department) known in the system, by name (UC013 step 4: the user selects the department). */
 function allDepartments(mysqli $conn): array
 {
-    $r = $conn->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL AND department <> '' ORDER BY department");
-    return array_column($r->fetch_all(MYSQLI_ASSOC), 'department');
+    $r = $conn->query('SELECT department_name FROM departments ORDER BY department_name');
+    return array_column($r->fetch_all(MYSQLI_ASSOC), 'department_name');
+}
+
+/** The department_id of a department name, or null. */
+function departmentIdByName(mysqli $conn, ?string $name): ?int
+{
+    if ($name === null || trim($name) === '') { return null; }
+    $stmt = $conn->prepare('SELECT department_id FROM departments WHERE department_name = ?');
+    $n = trim($name);
+    $stmt->bind_param('s', $n);
+    $stmt->execute();
+    $id = $stmt->get_result()->fetch_row()[0] ?? null;
+    $stmt->close();
+    return $id === null ? null : (int)$id;
 }
 
 /** UC001 A2.1 / UC013 4.2: the active Head of Department of a PTJ, other than $exceptUser (null when there is none). */
 function headOfDepartmentOf(mysqli $conn, string $department, ?int $exceptUser = null): ?array
 {
-    $stmt = $conn->prepare("SELECT user_id, full_name FROM users WHERE role = 'supervisor' AND is_active = 1 AND department = ? AND user_id <> ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT u.user_id, u.full_name FROM departments d JOIN users u ON u.user_id = d.head_user_id
+                             WHERE d.department_name = ? AND u.role = 'supervisor' AND u.is_active = 1 AND u.user_id <> ? LIMIT 1");
     $except = (int)$exceptUser;
     $stmt->bind_param('si', $department, $except);
     $stmt->execute();
@@ -47,21 +66,59 @@ function headOfDepartmentOf(mysqli $conn, string $department, ?int $exceptUser =
 /** The PTJs (departments) that have an active Head of Department: the only ones a request can be approved in. */
 function departmentChoices(mysqli $conn): array
 {
-    $r = $conn->query("SELECT DISTINCT department FROM users WHERE role = 'supervisor' AND is_active = 1 AND department IS NOT NULL AND department <> '' ORDER BY department");
-    return array_column($r->fetch_all(MYSQLI_ASSOC), 'department');
+    $r = $conn->query("SELECT d.department_name FROM departments d JOIN users u ON u.user_id = d.head_user_id
+                        WHERE u.role = 'supervisor' AND u.is_active = 1 ORDER BY d.department_name");
+    return array_column($r->fetch_all(MYSQLI_ASSOC), 'department_name');
 }
 
-/** The Head of Department who approves the requests of a PTJ (the first active one); null for a Head of Department. */
+/**
+ * The approver of a request made by someone of a PTJ: the active head of the department; for a Head of Department ($role 'supervisor')
+ * the active head of the parent department. $exceptUser is never returned (nobody approves their own request). Null when there is none.
+ */
 function approverIdForDepartment(mysqli $conn, ?string $department, string $role, ?int $exceptUser = null): ?int
 {
-    if ($role === 'supervisor' || $department === null || $department === '') { return null; }
-    $stmt = $conn->prepare("SELECT user_id FROM users WHERE role = 'supervisor' AND department = ? AND is_active = 1 AND user_id <> ? ORDER BY user_id LIMIT 1");
+    if ($department === null || $department === '') { return null; }
+    $sql = $role === 'supervisor'
+        ? "SELECT u.user_id FROM departments d JOIN departments p ON p.department_id = d.parent_department_id JOIN users u ON u.user_id = p.head_user_id
+            WHERE d.department_name = ? AND u.role = 'supervisor' AND u.is_active = 1 AND u.user_id <> ?"
+        : "SELECT u.user_id FROM departments d JOIN users u ON u.user_id = d.head_user_id
+            WHERE d.department_name = ? AND u.role = 'supervisor' AND u.is_active = 1 AND u.user_id <> ?";
+    $stmt = $conn->prepare($sql);
     $except = (int)$exceptUser;
     $stmt->bind_param('si', $department, $except);
     $stmt->execute();
     $id = $stmt->get_result()->fetch_row()[0] ?? null;
     $stmt->close();
     return $id === null ? null : (int)$id;
+}
+
+/** UC019 1.1: the approver of a request made by this user (see approverIdForDepartment); the head of a department is treated as a Head of Department. */
+function approverIdForUser(mysqli $conn, int $userId): ?int
+{
+    $stmt = $conn->prepare('SELECT u.role, d.department_name, (d.head_user_id <=> u.user_id) AS is_head FROM users u LEFT JOIN departments d ON d.department_id = u.department_id WHERE u.user_id = ?');
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $u = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$u) { return null; }
+    $asHead = $u['role'] === 'supervisor' || (int)$u['is_head'] === 1;
+    return approverIdForDepartment($conn, $u['department_name'], $asHead ? 'supervisor' : 'staff', $userId);
+}
+
+/** Makes $userId the head of $department; the user stops being the head of any other department. setDepartmentHead($conn, null, $id) only ends $id's headship. */
+function setDepartmentHead(mysqli $conn, ?string $department, ?int $userId): void
+{
+    if ($userId !== null) {
+        $stmt = $conn->prepare('UPDATE departments SET head_user_id = NULL WHERE head_user_id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
+    if ($department === null || $department === '') { return; }
+    $stmt = $conn->prepare('UPDATE departments SET head_user_id = ? WHERE department_name = ?');
+    $stmt->bind_param('is', $userId, $department);
+    $stmt->execute();
+    $stmt->close();
 }
 
 /**
@@ -95,51 +152,50 @@ function accountInput(mysqli $conn, array $p, bool $creating, ?int $editId = nul
         $q->close();
     }
     if ($v['phone'] !== '' && !preg_match('/^[0-9 +()\-]{7,20}$/', $v['phone'])) { $e['phone'] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
-    if ($v['department'] === '' || mb_strlen($v['department']) > 100) { $e['department'] = 'Choose or enter the PTJ (department).'; }
+    if ($v['department'] === '' || departmentIdByName($conn, $v['department']) === null) { $e['department'] = 'Choose the PTJ (department) from the list.'; }
     return [$v, $e];
 }
 
-/** Saves a new account. Returns the new user_id. The approver is the Head of Department of the PTJ. */
+/** Saves a new account in its department. A new Head of Department becomes the head of the department when it has none. */
 function createAccount(mysqli $conn, array $v, string $role, string $password): int
 {
     $hash = password_hash($password, PASSWORD_DEFAULT);
-    $approver = approverIdForDepartment($conn, $v['department'], $role);
-    if ($role === 'supervisor') {                       // the request of a Head of Department goes to the head of that Head of Department
-        $r = $conn->query("SELECT supervisor_id FROM users WHERE role = 'supervisor' AND supervisor_id IS NOT NULL GROUP BY supervisor_id ORDER BY COUNT(*) DESC LIMIT 1");
-        $approver = $r->fetch_row()[0] ?? null;
-        $approver = $approver !== null ? (int)$approver : null;
-    }
+    $dept = departmentIdByName($conn, $v['department']);
     $phone = $v['phone'] !== '' ? $v['phone'] : null;
-    $stmt = $conn->prepare('INSERT INTO users (username, password, email, full_name, role, department, supervisor_id, phone, is_active, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)');
+    $stmt = $conn->prepare('INSERT INTO users (username, password, email, full_name, role, department_id, phone, is_active, language) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)');
     $lang = currentLanguage();
-    $stmt->bind_param('ssssssiss', $v['username'], $hash, $v['email'], $v['full_name'], $role, $v['department'], $approver, $phone, $lang);
+    $stmt->bind_param('sssssiss', $v['username'], $hash, $v['email'], $v['full_name'], $role, $dept, $phone, $lang);
     $stmt->execute();
     $id = (int)$conn->insert_id;
     $stmt->close();
+    if ($role === 'supervisor' && !headOfDepartmentOf($conn, $v['department'], $id)) { setDepartmentHead($conn, $v['department'], $id); }
     return $id;
 }
 
 /**
- * After a Head of Department was added, moved or made Inactive: people of the PTJ whose approver is missing or no longer
- * an active Head of Department of that PTJ get the current one, and so do their Pending requests.
+ * After a Head of Department was added, moved or made Inactive: the Pending requests of the PTJ (and of the heads of its child departments)
+ * whose approver is missing or no longer the right one get the current approver.
  */
 function refreshApprovers(mysqli $conn, ?string $department): void
 {
     if ($department === null || $department === '') { return; }
-    $hod = approverIdForDepartment($conn, $department, 'staff');
-    $stmt = $conn->prepare("UPDATE users u LEFT JOIN users a ON a.user_id = u.supervisor_id AND a.role = 'supervisor' AND a.is_active = 1 AND a.department <=> u.department
-                               SET u.supervisor_id = ? WHERE u.department = ? AND u.role <> 'supervisor' AND a.user_id IS NULL");
-    $stmt->bind_param('is', $hod, $department);
+    $stmt = $conn->prepare("SELECT vr.request_id, vr.staff_id, vr.supervisor_id FROM vehicle_requests vr JOIN users s ON s.user_id = vr.staff_id
+                              JOIN departments d ON d.department_id = s.department_id LEFT JOIN departments p ON p.department_id = d.parent_department_id
+                             WHERE vr.status = 'pending' AND vr.supervisor_id IS NOT NULL AND (d.department_name = ? OR (p.department_name = ? AND d.head_user_id = s.user_id))");
+    $stmt->bind_param('ss', $department, $department);
     $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
-    if ($hod !== null) {
-        $stmt = $conn->prepare("UPDATE vehicle_requests vr JOIN users s ON s.user_id = vr.staff_id
-                                   LEFT JOIN users a ON a.user_id = vr.supervisor_id AND a.role = 'supervisor' AND a.is_active = 1
-                                   SET vr.supervisor_id = ? WHERE vr.status = 'pending' AND s.department = ? AND s.role <> 'supervisor' AND a.user_id IS NULL");
-        $stmt->bind_param('is', $hod, $department);
-        $stmt->execute();
-        $stmt->close();
+    $upd = $conn->prepare('UPDATE vehicle_requests SET supervisor_id = ? WHERE request_id = ?');
+    foreach ($rows as $r) {
+        $now = approverIdForUser($conn, (int)$r['staff_id']);
+        if ($now !== null && $now !== (int)$r['supervisor_id']) {
+            $rid = (int)$r['request_id'];
+            $upd->bind_param('ii', $now, $rid);
+            $upd->execute();
+        }
     }
+    $upd->close();
 }
 
 /** Pending requests waiting for this Head of Department. */

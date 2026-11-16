@@ -48,8 +48,7 @@ CREATE TABLE `users` (
   `full_name` varchar(100) NOT NULL,
   `role` enum('admin','driver','staff','supervisor','head_admin') NOT NULL DEFAULT 'staff',
   `driver_id` int(11) DEFAULT NULL,
-  `department` varchar(100) DEFAULT NULL,
-  `supervisor_id` int(11) DEFAULT NULL,
+  `department_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `phone` varchar(30) DEFAULT NULL,
   `address` text DEFAULT NULL COMMENT 'own address (UC016)',
@@ -59,8 +58,24 @@ CREATE TABLE `users` (
   `locked_until` datetime DEFAULT NULL,
   `language` varchar(5) NOT NULL DEFAULT 'en' COMMENT 'interface language: en or ms',
   PRIMARY KEY (`user_id`),
-  UNIQUE KEY `uq_users_username` (`username`)
+  UNIQUE KEY `uq_users_username` (`username`),
+  KEY `idx_users_department` (`department_id`),
+  CONSTRAINT `fk_users_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Synced from the UIS staff system (tools/import_staff.php). The Vehicle Section does not create, edit or delete users.';
+
+CREATE TABLE `departments` (
+  `department_id` int(11) NOT NULL AUTO_INCREMENT,
+  `department_name` varchar(100) NOT NULL,
+  `head_user_id` int(11) DEFAULT NULL COMMENT 'the Head of Department',
+  `parent_department_id` int(11) DEFAULT NULL COMMENT 'a request of the Head of Department goes to the head of this department',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`department_id`),
+  UNIQUE KEY `uq_department_name` (`department_name`),
+  UNIQUE KEY `uq_department_head` (`head_user_id`),
+  KEY `idx_department_parent` (`parent_department_id`),
+  CONSTRAINT `fk_department_head` FOREIGN KEY (`head_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_department_parent` FOREIGN KEY (`parent_department_id`) REFERENCES `departments` (`department_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Class Department (PTJ)';
 
 CREATE TABLE `vehicles` (
   `vehicle_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -470,29 +485,32 @@ UPDATE drivers SET date_joined = DATE_SUB(CURDATE(), INTERVAL ROUND(experience_y
 -- SEED: user accounts  (in the real system these are synced from the UIS staff system, see tools/import_staff.php)
 --   Staff -> their Head of Department; a Head of Department -> hos005; drivers and the Vehicle Section -> hos001 (Transport Unit)
 -- ============================================================
-INSERT INTO users (user_id, username, password, email, full_name, role, driver_id, department, supervisor_id, phone) VALUES
-(1,'hos005','$2y$12$xzBlgF5MRUwZFocb9IhoLeCpdZgnGELJiYO.VbYaGQAFqx1Rl8E0e','zaki.mansor@uis.edu.my','Prof. Dr. Ahmad Zaki bin Mansor','supervisor',NULL,'Rectory',NULL,'03-5543 0001'),
-(2,'hos001','$2y$12$H6WgmaP4zlDLChQYdYJBhuQcP6fcI4tmjS9pqvoRItzdpziGaSaWm','hafizi@uis.edu.my','Mohd Hafizi bin Harun','supervisor',NULL,'Transport Unit',1,'03-5543 0002'),
-(3,'hos002','$2y$12$XeyHfK6Rf9NbOczoyh6t0uhe7/aEz0j3INBbgg6AyyX/FhaE.pkO.','rohana@uis.edu.my','Hajah Rohana binti Ismail','supervisor',NULL,'Faculty of Education',1,'03-5543 0003'),
-(4,'hos003','$2y$12$eciXr.HeEw4AlHHvdDo9M.IoJKCHrTK0nAGg5QbLj7kx6Q/jrKKAK','azlina@uis.edu.my','Dr. Nor Azlina binti Hashim','supervisor',NULL,'Registrar Office',1,'03-5543 0004'),
-(5,'hos004','$2y$12$fu1qLIgsoXP0sGf5kNh3weU7sQ2Kdl//TxtuNrEml1eud7Vtvxw1e','azman@uis.edu.my','Azman bin Yusof','supervisor',NULL,'Student Affairs Division',1,'03-5543 0005'),
-(6,'admin','$2y$12$Ky8cs04nGk0MN.JmVm5ZMOY3C7mi3JFgmm130RHK6/lYUI4tfoRAu','rozaimi@uis.edu.my','Rozaimi bin Kamaruzzaman','admin',NULL,'Transport Unit',2,'03-5543 0010'),
-(7,'head001','$2y$12$D/sduuDhSKUWG2PTlqRMqu8ga8o4GpV7/24VSLUIvaex0v/cMzh6a','zulkifli@uis.edu.my','Haji Zulkifli bin Awang','head_admin',NULL,'Transport Unit',2,'03-5543 0011'),
-(8,'stf001','$2y$12$c7wQzp3KQoe30AH0WfKG9OSYlsJ8HDZsdnvL7R/DInzO1W3DcPtCe','norliza@uis.edu.my','Norliza binti Abdul Rahman','staff',NULL,'Faculty of Education',3,'012-300 0001'),
-(9,'stf002','$2y$12$NrH1dWsfKKMOqDCJ8Z9ULuTZU6KrxNcI3ZoszEeYbdWLvT94EaCuC','syafiq@uis.edu.my','Muhammad Syafiq bin Zainal','staff',NULL,'Registrar Office',4,'012-300 0002'),
-(10,'stf003','$2y$12$fQW.21e97zb4kA2zQNZhQeMGuos.lHLTqSL8Wcjb9rAirHFD6CUIi','aishah@uis.edu.my','Siti Aishah binti Mohd Yusof','staff',NULL,'Student Affairs Division',5,'012-300 0003'),
-(11,'drv001','$2y$12$/4THfhaG2FpWKyDQBr3xUONs88LKyQT4b.H9P05oPy9GMGZahj91e','faizal.rashid@uis.edu.my','Ahmad Faizal bin Mohd Rashid','driver',1,'Transport Unit',2,'012-3456789'),
-(12,'drv002','$2y$12$X8fkpo6nK6JeMJJDpA5f9.rYBiNzxwaP0xTR9hl3IY/kfY0J/enQy','hafizuddin.zulkifli@uis.edu.my','Mohd Hafizuddin bin Zulkifli','driver',2,'Transport Unit',2,'013-2345678'),
-(13,'drv003','$2y$12$BwTwPgmpl1afd1.YwGtWiujeqv.ylIe7t0zMFMN2xcdL9V2uGK9.2','haslinda.karim@uis.edu.my','Norhaslinda binti Abdul Karim','driver',3,'Transport Unit',2,'011-34567890'),
-(14,'drv004','$2y$12$p2H563tPWhI39CMCWmoej.uqy4GU8rEXgyyFqSiKLzyWdXjIFFunO','khairul.ismail@uis.edu.my','Khairul Anuar bin Ismail','driver',4,'Transport Unit',2,'019-4567890'),
-(15,'drv005','$2y$12$B./snxxaNOQW/m3nGHCzOu6.vE1yBboSYw6e0T2YGLgk/nhkrCQTO','zaharah.othman@uis.edu.my','Siti Norzaharah binti Othman','driver',5,'Transport Unit',2,'017-5678901'),
-(16,'drv006','$2y$12$OuCs.OS3tn3/5AL7kSteL.Km2tU5Ga6VshDDyY7EQ2RgK7/7BV/U6','zulkarnain.hamzah@uis.edu.my','Zulkarnain bin Hamzah','driver',6,'Transport Unit',2,'014-6789012'),
-(17,'drv007','$2y$12$4gBoRqyK5PGgPMBsm3bM4e7Bg8lTj9HM7x3VMZLc7.z236n5Nmj7q','roslan.wahab@uis.edu.my','Roslan bin Abdul Wahab','driver',7,'Transport Unit',2,'016-7890123'),
-(18,'drv008','$2y$12$2j8fE3JFEUG3wrBFkp7hpumdKq1sf102wonp1UsFh2vZvsxilUAli','asyraf.hassan@uis.edu.my','Muhammad Asyraf bin Che Hassan','driver',8,'Transport Unit',2,'018-8901234'),
-(19,'drv009','$2y$12$VMQUX6UE0FcTKPrxrHH3NusJSIgX0hVpMwIS8hK2JzDe8al17I2/S','fadzillah.noor@uis.edu.my','Fadzillah bin Mohd Noor','driver',9,'Transport Unit',2,'012-9012345'),
-(20,'drv010','$2y$12$MO6xE.fogb.zXnSre2u6weaI.j9fT/4Uioq5z0ODbdeytufUm676a','nurulain.saharuddin@uis.edu.my','Nurul Ain binti Saharuddin','driver',10,'Transport Unit',2,'011-0123456'),
-(21,'drv011','$2y$12$wJ0eYOKAGOoyZ1C5x/RJLuk8JaeN4JqP0Xl9TWt5BZisC5pgWne0K','hairul.kamaruddin@uis.edu.my','Hairul Nizam bin Kamaruddin','driver',11,'Transport Unit',2,'013-1234567'),
-(22,'drv012','$2y$12$DhemtMeLYiDwg6jlS6sjt.LVqYokH7e06j43TrfXY6GcEpzmGeDC6','azhari.mahmud@uis.edu.my','Azhari bin Mahmud','driver',12,'Transport Unit',2,'017-2345670');
+INSERT INTO users (user_id, username, password, email, full_name, role, driver_id, department_id, phone) VALUES
+(1,'hos005','$2y$12$xzBlgF5MRUwZFocb9IhoLeCpdZgnGELJiYO.VbYaGQAFqx1Rl8E0e','zaki.mansor@uis.edu.my','Prof. Dr. Ahmad Zaki bin Mansor','supervisor',NULL,1,'03-5543 0001'),
+(2,'hos001','$2y$12$H6WgmaP4zlDLChQYdYJBhuQcP6fcI4tmjS9pqvoRItzdpziGaSaWm','hafizi@uis.edu.my','Mohd Hafizi bin Harun','supervisor',NULL,2,'03-5543 0002'),
+(3,'hos002','$2y$12$XeyHfK6Rf9NbOczoyh6t0uhe7/aEz0j3INBbgg6AyyX/FhaE.pkO.','rohana@uis.edu.my','Hajah Rohana binti Ismail','supervisor',NULL,3,'03-5543 0003'),
+(4,'hos003','$2y$12$eciXr.HeEw4AlHHvdDo9M.IoJKCHrTK0nAGg5QbLj7kx6Q/jrKKAK','azlina@uis.edu.my','Dr. Nor Azlina binti Hashim','supervisor',NULL,4,'03-5543 0004'),
+(5,'hos004','$2y$12$fu1qLIgsoXP0sGf5kNh3weU7sQ2Kdl//TxtuNrEml1eud7Vtvxw1e','azman@uis.edu.my','Azman bin Yusof','supervisor',NULL,5,'03-5543 0005'),
+(6,'admin','$2y$12$Ky8cs04nGk0MN.JmVm5ZMOY3C7mi3JFgmm130RHK6/lYUI4tfoRAu','rozaimi@uis.edu.my','Rozaimi bin Kamaruzzaman','admin',NULL,2,'03-5543 0010'),
+(7,'head001','$2y$12$D/sduuDhSKUWG2PTlqRMqu8ga8o4GpV7/24VSLUIvaex0v/cMzh6a','zulkifli@uis.edu.my','Haji Zulkifli bin Awang','head_admin',NULL,2,'03-5543 0011'),
+(8,'stf001','$2y$12$c7wQzp3KQoe30AH0WfKG9OSYlsJ8HDZsdnvL7R/DInzO1W3DcPtCe','norliza@uis.edu.my','Norliza binti Abdul Rahman','staff',NULL,3,'012-300 0001'),
+(9,'stf002','$2y$12$NrH1dWsfKKMOqDCJ8Z9ULuTZU6KrxNcI3ZoszEeYbdWLvT94EaCuC','syafiq@uis.edu.my','Muhammad Syafiq bin Zainal','staff',NULL,4,'012-300 0002'),
+(10,'stf003','$2y$12$fQW.21e97zb4kA2zQNZhQeMGuos.lHLTqSL8Wcjb9rAirHFD6CUIi','aishah@uis.edu.my','Siti Aishah binti Mohd Yusof','staff',NULL,5,'012-300 0003'),
+(11,'drv001','$2y$12$/4THfhaG2FpWKyDQBr3xUONs88LKyQT4b.H9P05oPy9GMGZahj91e','faizal.rashid@uis.edu.my','Ahmad Faizal bin Mohd Rashid','driver',1,2,'012-3456789'),
+(12,'drv002','$2y$12$X8fkpo6nK6JeMJJDpA5f9.rYBiNzxwaP0xTR9hl3IY/kfY0J/enQy','hafizuddin.zulkifli@uis.edu.my','Mohd Hafizuddin bin Zulkifli','driver',2,2,'013-2345678'),
+(13,'drv003','$2y$12$BwTwPgmpl1afd1.YwGtWiujeqv.ylIe7t0zMFMN2xcdL9V2uGK9.2','haslinda.karim@uis.edu.my','Norhaslinda binti Abdul Karim','driver',3,2,'011-34567890'),
+(14,'drv004','$2y$12$p2H563tPWhI39CMCWmoej.uqy4GU8rEXgyyFqSiKLzyWdXjIFFunO','khairul.ismail@uis.edu.my','Khairul Anuar bin Ismail','driver',4,2,'019-4567890'),
+(15,'drv005','$2y$12$B./snxxaNOQW/m3nGHCzOu6.vE1yBboSYw6e0T2YGLgk/nhkrCQTO','zaharah.othman@uis.edu.my','Siti Norzaharah binti Othman','driver',5,2,'017-5678901'),
+(16,'drv006','$2y$12$OuCs.OS3tn3/5AL7kSteL.Km2tU5Ga6VshDDyY7EQ2RgK7/7BV/U6','zulkarnain.hamzah@uis.edu.my','Zulkarnain bin Hamzah','driver',6,2,'014-6789012'),
+(17,'drv007','$2y$12$4gBoRqyK5PGgPMBsm3bM4e7Bg8lTj9HM7x3VMZLc7.z236n5Nmj7q','roslan.wahab@uis.edu.my','Roslan bin Abdul Wahab','driver',7,2,'016-7890123'),
+(18,'drv008','$2y$12$2j8fE3JFEUG3wrBFkp7hpumdKq1sf102wonp1UsFh2vZvsxilUAli','asyraf.hassan@uis.edu.my','Muhammad Asyraf bin Che Hassan','driver',8,2,'018-8901234'),
+(19,'drv009','$2y$12$VMQUX6UE0FcTKPrxrHH3NusJSIgX0hVpMwIS8hK2JzDe8al17I2/S','fadzillah.noor@uis.edu.my','Fadzillah bin Mohd Noor','driver',9,2,'012-9012345'),
+(20,'drv010','$2y$12$MO6xE.fogb.zXnSre2u6weaI.j9fT/4Uioq5z0ODbdeytufUm676a','nurulain.saharuddin@uis.edu.my','Nurul Ain binti Saharuddin','driver',10,2,'011-0123456'),
+(21,'drv011','$2y$12$wJ0eYOKAGOoyZ1C5x/RJLuk8JaeN4JqP0Xl9TWt5BZisC5pgWne0K','hairul.kamaruddin@uis.edu.my','Hairul Nizam bin Kamaruddin','driver',11,2,'013-1234567'),
+(22,'drv012','$2y$12$DhemtMeLYiDwg6jlS6sjt.LVqYokH7e06j43TrfXY6GcEpzmGeDC6','azhari.mahmud@uis.edu.my','Azhari bin Mahmud','driver',12,2,'017-2345670');
+-- Departments (PTJ): the head approves the requests of its people; the request of a head goes to the head of the parent department
+INSERT INTO departments (department_id, department_name, head_user_id, parent_department_id) VALUES
+ (1, 'Rectory', 1, NULL), (2, 'Transport Unit', 2, 1), (3, 'Faculty of Education', 3, 1), (4, 'Registrar Office', 4, 1), (5, 'Student Affairs Division', 5, 1);
 
 
 -- ============================================================
@@ -662,4 +680,4 @@ SELECT 'welfare', w.duty_id, 'welfare', ELT(1 + (DAYOFMONTH(d.day_date) MOD 10),
  ORDER BY d.day_date;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_whatsapp_log'), ('2026_11_need_driver'), ('2026_11_vehicle_usage_log'), ('2026_11_schedule_changes'), ('2026_11_vendor_bus'), ('2026_11_date_joined_weights'), ('2026_11_user_language'), ('2026_11_pay_claim'), ('2026_11_urgent'), ('2026_11_purpose_type'), ('2026_11_vehicle_reservations'), ('2026_11_personal_rental'), ('2026_11_task_reports'), ('2026_11_verification_codes'), ('2026_11_internal_task_approval'), ('2026_11_welfare_weekly'), ('2026_11_approval_email'), ('2026_11_welfare_report'), ('2026_11_remove_whatsapp'), ('2026_11_internal_task_types'), ('2026_11_replace_internal_welfare'), ('2026_11_schedule_change_cancel'), ('2026_11_whatsapp_openwa'), ('2026_11_class_diagram_tasks'), ('2026_11_class_diagram_schedule_change'), ('2026_11_class_diagram_departments');
