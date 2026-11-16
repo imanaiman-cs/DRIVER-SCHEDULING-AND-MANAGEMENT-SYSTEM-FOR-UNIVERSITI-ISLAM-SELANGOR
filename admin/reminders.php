@@ -32,28 +32,28 @@ $lapse = lapseWindowText($conn);
 
 adminPageStart('Approval Reminders');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-bell-concierge text-success me-2"></i>Approval Reminders</h4>
-    <p class="text-muted small">Requests waiting for the Head of Department. A request that is still Pending after <?= htmlspecialchars($lapse) ?> lapses. Reminders are sent by you, never automatically.</p>
-    <div class="card border-0 shadow-sm"><div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>Request</th><th>Requester</th><th>Head of Department</th><th class="text-center">Days pending</th><th>Last reminder</th><th></th></tr></thead>
+    <h4 class="font-bold mb-1"><i class="fas fa-bell-concierge text-success me-2"></i>Approval Reminders</h4>
+    <p class="text-base-content/60 text-sm">Requests waiting for the Head of Department. A request that is still Pending after <?= htmlspecialchars($lapse) ?> lapses. Reminders are sent by you, never automatically.</p>
+    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
+        <table class="table align-middle mb-0">
+            <thead class=""><tr><th>Request</th><th>Requester</th><th>Head of Department</th><th class="text-center">Days pending</th><th>Last reminder</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($rows as $r): $days = max(0, (int)floor((time() - strtotime($r['created_at'])) / 86400)); ?>
                 <tr>
                     <td><strong>#<?= (int)$r['request_id'] ?></strong> <?= htmlspecialchars($r['destination']) ?>
-                        <div class="small text-muted"><?= date('d M Y', strtotime($r['trip_date'])) ?>, <?= substr($r['start_time'], 0, 5) ?></div></td>
-                    <td><?= htmlspecialchars($r['staff_name']) ?><div class="small text-muted"><?= htmlspecialchars((string)$r['department']) ?></div></td>
+                        <div class="text-sm text-base-content/60"><?= date('d M Y', strtotime($r['trip_date'])) ?>, <?= substr($r['start_time'], 0, 5) ?></div></td>
+                    <td><?= htmlspecialchars($r['staff_name']) ?><div class="text-sm text-base-content/60"><?= htmlspecialchars((string)$r['department']) ?></div></td>
                     <td><?= htmlspecialchars((string)$r['hod_name']) ?></td>
                     <td class="text-center"><span class="badge bg-<?= $days >= 1 ? 'warning text-dark' : 'secondary' ?>"><?= $days ?></span></td>
-                    <td class="small"><?= $r['last_sent'] ? date('d M Y H:i', strtotime($r['last_sent'])) . ' (' . (int)$r['reminders_sent'] . 'x)' : '&mdash;' ?>
-                        <?= $r['last_error'] ? '<div class="text-danger">e-mail failed</div>' : '' ?></td>
+                    <td class="text-sm"><?= $r['last_sent'] ? date('d M Y H:i', strtotime($r['last_sent'])) . ' (' . (int)$r['reminders_sent'] . 'x)' : '&mdash;' ?>
+                        <?= $r['last_error'] ? '<div class="text-error">e-mail failed</div>' : '' ?></td>
                     <td class="text-end">
                         <form method="post"><input type="hidden" name="request_id" value="<?= (int)$r['request_id'] ?>">
-                            <button class="btn btn-sm btn-outline-success" data-confirm="The Head of Department and the staff member are reminded in the system and by e-mail." data-confirm-title="Send a reminder?" data-confirm-button="Send Reminder" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send Reminder</button></form>
+                            <button class="btn btn-sm btn-outline btn-success" data-confirm="The Head of Department and the staff member are reminded in the system and by e-mail." data-confirm-title="Send a reminder?" data-confirm-button="Send Reminder" data-confirm-tone="primary"><i class="fas fa-paper-plane me-1"></i>Send Reminder</button></form>
                     </td>
                 </tr>
             <?php endforeach; ?>
-            <?php if (!$rows): ?><tr><td colspan="6" class="text-center text-muted py-4">No request is waiting for approval.</td></tr><?php endif; ?>
+            <?php if (!$rows): ?><tr><td colspan="6" class="text-center text-base-content/60 py-6">No request is waiting for approval.</td></tr><?php endif; ?>
             </tbody>
         </table>
     </div></div>

@@ -1,0 +1,14 @@
+{
+  "name": "uis-driver-management",
+  "private": true,
+  "description": "Builds assets/css/app.css (Tailwind CSS + DaisyUI). The built file is committed, so the server needs no Node.",
+  "scripts": {
+    "build:css": "tailwindcss -i assets/css/src/app.css -o assets/css/app.css --minify",
+    "watch:css": "tailwindcss -i assets/css/src/app.css -o assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.5",
+    "daisyui": "5.8.1",
+    "tailwindcss": "4.3.5"
+  }
+}

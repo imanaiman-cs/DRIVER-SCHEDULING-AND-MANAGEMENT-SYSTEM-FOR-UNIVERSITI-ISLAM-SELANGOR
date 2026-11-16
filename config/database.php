@@ -398,24 +398,24 @@ function requireSupervisor(): void
 }
 
 /**
- * Returns a Bootstrap badge class string for a vehicle request status.
+ * Returns the DaisyUI badge modifier classes for a vehicle request status.
  *
  * @param string $status One of: pending, approved, rejected, processed, cancelled
  *
- * @return string Bootstrap badge colour class
+ * @return string DaisyUI badge classes
  */
 function requestStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'   => 'bg-warning text-dark',
-        'approved'  => 'bg-success',
-        'rejected'  => 'bg-danger',
-        'assigned'  => 'bg-info text-dark',
-        'processed' => 'bg-primary',
-        'cancelled' => 'bg-secondary',
-        'lapsed'    => 'bg-secondary',
-        'completed' => 'bg-dark',
-        default     => 'bg-secondary',
+        'pending'   => 'badge-soft badge-warning',
+        'approved'  => 'badge-soft badge-success',
+        'rejected'  => 'badge-soft badge-error',
+        'assigned'  => 'badge-soft badge-info',
+        'processed' => 'badge-soft badge-primary',
+        'cancelled' => 'badge-ghost',
+        'lapsed'    => 'badge-ghost',
+        'completed' => 'badge-neutral',
+        default     => 'badge-ghost',
     };
 }
 
@@ -526,9 +526,11 @@ function showFlash(): void
     if ($flash !== null) {
         $type    = sanitize($flash['type']);
         $message = sanitize($flash['message']);
-        echo '<div class="alert alert-' . $type . ' alert-dismissible fade show" role="alert">'
-           . $message
-           . '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+        $tone    = ['danger' => 'error', 'success' => 'success', 'warning' => 'warning', 'info' => 'info'][$type] ?? 'info';
+        $icon    = ['error' => 'circle-exclamation', 'success' => 'circle-check', 'warning' => 'triangle-exclamation', 'info' => 'circle-info'][$tone];
+        echo '<div class="alert alert-soft alert-' . $tone . ' mb-6" role="alert">'
+           . '<i class="fas fa-' . $icon . '" aria-hidden="true"></i><span>' . $message . '</span>'
+           . '<button type="button" class="btn btn-ghost btn-xs btn-square" onclick="this.parentElement.remove()" aria-label="Close"><i class="fas fa-xmark" aria-hidden="true"></i></button>'
            . '</div>';
     }
 }
@@ -598,55 +600,55 @@ function formatTime(?string $time): string
 }
 
 /**
- * Returns a Bootstrap badge class string for a schedule status value.
+ * Returns the DaisyUI badge modifier classes for a schedule status value.
  *
  * @param string $status One of: pending, approved, in_progress, completed, cancelled
  *
- * @return string Bootstrap badge colour class, e.g. 'bg-warning'
+ * @return string DaisyUI badge classes, e.g. 'badge-soft badge-warning'
  */
 function statusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'     => 'bg-warning text-dark',
-        'approved'    => 'bg-primary',
-        'in_progress' => 'bg-info text-dark',
-        'completed'   => 'bg-success',
-        'cancelled'   => 'bg-secondary',
-        default       => 'bg-dark',
+        'pending'     => 'badge-soft badge-warning',
+        'approved'    => 'badge-soft badge-primary',
+        'in_progress' => 'badge-soft badge-info',
+        'completed'   => 'badge-soft badge-success',
+        'cancelled'   => 'badge-ghost',
+        default       => 'badge-neutral',
     };
 }
 
 /**
- * Returns a Bootstrap badge class string for a driver status value.
+ * Returns the DaisyUI badge modifier classes for a driver status value.
  *
  * @param string $status One of: active, inactive
  *
- * @return string Bootstrap badge colour class
+ * @return string DaisyUI badge classes
  */
 function driverStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'active'   => 'bg-success',
-        'inactive' => 'bg-danger',
-        default    => 'bg-secondary',
+        'active'   => 'badge-soft badge-success',
+        'inactive' => 'badge-soft badge-error',
+        default    => 'badge-ghost',
     };
 }
 
 /**
- * Returns a Bootstrap badge class string for a vehicle status value.
+ * Returns the DaisyUI badge modifier classes for a vehicle status value.
  *
  * @param string $status One of: available, in_use, maintenance, inactive
  *
- * @return string Bootstrap badge colour class
+ * @return string DaisyUI badge classes
  */
 function vehicleStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'available'   => 'bg-success',
-        'in_use'      => 'bg-primary',
-        'maintenance' => 'bg-warning text-dark',
-        'inactive'    => 'bg-secondary',
-        default       => 'bg-dark',
+        'available'   => 'badge-soft badge-success',
+        'in_use'      => 'badge-soft badge-primary',
+        'maintenance' => 'badge-soft badge-warning',
+        'inactive'    => 'badge-ghost',
+        default       => 'badge-neutral',
     };
 }
 

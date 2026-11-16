@@ -36,47 +36,40 @@ $month = driverMonthCounts($conn, date('Y-m'))[$driverId] ?? ['tasks' => 0, 'out
 $welfareDays = $driverId > 0 ? dashRows($conn, 'SELECT duty_date FROM welfare_roster WHERE driver_id = ? AND duty_date >= ? ORDER BY duty_date LIMIT 5', 'is', [$driverId, $todayKey]) : [];
 adminPageStart('Dashboard');
 ?>
-    <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-            <h4 class="fw-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
-            <div><?= dashChips([['id-badge', 'Driver'], ['calendar-day', date('l, d F Y')]]) ?></div>
-        </div>
-        <div class="d-flex gap-2">
-            <a class="btn btn-light" href="schedules.php"><i class="fas fa-route me-1"></i>All my tasks</a>
-            <a class="btn btn-outline-light" href="../staff/request_vehicle.php"><i class="fas fa-car-side me-1"></i>Request a vehicle</a>
-        </div>
+    <?= dashHeader($_SESSION['full_name'] ?? '', ['Driver', date('l, d F Y')],
+        '<a class="btn btn-primary btn-sm" href="schedules.php"><i class="fas fa-route"></i>All my tasks</a>'
+      . '<a class="btn btn-sm" href="../staff/request_vehicle.php"><i class="fas fa-car-side"></i>Request a vehicle</a>') ?>
+    <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
+        <div class="col-span-6 xl:col-span-3"><?= dashKpi('Tasks today', count($todayTasks), 'calendar-day', 'success', 'schedules.php') ?></div>
+        <div class="col-span-6 xl:col-span-3"><?= dashKpi('Next 7 days', count($laterTasks), 'calendar-week', 'info', 'schedules.php') ?></div>
+        <div class="col-span-6 xl:col-span-3"><?= dashKpi('Tasks this month', $month['tasks'], 'list-check', 'primary', null, null, true, $month['outside'] . ' outside working hours') ?></div>
+        <div class="col-span-6 xl:col-span-3"><?= dashKpi('Welfare duty days', count($welfareDays), 'hand-holding-heart', 'warning', null, null, true, $welfareDays ? 'Next: ' . date('D, d M', strtotime($welfareDays[0]['duty_date'])) : 'None coming up') ?></div>
     </div>
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-xl-3"><?= dashKpi('Tasks today', count($todayTasks), 'calendar-day', 'success', 'schedules.php') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Next 7 days', count($laterTasks), 'calendar-week', 'info', 'schedules.php') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Tasks this month', $month['tasks'], 'list-check', 'primary', null, null, true, $month['outside'] . ' outside working hours') ?></div>
-        <div class="col-6 col-xl-3"><?= dashKpi('Welfare duty days', count($welfareDays), 'hand-holding-heart', 'warning', null, null, true, $welfareDays ? 'Next: ' . date('D, d M', strtotime($welfareDays[0]['duty_date'])) : 'None coming up') ?></div>
-    </div>
-    <div class="row g-3">
-        <div class="col-lg-7">
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12 lg:col-span-7">
             <div class="dash-card">
-                <h6><span><i class="fas fa-sun text-warning me-1"></i>Today</span></h6>
+                <h6><span><i class="fas fa-sun me-2 opacity-50"></i>Today</span></h6>
                 <?php if (!$todayTasks): ?><?= dashEmpty('No task today. Enjoy your day.', 'sun') ?><?php endif; ?>
                 <?php foreach ($todayTasks as $t): ?>
                     <div class="dash-row">
                         <span><span class="dash-time"><?= date('H:i', strtotime($t['start'])) ?>-<?= date('H:i', strtotime($t['end'])) ?></span>
-                            <span class="badge bg-<?= $t['kind'] === 'Internal' ? 'secondary' : 'success' ?> me-1"><?= dh($t['kind']) ?></span><?= dh($t['title']) ?></span>
-                        <span class="text-muted"><?= dh($t['vehicle']) ?></span>
+                            <span class="badge badge-sm <?= $t['kind'] === 'Internal' ? 'badge-ghost' : 'badge-soft badge-success' ?> me-1"><?= dh($t['kind']) ?></span><?= dh($t['title']) ?></span>
+                        <span class="text-base-content/60"><?= dh($t['vehicle']) ?></span>
                     </div>
                 <?php endforeach; ?>
             </div>
         </div>
-        <div class="col-lg-5">
+        <div class="col-span-12 lg:col-span-5">
             <div class="dash-card">
-                <h6><span><i class="fas fa-calendar-week text-success me-1"></i>Coming up</span></h6>
+                <h6><span><i class="fas fa-calendar-week me-2 opacity-50"></i>Coming up</span></h6>
                 <?php if (!$laterTasks): ?><?= dashEmpty('Nothing in the next 7 days.', 'calendar-check') ?><?php endif; ?>
                 <?php foreach ($laterTasks as $t): ?>
                     <div class="dash-row">
                         <span><strong><?= date('D, d M', strtotime($t['start'])) ?></strong> <?= date('H:i', strtotime($t['start'])) ?> &middot; <?= dh($t['title']) ?></span>
-                        <span class="text-muted"><?= dh($t['kind']) ?></span>
+                        <span class="text-base-content/60"><?= dh($t['kind']) ?></span>
                     </div>
                 <?php endforeach; ?>
-                <div class="small text-muted border-top pt-2 mt-2"><i class="fas fa-circle-info me-1"></i>You see a task once its request is Confirmed. This page is view only.</div>
+                <div class="text-sm text-base-content/60 border-t border-base-300 pt-2 mt-2"><i class="fas fa-circle-info me-1"></i>You see a task once its request is Confirmed. This page is view only.</div>
             </div>
         </div>
     </div>

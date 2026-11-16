@@ -15,3 +15,6 @@ config/whatsapp.php
 
 # Server settings (database password)
 config/local.php
+
+# Node (only used to build assets/css/app.css)
+node_modules/

@@ -55,52 +55,52 @@ $rec = recommendDrivers($conn, ['start' => $win['out']['start_dt'], 'end' => $wi
 
 adminPageStart('Assign Driver');
 ?>
-    <a class="small text-decoration-none" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h4 class="fw-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign driver &mdash; request #<?= $rid ?></h4>
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
+    <a class="text-sm no-underline" href="vehicle_requests.php"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
+    <h4 class="font-bold my-2"><i class="fas fa-user-plus text-success me-2"></i>Assign driver &mdash; request #<?= $rid ?></h4>
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body"><?= requestDetailsHtml($conn, $req, ['show_assignment' => false, 'history' => false]) ?></div></div>
 
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Outbound trip <span class="fw-normal text-muted small">
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Outbound trip <span class="font-normal text-base-content/60 text-sm">
                 <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)$req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
-            <p class="small text-muted mb-2">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). You make the final choice.</p>
-            <div class="table-responsive">
-            <table class="table table-sm align-middle">
-                <thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th>Note</th></tr></thead>
+            <p class="text-sm text-base-content/60 mb-2">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). You make the final choice.</p>
+            <div class="overflow-x-auto">
+            <table class="table align-middle">
+                <thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th>Note</th></tr></thead>
                 <tbody>
                 <?php foreach ($rec['ranked'] as $d): ?>
                     <tr>
-                        <td><input class="form-check-input" type="radio" name="out_driver" value="<?= (int)$d['driver_id'] ?>" id="od<?= (int)$d['driver_id'] ?>" required></td>
+                        <td><input class="radio radio-sm radio-primary" type="radio" name="out_driver" value="<?= (int)$d['driver_id'] ?>" id="od<?= (int)$d['driver_id'] ?>" required></td>
                         <td><?= (int)$d['rank'] ?></td>
-                        <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-muted small"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
+                        <td><label for="od<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label> <span class="text-base-content/60 text-sm"><?= htmlspecialchars((string)$d['license_class']) ?></span></td>
                         <td class="text-center"><?= (int)$d['tasks'] ?></td>
                         <td class="text-center"><?= (int)$d['outside'] ?></td>
-                        <td class="text-center"><span class="badge bg-success"><?= number_format((float)$d['score'], 1) ?></span></td>
-                        <td class="small"><?= $d['welfare'] ? '<span class="badge bg-warning text-dark">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '' ?></td>
+                        <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                        <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-soft badge-warning">On welfare duty that day</span>' : '' ?><?= $d['rank'] === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '' ?></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-danger">No driver is available for this trip. See the list below for the reasons.</td></tr><?php endif; ?>
+                <?php if (!$rec['ranked']): ?><tr><td colspan="7" class="text-error">No driver is available for this trip. See the list below for the reasons.</td></tr><?php endif; ?>
                 </tbody>
             </table>
             </div>
             <?php if ($rec['excluded']): ?>
-            <details class="small"><summary class="text-muted" style="cursor:pointer;">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
+            <details class="text-sm"><summary class="text-base-content/60" style="cursor:pointer;">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
                 <ul class="mb-0"><?php foreach ($rec['excluded'] as $x): ?><li><?= htmlspecialchars($x['name']) ?> &mdash; <?= htmlspecialchars($x['reason']) ?></li><?php endforeach; ?></ul>
             </details>
             <?php endif; ?>
         </div></div>
 
-        <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-            <h6 class="fw-bold">Return trip <span class="fw-normal text-muted small"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>
-            <div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_same" value="same" checked>
-                <label class="form-check-label" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
-            <div class="form-check"><input class="form-check-input" type="radio" name="return_mode" id="rm_sep" value="separate">
-                <label class="form-check-label" for="rm_sep">A separate driver and vehicle for the return trip</label></div>
-            <div id="sepBox" class="mt-3" style="display:none;">
-                <label class="form-label small" for="ret_vehicle">Return vehicle (free in the return period, enough seats)</label>
-                <select class="form-select form-select-sm mb-2" id="ret_vehicle" name="ret_vehicle"><option value="">Loading&hellip;</option></select>
-                <div id="retDrivers" class="small text-muted">Choose a vehicle to see the recommendation for the return trip.</div>
+        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
+            <h6 class="font-bold">Return trip <span class="font-normal text-base-content/60 text-sm"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>
+            <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_same" value="same" checked>
+                <label class="text-sm" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
+            <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_sep" value="separate">
+                <label class="text-sm" for="rm_sep">A separate driver and vehicle for the return trip</label></div>
+            <div id="sepBox" class="mt-4" style="display:none;">
+                <label class="mb-1 block text-sm font-medium" for="ret_vehicle">Return vehicle (free in the return period, enough seats)</label>
+                <select class="select w-full select-sm mb-2" id="ret_vehicle" name="ret_vehicle"><option value="">Loading&hellip;</option></select>
+                <div id="retDrivers" class="text-sm text-base-content/60">Choose a vehicle to see the recommendation for the return trip.</div>
             </div>
         </div></div>
         <button class="btn btn-success"><i class="fas fa-check me-1"></i>Assign and send to the Head of Admin</button>
@@ -134,12 +134,12 @@ adminPageStart('Assign Driver');
         if (!sel.value) { box.textContent = 'Choose a vehicle to see the recommendation for the return trip.'; return; }
         var q = new URLSearchParams({ start: R.start, end: R.end, licence: sel.options[sel.selectedIndex].getAttribute('data-lic') });
         fetch(base + 'get_available_drivers.php?' + q, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
-            if (!d.success || !d.drivers.length) { box.innerHTML = '<span class="text-danger">No driver is available for the return trip.</span>'; return; }
-            box.innerHTML = '<table class="table table-sm align-middle"><thead class="table-light"><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Outside hours</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
+            if (!d.success || !d.drivers.length) { box.innerHTML = '<span class="text-error">No driver is available for the return trip.</span>'; return; }
+            box.innerHTML = '<table class="table align-middle"><thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks</th><th class="text-center">Outside hours</th><th class="text-center">Score</th><th></th></tr></thead><tbody>' +
                 d.drivers.map(function (x) {
-                    return '<tr><td><input class="form-check-input" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
-                           '</td><td class="text-center">' + x.outside + '</td><td class="text-center"><span class="badge bg-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
-                           (x.welfare ? '<span class="badge bg-warning text-dark">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge bg-primary">Recommended</span>' : '') + '</td></tr>';
+                    return '<tr><td><input class="radio radio-sm radio-primary" type="radio" name="ret_driver" value="' + x.driver_id + '" required></td><td>' + x.rank + '</td><td>' + esc(x.name) + '</td><td class="text-center">' + x.tasks +
+                           '</td><td class="text-center">' + x.outside + '</td><td class="text-center"><span class="badge badge-soft badge-success">' + Number(x.score).toFixed(1) + '</span></td><td>' +
+                           (x.welfare ? '<span class="badge badge-soft badge-warning">Welfare duty</span>' : '') + (x.rank === 1 ? ' <span class="badge badge-soft badge-primary">Recommended</span>' : '') + '</td></tr>';
                 }).join('') + '</tbody></table>';
         });
     }

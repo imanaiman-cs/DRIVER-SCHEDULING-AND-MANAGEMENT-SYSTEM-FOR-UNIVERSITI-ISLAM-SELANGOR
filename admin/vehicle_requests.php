@@ -31,37 +31,37 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-file-signature text-success me-2"></i>Vehicle Requests</h4>
-    <ul class="nav nav-pills mb-3 flex-wrap gap-1">
+    <h4 class="font-bold mb-4"><i class="fas fa-file-signature text-success me-2"></i>Vehicle Requests</h4>
+    <ul class="nav nav-pills mb-4 flex-wrap gap-1">
         <?php foreach ($tabs as $k => [$label]): ?>
-            <li class="nav-item"><a class="nav-link py-1 <?= $tab === $k ? 'active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="badge bg-light text-dark"><?= $tabCount($k) ?></span></a></li>
+            <li class="nav-item"><a class="nav-link py-1 <?= $tab === $k ? 'active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="badge badge-ghost"><?= $tabCount($k) ?></span></a></li>
         <?php endforeach; ?>
     </ul>
 
-    <?php if (!$requests): ?><div class="card border-0 shadow-sm"><div class="card-body text-center text-muted py-5">Nothing here.</div></div><?php endif; ?>
+    <?php if (!$requests): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">Nothing here.</div></div><?php endif; ?>
 
     <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $rules = cancelRulesFor($r); $ret = 'admin/vehicle_requests.php?tab=' . $tab . '&open=' . $rid; ?>
-    <details class="card border-0 shadow-sm mb-2" <?= $rid === $open ? 'open' : '' ?>>
+    <details class="card border border-base-300 bg-base-100 mb-2" <?= $rid === $open ? 'open' : '' ?>>
         <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                    <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
+                    <span class="font-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
+                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
+                <div class="flex items-center gap-2">
                     <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
                 </div>
             </div>
         </summary>
-        <div class="card-body border-top pt-3">
+        <div class="card-body border-t border-base-300 pt-4">
             <?= requestDetailsHtml($conn, $r, ['show_assignment' => true]) ?>
 
             <?php if ($r['status'] === 'processed'): ?>
                 <?php $ts = $conn->prepare("SELECT schedule_id, leg_no, start_dt FROM schedules WHERE request_id = ? AND status <> 'cancelled' AND start_dt > NOW() ORDER BY leg_no");
                       $ts->bind_param('i', $rid); $ts->execute(); $tasks = $ts->get_result()->fetch_all(MYSQLI_ASSOC); $ts->close(); ?>
                 <?php foreach ($tasks as $t): ?>
-                    <a class="btn btn-sm btn-outline-primary mt-2 me-1" href="replace_driver.php?schedule_id=<?= (int)$t['schedule_id'] ?>"><i class="fas fa-right-left me-1"></i>Replace driver (<?= (int)$t['leg_no'] === 2 ? 'return' : 'outbound' ?>)</a>
+                    <a class="btn btn-sm btn-outline btn-primary mt-2 me-1" href="replace_driver.php?schedule_id=<?= (int)$t['schedule_id'] ?>"><i class="fas fa-right-left me-1"></i>Replace driver (<?= (int)$t['leg_no'] === 2 ? 'return' : 'outbound' ?>)</a>
                 <?php endforeach; ?>
             <?php endif; ?>
             <?php if ($r['status'] === 'assigned' && isHeadAdmin()): ?>
@@ -69,21 +69,21 @@ adminPageStart('Vehicle Requests');
             <?php endif; ?>
 
             <?php if ($rules['allowed']): ?>
-            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-3 border-top pt-3">
+            <form method="post" action="<?= SITE_URL ?>/ajax/cancel_request.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                <label class="form-label small fw-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-danger">(reason required)</span></label>
-                <div class="input-group input-group-sm">
-                    <input class="form-control" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
-                    <button class="btn btn-outline-danger" data-confirm="The request is cancelled, the vehicle is released, the driver is removed and everybody involved is told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
+                <label class="mb-1 block text-sm font-medium font-semibold" for="cr<?= $rid ?>">Cancel this request <span class="text-error">(reason required)</span></label>
+                <div class="join w-full">
+                    <input class="input w-full" id="cr<?= $rid ?>" name="reason" maxlength="500" required placeholder="Reason">
+                    <button class="btn btn-outline btn-error" data-confirm="The request is cancelled, the vehicle is released, the driver is removed and everybody involved is told." data-confirm-title="Cancel request #<?= $rid ?>?" data-confirm-button="Cancel request" data-confirm-tone="danger">Cancel request</button>
                 </div>
             </form>
             <?php endif; ?>
             <?php if (!in_array($r['status'], ['rejected', 'lapsed'], true)): ?>
-            <form method="post" action="<?= SITE_URL ?>/ajax/add_comment.php" class="mt-3 border-top pt-3">
+            <form method="post" action="<?= SITE_URL ?>/ajax/add_comment.php" class="mt-4 border-t border-base-300 pt-4">
                 <input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return_to" value="<?= htmlspecialchars($ret) ?>">
-                <div class="input-group input-group-sm">
-                    <input class="form-control" name="comment" maxlength="1000" required placeholder="Add a comment (the staff member is told)">
-                    <button class="btn btn-outline-secondary">Add comment</button>
+                <div class="join w-full">
+                    <input class="input w-full" name="comment" maxlength="1000" required placeholder="Add a comment (the staff member is told)">
+                    <button class="btn btn-outline">Add comment</button>
                 </div>
             </form>
             <?php endif; ?>

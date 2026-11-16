@@ -47,17 +47,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Edit Driver');
 ?>
-    <h4 class="fw-bold mb-3"><i class="fas fa-pen text-success me-2"></i>Edit Driver</h4>
-    <?php if ($errors): ?><div class="alert alert-danger" role="alert">Please correct the highlighted fields.</div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm" novalidate><div class="card-body">
+    <h4 class="font-bold mb-4"><i class="fas fa-pen text-success me-2"></i>Edit Driver</h4>
+    <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.</div><?php endif; ?>
+    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <input type="hidden" name="id" value="<?= $id ?>">
-        <div class="row g-3 mb-3">
-            <div class="col-12 col-md-4"><label class="form-label" for="r_staff">Staff no.</label><input class="form-control" id="r_staff" value="<?= htmlspecialchars($cur['employee_id']) ?>" readonly></div>
-            <div class="col-12 col-md-4"><label class="form-label" for="r_name">Name</label><input class="form-control" id="r_name" value="<?= htmlspecialchars($cur['name']) ?>" readonly></div>
-            <div class="col-12 col-md-4"><label class="form-label" for="r_mail">E-mail</label><input class="form-control" id="r_mail" value="<?= htmlspecialchars((string)$cur['email']) ?>" readonly></div>
-            <div class="col-12 form-text mt-0">Name and e-mail come from the UIS staff system.</div>
+        <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
+            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="r_staff">Staff no.</label><input class="input w-full" id="r_staff" value="<?= htmlspecialchars($cur['employee_id']) ?>" readonly></div>
+            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="r_name">Name</label><input class="input w-full" id="r_name" value="<?= htmlspecialchars($cur['name']) ?>" readonly></div>
+            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="r_mail">E-mail</label><input class="input w-full" id="r_mail" value="<?= htmlspecialchars((string)$cur['email']) ?>" readonly></div>
+            <div class="col-span-12 mt-1 block text-xs text-base-content/60 mt-0">Name and e-mail come from the UIS staff system.</div>
         </div>
         <?php driverFormFields($v, $errors, true, $cur['photo']); ?>
-        <div class="mt-4 d-flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline-secondary" href="view_driver.php?id=<?= $id ?>">Cancel</a></div>
+        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline" href="view_driver.php?id=<?= $id ?>">Cancel</a></div>
     </div></form>
 <?php adminPageEnd(); ?>

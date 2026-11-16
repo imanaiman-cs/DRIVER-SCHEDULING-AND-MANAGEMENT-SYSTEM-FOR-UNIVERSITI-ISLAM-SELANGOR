@@ -144,60 +144,60 @@ foreach ($roster as $r) { $count[$r['driver_name']] = ($count[$r['driver_name']]
 arsort($count);
 adminPageStart('Welfare Duty');
 ?>
-    <h4 class="fw-bold mb-1"><i class="fas fa-moon text-success me-2"></i>Welfare Duty</h4>
-    <p class="text-muted small mb-3">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
+    <h4 class="font-bold mb-1"><i class="fas fa-moon text-success me-2"></i>Welfare Duty</h4>
+    <p class="text-base-content/60 text-sm mb-4">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
 
-    <div class="card border-0 shadow-sm mb-4"><div class="card-body">
-        <h6 class="fw-bold mb-3">Set welfare duty for a month</h6>
-        <form method="post" class="row g-3">
-            <div class="col-12 col-md-3">
-                <label class="form-label fw-semibold" for="gen_month">Month</label>
-                <input type="month" class="form-control" id="gen_month" name="month" value="<?= $h($month) ?>" required>
+    <div class="card border border-base-300 bg-base-100 mb-6"><div class="card-body">
+        <h6 class="font-bold mb-4">Set welfare duty for a month</h6>
+        <form method="post" class="grid-12 grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-3">
+                <label class="mb-1 block text-sm font-medium font-semibold" for="gen_month">Month</label>
+                <input type="month" class="input w-full" id="gen_month" name="month" value="<?= $h($month) ?>" required>
             </div>
-            <div class="col-12 col-md-9">
-                <div class="form-label fw-semibold">Drivers in rotation order <span class="text-muted fw-normal small">(tick the drivers and number them: 1 is on duty on day 1)</span></div>
-                <div class="row g-2">
+            <div class="col-span-12 md:col-span-9">
+                <div class="mb-1 block text-sm font-medium font-semibold">Drivers in rotation order <span class="text-base-content/60 font-normal text-sm">(tick the drivers and number them: 1 is on duty on day 1)</span></div>
+                <div class="grid-12 grid grid-cols-12 gap-2">
                 <?php foreach ($drivers as $i => $d): $id = (int)$d['driver_id']; ?>
-                    <div class="col-12 col-sm-6 col-lg-4">
-                        <div class="input-group input-group-sm">
-                            <div class="input-group-text"><input class="form-check-input mt-0" type="checkbox" name="use[<?= $id ?>]" value="1" checked aria-label="Use <?= $h($d['name']) ?>"></div>
-                            <input type="number" min="1" max="99" class="form-control" style="max-width:4.5rem" name="order[<?= $id ?>]" value="<?= $i + 1 ?>" aria-label="Order of <?= $h($d['name']) ?>">
-                            <span class="form-control text-truncate" title="<?= $h($d['name']) ?>"><?= $h($d['name']) ?></span>
+                    <div class="col-span-12 sm:col-span-6 lg:col-span-4">
+                        <div class="join w-full">
+                            <div class="join-item flex items-center border border-base-300 bg-base-200 px-3 text-sm"><input class="checkbox checkbox-sm checkbox-primary mt-0" type="checkbox" name="use[<?= $id ?>]" value="1" checked aria-label="Use <?= $h($d['name']) ?>"></div>
+                            <input type="number" min="1" max="99" class="input w-full" style="max-width:4.5rem" name="order[<?= $id ?>]" value="<?= $i + 1 ?>" aria-label="Order of <?= $h($d['name']) ?>">
+                            <span class="input w-full truncate" title="<?= $h($d['name']) ?>"><?= $h($d['name']) ?></span>
                         </div>
                     </div>
                 <?php endforeach; ?>
                 </div>
             </div>
-            <div class="col-12 d-flex flex-wrap align-items-center gap-3">
+            <div class="col-span-12 flex flex-wrap items-center gap-4">
                 <input type="hidden" name="action" value="generate">
-                <div class="form-check"><input class="form-check-input" type="checkbox" id="replace_existing" name="replace_existing" value="1">
-                    <label class="form-check-label" for="replace_existing">Regenerate days that already have a driver</label></div>
-                <button class="btn btn-uis-primary" type="submit"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate the month</button>
+                <div class="flex items-center gap-2"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" id="replace_existing" name="replace_existing" value="1">
+                    <label class="text-sm" for="replace_existing">Regenerate days that already have a driver</label></div>
+                <button class="btn btn-primary" type="submit"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate the month</button>
             </div>
         </form>
     </div></div>
 
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <a class="btn btn-sm btn-outline-success" href="?month=<?= $prev_m ?>" aria-label="Previous month">&laquo;</a>
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+        <a class="btn btn-sm btn-outline btn-success" href="?month=<?= $prev_m ?>" aria-label="Previous month">&laquo;</a>
         <strong><?= $h(date('F Y', strtotime($first))) ?></strong>
-        <a class="btn btn-sm btn-outline-success" href="?month=<?= $next_m ?>" aria-label="Next month">&raquo;</a>
-        <?php if ($count): ?><span class="small text-muted ms-2"><?php foreach ($count as $n => $c): ?><span class="badge bg-light text-dark border me-1"><?= $h($n) ?>: <?= (int)$c ?></span><?php endforeach; ?></span><?php endif; ?>
+        <a class="btn btn-sm btn-outline btn-success" href="?month=<?= $next_m ?>" aria-label="Next month">&raquo;</a>
+        <?php if ($count): ?><span class="text-sm text-base-content/60 ms-2"><?php foreach ($count as $n => $c): ?><span class="badge badge-ghost me-1"><?= $h($n) ?>: <?= (int)$c ?></span><?php endforeach; ?></span><?php endif; ?>
     </div>
-    <div class="card border-0 shadow-sm"><div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>Date</th><th>Day</th><th>Driver on duty</th><th class="text-end">Update</th></tr></thead>
+    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
+        <table class="table align-middle mb-0">
+            <thead class=""><tr><th>Date</th><th>Day</th><th>Driver on duty</th><th class="text-end">Update</th></tr></thead>
             <tbody>
             <?php for ($d = 1; $d <= $days; $d++):
                 $date = sprintf('%s-%02d', $month, $d); $w = $roster[$date] ?? null; ?>
                 <tr class="<?= $date === $today ? 'table-active' : '' ?>">
-                    <td class="text-nowrap"><?= date('d M', strtotime($date)) ?></td>
-                    <td class="<?= (int)date('N', strtotime($date)) >= 6 ? 'text-muted' : '' ?>"><?= date('D', strtotime($date)) ?></td>
+                    <td class="whitespace-nowrap"><?= date('d M', strtotime($date)) ?></td>
+                    <td class="<?= (int)date('N', strtotime($date)) >= 6 ? 'text-base-content/60' : '' ?>"><?= date('D', strtotime($date)) ?></td>
                     <td><?php if ($w): ?><strong><?= $h($w['driver_name']) ?></strong>
-                        <?php if ($w['replaced_name']): ?><div class="small text-muted">Replaced <?= $h($w['replaced_name']) ?>: <?= $h($w['replacement_reason']) ?></div><?php endif; ?>
-                        <?php else: ?><span class="text-muted">Not set</span><?php endif; ?></td>
+                        <?php if ($w['replaced_name']): ?><div class="text-sm text-base-content/60">Replaced <?= $h($w['replaced_name']) ?>: <?= $h($w['replacement_reason']) ?></div><?php endif; ?>
+                        <?php else: ?><span class="text-base-content/60">Not set</span><?php endif; ?></td>
                     <td class="text-end">
                         <?php if ($date >= $today): ?>
-                        <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#dayModal"
+                        <button type="button" class="btn btn-sm btn-outline btn-success" data-bs-toggle="modal" data-bs-target="#dayModal"
                                 data-date="<?= $date ?>" data-nice="<?= $h(date('D, d M Y', strtotime($date))) ?>" data-driver="<?= $w ? (int)$w['driver_id'] : 0 ?>" data-has="<?= $w ? 1 : 0 ?>">
                             <?= $w ? 'Change' : 'Set' ?></button>
                         <?php endif; ?>
@@ -208,22 +208,22 @@ adminPageStart('Welfare Duty');
         </table>
     </div></div>
 
-    <div class="modal fade" id="dayModal" tabindex="-1" aria-labelledby="dayTitle" aria-hidden="true">
+    <div class="modal" id="dayModal" tabindex="-1" aria-labelledby="dayTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered"><form method="post" class="modal-content">
             <input type="hidden" name="action" value="update"><input type="hidden" name="month" value="<?= $h($month) ?>"><input type="hidden" name="duty_date" id="dayDate">
             <div class="modal-header"><h5 class="modal-title" id="dayTitle">Welfare duty</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body">
-                <label class="form-label fw-semibold" for="dayDriver">Driver on duty</label>
-                <select class="form-select mb-3" id="dayDriver" name="driver_id" required>
+                <label class="mb-1 block text-sm font-medium font-semibold" for="dayDriver">Driver on duty</label>
+                <select class="select w-full mb-4" id="dayDriver" name="driver_id" required>
                     <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= $h($d['name']) ?></option><?php endforeach; ?>
                 </select>
                 <div id="reasonBox">
-                    <label class="form-label fw-semibold" for="dayReason">Reason for the change</label>
-                    <textarea class="form-control" id="dayReason" name="reason" rows="2" maxlength="500"></textarea>
-                    <div class="form-text">Both the old and the new driver are notified.</div>
+                    <label class="mb-1 block text-sm font-medium font-semibold" for="dayReason">Reason for the change</label>
+                    <textarea class="textarea w-full" id="dayReason" name="reason" rows="2" maxlength="500"></textarea>
+                    <div class="mt-1 block text-xs text-base-content/60">Both the old and the new driver are notified.</div>
                 </div>
             </div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button><button class="btn btn-uis-primary" type="submit">Save</button></div>
+            <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal">Close</button><button class="btn btn-primary" type="submit">Save</button></div>
         </form></div>
     </div>
     <script>

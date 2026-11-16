@@ -23,9 +23,9 @@ function licenceBadges(?string $list): string
 {
     $html = '';
     foreach (array_filter(array_map('trim', explode(',', (string)$list))) as $c) {
-        if (isset(LICENCE_CLASSES[$c])) { $html .= '<span class="badge bg-light text-dark border me-1">' . htmlspecialchars($c) . '</span>'; }
+        if (isset(LICENCE_CLASSES[$c])) { $html .= '<span class="badge badge-ghost me-1">' . htmlspecialchars($c) . '</span>'; }
     }
-    return $html !== '' ? $html : '<span class="text-muted">-</span>';
+    return $html !== '' ? $html : '<span class="text-base-content/60">-</span>';
 }
 
 /** Date + time of a trip row for messages. */
@@ -259,11 +259,11 @@ function setDriverActive(mysqli $conn, int $driver_id, bool $active): array
 function fleetItemsList(array $items, bool $withReplaceLink = false): string
 {
     if (!$items) { return ''; }
-    $html = '<ul class="mb-0 mt-2 small">';
+    $html = '<ul class="mb-0 mt-2 text-sm">';
     foreach ($items as $i) {
         $html .= '<li>' . htmlspecialchars($i['text']);
         if ($withReplaceLink && !empty($i['schedule_id']) && $i['kind'] === 'request') {
-            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="fw-semibold">Replace driver</a>';
+            $html .= ' <a href="replace_driver.php?schedule_id=' . (int)$i['schedule_id'] . '" class="font-semibold">Replace driver</a>';
         }
         $html .= '</li>';
     }
@@ -381,37 +381,38 @@ function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
 /** The form fields. $v = current values, $errors = messages, $photo = stored photo path (edit). */
 function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
 {
-    $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
+    $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
     $licByType = [];
     foreach (VEHICLE_TYPES as $t => $_) { $licByType[$t] = licenceForVehicleType($t); }
     ?>
-    <div class="row g-3">
-        <div class="col-12 col-md-6"><label class="form-label" for="plate_number">Registration number <span class="text-danger">*</span></label>
-            <input class="form-control" id="plate_number" name="plate_number" maxlength="20" required value="<?= $val('plate_number') ?>" style="text-transform:uppercase"><?= $err('plate_number') ?></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="vehicle_type">Type <span class="text-danger">*</span></label>
-            <select class="form-select" id="vehicle_type" name="vehicle_type" required><option value="">Choose...</option>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="plate_number">Registration number <span class="text-error">*</span></label>
+            <input class="input w-full" id="plate_number" name="plate_number" maxlength="20" required value="<?= $val('plate_number') ?>" style="text-transform:uppercase"><?= $err('plate_number') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="vehicle_type">Type <span class="text-error">*</span></label>
+            <select class="select w-full" id="vehicle_type" name="vehicle_type" required><option value="">Choose...</option>
                 <?php foreach (VEHICLE_TYPES as $k => $l): ?><option value="<?= $k ?>" <?= ($v['vehicle_type'] ?? '') === $k ? 'selected' : '' ?>><?= htmlspecialchars($l) ?></option><?php endforeach; ?>
             </select><?= $err('vehicle_type') ?></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="model">Model <span class="text-danger">*</span></label>
-            <input class="form-control" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="capacity">Passenger capacity <span class="text-danger">*</span></label>
-            <input type="number" min="1" max="999" class="form-control" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
-        <div class="col-6 col-md-3"><label class="form-label" for="licence_shown">Licence required</label>
-            <input class="form-control" id="licence_shown" readonly tabindex="-1" aria-describedby="licHelp" value="<?= htmlspecialchars(isset(VEHICLE_TYPES[$v['vehicle_type'] ?? '']) ? licenceForVehicleType($v['vehicle_type']) : '-') ?>">
-            <div class="form-text" id="licHelp">Set by the type: Car/Van D, Lorry GDL, Bus PSV.</div></div>
-        <div class="col-12"><a class="small text-decoration-none" data-bs-toggle="collapse" href="#moreFields" role="button"><i class="fas fa-chevron-down me-1"></i>More details (optional)</a></div>
-        <div class="col-12 collapse <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'show' : '' ?>" id="moreFields"><div class="row g-3">
-            <div class="col-12 col-md-4"><label class="form-label" for="brand">Brand</label><input class="form-control" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
-            <div class="col-6 col-md-4"><label class="form-label" for="year">Year</label><input class="form-control" id="year" name="year" inputmode="numeric" maxlength="4" value="<?= $val('year') ?>"><?= $err('year') ?></div>
-            <div class="col-6 col-md-4"><label class="form-label" for="fuel_type">Fuel</label>
-                <select class="form-select" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
-            <div class="col-12"><label class="form-label" for="notes">Notes</label><textarea class="form-control" id="notes" name="notes" rows="2" maxlength="1000"><?= $val('notes') ?></textarea></div>
-            <div class="col-12"><label class="form-label" for="photo">Photo</label>
-                <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(vehiclePhotoUrl($photo)) ?>" alt="Vehicle photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>
-                <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-                <div class="form-text">JPG, PNG or WebP, up to 2 MB.</div></div>
-        </div></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="model">Model <span class="text-error">*</span></label>
+            <input class="input w-full" id="model" name="model" maxlength="50" required value="<?= $val('model') ?>"><?= $err('model') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="capacity">Passenger capacity <span class="text-error">*</span></label>
+            <input type="number" min="1" max="999" class="input w-full" id="capacity" name="capacity" required value="<?= $val('capacity') ?>"><?= $err('capacity') ?></div>
+        <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_shown">Licence required</label>
+            <input class="input w-full" id="licence_shown" readonly tabindex="-1" aria-describedby="licHelp" value="<?= htmlspecialchars(isset(VEHICLE_TYPES[$v['vehicle_type'] ?? '']) ? licenceForVehicleType($v['vehicle_type']) : '-') ?>">
+            <div class="mt-1 block text-xs text-base-content/60" id="licHelp">Set by the type: Car/Van D, Lorry GDL, Bus PSV.</div></div>
+        <details class="col-span-12 group" id="moreFields" <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'open' : '' ?>>
+            <summary class="link link-primary inline-flex cursor-pointer list-none items-center gap-1 text-sm no-underline"><i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>More details (optional)</summary>
+            <div class="grid-12 mt-4 grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="brand">Brand</label><input class="input w-full" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
+            <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="year">Year</label><input class="input w-full" id="year" name="year" inputmode="numeric" maxlength="4" value="<?= $val('year') ?>"><?= $err('year') ?></div>
+            <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="fuel_type">Fuel</label>
+                <select class="select w-full" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
+            <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="notes">Notes</label><textarea class="textarea w-full" id="notes" name="notes" rows="2" maxlength="1000"><?= $val('notes') ?></textarea></div>
+            <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
+                <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(vehiclePhotoUrl($photo)) ?>" alt="Vehicle photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>
+                <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
+                <div class="mt-1 block text-xs text-base-content/60">JPG, PNG or WebP, up to 2 MB.</div></div>
+        </div></details>
     </div>
     <script>
     (function () {
@@ -447,26 +448,26 @@ function driverInput(array $p, bool $withPhone): array
 /** Licence ticks + optional fields. */
 function driverFormFields(array $v, array $errors, bool $withPhone, ?string $photo = null): void
 {
-    $err = fn(string $k) => isset($errors[$k]) ? '<div class="invalid-feedback d-block">' . htmlspecialchars($errors[$k]) . '</div>' : '';
+    $err = fn(string $k) => isset($errors[$k]) ? '<div class="mt-1 block text-xs text-error">' . htmlspecialchars($errors[$k]) . '</div>' : '';
     $val = fn(string $k) => htmlspecialchars((string)($v[$k] ?? ''));
     $have = array_filter(explode(',', (string)($v['license_class'] ?? '')));
     ?>
-    <div class="row g-3">
-        <div class="col-12"><span class="form-label d-block">Licence classes <span class="text-danger">*</span></span>
+    <div class="grid-12 grid grid-cols-12 gap-4">
+        <div class="col-span-12"><span class="mb-1 block text-sm font-medium">Licence classes <span class="text-error">*</span></span>
             <?php foreach (LICENCE_CLASSES as $k => $l): ?>
-                <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="lc_<?= $k ?>"><?= htmlspecialchars($l) ?></label></div>
+                <div class="flex items-center gap-2 inline-flex me-4"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" name="license_class[]" id="lc_<?= $k ?>" value="<?= $k ?>" <?= in_array($k, $have, true) ? 'checked' : '' ?>>
+                    <label class="text-sm" for="lc_<?= $k ?>"><?= htmlspecialchars($l) ?></label></div>
             <?php endforeach; ?><?= $err('license_class') ?></div>
         <?php if ($withPhone): ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" maxlength="20" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="phone">Phone</label><input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= $val('phone') ?>"><?= $err('phone') ?></div>
         <?php endif; ?>
-        <div class="col-12 col-md-6"><label class="form-label" for="license_number">Licence number</label><input class="form-control" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
-        <div class="col-12 col-md-6"><label class="form-label" for="license_expiry">Licence expiry date</label><input type="date" class="form-control" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
-        <div class="col-12"><label class="form-label" for="address">Address</label><textarea class="form-control" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
-        <div class="col-12"><label class="form-label" for="photo">Photo</label>
-            <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border"></div><?php endif; ?>
-            <input type="file" class="form-control" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
-            <div class="form-text">JPG, PNG or WebP, up to 2 MB.</div></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_number">Licence number</label><input class="input w-full" id="license_number" name="license_number" maxlength="50" value="<?= $val('license_number') ?>"></div>
+        <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="license_expiry">Licence expiry date</label><input type="date" class="input w-full" id="license_expiry" name="license_expiry" value="<?= $val('license_expiry') ?>"><?= $err('license_expiry') ?></div>
+        <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="address">Address</label><textarea class="textarea w-full" id="address" name="address" rows="2" maxlength="500"><?= $val('address') ?></textarea></div>
+        <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
+            <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(driverPhotoUrl($photo)) ?>" alt="Driver photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>
+            <input type="file" class="file-input w-full" id="photo" name="photo" accept="image/jpeg,image/png,image/webp"><?= $err('photo') ?>
+            <div class="mt-1 block text-xs text-base-content/60">JPG, PNG or WebP, up to 2 MB.</div></div>
     </div>
     <?php
 }

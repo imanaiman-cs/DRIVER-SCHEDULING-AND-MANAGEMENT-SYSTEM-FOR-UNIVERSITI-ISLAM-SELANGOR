@@ -7,35 +7,47 @@ require_once __DIR__ . '/dashboard_data.php';
 
 function dh($s): string { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
 
-/** A KPI card. $trend comes from dashTrend() (or null). $good: is "up" good news? */
+/** DaisyUI colour name for the tones the dashboards use. */
+function dashTone(string $tone): string
+{
+    return ['danger' => 'error', 'secondary' => 'neutral'][$tone] ?? $tone;
+}
+
+/** A KPI tile (DaisyUI stat). $trend comes from dashTrend() (or null). $upIsGood: is "up" good news? */
 function dashKpi(string $label, $value, string $icon, string $tone, ?string $href = null, ?array $trend = null, bool $upIsGood = true, string $hint = ''): string
 {
     $t = '';
     if ($trend !== null) {
         $up = $trend['dir'] === 'up'; $flat = $trend['dir'] === 'flat';
-        $cls = $flat ? 'text-muted' : (($up === $upIsGood) ? 'text-success' : 'text-danger');
-        $arrow = $flat ? 'minus' : ($up ? 'arrow-trend-up' : 'arrow-trend-down');
-        $t = '<span class="dash-trend ' . $cls . '" title="Compared with last month"><i class="fas fa-' . $arrow . '"></i> ' . ($trend['pct'] === null ? 'new' : ($trend['pct'] > 0 ? '+' : '') . $trend['pct'] . '%') . '</span>';
+        $cls = $flat ? 'badge-ghost' : (($up === $upIsGood) ? 'badge-soft badge-success' : 'badge-soft badge-error');
+        $arrow = $flat ? 'minus' : ($up ? 'arrow-up' : 'arrow-down');
+        $t = '<span class="badge badge-sm ' . $cls . '" title="Compared with last month"><i class="fas fa-' . $arrow . ' text-[0.65rem]"></i>'
+           . ($trend['pct'] === null ? 'new' : abs($trend['pct']) . '%') . '</span>';
     }
-    $inner = '<div class="dash-kpi dash-kpi-' . dh($tone) . '"><div class="dash-kpi-icon"><i class="fas fa-' . dh($icon) . '"></i></div>'
-           . '<div class="dash-kpi-body"><div class="dash-kpi-value">' . dh($value) . ' ' . $t . '</div><div class="dash-kpi-label">' . dh($label) . '</div>'
-           . ($hint !== '' ? '<div class="dash-kpi-hint">' . dh($hint) . '</div>' : '') . '</div></div>';
-    return $href ? '<a class="text-decoration-none" href="' . dh($href) . '">' . $inner . '</a>' : $inner;
+    $colour = dashTone($tone) === 'neutral' ? 'text-base-content/40' : 'text-' . dashTone($tone);
+    $inner = '<div class="stat">'
+           . '<div class="stat-figure ' . $colour . '"><i class="fas fa-' . dh($icon) . ' text-xl"></i></div>'
+           . '<div class="stat-title whitespace-normal">' . dh($label) . '</div>'
+           . '<div class="stat-value flex items-center gap-2 text-3xl">' . dh($value) . $t . '</div>'
+           . ($hint !== '' ? '<div class="stat-desc whitespace-normal">' . dh($hint) . '</div>' : '')
+           . '</div>';
+    $box = 'stats h-full w-full rounded-box border border-base-300 bg-base-100';
+    return $href ? '<a class="' . $box . ' transition-colors hover:border-primary/50" href="' . dh($href) . '">' . $inner . '</a>'
+                 : '<div class="' . $box . '">' . $inner . '</div>';
 }
 
-/** The four steps of a request, with the current one marked. */
+/** The four steps of a request (DaisyUI steps), with the current one marked. */
 function dashStepper(string $status): string
 {
     $steps = ['pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned', 'processed' => 'Confirmed'];
     $keys = array_keys($steps);
     $at = array_search($status, $keys, true);
     if ($at === false) { $at = $status === 'completed' ? count($keys) : -1; }
-    $h = '<ol class="dash-steps">';
+    $h = '<ul class="steps steps-xs mt-3 w-full text-xs">';
     foreach ($keys as $i => $k) {
-        $cls = $i < $at ? 'done' : ($i === $at ? 'now' : '');
-        $h .= '<li class="' . $cls . '"><span class="dot"></span><span class="lbl">' . dh($status === 'pending' && $k === 'assigned' ? $steps[$k] : $steps[$k]) . '</span></li>';
+        $h .= '<li class="step' . ($i <= $at ? ' step-primary' : '') . '"' . ($i === $at ? ' aria-current="step"' : '') . '>' . dh($steps[$k]) . '</li>';
     }
-    return $h . '</ol>';
+    return $h . '</ul>';
 }
 
 /** "Good morning" / "Good afternoon" / "Good evening" (Malaysia time). */
@@ -45,12 +57,14 @@ function dashGreeting(): string
     return $h < 12 ? 'Good morning' : ($h < 18 ? 'Good afternoon' : 'Good evening');
 }
 
-/** The small rounded labels in the hero banner: [[icon, text], ...] */
-function dashChips(array $chips): string
+/** The page heading of a dashboard: greeting, a line of context and the main actions (HTML of buttons). */
+function dashHeader(string $name, array $context, string $actions = ''): string
 {
-    $h = '';
-    foreach ($chips as [$icon, $text]) { $h .= '<span class="dash-chip"><i class="fas fa-' . dh($icon) . '"></i>' . dh($text) . '</span>'; }
-    return $h;
+    return '<div class="mb-6 flex flex-wrap items-end justify-between gap-4">'
+         . '<div><h1 class="text-2xl font-semibold">' . dh(dashGreeting() . ', ' . $name) . '</h1>'
+         . '<p class="mt-1 text-sm text-base-content/60">' . implode(' &middot; ', array_map('dh', array_filter($context, fn($c) => (string)$c !== ''))) . '</p></div>'
+         . ($actions !== '' ? '<div class="flex flex-wrap gap-2">' . $actions . '</div>' : '')
+         . '</div>';
 }
 
 /** A friendly empty state. */
@@ -75,13 +89,13 @@ function dashChart(string $id, string $type, array $labels, array $datasets, arr
     $cfg = ['type' => $type, 'labels' => array_values($labels), 'datasets' => $datasets, 'opts' => $opts];
     $centre = isset($opts['centre']) ? '<div class="dash-chart-centre"><div><b>' . dh($opts['centre'][0]) . '</b><span>' . dh($opts['centre'][1]) . '</span></div></div>' : '';
     $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
-    $h .= '<table class="table table-sm small mb-0 dash-chart-fallback d-none"><tbody>';
+    $h .= '<div class="dash-chart-fallback hidden"><table class="table text-sm"><tbody>';
     foreach ($labels as $i => $l) {
         $h .= '<tr><td>' . dh($l) . '</td>';
         foreach ($datasets as $d) { $h .= '<td class="text-end">' . dh($d['data'][$i] ?? '') . '</td>'; }
         $h .= '</tr>';
     }
-    return $h . '</tbody></table>';
+    return $h . '</tbody></table></div>';
 }
 
 /** Loads Chart.js and draws every canvas made by dashChart(). Call once, at the end of the page content. */
@@ -95,16 +109,19 @@ function dashChartScript(): void
     canvases.forEach(function (el) {
         var wrap = el.closest('.dash-chart');
         if (typeof Chart === 'undefined') {            // no chart library: show the numbers instead
-            wrap.classList.add('d-none');
+            wrap.classList.add('hidden');
             var t = wrap.nextElementSibling;
-            if (t) { t.classList.remove('d-none'); }
+            if (t) { t.classList.remove('hidden'); }
             return;
         }
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
         var narrow = window.innerWidth < 576, stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+        Chart.defaults.color = '#5f6b65';
+        Chart.defaults.borderColor = '#e4e8e6';
         var datasets = c.datasets.map(function (d) {
-            var color = d.color || '#198754';
+            var color = d.color || '#0b5d3b';
             var set = { label: d.label, data: d.data, borderWidth: round ? 2 : (c.type === 'line' ? 3 : 0), borderRadius: c.type === 'bar' ? 4 : 0 };
             if (round) { set.backgroundColor = d.colors; }
             else { set.backgroundColor = c.type === 'line' ? color + '33' : color; set.borderColor = color; }

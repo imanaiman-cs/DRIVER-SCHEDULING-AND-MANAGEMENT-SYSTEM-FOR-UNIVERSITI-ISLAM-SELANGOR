@@ -20,31 +20,24 @@ $approvedThisMonth = array_sum(array_map(fn($k) => (int)($decidedBy[$k] ?? 0), [
 $rejectedThisMonth = (int)($decidedBy['rejected'] ?? 0);
 adminPageStart('Dashboard');
 ?>
-    <div class="dash-hero mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-            <h4 class="fw-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
-            <div><?= dashChips([['user-tie', 'Head of Department'], ['building-columns', (string)($dept ?? '')], ['calendar-day', date('l, d F Y')]]) ?></div>
-        </div>
-        <div class="d-flex gap-2">
-            <a class="btn btn-light" href="approvals.php"><i class="fas fa-stamp me-1"></i>Vehicle approvals (<?= $total ?>)</a>
-            <a class="btn btn-outline-light" href="../staff/request_vehicle.php"><i class="fas fa-car-side me-1"></i>Request a vehicle</a>
-        </div>
+    <?= dashHeader($_SESSION['full_name'] ?? '', ['Head of Department', (string)($dept ?? ''), date('l, d F Y')],
+        '<a class="btn btn-primary btn-sm" href="approvals.php"><i class="fas fa-stamp"></i>Vehicle approvals (' . $total . ')</a>'
+      . '<a class="btn btn-sm" href="../staff/request_vehicle.php"><i class="fas fa-car-side"></i>Request a vehicle</a>') ?>
+    <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
+        <div class="col-span-6 xl:col-span-4"><?= dashKpi('Waiting for my decision', $total, 'hourglass-half', 'warning', 'approvals.php', null, true, 'Requests of my own PTJ') ?></div>
+        <div class="col-span-6 xl:col-span-4"><?= dashKpi('Approved this month', $approvedThisMonth, 'thumbs-up', 'success') ?></div>
+        <div class="col-span-12 xl:col-span-4"><?= dashKpi('Rejected this month', $rejectedThisMonth, 'thumbs-down', 'danger') ?></div>
     </div>
-    <div class="row g-3 mb-3">
-        <div class="col-6 col-xl-4"><?= dashKpi('Waiting for my decision', $total, 'hourglass-half', 'warning', 'approvals.php', null, true, 'Requests of my own PTJ') ?></div>
-        <div class="col-6 col-xl-4"><?= dashKpi('Approved this month', $approvedThisMonth, 'thumbs-up', 'success') ?></div>
-        <div class="col-12 col-xl-4"><?= dashKpi('Rejected this month', $rejectedThisMonth, 'thumbs-down', 'danger') ?></div>
-    </div>
-    <div class="dash-card mb-4">
-        <h6><span><i class="fas fa-stamp text-success me-1"></i>To approve</span><a class="small fw-normal" href="approvals.php">Open approvals</a></h6>
+    <div class="dash-card mb-6">
+        <h6><span><i class="fas fa-stamp me-2 opacity-50"></i>To approve</span><a class="text-sm font-normal" href="approvals.php">Open approvals</a></h6>
         <?php if (!$pending): ?><?= dashEmpty('No request is waiting for you.', 'circle-check') ?><?php endif; ?>
         <?php foreach ($pending as $r): ?>
-            <a class="dash-row text-decoration-none text-dark" href="approvals.php">
-                <span><strong>#<?= (int)$r['request_id'] ?></strong> <?= dh($r['destination']) ?> <span class="text-muted">&middot; <?= dh($r['staff_name']) ?></span></span>
-                <span class="text-muted"><?= requestPeriodText($r) ?> &middot; waiting <?= dashWaiting($r['waiting_h']) ?></span>
+            <a class="dash-row no-underline text-base-content" href="approvals.php">
+                <span><strong>#<?= (int)$r['request_id'] ?></strong> <?= dh($r['destination']) ?> <span class="text-base-content/60">&middot; <?= dh($r['staff_name']) ?></span></span>
+                <span class="text-base-content/60"><?= requestPeriodText($r) ?> &middot; waiting <?= dashWaiting($r['waiting_h']) ?></span>
             </a>
         <?php endforeach; ?>
     </div>
-    <h5 class="fw-bold mb-3">My own requests</h5>
+    <h5 class="font-bold mb-4">My own requests</h5>
     <?php dashMyRequestsSection($conn, $uid); ?>
 <?php adminPageEnd(); ?>

@@ -58,9 +58,9 @@ if (!$schedule) {
     </style>
 </head>
 <body>
-    <div class="toolbar no-print d-flex gap-2 px-2">
-        <button type="button" class="btn btn-uis btn-sm" onclick="window.print()">Print</button>
-        <a href="<?php echo SITE_URL; ?>/admin/calendar.php" class="btn btn-outline-secondary btn-sm">Back</a>
+    <div class="toolbar no-print flex gap-2 px-2">
+        <button type="button" class="btn btn-sm" onclick="window.print()">Print</button>
+        <a href="<?php echo SITE_URL; ?>/admin/calendar.php" class="btn btn-outline btn-sm">Back</a>
     </div>
 
     <div class="sheet-card">

@@ -48,53 +48,53 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
     $showAssign = !empty($o['show_assignment']) || (in_array($req['status'], ['processed', 'completed'], true) && ($o['show_after_confirmed'] ?? true));
     ob_start();
     ?>
-    <div class="row g-3 small">
-        <div class="col-md-6">
-            <div class="text-muted">Requester</div>
-            <div class="fw-semibold"><?= reqH($req['staff_name']) ?> <span class="text-muted fw-normal">(<?= reqH($req['staff_department']) ?>)</span></div>
+    <div class="grid-12 grid grid-cols-12 gap-4 text-sm">
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Requester</div>
+            <div class="font-semibold"><?= reqH($req['staff_name']) ?> <span class="text-base-content/60 font-normal">(<?= reqH($req['staff_department']) ?>)</span></div>
             <div><?= reqH($req['officer_phone']) ?></div>
         </div>
-        <div class="col-md-6">
-            <div class="text-muted">Trip</div>
-            <div class="fw-semibold"><?= requestPeriodText($req) ?></div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Trip</div>
+            <div class="font-semibold"><?= requestPeriodText($req) ?></div>
             <div><?= (int)$req['passenger_count'] ?> passenger(s)</div>
         </div>
-        <div class="col-md-6">
-            <div class="text-muted">Destination</div>
-            <div class="fw-semibold"><?= reqH($req['destination']) ?></div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Destination</div>
+            <div class="font-semibold"><?= reqH($req['destination']) ?></div>
             <div><?= reqH($req['destination_address']) ?></div>
         </div>
-        <div class="col-md-6">
-            <div class="text-muted">Waiting location</div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Waiting location</div>
             <div><?= reqH($req['waiting_place'] === 'Other' ? ($req['waiting_address'] ?: 'Other') : $req['waiting_place']) ?></div>
         </div>
-        <div class="col-12">
-            <div class="text-muted">Purpose</div>
+        <div class="col-span-12">
+            <div class="text-base-content/60">Purpose</div>
             <div><?= nl2br(reqH($req['purpose'])) ?></div>
         </div>
         <?php if (!empty($req['passenger_names'])): ?>
-        <div class="col-12">
-            <div class="text-muted">Passenger names</div>
+        <div class="col-span-12">
+            <div class="text-base-content/60">Passenger names</div>
             <div><?= nl2br(reqH($req['passenger_names'])) ?></div>
         </div>
         <?php endif; ?>
-        <div class="col-md-6">
-            <div class="text-muted">Requested vehicle</div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Requested vehicle</div>
             <div><?= $req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;' ?></div>
         </div>
-        <div class="col-md-6">
-            <div class="text-muted">Head of Department</div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Head of Department</div>
             <div><?= reqH($req['hod_name'] ?: '—') ?></div>
         </div>
         <?php if (in_array($req['status'], ['rejected', 'cancelled', 'lapsed'], true)): ?>
-        <div class="col-12">
-            <div class="alert alert-secondary py-2 mb-0">
+        <div class="col-span-12">
+            <div class="alert alert-soft py-2 mb-0">
                 <strong><?= reqH(requestStatusLabel($req['status'])) ?></strong>
                 <?php if ($req['status'] === 'lapsed'): ?> - it was not approved within <?= reqH(lapseWindowText($conn)) ?>.
                 <?php elseif (!empty($req['status_reason'])): ?> - <?= reqH($req['status_reason']) ?>
                 <?php elseif ($req['status'] === 'cancelled'): ?> - no reason was given.<?php endif; ?>
                 <?php if ($req['status'] === 'cancelled' && !empty($req['cancelled_by_role'])): ?>
-                    <span class="text-muted">(by <?= reqH(requestActorLabel($req['cancelled_by_role'])) ?>)</span>
+                    <span class="text-base-content/60">(by <?= reqH(requestActorLabel($req['cancelled_by_role'])) ?>)</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -111,16 +111,16 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             $stmt->close();
         ?>
         <?php if ($tasks): ?>
-        <div class="col-12">
-            <div class="text-muted">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
-            <table class="table table-sm mb-0">
+        <div class="col-span-12">
+            <div class="text-base-content/60">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
+            <table class="table mb-0">
                 <tbody>
                 <?php foreach ($tasks as $t): ?>
                     <tr>
-                        <td class="text-nowrap"><?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?></td>
-                        <td class="text-nowrap"><?= date('d M H:i', strtotime($t['trip_date'] . ' ' . $t['start_time'])) ?>-<?= substr($t['end_time'], 0, 5) ?></td>
-                        <td><?= reqH($t['driver'] ?: 'no driver') ?><?= $t['driver_phone'] ? ' <span class="text-muted">' . reqH($t['driver_phone']) . '</span>' : '' ?></td>
-                        <td><?= reqH($t['plate_number']) ?> <span class="text-muted"><?= reqH($t['model']) ?></span></td>
+                        <td class="whitespace-nowrap"><?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?></td>
+                        <td class="whitespace-nowrap"><?= date('d M H:i', strtotime($t['trip_date'] . ' ' . $t['start_time'])) ?>-<?= substr($t['end_time'], 0, 5) ?></td>
+                        <td><?= reqH($t['driver'] ?: 'no driver') ?><?= $t['driver_phone'] ? ' <span class="text-base-content/60">' . reqH($t['driver_phone']) . '</span>' : '' ?></td>
+                        <td><?= reqH($t['plate_number']) ?> <span class="text-base-content/60"><?= reqH($t['model']) ?></span></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -130,36 +130,36 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php endif; ?>
 
         <?php $docs = getRequestDocuments($conn, [$rid])[$rid] ?? []; if ($docs): ?>
-        <div class="col-12">
-            <div class="text-muted">Supporting documents</div>
+        <div class="col-span-12">
+            <div class="text-base-content/60">Supporting documents</div>
             <?php foreach ($docs as $d): ?>
-                <a class="d-inline-block me-3" href="<?= reqH($d['url']) ?>" target="_blank" rel="noopener"><i class="fas fa-paperclip me-1"></i><?= reqH($d['original_name']) ?> <span class="text-muted">(<?= reqH(formatFileSize($d['file_size'])) ?>)</span></a>
+                <a class="inline-block me-4" href="<?= reqH($d['url']) ?>" target="_blank" rel="noopener"><i class="fas fa-paperclip me-1"></i><?= reqH($d['original_name']) ?> <span class="text-base-content/60">(<?= reqH(formatFileSize($d['file_size'])) ?>)</span></a>
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
 
         <?php if (($o['comments'] ?? true) && ($comments = requestComments($conn, $rid))): ?>
-        <div class="col-12">
-            <div class="text-muted">Comments</div>
+        <div class="col-span-12">
+            <div class="text-base-content/60">Comments</div>
             <?php foreach ($comments as $c): ?>
-                <div class="border-start border-3 ps-2 mb-1" style="border-color:#15803d !important;">
+                <div class="border-s border-base-300 border-4 ps-2 mb-1" style="border-color:#15803d !important;">
                     <?= nl2br(reqH($c['comment'])) ?>
-                    <div class="text-muted" style="font-size:.75rem;"><?= reqH($c['full_name']) ?> (<?= reqH($c['role_label']) ?>), <?= date('d M Y H:i', strtotime($c['created_at'])) ?></div>
+                    <div class="text-base-content/60" style="font-size:.75rem;"><?= reqH($c['full_name']) ?> (<?= reqH($c['role_label']) ?>), <?= date('d M Y H:i', strtotime($c['created_at'])) ?></div>
                 </div>
             <?php endforeach; ?>
         </div>
         <?php endif; ?>
 
         <?php if ($o['history'] ?? true): ?>
-        <div class="col-12">
-            <div class="text-muted">Status history</div>
-            <ul class="list-unstyled mb-0">
+        <div class="col-span-12">
+            <div class="text-base-content/60">Status history</div>
+            <ul class="list-none ps-0 mb-0">
             <?php $internalOnly = ['assign', 'reject_assignment', 'replace_driver'];   // the Vehicle Section's own steps
                   foreach (requestHistory($conn, $rid) as $h): if ($h['action'] === 'comment' || (!isAdmin() && in_array($h['action'], $internalOnly, true))) { continue; } ?>
                 <li>
-                    <span class="text-muted"><?= date('d M Y H:i', strtotime($h['created_at'])) ?></span>
+                    <span class="text-base-content/60"><?= date('d M Y H:i', strtotime($h['created_at'])) ?></span>
                     <strong><?= reqH($h['label']) ?></strong> - <?= reqH($h['who']) ?>
-                    <?= $h['reason'] && !in_array($h['action'], ['submit'], true) ? '<span class="text-muted"> (' . reqH($h['reason']) . ')</span>' : '' ?>
+                    <?= $h['reason'] && !in_array($h['action'], ['submit'], true) ? '<span class="text-base-content/60"> (' . reqH($h['reason']) . ')</span>' : '' ?>
                 </li>
             <?php endforeach; ?>
             </ul>

@@ -49,45 +49,45 @@ adminPageStart('Schedule Calendar');
     }
 </style>
 
-    <h4 class="fw-bold mb-1"><i class="fas fa-calendar-days text-success me-2"></i>Schedule Calendar</h4>
-    <p class="text-muted small mb-3">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
+    <h4 class="font-bold mb-1"><i class="fas fa-calendar-days text-success me-2"></i>Schedule Calendar</h4>
+    <p class="text-base-content/60 text-sm mb-4">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
 
-    <div class="card border-0 shadow-sm mb-3"><div class="card-body">
+    <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
         <div class="cal-bar mb-2">
-            <div class="btn-group" role="group" aria-label="Move">
-                <button class="btn btn-sm btn-outline-success" id="calPrev" aria-label="Previous"><i class="fas fa-chevron-left"></i></button>
-                <button class="btn btn-sm btn-outline-success" id="calToday">Today</button>
-                <button class="btn btn-sm btn-outline-success" id="calNext" aria-label="Next"><i class="fas fa-chevron-right"></i></button>
+            <div class="join" role="group" aria-label="Move">
+                <button class="btn btn-sm btn-outline btn-success" id="calPrev" aria-label="Previous"><i class="fas fa-chevron-left"></i></button>
+                <button class="btn btn-sm btn-outline btn-success" id="calToday">Today</button>
+                <button class="btn btn-sm btn-outline btn-success" id="calNext" aria-label="Next"><i class="fas fa-chevron-right"></i></button>
             </div>
             <div class="cal-title" id="calTitle" aria-live="polite"></div>
-            <div class="btn-group ms-md-auto" role="group" aria-label="View">
-                <button class="btn btn-sm btn-outline-success" data-view="day">Day</button>
-                <button class="btn btn-sm btn-outline-success" data-view="week">Week</button>
-                <button class="btn btn-sm btn-outline-success active" data-view="month">Month</button>
+            <div class="join md:ms-auto" role="group" aria-label="View">
+                <button class="btn btn-sm btn-outline btn-success" data-view="day">Day</button>
+                <button class="btn btn-sm btn-outline btn-success" data-view="week">Week</button>
+                <button class="btn btn-sm btn-outline btn-success active" data-view="month">Month</button>
             </div>
         </div>
-        <div class="row g-2">
-            <div class="col-6 col-md-3"><label class="visually-hidden" for="calDriver">Driver</label>
-                <select class="form-select form-select-sm" id="calDriver"><option value="">All drivers</option>
+        <div class="grid-12 grid grid-cols-12 gap-2">
+            <div class="col-span-6 md:col-span-3"><label class="sr-only" for="calDriver">Driver</label>
+                <select class="select w-full select-sm" id="calDriver"><option value="">All drivers</option>
                     <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= $h($d['name']) ?></option><?php endforeach; ?></select></div>
-            <div class="col-6 col-md-3"><label class="visually-hidden" for="calVehicle">Vehicle</label>
-                <select class="form-select form-select-sm" id="calVehicle"><option value="">All vehicles</option>
+            <div class="col-span-6 md:col-span-3"><label class="sr-only" for="calVehicle">Vehicle</label>
+                <select class="select w-full select-sm" id="calVehicle"><option value="">All vehicles</option>
                     <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>"><?= $h(vehicleText($v['plate_number'], $v['brand'], $v['model'])) ?></option><?php endforeach; ?></select></div>
-            <div class="col-12 col-md-6 cal-legend d-flex align-items-center">
+            <div class="col-span-12 md:col-span-6 cal-legend flex items-center">
                 <span><i style="background:#198754"></i>Trip</span><span><i style="background:#0d6efd"></i>Internal task</span><span><i style="background:#6f42c1"></i>Welfare duty</span>
             </div>
         </div>
     </div></div>
 
     <div id="calBody" aria-busy="false"></div>
-    <div id="calMsg" class="text-muted small mt-2"></div>
+    <div id="calMsg" class="text-base-content/60 text-sm mt-2"></div>
 
-    <div class="modal fade" id="calModal" tabindex="-1" aria-labelledby="calModalTitle" aria-hidden="true">
+    <div class="modal" id="calModal" tabindex="-1" aria-labelledby="calModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
             <div class="modal-header"><h5 class="modal-title" id="calModalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body"><dl class="row mb-0" id="calModalBody"></dl></div>
-            <div class="modal-footer"><a class="btn btn-outline-secondary btn-sm d-none" id="calSheet" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a>
-                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button></div>
+            <div class="modal-body"><dl class="grid-12 grid grid-cols-12 gap-x-6 mb-0" id="calModalBody"></dl></div>
+            <div class="modal-footer"><a class="btn btn-outline btn-sm hidden" id="calSheet" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a>
+                <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Close</button></div>
         </div></div>
     </div>
 
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (ev.kind === 'welfare' && ev.purpose) { rows[7] = ['Replacement reason', ev.purpose]; }
         rows.forEach(function (r) { if (!r[1]) { return; } dl.appendChild(el('dt', 'col-4 col-sm-3', r[0])); dl.appendChild(el('dd', 'col-8 col-sm-9', r[1])); });
         var sheet = document.getElementById('calSheet');
-        if (ev.schedule_id) { sheet.href = 'task_sheet.php?id=' + ev.schedule_id; sheet.classList.remove('d-none'); } else { sheet.classList.add('d-none'); }
+        if (ev.schedule_id) { sheet.href = 'task_sheet.php?id=' + ev.schedule_id; sheet.classList.remove('hidden'); } else { sheet.classList.add('hidden'); }
         modal = modal || new bootstrap.Modal(document.getElementById('calModal'));
         modal.show();
     }

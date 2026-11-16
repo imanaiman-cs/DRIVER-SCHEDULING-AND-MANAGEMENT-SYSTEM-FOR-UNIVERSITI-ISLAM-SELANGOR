@@ -83,27 +83,27 @@ adminPageStart('My Tasks');
     .task-card dt { font-weight: 600; color: #555; }
     .task-card dd { margin-bottom: .4rem; font-size: 1.02rem; overflow-wrap: anywhere; }
 </style>
-    <h4 class="fw-bold mb-1"><i class="fas fa-route text-success me-2"></i>My Tasks</h4>
-    <p class="text-muted small mb-3">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
-    <ul class="nav nav-tabs mb-3">
+    <h4 class="font-bold mb-1"><i class="fas fa-route text-success me-2"></i>My Tasks</h4>
+    <p class="text-base-content/60 text-sm mb-4">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
+    <ul class="nav nav-tabs mb-4">
         <li class="nav-item"><a class="nav-link <?= $tab === 'upcoming' ? 'active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a></li>
         <li class="nav-item"><a class="nav-link <?= $tab === 'past' ? 'active' : '' ?>" href="?tab=past">Past Tasks</a></li>
     </ul>
     <?php if (!$tasks): ?>
-        <div class="alert alert-light border text-center py-4"><i class="fas fa-mug-hot fa-2x text-muted mb-2 d-block"></i>
+        <div class="alert alert-soft border border-base-300 text-center py-6"><i class="fas fa-mug-hot fa-2x text-base-content/60 mb-2 block"></i>
             <?= $tab === 'past' ? 'You have no past tasks.' : 'You have no upcoming tasks.' ?></div>
     <?php endif; ?>
-    <div class="row g-3">
+    <div class="grid-12 grid grid-cols-12 gap-4">
     <?php foreach ($tasks as $t):
         $s = strtotime($t['start']); $e = strtotime($t['end']); ?>
-        <div class="col-12 col-lg-6">
-            <div class="card task-card <?= $h($t['kind']) ?>"><div class="card-body">
-                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <div class="col-span-12 lg:col-span-6">
+            <div class="card border border-base-300 bg-base-100 task-card <?= $h($t['kind']) ?>"><div class="card-body">
+                <div class="flex justify-between items-start gap-2 mb-2">
                     <div>
                         <div class="when"><?= $h(date('D, d M Y', $s)) ?></div>
-                        <div class="fs-5"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . ' - ' . date('H:i', $e)) ?></div>
+                        <div class="text-lg"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . ' - ' . date('H:i', $e)) ?></div>
                     </div>
-                    <span class="badge fs-6 <?= $t['kind'] === 'trip' ? 'bg-success' : ($t['kind'] === 'internal' ? 'bg-primary' : '') ?>" <?= $t['kind'] === 'welfare' ? 'style="background:#6f42c1"' : '' ?>><?= $h($t['type']) ?></span>
+                    <span class="badge text-base <?= $t['kind'] === 'trip' ? 'badge-soft badge-success' : ($t['kind'] === 'internal' ? 'badge-soft badge-primary' : '') ?>" <?= $t['kind'] === 'welfare' ? 'style="background:#6f42c1"' : '' ?>><?= $h($t['type']) ?></span>
                 </div>
                 <dl class="mb-0">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
@@ -114,7 +114,7 @@ adminPageStart('My Tasks');
                     <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
                         <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
                 </dl>
-                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline-secondary mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
+                <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline mt-2" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
             </div></div>
         </div>
     <?php endforeach; ?>

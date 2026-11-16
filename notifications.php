@@ -60,27 +60,27 @@ $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 adminPageStart('Notifications');
 ?>
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h4 class="fw-bold mb-0"><i class="fas fa-bell text-success me-2"></i>Notifications <?php if ($unread): ?><span class="badge bg-danger fs-6"><?= $unread ?> new</span><?php endif; ?></h4>
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+        <h4 class="font-bold mb-0"><i class="fas fa-bell text-success me-2"></i>Notifications <?php if ($unread): ?><span class="badge badge-soft badge-error text-base"><?= $unread ?> new</span><?php endif; ?></h4>
         <?php if ($unread): ?>
-        <form method="post"><input type="hidden" name="action" value="read_all"><button class="btn btn-sm btn-outline-success"><i class="fas fa-check-double me-1"></i>Mark all as read</button></form>
+        <form method="post"><input type="hidden" name="action" value="read_all"><button class="btn btn-sm btn-outline btn-success"><i class="fas fa-check-double me-1"></i>Mark all as read</button></form>
         <?php endif; ?>
     </div>
-    <div class="card border-0 shadow-sm"><div class="list-group list-group-flush">
+    <div class="card border border-base-300 bg-base-100"><div class="divide-y divide-base-300 rounded-box border border-base-300">
     <?php foreach ($rows as $n): ?>
-        <a class="list-group-item list-group-item-action d-flex gap-3 align-items-start <?= $n['is_read'] ? '' : 'bg-success-subtle' ?>" href="notifications.php?open=<?= (int)$n['notification_id'] ?>">
+        <a class="block px-4 py-3 hover:bg-base-200 flex gap-4 items-start <?= $n['is_read'] ? '' : 'bg-success-subtle' ?>" href="notifications.php?open=<?= (int)$n['notification_id'] ?>">
             <i class="fas <?= $n['is_read'] ? 'fa-envelope-open text-muted' : 'fa-envelope text-success' ?> mt-1"></i>
-            <div class="flex-grow-1">
+            <div class="grow">
                 <div class="<?= $n['is_read'] ? '' : 'fw-semibold' ?>"><?= $h($n['message']) ?></div>
-                <div class="small text-muted"><?= $h(date('d M Y, H:i', strtotime($n['created_at']))) ?></div>
+                <div class="text-sm text-base-content/60"><?= $h(date('d M Y, H:i', strtotime($n['created_at']))) ?></div>
             </div>
-            <?php if (!$n['is_read']): ?><span class="badge bg-success align-self-center">New</span><?php endif; ?>
+            <?php if (!$n['is_read']): ?><span class="badge badge-soft badge-success self-center">New</span><?php endif; ?>
         </a>
     <?php endforeach; ?>
-    <?php if (!$rows): ?><div class="list-group-item text-center text-muted py-4">You have no notifications.</div><?php endif; ?>
+    <?php if (!$rows): ?><div class="block px-4 py-3 text-center text-base-content/60 py-6">You have no notifications.</div><?php endif; ?>
     </div></div>
     <?php if ($pg['total_pages'] > 1): ?>
-    <nav class="mt-3" aria-label="Pages"><ul class="pagination pagination-sm flex-wrap">
+    <nav class="mt-4" aria-label="Pages"><ul class="pagination pagination-sm flex-wrap">
         <?php for ($i = 1; $i <= $pg['total_pages']; $i++): ?><li class="page-item <?= $i === $pg['current_page'] ? 'active' : '' ?>"><a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a></li><?php endfor; ?>
     </ul></nav>
     <?php endif; ?>
