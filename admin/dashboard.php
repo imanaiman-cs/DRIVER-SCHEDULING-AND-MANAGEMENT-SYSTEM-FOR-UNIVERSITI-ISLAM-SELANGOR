@@ -7,6 +7,7 @@ $current_page = 'dashboard.php';
 require_once '../config/database.php';
 require_once '../includes/admin_page.php';
 require_once '../includes/dashboard_ui.php';
+require_once '../includes/schedule_view.php';
 requireAdmin();
 
 $thisMonth = date('Y-m');
@@ -63,6 +64,8 @@ adminPageStart('Dashboard');
         <div class="col-6 col-xl-3"><?= dashKpi('Active drivers', $activeDrivers, 'id-badge', 'secondary', 'drivers.php', null, true, ($welfare ? 'Welfare today: ' . $welfare : 'No welfare duty set today')) ?></div>
         <div class="col-6 col-xl-3"><?= dashKpi('Vehicles available now', $fleet['available'], 'car-side', 'success', 'vehicles.php', null, true, $fleet['in_use'] . ' in use, ' . $fleet['maintenance'] . ' in maintenance') ?></div>
     </div>
+
+    <div class="mb-3"><?= dispatchBoardHtml($conn, isValidDate((string)($_GET['board'] ?? '')) ? $_GET['board'] : date('Y-m-d')) ?></div>
 
     <div class="row g-3 mb-3">
         <div class="col-lg-7">

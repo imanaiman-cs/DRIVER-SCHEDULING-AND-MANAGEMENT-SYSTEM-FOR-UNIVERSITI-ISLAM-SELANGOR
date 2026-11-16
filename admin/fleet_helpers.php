@@ -160,6 +160,16 @@ function setVehicleStatus(mysqli $conn, int $vehicle_id, string $status): array
     return ['ok' => true, 'message' => $v['plate_number'] . ' is now ' . vehicleStatusLabel($status) . '.', 'items' => []];
 }
 
+/** A small fuel gauge (4 segments) with the level in words. '' when the level is not recorded. */
+function fuelGaugeHtml(?string $level): string
+{
+    $n = ['empty' => 0, 'quarter' => 1, 'half' => 2, 'three_quarters' => 3, 'full' => 4][$level ?? ''] ?? null;
+    if ($n === null) { return '<span class="text-muted small">-</span>'; }
+    $h = '<span class="fuel-gauge is-l' . $n . '" title="Fuel level: ' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '"><i class="fas fa-gas-pump" aria-hidden="true"></i>';
+    for ($i = 1; $i <= 4; $i++) { $h .= '<b class="' . ($i <= $n ? 'on' : '') . '"></b>'; }
+    return $h . '<span>' . htmlspecialchars(VEHICLE_FUEL_LEVELS[$level]) . '</span></span>';
+}
+
 // ------------------------------------------------------------
 // Drivers
 // ------------------------------------------------------------

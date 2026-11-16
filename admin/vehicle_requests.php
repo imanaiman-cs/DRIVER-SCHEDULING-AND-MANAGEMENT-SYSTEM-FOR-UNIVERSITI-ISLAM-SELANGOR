@@ -61,6 +61,7 @@ adminPageStart('Vehicle Requests');
                 <div>
                     <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)($r['plate_number'] ?: ($r['vehicle_type'] ? ($r['quantity'] > 1 ? (int)$r['quantity'] . ' x ' : '') . $r['vehicle_type'] . ' (not chosen yet)' : ''))) ?></div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <?php if (!empty($r['is_urgent'])): ?><span class="badge bg-danger">Urgent</span><?php endif; ?>

@@ -248,4 +248,19 @@ return [
         assert_true($conn->query("SELECT approval_email_at FROM vehicle_requests WHERE request_id = $rid")->fetch_row()[0] !== null, 'sent: date and time recorded');
         assert_same(0, retryApprovalEmails($conn), 'e-mail sending is switched off: no retry');
     },
+    'request journey: the stepper follows the status and the kind of request' => function () {
+        $base = ['request_type' => 'uis', 'purpose_type' => 'official', 'need_driver' => 1, 'reviewed_at' => null];
+        $st = fn(array $r) => implode(',', array_map(fn($s) => $s['label'] . ':' . $s['state'], requestJourney($r)['steps']));
+        assert_same('Submitted:done,Head of Department:current,Vehicle Section:todo,Head of Admin:todo,Trip:todo,Completed:todo', $st($base + ['status' => 'pending']));
+        assert_same('Submitted:done,Head of Department:done,Vehicle Section:current,Head of Admin:todo,Trip:todo,Completed:todo', $st($base + ['status' => 'approved']));
+        assert_same('Submitted:done,Head of Department:done,Vehicle Section:done,Head of Admin:done,Trip:current,Completed:todo', $st($base + ['status' => 'processed']));
+        assert_true(!str_contains($st($base + ['status' => 'completed']), 'todo') && !str_contains($st($base + ['status' => 'completed']), 'current'), 'completed: every step is done');
+        $j = requestJourney($base + ['status' => 'lapsed']);
+        assert_same('lapsed', $j['ended']); assert_same('failed', $j['steps'][1]['state'], 'a lapsed request stopped at the Head of Department');
+        assert_same('Submitted:done,Head of Department:current,Head of Admin:todo,Trip:todo,Completed:todo', $st(['request_type' => 'pay_claim', 'status' => 'pending'] + $base), 'Pay and Claim has no Vehicle Section step');
+        assert_same('Submitted:done,Vehicle Section:current,Head of Admin:todo,Trip:todo,Completed:todo', $st(['purpose_type' => 'personal_rental', 'status' => 'pending'] + $base), 'a Personal Rental has no Head of Department step');
+        assert_true(str_contains(requestJourneyHtml($base + ['status' => 'assigned'], true), 'Now: Head of Admin'), 'the rail names the stage');
+        assert_same('', tripCountdownHtml(date('Y-m-d H:i:s', time() - 60)), 'no countdown for a trip that started');
+        assert_true(str_contains(tripCountdownHtml(date('Y-m-d H:i:s', time() + 3 * 86400 + 60)), 'in 3 days'));
+    },
 ];

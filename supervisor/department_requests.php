@@ -32,6 +32,7 @@ adminPageStart('Department Requests');
                 <div>
                     <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= htmlspecialchars((string)($r['vehicle_type'] ?: ($r['request_type'] === 'pay_claim' ? 'Pay and Claim' : ''))) ?> &middot; <?= (int)$r['passenger_count'] ?> pax</div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
                 <div><?= !empty($r['is_urgent']) ? '<span class="badge bg-danger me-1">Urgent</span>' : '' ?><?= requestStatusBadge($r['status']) ?></div>
             </div>

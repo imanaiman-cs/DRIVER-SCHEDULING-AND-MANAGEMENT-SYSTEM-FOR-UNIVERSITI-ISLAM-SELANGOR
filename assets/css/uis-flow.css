@@ -1,0 +1,100 @@
+/* ============================================================
+   UIS Flow layer — the "dispatch" look of DSMS (loaded after uis-polish.css).
+   Components: request journey (stepper + rail), trip countdown chip, dispatch board (time lanes),
+   fuel gauge, vehicle status dot, driver recommendation bars. Uses the theme tokens, so dark mode follows.
+   ============================================================ */
+
+/* ---------- request journey: full stepper ---------- */
+.rq-journey{list-style:none;display:flex;gap:0;margin:0 0 1rem;padding:.9rem .75rem .7rem;background:linear-gradient(180deg,var(--t-surface-2),transparent);border:1px solid var(--t-line);border-radius:14px;overflow-x:auto}
+.rq-step{flex:1 1 0;min-width:86px;position:relative;display:flex;flex-direction:column;align-items:center;gap:.4rem;text-align:center}
+.rq-step::before{content:"";position:absolute;top:16px;left:-50%;width:100%;height:3px;background:var(--t-line-2);border-radius:3px}
+.rq-step:first-child::before{display:none}
+.rq-step.is-done::before,.rq-step.is-current::before{background:var(--t-brand)}
+.rq-step.is-failed::before{background:linear-gradient(90deg,var(--t-brand),var(--t-bad))}
+.rq-dot{position:relative;z-index:1;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;background:var(--t-surface);border:2px solid var(--t-line-2);color:var(--t-ink-3)}
+.rq-step.is-done .rq-dot{background:var(--t-brand);border-color:var(--t-brand);color:var(--t-brand-ink)}
+.rq-step.is-current .rq-dot{border-color:var(--t-brand);color:var(--t-brand);box-shadow:0 0 0 5px var(--t-brand-soft);animation:rqPulse 2s ease-in-out infinite}
+.rq-step.is-failed .rq-dot{background:var(--t-bad);border-color:var(--t-bad);color:#fff}
+.rq-label{font-size:.72rem;font-weight:600;line-height:1.15;color:var(--t-ink-3)}
+.rq-label small{display:block;font-weight:700;color:var(--t-bad);font-size:.68rem}
+.rq-step.is-done .rq-label,.rq-step.is-current .rq-label{color:var(--t-ink)}
+.rq-journey.is-ended .rq-step.is-todo{opacity:.45}
+@keyframes rqPulse{0%,100%{box-shadow:0 0 0 4px var(--t-brand-soft)}50%{box-shadow:0 0 0 9px transparent}}
+
+/* ---------- request journey: thin rail for list rows ---------- */
+.rq-rail{display:inline-flex;align-items:center;gap:3px}
+.rq-rail-seg{display:block;width:22px;height:5px;border-radius:5px;background:var(--t-line-2)}
+.rq-rail-seg.is-done{background:var(--t-brand)}
+.rq-rail-seg.is-current{background:linear-gradient(90deg,var(--t-brand) 50%,var(--t-line-2) 50%);background-size:200% 100%;animation:rqSlide 1.6s linear infinite}
+.rq-rail-seg.is-failed{background:var(--t-bad)}
+.rq-rail-text{margin-left:.45rem;font-size:.72rem;font-weight:600;color:var(--t-ink-2);white-space:nowrap}
+.rq-rail.is-ended .rq-rail-text{color:var(--t-bad)}
+@keyframes rqSlide{0%{background-position:100% 0}100%{background-position:-100% 0}}
+
+/* ---------- countdown chip ---------- */
+.trip-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.12rem .5rem;border-radius:999px;font-size:.7rem;font-weight:700;border:1px solid var(--t-line);color:var(--t-ink-2);background:var(--t-surface-2);white-space:nowrap}
+.trip-chip.is-near{color:var(--t-warn);border-color:currentColor;background:transparent}
+.trip-chip.is-soon{color:#fff;background:var(--t-bad);border-color:var(--t-bad)}
+
+/* ---------- dispatch board ---------- */
+.board h6{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap}
+.board-nav{display:inline-flex;align-items:center;gap:.6rem;font-size:.85rem}
+.board-nav a{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--t-line);color:var(--t-ink-2);text-decoration:none}
+.board-nav a:hover{background:var(--t-brand-soft);color:var(--t-brand)}
+.board-scroll{overflow-x:auto}
+.board-grid{min-width:640px;display:flex;flex-direction:column;gap:6px}
+.board-hours,.board-lane{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:.6rem}
+.board-track{position:relative;height:34px;border-radius:9px;background:
+  repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),var(--t-line) calc(12.5% - 1px),var(--t-line) 12.5%),var(--t-surface-2)}
+.board-hours .board-track{height:18px;background:none}
+.board-hours i{position:absolute;top:0;transform:translateX(-50%);font-style:normal;font-size:.66rem;font-weight:600;color:var(--t-ink-3);font-variant-numeric:tabular-nums}
+.board-hours i:first-child{transform:none}.board-hours i:last-child{transform:translateX(-100%)}
+.board-veh{font-size:.76rem;font-weight:700;color:var(--t-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.board-bar{position:absolute;top:4px;bottom:4px;border-radius:7px;padding:0 .45rem;display:flex;align-items:center;font-size:.68rem;font-weight:700;color:#fff;text-decoration:none;overflow:hidden;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.18);transition:transform .15s,box-shadow .15s}
+.board-bar span{overflow:hidden;text-overflow:ellipsis}
+.board-bar:hover{transform:translateY(-1px) scaleY(1.08);box-shadow:0 6px 14px -4px rgba(0,0,0,.4);color:#fff;z-index:3}
+.board-bar.is-trip{background:linear-gradient(135deg,var(--t-brand),var(--t-brand-2))}
+.board-bar.is-internal{background:linear-gradient(135deg,#2563a8,#3b82c4)}
+.board-bar.is-welfare{background:repeating-linear-gradient(135deg,rgba(111,66,193,.85) 0 10px,rgba(111,66,193,.65) 10px 20px);top:auto;height:9px;bottom:2px;padding:0;font-size:0}
+.board-now{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--t-bad);z-index:2;border-radius:2px}
+.board-now::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--t-bad)}
+.board-legend{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.7rem;font-size:.72rem;color:var(--t-ink-3)}
+.board-legend i{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:.35rem;vertical-align:middle}
+.board-legend .is-trip{background:var(--t-brand)}.board-legend .is-internal{background:#2f72b6}.board-legend .is-welfare{background:#6f42c1}.board-legend .is-now{width:2px;height:12px;background:var(--t-bad)}
+
+/* ---------- fuel gauge + vehicle status dot ---------- */
+.fuel-gauge{display:inline-flex;align-items:center;gap:2px;font-size:.72rem;color:var(--t-ink-2);white-space:nowrap}
+.fuel-gauge>i{margin-right:.3rem;color:var(--t-ink-3)}
+.fuel-gauge b{width:9px;height:14px;border-radius:2px;background:var(--t-line-2)}
+.fuel-gauge b.on{background:var(--t-ok,#1a8f5c)}
+.fuel-gauge.is-l1 b.on{background:var(--t-bad)}.fuel-gauge.is-l2 b.on{background:var(--t-warn)}
+.fuel-gauge.is-l0>i{color:var(--t-bad)}
+.fuel-gauge span{margin-left:.35rem;font-weight:600}
+.veh-status{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.4rem;background:var(--t-ink-3)}
+.veh-status.is-available{background:var(--t-ok,#1a8f5c)}
+.veh-status.is-in_use{background:var(--t-info,#2f72b6);animation:vehBlink 1.4s ease-in-out infinite}
+.veh-status.is-maintenance{background:var(--t-warn)}
+@keyframes vehBlink{50%{opacity:.25}}
+
+/* ---------- driver recommendation: bars and best match (added by uis-flow.js) ---------- */
+.rec-bar{display:flex;align-items:center;gap:.45rem;justify-content:flex-end;min-width:110px}
+.rec-bar-track{flex:1;height:7px;border-radius:7px;background:var(--t-line);overflow:hidden}
+.rec-bar-fill{display:block;height:100%;border-radius:7px;background:linear-gradient(90deg,var(--t-brand),var(--t-gold-bright,#e2bb63));transform-origin:left;animation:recGrow .7s cubic-bezier(.2,.8,.2,1) both}
+.rec-bar-num{font-weight:800;font-variant-numeric:tabular-nums;font-size:.82rem;min-width:2.4rem;text-align:right}
+tr.rec-best>td{background:var(--t-brand-soft)!important}
+tr.rec-best>td:first-child{box-shadow:inset 4px 0 0 var(--t-brand)}
+.rec-load{display:inline-flex;gap:2px;vertical-align:middle;margin-left:.35rem}
+.rec-load i{width:4px;height:11px;border-radius:2px;background:var(--t-line-2)}
+.rec-load i.on{background:var(--t-warn)}
+@keyframes recGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* ---------- small motion: cards rise in, list rows lift ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .dash-card,.kpi-card,details.card{animation:flowRise .45s cubic-bezier(.2,.8,.2,1) both}
+  details.card{transition:transform .15s,box-shadow .15s}
+  details.card:not([open]):hover{transform:translateY(-2px)}
+}
+@keyframes flowRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rq-step.is-current .rq-dot,.rq-rail-seg.is-current,.veh-status.is-in_use,.rec-bar-fill{animation:none}}
+@media (max-width:575px){.board-hours,.board-lane{grid-template-columns:96px 1fr}.rq-step{min-width:70px}}
+@media print{.board-nav,.trip-chip{display:none}}

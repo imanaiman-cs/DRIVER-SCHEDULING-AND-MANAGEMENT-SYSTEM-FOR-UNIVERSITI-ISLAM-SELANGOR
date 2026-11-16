@@ -664,6 +664,9 @@ SELECT ELT(1 + (i * 5) MOD 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
        'Official duty', 2, 'Vehicle Section', '03-5543 0010', 'Main entrance', 'completed', 6, 'Imported past task'
   FROM n;
 
+-- SEED: current mileage and fuel level of the vehicles (shown in the vehicle list and updated by the task reports)
+UPDATE vehicles SET mileage = 38000 + vehicle_id * 7350, fuel_level = ELT(1 + (vehicle_id MOD 4), 'full', 'three_quarters', 'half', 'quarter');
+
 -- ============================================================
 -- SEED: internal tasks (workshop runs, refuelling, test drives)
 -- ============================================================

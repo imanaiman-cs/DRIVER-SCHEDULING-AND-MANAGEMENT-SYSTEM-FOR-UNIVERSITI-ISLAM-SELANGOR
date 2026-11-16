@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Custom JS -->
     <script src="<?php echo SITE_URL; ?>/assets/js/main.js"></script>
+    <script src="<?php echo SITE_URL; ?>/assets/js/uis-flow.js"></script>
     <!-- Per-page extra JS (set $extra_js before including footer) -->
     <?php if (isset($extra_js)) echo $extra_js; ?>
 </body>

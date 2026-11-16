@@ -65,6 +65,77 @@ function requestFilterForm(array $f, array $keep = [], ?array $departments = nul
     <?php
 }
 
+// ------------------------------------------------------------
+// Request journey: where a request is on its way (drawn as a stepper). Purely a view of vr.status.
+// ------------------------------------------------------------
+
+/**
+ * The stages of a request and how far it is.
+ * @return array{steps: array<int, array{label:string, icon:string, state:string}>, ended:?string}
+ *   state: done | current | todo | failed.   ended: rejected | cancelled | lapsed | null
+ */
+function requestJourney(array $req): array
+{
+    $rental = isPersonalRental($req);
+    $noSection = isPayClaimRequest($req);                       // Pay and Claim: no vehicle and no driver to assign
+    $steps = [['Submitted', 'paper-plane']];
+    if (!$rental) { $steps[] = ['Head of Department', 'stamp']; }
+    if (!$noSection) { $steps[] = ['Vehicle Section', isRequestWithoutDriver($req) ? 'car-side' : 'user-check']; }
+    $steps[] = ['Head of Admin', 'user-shield'];
+    $steps[] = ['Trip', 'route'];
+    $steps[] = ['Completed', 'flag-checkered'];
+    $idx = array_flip(array_column($steps, 0));
+    $status = (string)$req['status'];
+    // the stage that is being worked on now (everything before it is done)
+    $current = match ($status) {
+        'pending'   => $rental ? $idx['Vehicle Section'] : $idx['Head of Department'],
+        'approved'  => $idx['Vehicle Section'] ?? $idx['Head of Admin'],
+        'assigned'  => $idx['Head of Admin'],
+        'processed' => $idx['Trip'],
+        'completed' => count($steps),
+        'lapsed', 'rejected' => $rental ? $idx['Vehicle Section'] : $idx['Head of Department'],
+        default     => empty($req['reviewed_at']) && !$rental ? $idx['Head of Department'] : ($idx['Vehicle Section'] ?? $idx['Head of Admin']),   // cancelled
+    };
+    $ended = in_array($status, ['rejected', 'cancelled', 'lapsed'], true) ? $status : null;
+    $out = [];
+    foreach ($steps as $i => [$label, $icon]) {
+        $state = $i < $current ? 'done' : ($i === $current ? ($ended ? 'failed' : 'current') : 'todo');
+        $out[] = ['label' => $label, 'icon' => $icon, 'state' => $state];
+    }
+    return ['steps' => $out, 'ended' => $ended];
+}
+
+/** The journey as HTML. $mini = a thin rail for list rows; otherwise the full stepper with labels. */
+function requestJourneyHtml(array $req, bool $mini = false): string
+{
+    $j = requestJourney($req);
+    $n = count($j['steps']);
+    $doneCount = count(array_filter($j['steps'], fn($s) => $s['state'] === 'done'));
+    $label = $j['ended'] ? requestStatusLabel($req['status']) : ($doneCount >= $n ? 'Completed' : 'Now: ' . $j['steps'][$doneCount]['label']);
+    if ($mini) {
+        $h = '<div class="rq-rail' . ($j['ended'] ? ' is-ended' : '') . '" role="img" aria-label="' . reqH('Step ' . min($doneCount + 1, $n) . ' of ' . $n . '. ' . $label) . '">';
+        foreach ($j['steps'] as $s) { $h .= '<i class="rq-rail-seg is-' . $s['state'] . '" title="' . reqH($s['label']) . '"></i>'; }
+        return $h . '<span class="rq-rail-text">' . reqH($label) . '</span></div>';
+    }
+    $h = '<ol class="rq-journey' . ($j['ended'] ? ' is-ended' : '') . '" aria-label="Progress of the request">';
+    foreach ($j['steps'] as $s) {
+        $icon = $s['state'] === 'done' ? 'check' : ($s['state'] === 'failed' ? 'xmark' : $s['icon']);
+        $h .= '<li class="rq-step is-' . $s['state'] . '"' . ($s['state'] === 'current' ? ' aria-current="step"' : '') . '><span class="rq-dot"><i class="fas fa-' . $icon . '" aria-hidden="true"></i></span>'
+            . '<span class="rq-label">' . reqH($s['label']) . ($s['state'] === 'failed' ? '<small>' . reqH(requestStatusLabel($req['status'])) . '</small>' : '') . '</span></li>';
+    }
+    return $h . '</ol>';
+}
+
+/** "in 3 days" / "in 5 h" / "today" chip for a trip that is still coming (empty for past or ended requests). */
+function tripCountdownHtml(string $startDt, bool $active = true): string
+{
+    $sec = strtotime($startDt) - time();
+    if (!$active || $sec <= 0) { return ''; }
+    $text = $sec < 3600 ? 'in ' . max(1, (int)round($sec / 60)) . ' min' : ($sec < 86400 ? 'in ' . (int)round($sec / 3600) . ' h' : 'in ' . (int)floor($sec / 86400) . ' day' . ($sec >= 172800 ? 's' : ''));
+    $tone = $sec < 86400 ? 'soon' : ($sec < 172800 ? 'near' : 'later');
+    return '<span class="trip-chip is-' . $tone . '"><i class="fas fa-clock" aria-hidden="true"></i> ' . $text . '</span>';
+}
+
 function requestStatusBadge(string $status): string
 {
     return '<span class="badge ' . requestStatusBadgeClass($status) . '">' . htmlspecialchars(requestStatusLabel($status)) . '</span>';
@@ -89,6 +160,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
     $showAssign = !empty($o['show_assignment']) || (in_array($req['status'], ['processed', 'completed'], true) && ($o['show_after_confirmed'] ?? true));
     ob_start();
     ?>
+    <?= requestJourneyHtml($req) ?>
     <div class="row g-3 small">
         <div class="col-md-6">
             <div class="text-muted">Requester</div>

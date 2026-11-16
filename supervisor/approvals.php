@@ -60,6 +60,7 @@ adminPageStart('Vehicle Approvals');
                     <span class="fw-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
                     <div class="small text-muted"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax
                         <?php if ($r['status'] === 'pending'): ?> &middot; submitted <?= max(0, (int)floor((time() - strtotime($r['created_at'])) / 86400)) ?> day(s) ago<?php endif; ?></div>
+                    <div class="d-flex flex-wrap align-items-center gap-2 mt-1"><?= requestJourneyHtml($r, true) ?><?= tripCountdownHtml(requestDepartDT($r), in_array($r['status'], REQUEST_ACTIVE_STATUSES, true)) ?></div>
                 </div>
                 <div><?= requestStatusBadge($r['status']) ?></div>
             </div>

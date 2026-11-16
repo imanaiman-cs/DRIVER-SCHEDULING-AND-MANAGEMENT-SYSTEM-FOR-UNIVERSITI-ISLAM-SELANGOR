@@ -30,6 +30,7 @@ $page_title = $page_title ?? 'UIS Driver Management System';
     <link href="<?php echo SITE_URL; ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?php echo SITE_URL; ?>/assets/css/uis-theme-premium.css" rel="stylesheet">
     <link href="<?php echo SITE_URL; ?>/assets/css/uis-polish.css" rel="stylesheet">
+    <link href="<?php echo SITE_URL; ?>/assets/css/uis-flow.css" rel="stylesheet">
     <script src="<?php echo SITE_URL; ?>/assets/js/uis-theme.js"></script>
 </head>
 <body>

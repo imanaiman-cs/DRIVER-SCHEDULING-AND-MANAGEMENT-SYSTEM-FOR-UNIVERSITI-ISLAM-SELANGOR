@@ -1104,4 +1104,11 @@ return [
     'View Report' => 'Lihat Laporan',
     'Welfare duty (24 hours)' => 'Tugas kebajikan (24 jam)',
     'Test Drive' => 'Pandu Uji',
+    // Flow layer: request journey, dispatch board, fuel gauge
+    'Submitted' => 'Dihantar',
+    'Vehicle Section' => 'Seksyen Kenderaan',
+    'Dispatch board' => 'Papan penghantaran',
+    'Request task' => 'Tugasan permohonan',
+    'No trip, internal task or welfare duty on this day.' => 'Tiada perjalanan, tugasan dalaman atau tugas kebajikan pada hari ini.',
+    'Mileage' => 'Perbatuan',
 ];

@@ -85,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/uis-theme-premium.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/uis-polish.css" rel="stylesheet">
+    <link href="<?= SITE_URL ?>/assets/css/uis-flow.css" rel="stylesheet">
     <script src="<?= SITE_URL ?>/assets/js/uis-theme.js"></script>
 </head>
 <body>

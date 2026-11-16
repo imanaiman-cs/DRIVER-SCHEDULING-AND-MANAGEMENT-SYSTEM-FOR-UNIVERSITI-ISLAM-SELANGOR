@@ -198,3 +198,52 @@ function taskSheetRow(mysqli $conn, int $schedule_id, int $driver_id = 0): ?arra
     $row['waiting_place'] = waitingText($row['waiting_place'], $row['waiting_address']);
     return $row;
 }
+
+/**
+ * Dispatch board: one lane per vehicle for ONE day (06:00 - 22:00), with the request tasks, internal tasks and welfare duty of that day drawn
+ * as bars on a time line (UC010 View Driver Schedule, shown on the dashboard). Read only; built from calendarEvents().
+ */
+function dispatchBoardHtml(mysqli $conn, string $date): string
+{
+    $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    $from = 6; $to = 22; $span = ($to - $from) * 3600;
+    $dayStart = strtotime($date . ' 00:00:00');
+    $events = calendarEvents($conn, $date . ' 00:00:00', date('Y-m-d H:i:s', $dayStart + 86400));
+    $lanes = [];
+    foreach ($events as $e) {
+        $key = $e['vehicle'] !== '' ? $e['vehicle'] : ($e['kind'] === 'welfare' ? 'Welfare duty' : 'No vehicle');
+        $lanes[$key][] = $e;
+    }
+    ksort($lanes);
+    $prev = date('Y-m-d', $dayStart - 86400); $next = date('Y-m-d', $dayStart + 86400);
+    $isToday = $date === date('Y-m-d');
+    $out = '<div class="dash-card board"><h6><span><i class="fas fa-tower-broadcast text-success me-1"></i>Dispatch board</span>'
+         . '<span class="board-nav"><a href="?board=' . $h($prev) . '#board" aria-label="Previous day"><i class="fas fa-chevron-left"></i></a>'
+         . '<strong>' . $h($isToday ? 'Today, ' . date('d M', $dayStart) : date('D, d M Y', $dayStart)) . '</strong>'
+         . '<a href="?board=' . $h($next) . '#board" aria-label="Next day"><i class="fas fa-chevron-right"></i></a></span></h6>';
+    if (!$lanes) {
+        return $out . '<div class="dash-empty"><i class="fas fa-road"></i>No trip, internal task or welfare duty on this day.</div></div>';
+    }
+    $out .= '<div class="board-scroll"><div class="board-grid" id="board"><div class="board-hours"><span></span><div class="board-track">';
+    for ($t = $from; $t <= $to; $t += 2) { $out .= '<i style="left:' . round(($t - $from) * 100 / ($to - $from), 2) . '%">' . sprintf('%02d:00', $t) . '</i>'; }
+    $out .= '</div></div>';
+    $nowPct = null;
+    if ($isToday) { $n = time() - ($dayStart + $from * 3600); if ($n > 0 && $n < $span) { $nowPct = round($n * 100 / $span, 2); } }
+    foreach ($lanes as $vehicle => $list) {
+        $out .= '<div class="board-lane"><span class="board-veh" title="' . $h($vehicle) . '">' . $h($vehicle) . '</span><div class="board-track">';
+        if ($nowPct !== null) { $out .= '<b class="board-now" style="left:' . $nowPct . '%" title="Now"></b>'; }
+        foreach ($list as $e) {
+            $s = max(strtotime($e['start']), $dayStart + $from * 3600); $en = min(strtotime($e['end']), $dayStart + $to * 3600);
+            if ($e['kind'] === 'welfare') { $s = $dayStart + $from * 3600; $en = $dayStart + $to * 3600; }
+            if ($en <= $s) { continue; }
+            $left = round(($s - ($dayStart + $from * 3600)) * 100 / $span, 2); $width = max(1.5, round(($en - $s) * 100 / $span, 2));
+            $time = $e['kind'] === 'welfare' ? '24 hours' : date('H:i', strtotime($e['start'])) . '-' . date('H:i', strtotime($e['end']));
+            $tip = $e['title'] . ' | ' . $time . ($e['driver'] !== '' ? ' | ' . $e['driver'] : '') . ($e['destination'] !== '' ? ' | ' . $e['destination'] : '') . ($e['request_status'] !== '' ? ' | ' . $e['request_status'] : '');
+            $out .= '<a class="board-bar is-' . $h($e['kind']) . '" href="calendar.php" style="left:' . $left . '%;width:' . $width . '%" title="' . $h($tip) . '">'
+                  . '<span>' . $h($e['kind'] === 'trip' ? ($e['request_id'] ? '#' . $e['request_id'] . ' ' : '') . ($e['driver'] ?: 'No driver') : ($e['kind'] === 'welfare' ? 'Welfare: ' . $e['driver'] : $e['title'] . ($e['driver'] ? ' - ' . $e['driver'] : ''))) . '</span></a>';
+        }
+        $out .= '</div></div>';
+    }
+    return $out . '</div></div><div class="board-legend"><span><i class="is-trip"></i>Request task</span><span><i class="is-internal"></i>Internal task</span><span><i class="is-welfare"></i>Welfare duty</span>'
+         . ($nowPct !== null ? '<span><i class="is-now"></i>Now</span>' : '') . '</div></div>';
+}

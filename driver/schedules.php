@@ -104,7 +104,7 @@ adminPageStart('My Tasks');
             <div class="card task-card <?= $h($t['kind']) ?>"><div class="card-body">
                 <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                     <div>
-                        <div class="when"><?= $h(date('D, d M Y', $s)) ?></div>
+                        <div class="when"><?= $h(date('D, d M Y', $s)) ?> <?= $tab !== 'past' ? tripCountdownHtml($t['start']) : '' ?></div>
                         <div class="fs-5"><?= $t['kind'] === 'welfare' ? 'All day (24 hours)' : $h(date('H:i', $s) . ' - ' . date('H:i', $e)) ?></div>
                     </div>
                     <span class="badge fs-6 <?= $t['kind'] === 'trip' ? 'bg-success' : ($t['kind'] === 'internal' ? 'bg-primary' : '') ?>" <?= $t['kind'] === 'welfare' ? 'style="background:#6f42c1"' : '' ?>><?= $h($t['type']) ?></span>

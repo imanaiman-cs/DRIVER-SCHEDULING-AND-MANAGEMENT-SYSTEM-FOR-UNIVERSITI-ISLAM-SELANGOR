@@ -26,6 +26,7 @@ function adminPageStart(string $title): void
     <link href="<?= SITE_URL ?>/assets/css/style.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/uis-theme-premium.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/uis-polish.css" rel="stylesheet">
+    <link href="<?= SITE_URL ?>/assets/css/uis-flow.css" rel="stylesheet">
     <script src="<?= SITE_URL ?>/assets/js/uis-theme.js"></script>
 </head>
 <body>
@@ -42,6 +43,7 @@ function adminPageEnd(): void
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= SITE_URL ?>/assets/js/main.js"></script>
+<script src="<?= SITE_URL ?>/assets/js/uis-flow.js"></script>
 </body>
 </html>
 <?php

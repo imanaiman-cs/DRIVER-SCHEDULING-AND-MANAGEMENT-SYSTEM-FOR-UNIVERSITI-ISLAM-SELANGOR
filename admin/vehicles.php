@@ -61,7 +61,7 @@ adminPageStart('Vehicles');
     <div class="card border-0 shadow-sm">
         <div class="table-responsive d-none d-md-block">
             <table class="table table-sm align-middle mb-0">
-                <thead class="table-light"><tr><th>Registration no.</th><th>Type</th><th>Model</th><th class="text-end">Seats</th><th>Licence</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                <thead class="table-light"><tr><th>Registration no.</th><th>Type</th><th>Model</th><th class="text-end">Seats</th><th>Licence</th><th>Fuel</th><th class="text-end">Mileage</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
                 <?php foreach ($vehicles as $v): $id = (int)$v['vehicle_id']; ?>
                     <tr>
@@ -70,7 +70,9 @@ adminPageStart('Vehicles');
                         <td><?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?></td>
                         <td class="text-end"><?= (int)$v['capacity'] ?></td>
                         <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($v['license_required']) ?></span></td>
-                        <td><span class="badge <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
+                        <td><?= fuelGaugeHtml($v['fuel_level'] ?? null) ?></td>
+                        <td class="text-end text-nowrap"><?= number_format((int)$v['mileage']) ?> km</td>
+                        <td><span class="veh-status is-<?= htmlspecialchars($v['shown']) ?>"></span><span class="badge <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
                             <?php if ($v['status'] === 'maintenance' && $v['back_on']): ?><div class="small text-muted"><?= htmlspecialchars((string)$v['workshop']) ?>, back <?= date('d M Y', strtotime($v['back_on'])) ?></div><?php endif; ?></td>
                         <td class="text-end text-nowrap">
                             <a class="btn btn-sm btn-outline-success" href="view_vehicle.php?id=<?= $id ?>" title="View"><i class="fas fa-eye"></i></a>
