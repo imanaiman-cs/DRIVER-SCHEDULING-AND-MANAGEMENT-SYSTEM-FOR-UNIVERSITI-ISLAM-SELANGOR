@@ -196,7 +196,7 @@ if ($_is_admin_role) {
     <div class="sidebar-footer">
         <a href="<?php echo SITE_URL; ?>/help.php"
            class="sidebar-logout-btn mb-1 <?php echo $current_page === 'help.php' ? 'active' : ''; ?>"
-           style="background:rgba(255,255,255,.06);color:rgba(255,255,255,.85);">
+          >
             <span class="sidebar-icon"><i class="fas fa-circle-question" aria-hidden="true"></i></span>
             <span class="sidebar-label">Help &amp; Guide</span>
         </a>

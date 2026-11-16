@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         /* ============================================================
@@ -563,6 +563,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .card-footer-info { padding: .85rem 1.25rem; }
             .brand-title { font-size: 1.1rem; }
         }
+
+        /* ============================================================
+           MODERN THEME (v2): quiet light page, white card, green accent
+        ============================================================ */
+        body { font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; background: #f6f7f6; -webkit-font-smoothing: antialiased; }
+        body::before, .bg-shapes { display: none; }
+        .login-card { background: #fff; border: 1px solid #e6e9e7; border-radius: 20px; box-shadow: 0 18px 40px -16px rgba(20,32,26,.16); overflow: hidden; }
+        .card-header-brand { background: #fff; padding: 2.4rem 1.5rem .4rem; }
+        .card-header-brand::before { content: none; }
+        .university-crest { background: transparent; border: none; box-shadow: none; width: 76px; height: 76px; }
+        .university-crest:hover { box-shadow: none; transform: none; }
+        .brand-title { color: #14201a; font-weight: 800; letter-spacing: -.02em; }
+        .divider-gold { display: none; }
+        .brand-subtitle { color: #66736c; letter-spacing: .02em; text-transform: none; font-size: .85rem; margin-top: .25rem; }
+        .card-body-form { background: #fff; padding-top: 1.6rem; }
+        .form-title { color: #14201a; font-weight: 800; letter-spacing: -.02em; }
+        .form-subtitle { color: #66736c; }
+        .input-group-custom label { color: #14201a; text-transform: none; letter-spacing: 0; font-size: .82rem; font-weight: 600; }
+        .form-control-custom { background: #fff; border: 1px solid #d9dfdb; border-radius: 10px; }
+        .form-control-custom:focus { border-color: #15804f; box-shadow: 0 0 0 3px rgba(21,128,79,.14); background: #fff; }
+        .btn-login { background: #0b5d3b; box-shadow: none; border-radius: 10px; font-weight: 700; }
+        .btn-login:hover { background: #094c31; box-shadow: none; transform: none; }
+        .btn-login::after { content: none; }
+        .card-footer-info { background: #f6f7f6; border-top: 1px solid #e6e9e7; }
+        .page-footer { color: #8a968f; }
     </style>
 </head>
 <body>
