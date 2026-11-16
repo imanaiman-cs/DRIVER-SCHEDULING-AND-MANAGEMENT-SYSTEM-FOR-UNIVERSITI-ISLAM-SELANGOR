@@ -155,13 +155,19 @@ function translateHtml(string $html, string $lang): string
         if ($p === '') { continue; }
         if ($p[0] !== '<') { $parts[$i] = translateText($p, $lang); continue; }
         if (stripos($p, '<script') === 0) {
-            $parts[$i] = preg_replace_callback('/([\'"])((?:(?!\1)[^\\\\\n]|\\\\.){3,200})\1/', function ($m) use ($d) {
+            // a string compared in the script (=== 'Other', 'Lorry' !== x, case 'Car':) is an identifier: it is never translated
+            $parts[$i] = preg_replace_callback('/([\'"])((?:(?!\1)[^\\\\\n]|\\\\.){3,200})\1/', function ($m) use ($d, $p) {
+                [$whole, $at] = $m[0];
+                $before = substr($p, max(0, $at - 12), min(12, $at));
+                $after = substr($p, $at + strlen($whole), 12);
+                if (preg_match('/(?:[=!]==?|\bcase)\s*$/', $before) || preg_match('/^\s*[=!]==?/', $after)) { return $whole; }
+                $m = [$whole, $m[1][0], $m[2][0]];
                 $raw = stripslashes($m[2]);
                 $key = trim(preg_replace('/\s+/', ' ', $raw));
                 $tr = $d['exact'][$key] ?? $d['words'][$key] ?? null;   // month and day names are used by the calendar script
                 if ($tr === null) { return $m[0]; }
                 return $m[1] . addcslashes($tr, $m[1] . '\\') . $m[1];
-            }, $p);
+            }, $p, -1, $count, PREG_OFFSET_CAPTURE);
             continue;
         }
         if ($p[1] === '!' || $p[1] === '/' || stripos($p, '<style') === 0 || stripos($p, '<textarea') === 0) {

@@ -89,6 +89,7 @@ sm = user('stf001')
 sm.s.get(B + '/set_language.php', params={'lang': 'ms', 'back': B + '/staff/dashboard.php'}, allow_redirects=False)
 pg = sm.get('staff/request_vehicle.php')
 ok('BM request form: the waiting location options keep their English values', 'value="Main entrance"' in pg.text and '<html lang="ms"' in pg.text)
+ok('BM request form: the script still compares with the identifiers (Other shows the address, Lorry shows Personal Rental)', "=== 'Other'" in pg.text and "=== 'Lorry'" in pg.text and "=== 'Lain-lain'" not in pg.text and "=== 'Lori'" not in pg.text)
 t0 = now() + _dt.timedelta(days=9); t1 = t0 + _dt.timedelta(hours=3)
 vt = _json.loads(sm.get('ajax/get_vehicle_types.php', depart_date=t0.strftime('%Y-%m-%d'), depart_time='09:00', return_date=t1.strftime('%Y-%m-%d'), return_time='12:00', passengers=2).text)
 car = [x for x in vt.get('types', []) if x['type'] == 'Car']
