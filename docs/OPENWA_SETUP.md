@@ -1,9 +1,9 @@
 # Setting up OpenWA for WhatsApp notifications
 
 OpenWA (https://github.com/rmyndharis/OpenWA) is an unofficial WhatsApp gateway. When it is switched on, **every notification the DSMS
-sends for a use case event** (new request to the Head of Department, approval, rejection, driver assigned, task approved, 1-day reminder,
-lapse, cancellation, schedule change, replacement ...) also goes to WhatsApp, next to the in-system notification and the e-mail, for the
-roles listed in `config/whatsapp.php` (`roles`, all five by default). If OpenWA is off or fails, nothing else is affected
+sends to a driver** (new trip once the Head of Admin approves, cancellation, replacement, schedule change, internal or welfare task ...)
+also goes to the driver's WhatsApp, next to the in-system notification and the e-mail. **Only drivers get WhatsApp**; staff, Heads of
+Department, the Administrative Assistant and the Head of Admin get the in-system notification and e-mail only. If OpenWA is off or fails, nothing else is affected
 (the attempt is written to the table `whatsapp_log`). WhatsApp is an addition decided by Iman; it is not in the 14 Nov use cases.
 
 **Hosting:** OpenWA needs Docker and a process that stays on, so it runs on a **Hostinger VPS** (see `docs/VPS_SETUP.md`), not on
@@ -47,11 +47,11 @@ Copy `config/whatsapp.sample.php` to `config/whatsapp.php` (this file is not upl
 'session_id' => '<session id>',
 'redirect_to'=> '60123456789',   // first test: everything goes to your own number; empty it afterwards
 ```
-The number comes from the user's phone number (users.phone; for a driver also drivers.phone). `012-345 6789` becomes `60123456789`.
-To send to fewer people, shorten `roles`, for example `['driver', 'supervisor']`.
+The number comes from the driver's phone number (users.phone, otherwise drivers.phone). `012-345 6789` becomes `60123456789`.
 
 ## 6. Check
-Submit a request as staff (the Head of Department gets a WhatsApp), then look at `whatsapp_log`:
+Take a request through to the end (HoD approves, Assistant assigns a driver, Head of Admin approves): the driver gets a WhatsApp.
+Then look at `whatsapp_log`:
 `sent` = delivered to OpenWA, `failed` = OpenWA unreachable or refused (see `error_message`), `skipped` = disabled or no valid number.
 
 ## Operations

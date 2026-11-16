@@ -2,6 +2,7 @@
 // ============================================================
 // WhatsApp (OpenWA) settings - optional extra channel for the system notifications
 // OpenWA: https://github.com/rmyndharis/OpenWA   (setup steps: docs/OPENWA_SETUP.md)
+// Only DRIVERS get WhatsApp. All other roles get the in-system notification and e-mail.
 //
 // 1. Copy this file to config/whatsapp.php   (that file is NOT uploaded to
 //    GitHub, so the API key stays on your computer)
@@ -31,8 +32,4 @@ return [
 
     // For testing: send every message to this number instead (e.g. '60123456789'); '' = off
     'redirect_to'  => '',
-
-    // Who gets WhatsApp: staff, driver, supervisor (Head of Department), admin (Administrative Assistant), head_admin (Head of Admin).
-    // Remove roles to send less (for example only ['driver', 'supervisor']).
-    'roles'        => ['staff', 'driver', 'supervisor', 'admin', 'head_admin'],
 ];

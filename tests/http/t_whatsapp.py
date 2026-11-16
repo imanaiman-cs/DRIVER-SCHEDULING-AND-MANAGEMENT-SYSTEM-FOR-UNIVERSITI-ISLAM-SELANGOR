@@ -1,57 +1,66 @@
-"""WhatsApp through OpenWA: every notifyUsers() event also goes to WhatsApp when switched on (fake OpenWA server)."""
+"""WhatsApp through OpenWA: only drivers get WhatsApp; every other role gets the in-system notification and e-mail (fake OpenWA server)."""
 import sys, os, json, subprocess, time, datetime, tempfile
 from lib import *
 cfg = ROOT + '/config/whatsapp.php'
 flog = os.path.join(tempfile.gettempdir(), 'fake_openwa.jsonl')
 def write_cfg(**kw):
-    c = {'enabled': 'true', 'base_url': "'http://127.0.0.1:2786'", 'api_key': "'test-key'", 'session_id': "'uis'", 'country_code': "'60'", 'timeout': '3', 'redirect_to': "''",
-         'roles': "['staff', 'driver', 'supervisor', 'admin', 'head_admin']"}
+    c = {'enabled': 'true', 'base_url': "'http://127.0.0.1:2786'", 'api_key': "'test-key'", 'session_id': "'uis'", 'country_code': "'60'", 'timeout': '3', 'redirect_to': "''"}
     c.update(kw)
     open(cfg, 'w').write('<?php return [' + ', '.join("'%s' => %s" % (k, v) for k, v in c.items()) + '];')
 def sent(): return [json.loads(l) for l in open(flog)] if os.path.exists(flog) else []
 cnt = lambda q: int(sql(q))
+st = lambda r: sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % r)
 reseed()
 if os.path.exists(flog): os.remove(flog)
 srv = subprocess.Popen(['php', '-S', '127.0.0.1:2786', ROOT + '/tests/http/fake_openwa.php'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 try:
-    s1 = user('stf001'); hos = user('hos002'); ad = user('admin')
+    s1 = user('stf001'); hos = user('hos002'); ad = user('admin'); hd = user('head001')
+    # everybody has a mobile number, so only the role decides who gets WhatsApp
     sql("UPDATE users SET phone='012-345 6789' WHERE username='hos002'")
-    def submit(h):
+    sql("UPDATE users SET phone='019-888 7777' WHERE username='stf001'")
+    sql("UPDATE users SET phone='013-222 3333' WHERE role IN ('admin','head_admin')")
+    def trip(h, driver):
+        """Staff request -> HoD approves -> Assistant assigns the driver -> Head of Admin approves (driver is told now)."""
         t = now() + datetime.timedelta(hours=h); r = t + datetime.timedelta(hours=4)
-        s1.post('staff/request_vehicle.php', {'request_type': 'uis', 'depart_date': t.strftime('%Y-%m-%d'), 'depart_time': t.strftime('%H:%M'), 'return_date': r.strftime('%Y-%m-%d'), 'return_time': r.strftime('%H:%M'),
-            'passengers': '2', 'vehicle_type': 'Car', 'quantity': '1', 'destination': 'Putrajaya', 'destination_address': 'Presint 5', 'purpose': 'Attend the national higher education forum',
-            'purpose_type': 'official', 'passenger_names': 'A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': '', 'need_driver': '1'})
-        return cnt("SELECT MAX(request_id) FROM vehicle_requests")
+        s1.post('staff/request_vehicle.php', {'depart_date': t.strftime('%Y-%m-%d'), 'depart_time': t.strftime('%H:%M'), 'return_date': r.strftime('%Y-%m-%d'), 'return_time': r.strftime('%H:%M'),
+            'passengers': '2', 'vehicle_id': '6', 'destination': 'Putrajaya', 'destination_address': 'Presint 5', 'purpose': 'Official duty at the ministry',
+            'passenger_names': 'A', 'phone': '012-3456789', 'waiting_place': 'Main entrance', 'waiting_address': ''})
+        rid = cnt("SELECT MAX(request_id) FROM vehicle_requests")
+        hos.post('ajax/request_action.php', {'request_id': rid, 'action': 'approve'})
+        ad.post('admin/assign_driver.php', {'request_id': rid, 'out_driver': str(driver), 'return_mode': 'same'})
+        hd.post('admin/approve_assignments.php', {'request_id': rid, 'action': 'approve'})
+        return rid
     # switched off (no config file): nothing is sent or logged
     if os.path.exists(cfg): os.remove(cfg)
-    submit(200)
-    ok('switched off: nothing goes to WhatsApp and nothing is logged', cnt("SELECT COUNT(*) FROM whatsapp_log") == 0 and not sent())
-    # switched on: a new request reaches the Head of Department on WhatsApp (UC019)
+    r0 = trip(200, 3)
+    ok('switched off: nothing goes to WhatsApp and nothing is logged', st(r0) == 'processed' and cnt("SELECT COUNT(*) FROM whatsapp_log") == 0 and not sent())
+    # switched on
     write_cfg()
-    rid = submit(240)
-    hod_msgs = [m for m in sent() if m['body']['chatId'] == '60123456789@c.us']
-    ok('UC019: the Head of Department gets the new request on WhatsApp (number 012-345 6789 -> 60123456789)', len(hod_msgs) == 1 and ('#%d' % rid) in hod_msgs[0]['body']['text'] and 'supervisor/approvals.php' in hod_msgs[0]['body']['text'])
-    ok('sent to the OpenWA session with the API key, logged as sent', hod_msgs and hod_msgs[0]['session'] == 'uis' and cnt("SELECT COUNT(*) FROM whatsapp_log WHERE status='sent' AND to_number='60123456789'") == 1)
-    ok('the e-mail and the in-system notification still go out', cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='hos002' AND n.message LIKE '%%#%d%%'" % rid) == 1 and cnt("SELECT COUNT(*) FROM email_log WHERE subject LIKE '%%#%d%%'" % rid) >= 1)
-    # approval: the requester (staff) is told on WhatsApp too, if a number is saved
-    sql("UPDATE users SET phone='019-888 7777' WHERE username='stf001'")
-    sql("UPDATE users SET phone=NULL WHERE role='admin'")
-    hos.post('ajax/request_action.php', {'request_id': rid, 'action': 'approve'})
-    ok('UC025: approval reaches the requester on WhatsApp', any(m['body']['chatId'] == '60198887777@c.us' and ('#%d' % rid) in m['body']['text'] for m in sent()))
-    # a user without a phone number: skipped and logged, nothing breaks
-    ok('a user without a mobile number is skipped and logged', cnt("SELECT COUNT(*) FROM whatsapp_log WHERE status='skipped'") >= 1)
-    # roles: only drivers
-    write_cfg(roles="['driver']")
-    n0 = len(sent()); rid2 = submit(260)
-    ok('roles limited to drivers: the Head of Department gets no WhatsApp', len(sent()) == n0)
-    # server down: failed is logged, the request is still saved and e-mailed
+    rid = trip(240, 3)
+    ok('the whole flow ran (request Approved)', st(rid) == 'processed')
+    drv = [m for m in sent() if m['body']['chatId'] == '601134567890@c.us']   # drv003: 011-34567890
+    ok('the driver gets the new trip on WhatsApp', len(drv) >= 1 and all(('#%d' % rid) in m['body']['text'] for m in drv))
+    ok('sent to the OpenWA session with the API key, logged as sent', drv and drv[0]['session'] == 'uis' and cnt("SELECT COUNT(*) FROM whatsapp_log WHERE status='sent' AND to_number='601134567890'") >= 1)
+    ok('only drivers: staff, Head of Department, Assistant and Head of Admin get no WhatsApp',
+       all(m['body']['chatId'] == '601134567890@c.us' for m in sent()) and cnt("SELECT COUNT(*) FROM whatsapp_log l JOIN users u ON u.user_id=l.user_id WHERE u.role<>'driver'") == 0)
+    ok('the others still get the in-system notification and the e-mail',
+       all(cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='%s' AND n.message LIKE '%%#%d%%'" % (u, rid)) >= 1 for u in ('hos002', 'stf001', 'head001'))
+       and all(cnt("SELECT COUNT(*) FROM email_log e JOIN users u ON u.user_id=e.user_id WHERE u.username='%s' AND e.subject LIKE '%%#%d%%'" % (u, rid)) >= 1 for u in ('hos002', 'stf001', 'head001')))
+    ok('the driver still gets the in-system notification and the e-mail too',
+       cnt("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv003' AND n.message LIKE '%%#%d%%'" % rid) >= 1
+       and cnt("SELECT COUNT(*) FROM email_log e JOIN users u ON u.user_id=e.user_id WHERE u.username='drv003' AND e.subject LIKE '%%#%d%%'" % rid) >= 1)
+    # a driver without a phone number: skipped and logged, nothing breaks
+    sql("UPDATE users SET phone=NULL WHERE username='drv005'"); sql("UPDATE drivers SET phone='' WHERE driver_id=5")
+    r2 = trip(260, 5)
+    ok('a driver without a mobile number is skipped and logged, the trip still goes ahead', st(r2) == 'processed' and cnt("SELECT COUNT(*) FROM whatsapp_log l JOIN users u ON u.user_id=l.user_id WHERE u.username='drv005' AND l.status='skipped'") >= 1)
+    # server down: failed is logged, the trip is still Approved
     write_cfg(base_url="'http://127.0.0.1:2799'")
-    rid3 = submit(280)
-    ok('OpenWA unreachable: the request is still saved, the failure is logged', sql("SELECT status FROM vehicle_requests WHERE request_id=%d" % rid3) == 'pending' and cnt("SELECT COUNT(*) FROM whatsapp_log WHERE status='failed'") >= 1)
+    r3 = trip(280, 3)
+    ok('OpenWA unreachable: the trip is still Approved, the failure is logged', st(r3) == 'processed' and cnt("SELECT COUNT(*) FROM whatsapp_log WHERE status='failed'") >= 1)
     ok('the dashboard shows the WhatsApp failure as an alert', 'WhatsApp message(s) failed' in ad.get('admin/dashboard.php').text)
     # redirect for testing
     write_cfg(redirect_to="'60111111111'")
-    n0 = len(sent()); submit(300)
+    n0 = len(sent()); trip(300, 3)
     ok('redirect_to sends every message to the test number', len(sent()) > n0 and all(m['body']['chatId'] == '60111111111@c.us' for m in sent()[n0:]))
 finally:
     if os.path.exists(cfg): os.remove(cfg)

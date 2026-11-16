@@ -26,7 +26,7 @@ is not in the use cases; keep cancelling by the Assistant / Head of Admin (a rea
   UC026 the approval page shows each driver's task count this month; UC021 A1 the Head of Department cancels from Department Request;
   UC008 A1 deactivating a driver links to Replace driver for internal tasks and welfare days; "No record is found" messages (accounts, vehicles, internal tasks, welfare week).
 
-- WhatsApp through OpenWA was added back on 16 Nov 2026 as an optional extra channel for all notifications (Iman's decision, outside the use cases); see README and `docs/OPENWA_SETUP.md`.
+- WhatsApp through OpenWA was added back on 16 Nov 2026 as an optional extra channel for drivers only; the other roles use e-mail (Iman's decision, outside the use cases); see README and `docs/OPENWA_SETUP.md`.
 
 ## Open / for Iman
 - The drivers list (`admin/drivers.php`, `view_driver.php`, `edit_driver.php`) is a view of the same accounts as UC001; it was kept.

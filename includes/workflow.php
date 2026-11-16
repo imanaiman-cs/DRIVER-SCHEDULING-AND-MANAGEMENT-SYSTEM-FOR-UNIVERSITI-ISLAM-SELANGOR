@@ -264,7 +264,7 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
             $out['errors'][] = $e->getMessage();
             error_log('notifyUsers (e-mail): ' . $e->getMessage());
         }
-        // WhatsApp (OpenWA), only when switched on and for the roles in config/whatsapp.php; a failure is logged and never stops the other channels
+        // WhatsApp (OpenWA), only when switched on and only to drivers; a failure is logged and never stops the other channels
         try {
             if (whatsappEnabled()) {
                 $q = $conn->prepare('SELECT u.role, u.language, COALESCE(NULLIF(u.phone, \'\'), d.phone) AS phone FROM users u LEFT JOIN drivers d ON d.driver_id = u.driver_id WHERE u.user_id = ? AND u.is_active = 1');

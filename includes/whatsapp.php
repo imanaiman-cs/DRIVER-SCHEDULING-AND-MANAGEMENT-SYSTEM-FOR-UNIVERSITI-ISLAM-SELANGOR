@@ -2,8 +2,8 @@
 // ============================================================
 // WhatsApp through an OpenWA server (https://github.com/rmyndharis/OpenWA): POST /api/sessions/{id}/messages/send-text
 // An extra channel next to the in-system notification and the e-mail (Iman's decision, 16 Nov 2026; WhatsApp is not in the 14 Nov use cases).
-// Every message that notifyUsers() sends for a use case event (new request to the Head of Department, approval, rejection, driver assigned,
-// task approved, reminder, lapse, cancellation, schedule change ...) also goes to WhatsApp for the roles listed in config/whatsapp.php.
+// ONLY DRIVERS get WhatsApp (Iman, 16 Nov 2026): every message notifyUsers() sends to a driver (new trip confirmed, task cancelled,
+// replaced, schedule change, internal/welfare task ...) also goes to WhatsApp. All other roles get the in-system notification and e-mail only.
 // A failure never stops the workflow: it is written to whatsapp_log and the other channels still go out. E-mail stays the guaranteed channel.
 // ============================================================
 
@@ -14,8 +14,7 @@ function whatsappConfig(): array
         $file = __DIR__ . '/../config/whatsapp.php';
         $c = is_file($file) ? (array)(include $file) : [];
         $c += ['enabled' => false, 'base_url' => '', 'api_key' => '', 'session_id' => '',
-               'country_code' => '60', 'timeout' => 5, 'redirect_to' => '',
-               'roles' => ['staff', 'driver', 'supervisor', 'admin', 'head_admin']];
+               'country_code' => '60', 'timeout' => 5, 'redirect_to' => ''];
     }
     return $c;
 }
@@ -26,10 +25,10 @@ function whatsappEnabled(): bool
     return !empty($c['enabled']) && $c['base_url'] !== '' && $c['session_id'] !== '';
 }
 
-/** Does this role get WhatsApp messages (config 'roles')? */
+/** Only drivers get WhatsApp; every other role uses e-mail (fixed rule, not a setting). */
 function whatsappForRole(?string $role): bool
 {
-    return $role !== null && in_array($role, (array)whatsappConfig()['roles'], true);
+    return $role === 'driver';
 }
 
 /** "012-345 6789" -> "60123456789"; null when it cannot be a mobile number. */
