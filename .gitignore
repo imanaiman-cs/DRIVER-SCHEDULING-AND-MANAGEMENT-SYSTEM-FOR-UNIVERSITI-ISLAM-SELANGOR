@@ -3,6 +3,8 @@ uploads/vehicles/*
 uploads/drivers/*
 !uploads/vehicles/.gitkeep
 !uploads/drivers/.gitkeep
+uploads/reports/*
+!uploads/reports/.gitkeep
 
 # Supporting documents for vehicle requests (private; keep folder + protection only)
 uploads/documents/*
