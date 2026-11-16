@@ -46,7 +46,7 @@ adminPageStart('Vehicle Requests');
             <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
                     <span class="font-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
-                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax &middot; <?= htmlspecialchars((string)$r['plate_number']) ?></div>
+                    <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax<?= $r['plate_number'] ? ' &middot; ' . plate($r['plate_number']) : '' ?></div>
                 </div>
                 <div class="flex items-center gap-2">
                     <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>

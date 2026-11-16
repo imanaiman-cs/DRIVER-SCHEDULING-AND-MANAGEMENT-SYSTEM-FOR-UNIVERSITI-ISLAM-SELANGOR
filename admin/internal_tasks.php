@@ -306,7 +306,7 @@ adminPageStart('Internal Tasks');
                     <td class="whitespace-nowrap"><?= $h(date('D, d M Y', strtotime($t['task_date']))) ?><div class="text-sm text-base-content/60"><?= $h(substr($t['start_time'], 0, 5) . ' - ' . substr($t['end_time'], 0, 5)) ?></div></td>
                     <td><strong><?= $h(internalTaskTypeLabel($t['task_type'])) ?></strong>
                         <?php if ($t['location'] || $t['description']): ?><div class="text-sm text-base-content/60"><?= $h(trim($t['location'] . ' ' . $t['description'])) ?></div><?php endif; ?></td>
-                    <td class="whitespace-nowrap"><?= $h(vehicleText($t['plate_number'], $t['brand'], $t['model'])) ?></td>
+                    <td class="whitespace-nowrap"><?= vehicleHtml($t['plate_number'], $t['brand'], $t['model']) ?></td>
                     <td><?= $h($t['driver_name']) ?></td>
                     <td><?php if ($t['status'] === 'cancelled'): ?><span class="badge badge-soft badge-error">Cancelled</span>
                         <div class="text-sm text-base-content/60 mt-1"><?= $h($t['cancel_reason']) ?></div>

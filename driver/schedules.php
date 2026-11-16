@@ -41,7 +41,7 @@ if ($driver_id > 0) {
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $tasks[] = ['kind' => 'trip', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => legLabel($r['leg_no'] !== null ? (int)$r['leg_no'] : null),
-                    'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']),
+                    'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']),
                     'destination' => destinationText($r['destination'], $r['destination_address']), 'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
                     'purpose' => (string)$r['purpose'], 'officer' => (string)$r['officer_name'], 'phone' => (string)$r['officer_phone'], 'sheet' => (int)$r['schedule_id']];
     }
@@ -55,7 +55,7 @@ if ($driver_id > 0) {
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
         $tasks[] = ['kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
-                    'ref' => '', 'vehicle' => vehicleText($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
+                    'ref' => '', 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
                     'purpose' => (string)$r['description'], 'officer' => '', 'phone' => '', 'sheet' => 0];
     }
     $stmt->close();
@@ -107,7 +107,7 @@ adminPageStart('My Tasks');
                 </div>
                 <dl class="mb-0">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
-                    <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $h($t['vehicle']) ?></dd><?php endif; ?>
+                    <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $t['vehicle'] ?></dd><?php endif; ?>
                     <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?></dd><?php endif; ?>
                     <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?></dd><?php endif; ?>
                     <?php if ($t['purpose']): ?><dt><?= $t['kind'] === 'trip' ? 'Purpose' : 'Details' ?></dt><dd><?= $h($t['purpose']) ?></dd><?php endif; ?>

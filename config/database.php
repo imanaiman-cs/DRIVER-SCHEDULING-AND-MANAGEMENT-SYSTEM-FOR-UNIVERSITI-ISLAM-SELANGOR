@@ -652,6 +652,13 @@ function vehicleStatusBadgeClass(string $status): string
     };
 }
 
+/** A registration number set like a number plate (HTML). Empty string when there is no plate. */
+function plate(?string $plateNumber): string
+{
+    $p = trim((string)$plateNumber);
+    return $p === '' ? '' : '<span class="plate">' . htmlspecialchars($p, ENT_QUOTES, 'UTF-8') . '</span>';
+}
+
 /** The words people see for a vehicle status. In Use is worked out by the system (see vehicleDisplayStatus). */
 function vehicleStatusLabel(string $status): string
 {

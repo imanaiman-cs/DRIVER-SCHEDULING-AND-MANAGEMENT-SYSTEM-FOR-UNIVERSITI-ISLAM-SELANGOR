@@ -133,22 +133,22 @@ if ($_is_admin_role) {
         <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="flex h-16 shrink-0 items-center gap-3 border-b border-base-300 px-5">
             <img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="" class="size-8">
             <span class="leading-tight">
-                <span class="block font-semibold">UIS Fleet</span>
-                <span class="block text-xs text-base-content/60">Driver Management</span>
+                <span class="block font-semibold">Driver Management</span>
+                <span class="block text-xs text-base-content/60">Universiti Islam Selangor</span>
             </span>
         </a>
 
-        <ul class="menu w-full grow gap-0.5 px-3 py-3">
+        <ul class="menu w-full grow gap-0.5 px-3 py-3 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
             <?php foreach ($_menu as $_section => $_items): ?>
             <li class="menu-title pt-4 first:pt-1"><?php echo htmlspecialchars($_section); ?></li>
                 <?php foreach ($_items as [$_pages, $_url, $_icon, $_label, $_bk]): ?>
             <li>
-                <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="<?php echo sidebarActive($_pages, $current_page) ? 'menu-active' : ''; ?>"
+                <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="<?php echo sidebarActive($_pages, $current_page) ? 'menu-active font-medium' : ''; ?>"
                    <?php echo sidebarActive($_pages, $current_page) ? 'aria-current="page"' : ''; ?>>
                     <i class="fas fa-<?php echo $_icon; ?> w-4 text-center opacity-70" aria-hidden="true"></i>
                     <span class="grow"><?php echo htmlspecialchars($_label); ?></span>
                     <?php if ($_bk !== null && $_badge[$_bk] > 0): ?>
-                    <span class="badge badge-sm badge-secondary"><?php echo (int)$_badge[$_bk]; ?></span>
+                    <span class="font-mono text-xs text-base-content/60"><?php echo (int)$_badge[$_bk]; ?></span>
                     <?php endif; ?>
                 </a>
             </li>
@@ -166,8 +166,8 @@ if ($_is_admin_role) {
                     <div class="truncate text-xs text-base-content/60"><?php echo htmlspecialchars($role_label); ?></div>
                 </div>
             </div>
-            <ul class="menu w-full p-0">
-                <li><a href="<?php echo SITE_URL; ?>/help.php" class="<?php echo $current_page === 'help.php' ? 'menu-active' : ''; ?>"><i class="fas fa-circle-question w-4 text-center opacity-70" aria-hidden="true"></i>Help &amp; guide</a></li>
+            <ul class="menu w-full p-0 [--menu-active-bg:var(--color-base-200)] [--menu-active-fg:var(--color-primary)]">
+                <li><a href="<?php echo SITE_URL; ?>/help.php" class="<?php echo $current_page === 'help.php' ? 'menu-active font-medium' : ''; ?>"><i class="fas fa-circle-question w-4 text-center opacity-70" aria-hidden="true"></i>Help &amp; guide</a></li>
                 <li><a href="<?php echo SITE_URL; ?>/logout.php"
                        data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger" data-confirm-icon="fa-right-from-bracket">
                     <i class="fas fa-right-from-bracket w-4 text-center opacity-70" aria-hidden="true"></i>Log out</a></li>
@@ -190,7 +190,7 @@ if ($_is_admin_role) {
         </ul>
     </div>
 
-    <span id="dhClock" class="hidden text-sm tabular-nums text-base-content/60 xl:inline"></span>
+    <span id="dhClock" class="hidden font-mono text-sm text-base-content/60 xl:inline"></span>
 
     <!-- Notifications -->
     <div class="dropdown dropdown-end">
@@ -315,7 +315,7 @@ if ($_is_admin_role) {
     var el = document.getElementById('dhClock');
     if (!el) { return; }
     function tick() {
-        el.textContent = new Date().toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' });
+        el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     }
     tick();
     setInterval(tick, 15000);

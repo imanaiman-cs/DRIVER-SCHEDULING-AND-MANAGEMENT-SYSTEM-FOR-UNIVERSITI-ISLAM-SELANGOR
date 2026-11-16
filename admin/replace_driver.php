@@ -58,7 +58,7 @@ adminPageStart('Replace Driver');
     <h4 class="font-bold my-2"><i class="fas fa-right-left text-success me-2"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h4>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body text-sm">
         <div><strong><?= htmlspecialchars($task['req_destination']) ?></strong> &middot; <?= date('D, d M Y H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?></div>
-        <div>Vehicle: <?= htmlspecialchars((string)$task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
+        <div>Vehicle: <?= plate($task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
         <div>Current driver: <strong><?= htmlspecialchars((string)$task['driver_name']) ?></strong> &middot; Request status: <?= requestStatusBadge($task['req_status']) ?></div>
     </div></div>
 

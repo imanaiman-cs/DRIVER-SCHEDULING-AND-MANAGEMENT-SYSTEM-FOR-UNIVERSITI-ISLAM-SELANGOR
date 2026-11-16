@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Sign in | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
 </head>
@@ -125,14 +125,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="w-full max-w-sm">
 
             <div class="mb-6 flex flex-col items-center text-center">
-                <img src="assets/images/uis-favicon.png" alt="UIS crest" class="mb-4 size-14">
-                <h1 class="text-xl font-semibold">Universiti Islam Selangor</h1>
-                <p class="text-sm text-base-content/60">Driver Scheduling &amp; Management System</p>
+                <img src="assets/images/uis-favicon.png" alt="Universiti Islam Selangor" class="mb-4 size-12">
+                <h1 class="text-xl font-medium">Sign in to UIS Driver Management</h1>
             </div>
 
             <div class="card border border-base-300 bg-base-100">
                 <div class="card-body gap-4">
-                    <h2 class="card-title text-base">Sign in to your account</h2>
 
                     <?php if (!empty($error)): ?>
                     <div class="alert alert-soft alert-error text-sm" role="alert">
@@ -180,14 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
-            <p class="mt-6 text-center text-xs text-base-content/50">
-                <i class="fas fa-shield-halved me-1" aria-hidden="true"></i>Authorised personnel only. UIS internal system.
-            </p>
         </div>
     </main>
 
-    <footer class="pb-6 text-center text-xs text-base-content/50">
-        &copy; <?= date('Y') ?> Universiti Islam Selangor
+    <footer class="pb-6 text-center text-xs text-base-content/60">
+        &copy; <?= date('Y') ?> Universiti Islam Selangor. For authorised staff only.
     </footer>
 
     <script>

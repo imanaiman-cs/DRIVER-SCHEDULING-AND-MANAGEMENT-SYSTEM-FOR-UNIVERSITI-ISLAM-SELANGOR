@@ -19,10 +19,10 @@
   default: true;
   color-scheme: light;
 
-  --color-base-100: oklch(100% 0 0);
-  --color-base-200: oklch(97.5% 0.004 160);
-  --color-base-300: oklch(92.5% 0.006 160);
-  --color-base-content: oklch(24% 0.02 160);
+  --color-base-100: #ffffff;
+  --color-base-200: #f4f4f5;
+  --color-base-300: #e4e4e7;
+  --color-base-content: #171717;
 
   --color-primary: oklch(41% 0.09 158);          /* #0b5d3b UIS green */
   --color-primary-content: oklch(98% 0.01 158);
@@ -30,8 +30,8 @@
   --color-secondary-content: oklch(22% 0.04 80);
   --color-accent: oklch(52% 0.12 158);
   --color-accent-content: oklch(98% 0.01 158);
-  --color-neutral: oklch(30% 0.03 160);
-  --color-neutral-content: oklch(96% 0.005 160);
+  --color-neutral: #262626;
+  --color-neutral-content: #fafafa;
 
   --color-info: oklch(58% 0.11 220);
   --color-info-content: oklch(98% 0.01 220);
@@ -53,7 +53,9 @@
 }
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-plate: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
 }
 
 
@@ -80,6 +82,11 @@
 
 /* ---------- Small app-wide bits DaisyUI has no component for ---------- */
 @layer components {
+  /* Signature: a vehicle registration set like a Malaysian number plate (white on black). Used wherever a plate is shown. */
+  .plate {
+    @apply inline-block rounded-[3px] bg-neutral px-1.5 py-px align-middle font-plate text-[0.8125rem] leading-5 font-semibold tracking-wide whitespace-nowrap text-neutral-content;
+  }
+
   .skip-link {
     @apply absolute -left-[9999px] top-0 z-[4000] rounded-br-box bg-primary px-4 py-2 font-semibold text-primary-content;
   }
@@ -93,19 +100,13 @@
   /* Dashboard panels (admin, staff, head of department, driver) */
   .dash-card { @apply rounded-box border border-base-300 bg-base-100 p-5; }
   .grid-12 > * > .dash-card { @apply h-full; }
-  .dash-card > h6 { @apply mb-3 flex items-center justify-between gap-2 text-sm font-semibold; }
+  .dash-card > h6 { @apply mb-4 flex items-center justify-between gap-2 text-sm font-medium; }
   .dash-card > h6 a { @apply link link-primary font-normal no-underline; }
-  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-field px-2 py-2.5 text-sm; }
-  .dash-row + .dash-row { @apply border-t border-base-200; }
-  a.dash-row:hover { @apply bg-base-200; }
-  .dash-group { @apply mt-4 mb-1 flex items-center gap-2 text-xs font-semibold text-base-content/60 first:mt-0; }
-  .dash-group::before { content: ""; @apply size-2 rounded-full bg-success; }
-  .dash-group.warn::before { @apply bg-warning; }
-  .dash-group.info::before { @apply bg-info; }
+  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-field px-2 py-2 text-sm; }
+  a.dash-row { @apply -mx-2 transition-colors hover:bg-base-200; }
+  .dash-group { @apply mt-5 mb-1 text-xs font-medium text-base-content/60 first-of-type:mt-0; }
   .dash-time { @apply inline-block min-w-24 font-medium tabular-nums; }
-  .dash-empty { @apply flex flex-col items-center gap-2 py-6 text-center text-sm text-base-content/50; }
-  .dash-empty i { @apply text-2xl text-base-content/25; }
-  .dash-next { @apply rounded-field bg-base-200 px-3 py-2; }
+  .dash-empty { @apply py-6 text-center text-sm text-base-content/60; }
 
   /* A chart canvas wrapper; the centre label sits over a doughnut */
   .dash-chart { @apply relative w-full; }

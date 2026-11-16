@@ -63,7 +63,7 @@ adminPageStart('Assign Driver');
         <input type="hidden" name="request_id" value="<?= $rid ?>">
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
             <h6 class="font-bold">Outbound trip <span class="font-normal text-base-content/60 text-sm">
-                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= htmlspecialchars((string)$req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
+                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= plate($req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
             <p class="text-sm text-base-content/60 mb-2">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). You make the final choice.</p>
             <div class="overflow-x-auto">
             <table class="table align-middle">

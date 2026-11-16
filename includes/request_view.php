@@ -80,7 +80,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php endif; ?>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Requested vehicle</div>
-            <div><?= $req['plate_number'] ? reqH($req['plate_number'] . ' - ' . $req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;' ?></div>
+            <div><?= $req['plate_number'] ? plate($req['plate_number']) . ' ' . reqH($req['vehicle_model'] . ' (' . $req['vehicle_type'] . ', ' . $req['capacity'] . ' seats)') : '&mdash;' ?></div>
         </div>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Head of Department</div>
@@ -120,7 +120,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
                         <td class="whitespace-nowrap"><?= (int)$t['leg_no'] === 2 ? 'Return' : 'Outbound' ?></td>
                         <td class="whitespace-nowrap"><?= date('d M H:i', strtotime($t['trip_date'] . ' ' . $t['start_time'])) ?>-<?= substr($t['end_time'], 0, 5) ?></td>
                         <td><?= reqH($t['driver'] ?: 'no driver') ?><?= $t['driver_phone'] ? ' <span class="text-base-content/60">' . reqH($t['driver_phone']) . '</span>' : '' ?></td>
-                        <td><?= reqH($t['plate_number']) ?> <span class="text-base-content/60"><?= reqH($t['model']) ?></span></td>
+                        <td><?= plate($t['plate_number']) ?> <span class="text-base-content/60"><?= reqH($t['model']) ?></span></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

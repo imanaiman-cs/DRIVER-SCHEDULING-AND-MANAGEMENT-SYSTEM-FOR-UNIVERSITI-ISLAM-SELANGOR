@@ -65,7 +65,7 @@ adminPageStart('Vehicles');
                 <tbody>
                 <?php foreach ($vehicles as $v): $id = (int)$v['vehicle_id']; ?>
                     <tr>
-                        <td class="font-semibold whitespace-nowrap"><a class="no-underline" href="view_vehicle.php?id=<?= $id ?>"><?= htmlspecialchars($v['plate_number']) ?></a></td>
+                        <td class="whitespace-nowrap"><a href="view_vehicle.php?id=<?= $id ?>" aria-label="View <?= htmlspecialchars($v['plate_number']) ?>"><?= plate($v['plate_number']) ?></a></td>
                         <td><?= htmlspecialchars($v['vehicle_type']) ?></td>
                         <td><?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?></td>
                         <td class="text-end"><?= (int)$v['capacity'] ?></td>
@@ -91,7 +91,7 @@ adminPageStart('Vehicles');
             <?php foreach ($vehicles as $v): $id = (int)$v['vehicle_id']; ?>
                 <div class="block px-4 py-3">
                     <div class="flex justify-between items-start">
-                        <div><a class="font-bold no-underline" href="view_vehicle.php?id=<?= $id ?>"><?= htmlspecialchars($v['plate_number']) ?></a>
+                        <div><a href="view_vehicle.php?id=<?= $id ?>" aria-label="View <?= htmlspecialchars($v['plate_number']) ?>"><?= plate($v['plate_number']) ?></a>
                             <div class="text-sm text-base-content/60"><?= htmlspecialchars($v['vehicle_type']) ?> &middot; <?= htmlspecialchars(trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? ''))) ?> &middot; <?= (int)$v['capacity'] ?> seats &middot; licence <?= htmlspecialchars($v['license_required']) ?></div></div>
                         <span class="badge <?= vehicleStatusBadgeClass($v['shown']) ?>"><?= vehicleStatusLabel($v['shown']) ?></span>
                     </div>

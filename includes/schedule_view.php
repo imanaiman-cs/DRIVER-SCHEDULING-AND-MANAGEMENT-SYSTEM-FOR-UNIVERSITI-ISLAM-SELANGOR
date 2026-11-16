@@ -26,6 +26,14 @@ function legLabel(?int $leg_no): string
 }
 
 /** "BHW 8595 (Toyota Hiace)" - plate plus model. */
+/** The same as vehicleText(), as HTML: the plate set as a number plate, then the model in muted text. */
+function vehicleHtml(?string $plate, ?string $brand = null, ?string $model = null): string
+{
+    if ($plate === null || $plate === '') { return ''; }
+    $m = trim(trim((string)$brand) . ' ' . trim((string)$model));
+    return plate($plate) . ($m !== '' ? ' <span class="text-base-content/60">' . htmlspecialchars($m, ENT_QUOTES, 'UTF-8') . '</span>' : '');
+}
+
 function vehicleText(?string $plate, ?string $brand = null, ?string $model = null): string
 {
     if ($plate === null || $plate === '') { return ''; }

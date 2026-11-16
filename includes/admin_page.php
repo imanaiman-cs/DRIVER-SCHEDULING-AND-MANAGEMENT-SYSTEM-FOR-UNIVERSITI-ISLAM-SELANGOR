@@ -7,7 +7,7 @@
 // Needs $page_title / $current_page to be set before adminPageStart() (the sidebar reads them).
 // ============================================================
 
-/** The <head> tags every signed-in page shares (Tailwind + DaisyUI build, Font Awesome icons, Inter). */
+/** The <head> tags every signed-in page shares (Tailwind + DaisyUI build, Font Awesome icons, IBM Plex). */
 function appHead(string $title): void
 {
     ?>
@@ -16,7 +16,7 @@ function appHead(string $title): void
     <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
 <?php
