@@ -16,7 +16,7 @@ for k, (u, p) in pages.items():
     S[k] = user(u)
     r, dt = timed(S[k], p)
     ok('%s opens %s (200, no PHP errors, %.2f s)' % (u, p, dt), r.status_code == 200 and not errs(r) and dt < 3)
-    ok('%s: dashboard has the hero and KPI cards' % u, 'dash-hero' in r.text and 'dash-kpi' in r.text)
+    ok('%s: dashboard has its heading and figures' % u, 'data-dashboard' in r.text and ('dash-kpi' in r.text or 'e-tile' in r.text))
 
 # admin: charts, queues, alerts, fleet
 r = S['admin'].get('admin/dashboard.php')
@@ -25,7 +25,7 @@ for t in ['chStatus', 'chMonthly', 'chDrivers', 'chVehicles', 'Needs your action
 ok('admin: Head of Admin has the approve link, the Assistant does not',
    'approve_assignments.php' in S['head001'].get('admin/dashboard.php').text and 'approve_assignments.php' not in r.text)
 n_approved = int(rows("SELECT COUNT(*) FROM vehicle_requests WHERE status='approved'")[0][0])
-m = re.search(r'dash-kpi-value">(\d+)[^<]*(?:<span[^>]*>.*?</span>)?\s*</div><div class="dash-kpi-label">Need a driver', r.text, re.S)
+m = re.search(r'Need a driver</span><span class="font-medium tabular-nums">(\d+)</span>', r.text)
 ok('admin: "Need a driver" equals the database (%d)' % n_approved, bool(m) and int(m.group(1)) == n_approved)
 
 # a late-night problem: a request leaving within 24 h and still not Confirmed raises an alert
@@ -49,7 +49,7 @@ r = S['hos002'].get('supervisor/dashboard.php')
 ids = [str(x[0]) for x in rows("SELECT vr.request_id FROM vehicle_requests vr JOIN users u ON u.user_id=vr.staff_id WHERE vr.status='pending' AND NOT (vr.supervisor_id=(SELECT user_id FROM users WHERE username='hos002') AND (u.role='supervisor' OR u.department <=> (SELECT department FROM users WHERE username='hos002')))")]
 shown = set(re.findall(r'<strong>#(\d+)</strong>', r.text.split('My own requests')[0]))
 ok('HoD: "To approve" lists only requests of their own PTJ', not (shown & set(ids)))
-ok('HoD cannot open the admin dashboard', S['hos002'].get('admin/dashboard.php').url.endswith('supervisor/dashboard.php') or 'dash-hero' not in S['hos002'].get('admin/dashboard.php').text)
+ok('HoD cannot open the admin dashboard', S['hos002'].get('admin/dashboard.php').url.endswith('supervisor/dashboard.php') or 'Vehicles today' not in S['hos002'].get('admin/dashboard.php').text)
 
 # driver: only Confirmed tasks
 r = S['drv001'].get('driver/dashboard.php')
@@ -59,8 +59,8 @@ hidden = [x[0] for x in rows("SELECT vr.destination FROM schedules s JOIN vehicl
 ok('driver sees no task of a request that is not Confirmed', not any(h and h in r.text for h in hidden))
 
 # non-admin roles cannot reach the others' dashboards
-ok('staff cannot open the admin dashboard', 'dash-hero' not in S['stf001'].get('admin/dashboard.php').text)
-ok('driver cannot open the staff-only supervisor dashboard', 'dash-hero' not in S['drv001'].get('supervisor/dashboard.php').text)
+ok('staff cannot open the admin dashboard', 'Vehicles today' not in S['stf001'].get('admin/dashboard.php').text)
+ok('driver cannot open the staff-only supervisor dashboard', 'data-dashboard' not in S['drv001'].get('supervisor/dashboard.php').text)
 
 # landing page after login
 for u, expect in [('hos002', 'supervisor/dashboard.php'), ('drv001', 'driver/dashboard.php'), ('stf001', 'staff/dashboard.php'), ('admin', 'admin/dashboard.php')]:

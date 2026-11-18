@@ -38,6 +38,13 @@ function dashStepper(string $status): string
     return $h . '</ol>';
 }
 
+/** Up to two initials of a name, for the small avatar circles. */
+function dashInitials(string $name): string
+{
+    $parts = array_values(array_filter(preg_split('/\s+/', trim($name)), fn($w) => !in_array(strtolower($w), ['bin', 'binti', 'a/l', 'a/p'], true)));
+    return strtoupper(substr($parts[0] ?? '?', 0, 1) . substr($parts[1] ?? '', 0, 1));
+}
+
 /** "Good morning" / "Good afternoon" / "Good evening" (Malaysia time). */
 function dashGreeting(): string
 {
@@ -204,8 +211,8 @@ function dashChartScript(): void
         else {
             options.indexAxis = horizontal ? 'y' : 'x';
             options.scales = { x: { stacked: stacked, grid: { display: horizontal } }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
-            if (horizontal && narrow) {        // long names would be cut off on a phone: shorten them
-                options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 15 ? l.slice(0, 14) + '…' : l; };
+            if (horizontal) {                   // long names would be cut off in a narrow card: shorten them
+                options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 18 ? l.slice(0, 17) + '…' : l; };
             }
         }
         new Chart(el, { type: c.type, data: { labels: c.labels, datasets: datasets }, options: options });
