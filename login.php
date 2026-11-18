@@ -118,10 +118,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
+    <?php uisThemeHead(); ?>
 </head>
-<body class="flex min-h-screen flex-col bg-[#050c09] bg-[radial-gradient(900px_600px_at_80%_-10%,rgb(16_185_129/.22),transparent_60%),radial-gradient(700px_500px_at_0%_110%,rgb(212_160_23/.12),transparent_60%)]">
+<body class="uis-page flex min-h-screen flex-col">
 
-    <main class="flex flex-1 items-center justify-center px-4 py-10">
+    <div class="flex justify-end gap-2 px-4 pt-4">
+        <?= uisLangSwitch() ?>
+        <?= uisThemeSwitch() ?>
+    </div>
+
+    <main class="flex flex-1 items-center justify-center px-4 pt-4 pb-10">
         <div class="w-full max-w-md overflow-hidden rounded-3xl bg-base-100 shadow-2xl">
 
             <div class="relative bg-gradient-to-br from-[#07301f] to-primary px-6 pt-9 pb-7 text-center text-white">
@@ -189,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </main>
 
-    <footer class="pb-6 text-center text-xs text-white/60">
+    <footer class="pb-6 text-center text-xs text-base-content/65">
         &copy; <?= date('Y') ?> Universiti Islam Selangor. All rights reserved.
     </footer>
 

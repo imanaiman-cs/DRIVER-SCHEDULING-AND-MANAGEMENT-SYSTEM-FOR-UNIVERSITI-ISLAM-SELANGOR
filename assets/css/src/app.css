@@ -10,7 +10,7 @@
 @source not "../../../includes/phpmailer";
 
 @plugin "daisyui" {
-  themes: uis --default;
+  themes: uis --default, uis-light;
 }
 
 /* UIS theme: green (Islamic identity) + gold (wisdom), on a light green-grey page, as in the original design. */
@@ -43,6 +43,40 @@
   --color-error: #f87171;
   --color-error-content: #1a0505;
 
+  --radius-selector: 0.5rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.375rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Light: the same layout on a pale green-grey page, white cards, a deeper emerald (readable on white) */
+@plugin "daisyui/theme" {
+  name: "uis-light";
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f1f5f2;
+  --color-base-300: #dfe7e2;
+  --color-base-content: #07110d;
+  --color-primary: #047857;
+  --color-primary-content: #ffffff;
+  --color-secondary: #b8860b;
+  --color-secondary-content: #ffffff;
+  --color-accent: #059669;
+  --color-accent-content: #ffffff;
+  --color-neutral: #0b2a1d;
+  --color-neutral-content: #f8faf9;
+  --color-info: #0369a1;
+  --color-info-content: #ffffff;
+  --color-success: #15803d;
+  --color-success-content: #ffffff;
+  --color-warning: #b45309;
+  --color-warning-content: #ffffff;
+  --color-error: #b91c1c;
+  --color-error-content: #ffffff;
   --radius-selector: 0.5rem;
   --radius-field: 0.875rem;
   --radius-box: 1.375rem;
@@ -185,7 +219,11 @@
 /* ---------- "Ember" look in UIS green: floating icon rail, rounded panel, borderless cards, pills.
    Sits in the utilities layer (and under .ember-panel) so it wins over DaisyUI and the page classes. ---------- */
 @layer utilities {
-  :root { --ember-shadow: 0 0 0 1px rgb(255 255 255 / .06), 0 20px 40px -28px rgb(0 0 0 / .9); --ember-dark: #0a1611; --ember-glow: 0 0 0 4px rgb(16 185 129 / .2), 0 0 28px -2px rgb(16 185 129 / .75); }
+  :root { --ember-shadow: 0 0 0 1px rgb(255 255 255 / .06), 0 20px 40px -28px rgb(0 0 0 / .9); --ember-dark: #0a1611; --ember-glow: 0 0 0 4px rgb(16 185 129 / .2), 0 0 28px -2px rgb(16 185 129 / .75);
+    --uis-page: #050c09; --uis-page-glow: rgb(16 185 129 / .12); --uis-panel: #0a1611; --uis-btn: #1a2e24; --uis-line: rgb(255 255 255 / .08); --uis-chip-fg: #6ee7b7; --uis-rail: #0a1611; }
+  [data-theme=uis-light] { --ember-shadow: 0 1px 2px rgb(16 34 27 / .05), 0 12px 32px -16px rgb(16 34 27 / .18); --ember-dark: #0b2a1d; --ember-glow: 0 0 0 4px rgb(4 120 87 / .15), 0 8px 20px -6px rgb(4 120 87 / .5);
+    --uis-page: #e3ebe6; --uis-page-glow: rgb(4 120 87 / .10); --uis-panel: #f4f7f5; --uis-btn: #ffffff; --uis-line: #dfe7e2; --uis-chip-fg: #065f46; --uis-rail: #0b2a1d; }
+  .uis-page { background-color: var(--uis-page); background-image: radial-gradient(900px 500px at 80% -10%, var(--uis-page-glow), transparent 60%); }
 
   /* Rail */
   .ember-rail .rail-item {
@@ -239,10 +277,10 @@
   /* Buttons: pills. A button without a colour is white with a soft shadow */
   .btn { border-radius: 999px; font-weight: 500; }
   .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active) {
-    --btn-color: #1a2e24; color: var(--color-base-content); border-color: rgb(255 255 255 / .08); box-shadow: none;
+    --btn-color: var(--uis-btn); color: var(--color-base-content); border-color: var(--uis-line); box-shadow: none;
   }
   .btn-primary { box-shadow: 0 0 24px -8px rgb(16 185 129 / .8); }
-  .btn-neutral { --btn-color: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -6px rgb(16 185 129 / .8); }
+  .btn-neutral { --btn-color: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -6px color-mix(in oklab, var(--color-primary) 80%, transparent); }
 
   /* Tabs: a white pill bar, the active tab a dark pill */
   .ember-panel .tabs-border {
@@ -257,7 +295,7 @@
   /* Fields: soft rounded, white, green when focused */
   .input, .select, .textarea, .file-input { background-color: var(--color-base-200); border-color: var(--color-base-300); }
   .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
-    border-color: var(--color-primary); outline: 3px solid rgb(16 185 129 / .3); outline-offset: 0;
+    border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-primary) 30%, transparent); outline-offset: 0;
   }
 
   /* Tables: airy, light header */
@@ -297,7 +335,7 @@
   .e-dark .e-head h2 { color: #ffffff; }
   .e-dark .bg-white\/10 { background: rgb(212 160 23 / .15); }
 
-  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 500; background: rgb(16 185 129 / .15); color: #6ee7b7; }
+  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 500; background: color-mix(in oklab, var(--color-primary) 15%, transparent); color: var(--uis-chip-fg); }
   .e-chip-down { background: rgb(248 113 113 / .12); color: var(--color-error); }
 
   .e-tile { display: flex; flex-direction: column; gap: .15rem; border-radius: 18px; background: var(--color-base-200); padding: .85rem 1rem; transition: background-color .15s ease; }
@@ -316,7 +354,7 @@
   button.e-day:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
   .e-day.is-today[aria-pressed=false] { background: color-mix(in oklab, var(--color-primary) 18%, var(--color-base-200)); color: inherit; box-shadow: none; }
   .e-day.is-today[aria-pressed=false] span { color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
-  .e-day.is-today, .e-day[aria-pressed=true] { background: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -4px rgb(16 185 129 / .7); }
+  .e-day.is-today, .e-day[aria-pressed=true] { background: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -4px color-mix(in oklab, var(--color-primary) 70%, transparent); }
   .e-day.is-today span, .e-day[aria-pressed=true] span { color: rgb(4 20 13 / .75); }
 
   /* Older dashboard parts (staff, head of department, driver) in the same look */
@@ -334,7 +372,7 @@
   .ember-panel .dash-hero .dash-chip { background: var(--color-base-100); border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
   .ember-panel .dash-hero .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
   .ember-panel .dash-hero .btn { --btn-color: var(--color-primary); color: var(--color-primary-content); }
-  .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: #1a2e24; color: var(--color-base-content); border: 1px solid rgb(255 255 255 / .08); box-shadow: none; }
+  .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: var(--uis-btn); color: var(--color-base-content); border: 1px solid var(--uis-line); box-shadow: none; }
   .ember-panel .dash-alert { border-radius: 18px; }
 
   /* ---- ui-ux-pro-max: touch (P2), readable inputs (P5), reduced motion (P7) ---- */
@@ -355,8 +393,21 @@
 
   .plate { box-shadow: 0 0 0 1px rgb(255 255 255 / .22); }
   .dash-alert i { background: rgb(255 255 255 / .08); }
-  .ember-panel { border: 1px solid rgb(255 255 255 / .05); }
-  .ember-rail { border: 1px solid rgb(255 255 255 / .06); }
+  .ember-panel { border: 1px solid rgb(255 255 255 / .05); background: var(--uis-panel); }
+  .ember-rail { border: 1px solid rgb(255 255 255 / .06); background: var(--uis-rail); }
+
+  .theme-switching, .theme-switching * { transition: none !important; }
+
+  /* Light mode: the few dark-only touches */
+  [data-theme=uis-light] .plate { box-shadow: none; }
+  [data-theme=uis-light] .dash-alert i { background: rgb(255 255 255 / .7); }
+  [data-theme=uis-light] .ember-panel { border-color: transparent; }
+  [data-theme=uis-light] .e-accent { background: radial-gradient(circle at 100% 0%, rgb(110 231 183 / .3), transparent 45%), linear-gradient(150deg, #047857 0%, #065f46 55%, #064e3b 100%); box-shadow: 0 24px 50px -28px rgb(4 120 87 / .7); }
+  [data-theme=uis-light] .e-dark { background: linear-gradient(150deg, #3a2d08 0%, #231b05 100%); }
+  [data-theme=uis-light] .e-chip-down { background: rgb(185 28 28 / .1); }
+  [data-theme=uis-light] .ember-rail .tooltip { --tt-bg: #13221b; }
+  [data-theme=uis-light] .e-day.is-today span, [data-theme=uis-light] .e-day[aria-pressed=true] span { color: #ffffff; }
+  [data-theme=uis-light] .e-day.is-today[aria-pressed=false] span { color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
 
   /* Badges: small pills */
   .badge { border-radius: 999px; font-weight: 600; }

@@ -190,7 +190,13 @@ function dashChartScript(): void
 <script>
 (function () {
     var canvases = document.querySelectorAll('canvas[data-chart]');
+    // the dark palette, swapped for deeper tones that read on white in light mode
+    var LIGHT = { '#cbd5e1': '#64748b', '#86efac': '#16a34a', '#34d399': '#059669', '#10b981': '#047857', '#38bdf8': '#0284c7', '#d4a017': '#b8860b' };
+    function tone(c) { return document.documentElement.getAttribute('data-theme') === 'uis-light' ? (LIGHT[c] || c) : c; }
+    function draw() {
+    var light = document.documentElement.getAttribute('data-theme') === 'uis-light';
     canvases.forEach(function (el) {
+        var old = typeof Chart !== 'undefined' && Chart.getChart(el); if (old) { old.destroy(); }
         var wrap = el.closest('.dash-chart');
         if (typeof Chart === 'undefined') {            // no chart library: show the numbers instead
             wrap.classList.add('hidden');
@@ -198,13 +204,14 @@ function dashChartScript(): void
             if (t) { t.classList.remove('sr-only'); }
             return;
         }
-        Chart.defaults.color = 'rgba(230,239,233,.75)'; Chart.defaults.borderColor = 'rgba(255,255,255,.08)';
+        Chart.defaults.color = light ? 'rgba(19,34,27,.75)' : 'rgba(230,239,233,.75)'; Chart.defaults.borderColor = light ? 'rgba(19,34,27,.08)' : 'rgba(255,255,255,.08)';
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
         var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var narrow = window.innerWidth < 576, stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
         var datasets = c.datasets.map(function (d) {
-            var color = d.color || '#15804f';
+            var color = tone(d.color || '#15804f');
+            if (d.colors) { d = Object.assign({}, d, { colors: d.colors.map(tone) }); }
             var set = { label: d.label, data: d.data, borderWidth: round ? 2 : (c.type === 'line' ? 3 : 0), borderRadius: c.type === 'bar' ? 4 : 0 };
             if (round) { set.backgroundColor = d.colors; }
             else { set.backgroundColor = c.type === 'line' ? color + '33' : (d.colors || color); set.borderColor = d.colors || color; }
@@ -223,6 +230,9 @@ function dashChartScript(): void
         }
         new Chart(el, { type: c.type, data: { labels: c.labels, datasets: datasets }, options: options });
     });
+    }
+    draw();
+    document.addEventListener('uis-theme', draw);
 })();
 </script>
 <?php
