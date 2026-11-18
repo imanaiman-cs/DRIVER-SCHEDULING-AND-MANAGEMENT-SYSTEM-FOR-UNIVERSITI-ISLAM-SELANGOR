@@ -113,6 +113,8 @@ card, stats, table, tabs, modal, badge, alert). There is no Bootstrap and no jQu
 - **Dialogs:** `assets/js/ui.js` gives `UIS.confirm()`, `UIS.alert()`, `UIS.askReason()` and `data-confirm="…"` on
   links/buttons, built on DaisyUI's `<dialog class="modal">`.
 - **Plates:** print a registration number with `plate($plateNumber)` (PHP), which sets it like a number plate.
+- **Design system:** colours, type, components, rules and the pre-delivery checklist are in
+  `design-system/uis-driver-management/MASTER.md` (page overrides in `pages/`). Read it before adding a page.
 
 ## Tests
 

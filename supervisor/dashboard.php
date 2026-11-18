@@ -22,7 +22,7 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-4 flex flex-wrap justify-between items-center gap-2" data-dashboard>
         <div>
-            <h4 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <h1 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h1>
             <div><?= dashChips([['user-tie', 'Head of Department'], ['building-columns', (string)($dept ?? '')], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <div class="flex gap-2">
@@ -36,7 +36,7 @@ adminPageStart('Dashboard');
         <div class="col-span-12 xl:col-span-4"><?= dashKpi('Rejected this month', $rejectedThisMonth, 'thumbs-down', 'danger') ?></div>
     </div>
     <div class="dash-card mb-6">
-        <h6><span><i class="fas fa-stamp text-success me-1"></i>To approve</span><a class="text-sm font-normal" href="approvals.php">Open approvals</a></h6>
+        <h2><span><i class="fas fa-stamp text-success me-1"></i>To approve</span><a class="text-sm font-normal" href="approvals.php">Open approvals</a></h2>
         <?php if (!$pending): ?><?= dashEmpty('No request is waiting for you.', 'circle-check') ?><?php endif; ?>
         <?php foreach ($pending as $r): ?>
             <a class="dash-row no-underline text-base-content" href="approvals.php">
@@ -45,6 +45,6 @@ adminPageStart('Dashboard');
             </a>
         <?php endforeach; ?>
     </div>
-    <h5 class="font-bold mb-4">My own requests</h5>
+    <h2 class="text-lg font-bold mb-4">My own requests</h2>
     <?php dashMyRequestsSection($conn, $uid); ?>
 <?php adminPageEnd(); ?>

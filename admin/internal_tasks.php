@@ -222,7 +222,7 @@ adminPageStart('Internal Tasks');
 
     <div class="card border border-base-300 bg-base-100 mb-6" id="taskForm">
         <div class="card-body">
-            <h6 class="font-bold mb-4"><?= $editId ? 'Update task #' . (int)$editId : 'Add a task' ?></h6>
+            <h2 class="text-base font-bold mb-4"><?= $editId ? 'Update task #' . (int)$editId : 'Add a task' ?></h2>
             <?php if (!empty($errors['general'])): ?><div class="alert alert-soft alert-error py-2"><?= $h($errors['general']) ?></div><?php endif; ?>
             <form method="post" class="grid-12 grid grid-cols-12 gap-4" novalidate>
                 <input type="hidden" name="action" value="save"><input type="hidden" name="task_id" value="<?= (int)$editId ?>">
@@ -281,10 +281,10 @@ adminPageStart('Internal Tasks');
         </div>
     </div>
 
-    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
-        <a role="tab" class="tab gap-2 <?= $when === 'upcoming' ? 'tab-active' : '' ?>" href="<?= $qs(['when' => 'upcoming', 'page' => null]) ?>">Upcoming</a>
-        <a role="tab" class="tab gap-2 <?= $when === 'past' ? 'tab-active' : '' ?>" href="<?= $qs(['when' => 'past', 'page' => null]) ?>">Past</a>
-    </div>
+    <nav aria-label="Upcoming or past tasks" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a class="tab gap-2 <?= $when === 'upcoming' ? 'tab-active' : '' ?>" <?= $when === 'upcoming' ? 'aria-current="page"' : '' ?> href="<?= $qs(['when' => 'upcoming', 'page' => null]) ?>">Upcoming</a>
+        <a class="tab gap-2 <?= $when === 'past' ? 'tab-active' : '' ?>" <?= $when === 'past' ? 'aria-current="page"' : '' ?> href="<?= $qs(['when' => 'past', 'page' => null]) ?>">Past</a>
+    </nav>
     <form method="get" class="grid-12 grid grid-cols-12 gap-2 mb-4 items-end">
         <input type="hidden" name="when" value="<?= $h($when) ?>">
         <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium mb-0" for="f_status">Status</label>
@@ -313,8 +313,8 @@ adminPageStart('Internal Tasks');
                         <?php else: ?><span class="badge badge-success">Active</span><?php endif; ?></td>
                     <td class="text-end whitespace-nowrap">
                         <?php if ($canChange): ?>
-                            <a class="btn btn-sm btn-outline btn-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Update</span></a>
-                            <button type="button" class="btn btn-sm btn-outline btn-error" data-cancel-task data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="hidden md:inline ms-1">Cancel</span></button>
+                            <a class="btn btn-sm btn-outline btn-success" href="internal_tasks.php?edit=<?= (int)$t['task_id'] ?>#taskForm" aria-label="Update task <?= $h(taskText($t)) ?>"><i class="fas fa-pen"></i><span class="hidden md:inline ms-1">Update</span></a>
+                            <button type="button" class="btn btn-sm btn-outline btn-error" aria-label="Cancel task <?= $h(taskText($t)) ?>" data-cancel-task data-id="<?= (int)$t['task_id'] ?>" data-label="<?= $h(taskText($t)) ?>"><i class="fas fa-ban"></i><span class="hidden md:inline ms-1">Cancel</span></button>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -332,7 +332,7 @@ adminPageStart('Internal Tasks');
     <dialog class="modal" id="cancelModal" aria-labelledby="cancelTitle">
         <form method="post" class="modal-box">
             <input type="hidden" name="action" value="cancel"><input type="hidden" name="task_id" id="cancelId" value="">
-            <h3 class="text-lg font-medium" id="cancelTitle">Cancel this task?</h3>
+            <h2 class="text-lg font-medium" id="cancelTitle">Cancel this task?</h2>
             <div class="mt-3">
                 <p class="mb-4 text-sm text-base-content/70" id="cancelLabel"></p>
                 <label class="mb-1 block text-sm font-medium" for="cancelReason">Reason for cancelling</label>

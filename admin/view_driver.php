@@ -51,7 +51,7 @@ adminPageStart($d['name']);
         </div></div></div>
         <div class="col-span-12 lg:col-span-7">
             <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-                <h6 class="font-bold">Workload in <?= date('F Y') ?></h6>
+                <h2 class="text-base font-bold">Workload in <?= date('F Y') ?></h2>
                 <div class="grid-12 grid grid-cols-12 text-center gap-2">
                     <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['tasks'] ?></div><div class="text-sm text-base-content/60">Tasks</div></div>
                     <div class="col-span-4"><div class="text-xl font-bold"><?= (int)$c['outside'] ?></div><div class="text-sm text-base-content/60">Outside working hours</div></div>
@@ -59,7 +59,7 @@ adminPageStart($d['name']);
                 </div>
             </div></div>
             <div class="card border border-base-300 bg-base-100"><div class="card-body">
-                <h6 class="font-bold">Upcoming tasks</h6>
+                <h2 class="text-base font-bold">Upcoming tasks</h2>
                 <?php if (!$upcoming): ?><p class="text-base-content/60 text-sm mb-0">No upcoming tasks.</p>
                 <?php else: ?><?= fleetItemsList($upcoming, true) ?><?php endif; ?>
             </div></div>

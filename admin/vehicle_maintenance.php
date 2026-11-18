@@ -53,7 +53,7 @@ adminPageStart('Vehicle Maintenance');
     <?php if ($error): ?><div class="alert alert-soft alert-error" role="alert"><?= htmlspecialchars($error) ?><?= fleetItemsList($blocked) ?></div><?php endif; ?>
     <div class="grid-12 grid grid-cols-12 gap-4">
         <div class="col-span-12 lg:col-span-5"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Change status</h6>
+            <h2 class="text-base font-bold">Change status</h2>
             <p class="text-sm text-base-content/60">In Use cannot be chosen: the system shows it while a Confirmed trip is running.</p>
             <form method="post" id="statusForm" class="grid-12 grid grid-cols-12 gap-2">
                 <input type="hidden" name="id" value="<?= $id ?>">
@@ -72,7 +72,7 @@ adminPageStart('Vehicle Maintenance');
             </form>
         </div></div></div>
         <div class="col-span-12 lg:col-span-7"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Maintenance history</h6>
+            <h2 class="text-base font-bold">Maintenance history</h2>
             <div class="overflow-x-auto"><table class="table align-middle mb-0">
                 <thead class=""><tr><th>Workshop</th><th>Started</th><th>Expected return</th><th>Closed</th></tr></thead>
                 <tbody>

@@ -37,8 +37,8 @@
   --color-info-content: oklch(98% 0.01 220);
   --color-success: #15803d;
   --color-success-content: oklch(98% 0.01 150);
-  --color-warning: oklch(78% 0.15 75);
-  --color-warning-content: oklch(25% 0.05 75);
+  --color-warning: #b45309;
+  --color-warning-content: #ffffff;
   --color-error: #b91c1c;
   --color-error-content: oklch(98% 0.01 27);
 
@@ -113,7 +113,7 @@
     @apply pointer-events-none absolute right-6 -bottom-5 rotate-[-12deg] text-[7.5rem] text-white/[.07];
   }
   .dash-hero > * { @apply relative z-[1]; }
-  .dash-hero h4 { @apply text-[1.45rem] font-bold tracking-tight text-white; }
+  .dash-hero h1 { @apply text-[1.45rem] font-bold tracking-tight text-white; }
   .dash-hero .text-base-content\/60 { @apply text-white/80; }
   .dash-chip { @apply me-1.5 mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-0.5 text-[0.8rem]; }
 
@@ -140,10 +140,10 @@
   .dash-kpi-secondary { --kpi: #475569; }
 
   .dash-card { @apply h-full rounded-2xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm; }
-  .dash-card > h6 { @apply mb-3 flex items-center justify-between gap-2 border-b border-base-200 pb-2.5 text-[0.95rem] font-bold; }
-  .dash-card > h6 small { @apply text-xs; }
-  .dash-card > h6 .fas { --fa-display: inline-grid; @apply me-1.5 size-7 place-items-center rounded-lg bg-primary/10 align-middle text-[0.8rem]; }
-  .dash-card > h6 a { @apply text-primary; }
+  .dash-card > h2 { @apply mb-3 flex items-center justify-between gap-2 border-b border-base-200 pb-2.5 text-[0.95rem] font-bold; }
+  .dash-card > h2 small { @apply text-xs; }
+  .dash-card > h2 .fas { --fa-display: inline-grid; @apply me-1.5 size-7 place-items-center rounded-lg bg-primary/10 align-middle text-[0.8rem]; }
+  .dash-card > h2 a { @apply text-primary; }
   .dash-empty { @apply py-6 text-center text-sm text-base-content/65; }
   .dash-empty i { --fa-display: block; @apply mb-1.5 text-3xl text-base-content/20; }
   .dash-row { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 text-sm transition-colors; }
@@ -165,7 +165,7 @@
 
   /* The four steps of a request: small dots joined by a line */
   .dash-steps { @apply mt-2.5 flex list-none p-0; }
-  .dash-steps li { @apply relative flex-1 text-center text-[0.68rem] leading-tight text-base-content/40; }
+  .dash-steps li { @apply relative flex-1 text-center text-[0.68rem] leading-tight text-base-content/60; }
   .dash-steps li::before { content: ''; @apply absolute top-2 -left-1/2 h-[3px] w-full bg-base-300; }
   .dash-steps li:first-child::before { display: none; }
   .dash-steps .dot { @apply relative z-[1] mx-auto mb-1 block size-[17px] rounded-full border-[3px] border-base-300 bg-base-100; }
@@ -246,7 +246,7 @@
   /* Tables: airy, light header */
   .table { font-variant-numeric: tabular-nums; }
   .table :where(thead) th {
-    background: transparent; color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+    background: transparent; color: color-mix(in oklab, var(--color-base-content) 68%, transparent);
     font-size: .72rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; padding-block: .9rem;
     border-bottom: 1px solid var(--color-base-300);
   }
@@ -289,18 +289,18 @@
   .e-tile-value { font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 
   .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 600; color: #ffffff; box-shadow: 0 0 0 2px #ffffff; }
-  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #c69214; } .e-avatar-2 { background: #121614; } .e-avatar-3 { background: #23a86b; }
+  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #c69214; color: #1b1400; } .e-avatar-2 { background: #121614; } .e-avatar-3 { background: #15804f; }
 
   .e-day { display: flex; flex-direction: column; align-items: center; gap: .15rem; border-radius: 16px; background: var(--color-base-200); padding: .5rem 0; }
-  .e-day span { font-size: .65rem; color: color-mix(in oklab, var(--color-base-content) 55%, transparent); }
+  .e-day span { font-size: .68rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   .e-day b { font-size: .95rem; font-weight: 500; }
   .e-day.is-today { background: var(--ember-dark); color: #ffffff; box-shadow: 0 8px 16px -8px rgb(0 0 0 / .5); }
   .e-day.is-today span { color: rgb(255 255 255 / .65); }
 
   /* Older dashboard parts (staff, head of department, driver) in the same look */
   .ember-panel .dash-card { border: 0; border-radius: 24px; box-shadow: var(--ember-shadow); padding: 1.5rem; }
-  .ember-panel .dash-card > h6 { border-bottom: 0; padding-bottom: 0; margin-bottom: 1rem; font-size: 1.05rem; font-weight: 500; }
-  .ember-panel .dash-card > h6 .fas { border-radius: 999px; background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent) !important; }
+  .ember-panel .dash-card > h2 { border-bottom: 0; padding-bottom: 0; margin-bottom: 1rem; font-size: 1.05rem; font-weight: 500; }
+  .ember-panel .dash-card > h2 .fas { border-radius: 999px; background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent) !important; }
   .ember-panel .dash-row + .dash-row { border-top: 1px solid var(--color-base-200); }
   .ember-panel .dash-kpi { border: 0; border-radius: 22px; box-shadow: var(--ember-shadow); }
   .ember-panel .dash-kpi::before { display: none; }
@@ -308,12 +308,28 @@
   .ember-panel .dash-kpi-value { font-weight: 500; }
   .ember-panel .dash-hero { background: transparent; color: var(--color-base-content); box-shadow: none; padding: 0 0 .5rem; border-radius: 0; }
   .ember-panel .dash-hero::after { display: none; }
-  .ember-panel .dash-hero h4 { font-size: 2rem; font-weight: 500; color: var(--color-base-content); }
+  .ember-panel .dash-hero h1 { font-size: 2rem; font-weight: 500; color: var(--color-base-content); }
   .ember-panel .dash-hero .dash-chip { background: #ffffff; border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
   .ember-panel .dash-hero .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
   .ember-panel .dash-hero .btn { --btn-color: var(--ember-dark); color: #ffffff; }
   .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: #ffffff; color: var(--color-base-content); border: 0; box-shadow: var(--ember-shadow); }
   .ember-panel .dash-alert { border-radius: 18px; }
+
+  /* ---- ui-ux-pro-max: touch (P2), readable inputs (P5), reduced motion (P7) ---- */
+  html { touch-action: manipulation; }                        /* no 300 ms tap delay */
+  @media (pointer: coarse) {                                  /* 44 px touch targets on phones and tablets */
+    .btn-sm, .btn-xs { min-height: 2.75rem; }
+    .btn-square.btn-sm, .btn-circle.btn-sm, .btn-square.btn-xs { min-width: 2.75rem; }
+    .ember-rail .rail-item { height: 2.75rem; }
+    .ember-panel .tabs-border > .tab { height: 2.75rem; }
+    .e-icon-btn { width: 2.75rem; height: 2.75rem; }
+  }
+  @media (max-width: 640px) {                                 /* 16 px fields: iOS does not zoom in when typing */
+    .input, .select, .textarea, .file-input, .input input { font-size: 1rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
 
   /* Badges: small pills */
   .badge { border-radius: 999px; font-weight: 600; }

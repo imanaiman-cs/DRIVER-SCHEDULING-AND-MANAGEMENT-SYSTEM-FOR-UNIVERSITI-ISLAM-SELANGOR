@@ -78,10 +78,10 @@ adminPageStart('My Tasks');
 ?>
     <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-route me-2 text-[0.8em] text-primary"></i>My Tasks</h1>
     <p class="text-base-content/60 text-sm mb-4">Your trips, internal tasks and welfare duty. A trip appears here once the Head of Admin has confirmed it.</p>
-    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
-        <a role="tab" class="tab gap-2 <?= $tab === 'upcoming' ? 'tab-active' : '' ?>" href="?tab=upcoming">Upcoming Tasks</a>
-        <a role="tab" class="tab gap-2 <?= $tab === 'past' ? 'tab-active' : '' ?>" href="?tab=past">Past Tasks</a>
-    </div>
+    <nav aria-label="Upcoming or past tasks" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a class="tab gap-2 <?= $tab === 'upcoming' ? 'tab-active' : '' ?>" <?= $tab === 'upcoming' ? 'aria-current="page"' : '' ?> href="?tab=upcoming">Upcoming Tasks</a>
+        <a class="tab gap-2 <?= $tab === 'past' ? 'tab-active' : '' ?>" <?= $tab === 'past' ? 'aria-current="page"' : '' ?> href="?tab=past">Past Tasks</a>
+    </nav>
     <?php if (!$tasks): ?>
         <p class="dash-empty rounded-box border border-base-300"><?= $tab === 'past' ? 'No past tasks' : 'No upcoming tasks' ?></p>
     <?php endif; ?>

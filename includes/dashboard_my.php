@@ -28,7 +28,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
     <div class="grid-12 grid grid-cols-12 gap-4 mb-4">
         <div class="col-span-12 lg:col-span-5">
             <div class="dash-card">
-                <h6><span><i class="fas fa-route text-success me-1"></i>My next trip</span></h6>
+                <h2><span><i class="fas fa-route text-success me-1"></i>My next trip</span></h2>
                 <?php if (!$next): ?>
                     <?= dashEmpty('No upcoming trip.', 'route') ?><div class="text-center"><a class="btn btn-success btn-sm" href="<?= $base ?>request_vehicle.php">Request a vehicle</a></div>
                 <?php else: ?>
@@ -50,7 +50,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
         </div>
         <div class="col-span-12 lg:col-span-7">
             <div class="dash-card">
-                <h6><span><i class="fas fa-list-check text-success me-1"></i>My active requests</span><a class="text-sm font-normal" href="<?= $base ?>my_requests.php">See all</a></h6>
+                <h2><span><i class="fas fa-list-check text-success me-1"></i>My active requests</span><a class="text-sm font-normal" href="<?= $base ?>my_requests.php">See all</a></h2>
                 <?php if (!$active): ?><?= dashEmpty('Nothing in progress.', 'list-check') ?><?php endif; ?>
                 <?php foreach ($active as $r): ?>
                     <a class="block no-underline text-base-content py-2 border-t border-base-300" href="<?= $base ?>my_requests.php?open=<?= (int)$r['request_id'] ?>">
@@ -65,7 +65,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
         </div>
     </div>
     <div class="dash-card mb-4">
-        <h6><span><i class="fas fa-clock-rotate-left text-success me-1"></i>Recent activity</span></h6>
+        <h2><span><i class="fas fa-clock-rotate-left text-success me-1"></i>Recent activity</span></h2>
         <?php if (!$activity): ?><?= dashEmpty('No activity yet.', 'clock-rotate-left') ?><?php endif; ?>
         <?php foreach ($activity as $a): ?>
             <div class="dash-row">

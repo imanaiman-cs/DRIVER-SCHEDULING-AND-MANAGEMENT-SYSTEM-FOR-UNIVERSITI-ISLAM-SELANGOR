@@ -40,11 +40,11 @@ adminPageStart('Help');
     <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-circle-question me-2 text-[0.8em] text-primary"></i>Help</h1>
     <p class="text-base-content/60 text-sm">You are signed in as <strong><?= htmlspecialchars(roleLabel($role)) ?></strong>. Every role is also Staff and can request a vehicle.</p>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-        <h6 class="font-bold">What to do</h6>
+        <h2 class="text-base font-bold">What to do</h2>
         <ol class="mb-0"><?php foreach ($steps[$role] ?? $steps['staff'] as $s): ?><li class="mb-1"><?= $s ?></li><?php endforeach; ?></ol>
     </div></div>
     <div class="card border border-base-300 bg-base-100"><div class="card-body">
-        <h6 class="font-bold">Request statuses</h6>
+        <h2 class="text-base font-bold">Request statuses</h2>
         <table class="table mb-0"><tbody>
         <?php foreach ($statuses as $k => $text): ?>
             <tr><td class="whitespace-nowrap"><?= requestStatusBadge($k) ?></td><td><?= htmlspecialchars($text) ?></td></tr>

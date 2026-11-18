@@ -14,7 +14,7 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-4 flex flex-wrap justify-between items-center gap-2" data-dashboard>
         <div>
-            <h4 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <h1 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h1>
             <div><?= dashChips([['building-columns', (string)($_SESSION['department'] ?? 'Universiti Islam Selangor')], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <a class="btn" href="request_vehicle.php"><i class="fas fa-car-side me-1"></i>Request a vehicle</a>

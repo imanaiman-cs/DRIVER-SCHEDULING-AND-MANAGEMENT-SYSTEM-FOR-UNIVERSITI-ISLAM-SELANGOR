@@ -67,7 +67,7 @@ adminPageStart('Replace Driver');
     <?php else: ?>
     <form method="post" class="card border border-base-300 bg-base-100"><div class="card-body">
         <input type="hidden" name="schedule_id" value="<?= $sid ?>">
-        <h6 class="font-bold">Choose the new driver <span class="font-normal text-base-content/60 text-sm">(only drivers without a clash can be chosen)</span></h6>
+        <h2 class="text-base font-bold">Choose the new driver <span class="font-normal text-base-content/60 text-sm">(only drivers without a clash can be chosen)</span></h2>
         <div class="overflow-x-auto"><table class="table align-middle">
             <thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
             <tbody>
@@ -91,7 +91,7 @@ adminPageStart('Replace Driver');
 
     <?php if ($history): ?>
     <div class="card border border-base-300 bg-base-100 mt-4"><div class="card-body text-sm">
-        <h6 class="font-bold">Replacement history of this task</h6>
+        <h2 class="text-base font-bold">Replacement history of this task</h2>
         <?php foreach ($history as $h): ?><div><?= date('d M Y H:i', strtotime($h['changed_at'])) ?> &middot; <?= htmlspecialchars((string)$h['old_name']) ?> &rarr; <?= htmlspecialchars((string)$h['new_name']) ?> &middot; <?= htmlspecialchars((string)$h['reason']) ?></div><?php endforeach; ?>
     </div></div>
     <?php endif; ?>

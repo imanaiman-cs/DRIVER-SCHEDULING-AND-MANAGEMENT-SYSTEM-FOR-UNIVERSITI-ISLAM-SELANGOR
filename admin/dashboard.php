@@ -77,8 +77,8 @@ $badTrend = dashTrend($badNow, $badBefore);
                 </div>
                 <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <a class="e-tile" href="vehicle_requests.php?tab=processed"><span class="e-tile-label">Confirmed trips</span><span class="e-tile-value"><?= (int)($status['processed'] ?? 0) ?></span></a>
-                    <a class="e-tile" href="vehicle_requests.php"><span class="e-tile-label">Rejected + lapsed this month</span><span class="e-tile-value"><?= (int)$badNow ?><?php if ($badTrend && $badTrend['pct'] === null): ?> <small class="text-xs font-normal text-base-content/55">none last month</small><?php endif; ?></span></a>
-                    <a class="e-tile" href="vehicles.php"><span class="e-tile-label">Vehicles free now</span><span class="e-tile-value"><?= (int)$fleet['available'] ?> <small class="text-xs font-normal text-base-content/55"><?= (int)$fleet['in_use'] ?> in use, <?= (int)$fleet['maintenance'] ?> in maintenance</small></span></a>
+                    <a class="e-tile" href="vehicle_requests.php"><span class="e-tile-label">Rejected + lapsed this month</span><span class="e-tile-value"><?= (int)$badNow ?><?php if ($badTrend && $badTrend['pct'] === null): ?> <small class="text-xs font-normal text-base-content/65">none last month</small><?php endif; ?></span></a>
+                    <a class="e-tile" href="vehicles.php"><span class="e-tile-label">Vehicles free now</span><span class="e-tile-value"><?= (int)$fleet['available'] ?> <small class="text-xs font-normal text-base-content/65"><?= (int)$fleet['in_use'] ?> in use, <?= (int)$fleet['maintenance'] ?> in maintenance</small></span></a>
                 </div>
             </section>
 
@@ -115,7 +115,7 @@ $badTrend = dashTrend($badNow, $badBefore);
         <!-- Right: today -->
         <div class="col-span-12 flex flex-col gap-5 xl:col-span-4">
             <section class="e-card">
-                <div class="e-head"><div><h2>Today</h2><p class="text-xs text-base-content/55"><?= date('l, j F Y') ?></p></div><a href="calendar.php" class="e-icon-btn" aria-label="Open calendar"><i class="fas fa-plus"></i></a></div>
+                <div class="e-head"><div><h2>Today</h2><p class="text-xs text-base-content/65"><?= date('l, j F Y') ?></p></div><a href="calendar.php" class="e-icon-btn" aria-label="Open calendar"><i class="fas fa-plus"></i></a></div>
                 <div class="grid grid-cols-7 gap-1.5">
                     <?php $mon = strtotime('monday this week'); for ($i = 0; $i < 7; $i++): $d = strtotime("+$i day", $mon); $isToday = date('Y-m-d', $d) === date('Y-m-d'); ?>
                     <div class="e-day <?= $isToday ? 'is-today' : '' ?>"><span><?= date('D', $d) ?></span><b><?= date('j', $d) ?></b></div>
@@ -146,12 +146,12 @@ $badTrend = dashTrend($badNow, $badBefore);
 
         <!-- Vehicles today -->
         <section class="e-card col-span-12">
-            <div class="e-head"><div><h2>Vehicles today</h2><p class="text-xs text-base-content/55">Every vehicle across the working day</p></div><a href="calendar.php" class="btn btn-sm">Open calendar</a></div>
+            <div class="e-head"><div><h2>Vehicles today</h2><p class="text-xs text-base-content/65">Every vehicle across the working day</p></div><a href="calendar.php" class="btn btn-sm">Open calendar</a></div>
             <?= dashBoard($conn) ?>
         </section>
 
         <section class="e-card col-span-12 xl:col-span-8">
-            <div class="e-head"><h2>Requests per month</h2><span class="text-xs text-base-content/55">last 6 months</span></div>
+            <div class="e-head"><h2>Requests per month</h2><span class="text-xs text-base-content/65">last 6 months</span></div>
             <?= dashChart('chMonthly', 'line', array_keys($monthly), [['label' => 'Requests', 'data' => array_values($monthly), 'color' => '#15804f']], ['height' => 260]) ?>
         </section>
 
@@ -168,18 +168,18 @@ $badTrend = dashTrend($badNow, $badBefore);
         </section>
 
         <section class="e-card col-span-12 lg:col-span-4">
-            <div class="e-head"><h2>Requests by status</h2><span class="text-xs text-base-content/55">last 6 months</span></div>
-            <?= $doData ? dashChart('chStatus', 'doughnut', $doLabels, [['label' => 'Requests', 'data' => $doData, 'colors' => $doColours]], ['centre' => [array_sum($doData), 'requests'], 'height' => 260]) : dashEmpty('No requests yet.', 'inbox') ?>
+            <div class="e-head"><h2>Requests by status</h2><span class="text-xs text-base-content/65">last 6 months</span></div>
+            <?= $doData ? dashChart('chStatus', 'bar', $doLabels, [['label' => 'Requests', 'data' => $doData, 'colors' => $doColours]], ['horizontal' => true, 'height' => 260]) : dashEmpty('No requests yet.', 'inbox') ?>
         </section>
         <section class="e-card col-span-12 lg:col-span-4">
-            <div class="e-head"><h2>Driver workload</h2><span class="text-xs text-base-content/55">this month</span></div>
+            <div class="e-head"><h2>Driver workload</h2><span class="text-xs text-base-content/65">this month</span></div>
             <?= $workload ? dashChart('chDrivers', 'bar', array_column($workload, 'name'), [
                 ['label' => 'In working hours', 'data' => array_map(fn($w) => $w['tasks'] - $w['outside'], $workload), 'color' => '#15804f'],
                 ['label' => 'Outside working hours', 'data' => array_column($workload, 'outside'), 'color' => '#d4a017']], ['stacked' => true, 'horizontal' => true, 'height' => 300]) : dashEmpty('No active drivers.', 'user-slash') ?>
             <p class="mt-2 text-xs text-base-content/60">The same counts the driver recommendation uses (welfare days count as tasks).</p>
         </section>
         <section class="e-card col-span-12 lg:col-span-4">
-            <div class="e-head"><h2>Vehicle booked hours</h2><span class="text-xs text-base-content/55">this month</span></div>
+            <div class="e-head"><h2>Vehicle booked hours</h2><span class="text-xs text-base-content/65">this month</span></div>
             <?= array_sum(array_column($util, 'hours')) > 0 ? dashChart('chVehicles', 'bar', array_column($util, 'plate_number'), [['label' => 'Booked hours', 'data' => array_map('floatval', array_column($util, 'hours')), 'color' => '#121614']], ['horizontal' => true, 'height' => 300]) : dashEmpty('No vehicle is booked this month yet.', 'car-side') ?>
         </section>
     </div>

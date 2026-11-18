@@ -124,7 +124,7 @@ if ($_is_admin_role) {
      admin_page.php / appLayoutEnd() closes the two divs opened here.
      ================================================================ -->
 <div class="drawer lg:drawer-open">
-<input id="app-drawer" type="checkbox" class="drawer-toggle" aria-label="Show navigation menu">
+<input id="app-drawer" type="checkbox" class="drawer-toggle" tabindex="-1" aria-hidden="true">
 
 <?php
 // The icon of the page we are on (shown in the header next to the page title)
@@ -182,7 +182,7 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
     </label>
 
     <div class="min-w-0 flex-1">
-        <div class="text-xs text-base-content/55"><?php echo date('l, j F'); ?></div>
+        <div class="text-xs text-base-content/65"><?php echo date('l, j F'); ?></div>
         <div class="flex items-center gap-2 truncate text-[0.95rem] font-medium">
             <i class="fas fa-<?php echo htmlspecialchars($_page_icon); ?> text-[0.8rem] text-base-content/60" aria-hidden="true"></i>
             <span class="truncate"><?php echo htmlspecialchars($page_title ?? ''); ?></span>
@@ -211,7 +211,7 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
                             <?php if (!$_n['is_read']): ?><span class="me-1.5 inline-block size-2 rounded-full bg-primary align-middle"></span><?php endif; ?>
                             <?php echo htmlspecialchars($_n['message']); ?>
                         </span>
-                        <span class="text-xs text-base-content/55"><?php echo date('d M Y, H:i', strtotime($_n['created_at'])); ?></span>
+                        <span class="text-xs text-base-content/65"><?php echo date('d M Y, H:i', strtotime($_n['created_at'])); ?></span>
                     </a>
                 </li>
                 <?php endforeach; ?>

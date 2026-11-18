@@ -55,7 +55,7 @@ adminPageStart($v['plate_number']);
             <?php endif; ?>
         </div></div></div>
         <div class="col-span-12 lg:col-span-7"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Upcoming trips</h6>
+            <h2 class="text-base font-bold">Upcoming trips</h2>
             <?php if (!$trips): ?><p class="text-base-content/60 text-sm mb-0">No upcoming trips. This vehicle can be deactivated.</p>
             <?php else: ?><?= fleetItemsList($trips) ?><?php endif; ?>
         </div></div></div>

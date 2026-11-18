@@ -42,11 +42,11 @@ $open = (int)($_GET['open'] ?? 0);
 adminPageStart('Vehicle Approvals');
 ?>
     <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-stamp me-2 text-[0.8em] text-primary"></i>Vehicle Approvals <small class="text-base-content/60 text-base"><?= htmlspecialchars((string)$dept) ?></small></h1>
-    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
-        <a role="tab" class="tab gap-2 <?= $tab === 'pending' ? 'tab-active' : '' ?>" href="?tab=pending">Waiting for me <span class="font-mono text-xs text-base-content/60"><?= $n['pending'] ?? 0 ?></span></a>
-        <a role="tab" class="tab gap-2 <?= $tab === 'active' ? 'tab-active' : '' ?>" href="?tab=active">Approved <span class="font-mono text-xs text-base-content/60"><?= $n['active'] ?? 0 ?></span></a>
-        <a role="tab" class="tab gap-2 <?= $tab === 'history' ? 'tab-active' : '' ?>" href="?tab=history">History <span class="font-mono text-xs text-base-content/60"><?= $n['history'] ?? 0 ?></span></a>
-    </div>
+    <nav aria-label="Approvals by status" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a class="tab gap-2 <?= $tab === 'pending' ? 'tab-active' : '' ?>" <?= $tab === 'pending' ? 'aria-current="page"' : '' ?> href="?tab=pending">Waiting for me <span class="font-mono text-xs text-base-content/60"><?= $n['pending'] ?? 0 ?></span></a>
+        <a class="tab gap-2 <?= $tab === 'active' ? 'tab-active' : '' ?>" <?= $tab === 'active' ? 'aria-current="page"' : '' ?> href="?tab=active">Approved <span class="font-mono text-xs text-base-content/60"><?= $n['active'] ?? 0 ?></span></a>
+        <a class="tab gap-2 <?= $tab === 'history' ? 'tab-active' : '' ?>" <?= $tab === 'history' ? 'aria-current="page"' : '' ?> href="?tab=history">History <span class="font-mono text-xs text-base-content/60"><?= $n['history'] ?? 0 ?></span></a>
+    </nav>
 
     <?php if (!$requests): ?>
         <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">Nothing here.</div></div>

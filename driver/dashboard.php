@@ -38,7 +38,7 @@ adminPageStart('Dashboard');
 ?>
     <div class="dash-hero mb-4 flex flex-wrap justify-between items-center gap-2" data-dashboard>
         <div>
-            <h4 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h4>
+            <h1 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h1>
             <div><?= dashChips([['id-badge', 'Driver'], ['calendar-day', date('l, d F Y')]]) ?></div>
         </div>
         <div class="flex gap-2">
@@ -55,7 +55,7 @@ adminPageStart('Dashboard');
     <div class="grid-12 grid grid-cols-12 gap-4">
         <div class="col-span-12 lg:col-span-7">
             <div class="dash-card">
-                <h6><span><i class="fas fa-sun text-warning me-1"></i>Today</span></h6>
+                <h2><span><i class="fas fa-sun text-warning me-1"></i>Today</span></h2>
                 <?php if (!$todayTasks): ?><?= dashEmpty('No task today. Enjoy your day.', 'sun') ?><?php endif; ?>
                 <?php foreach ($todayTasks as $t): ?>
                     <div class="dash-row">
@@ -68,7 +68,7 @@ adminPageStart('Dashboard');
         </div>
         <div class="col-span-12 lg:col-span-5">
             <div class="dash-card">
-                <h6><span><i class="fas fa-calendar-week text-success me-1"></i>Coming up</span></h6>
+                <h2><span><i class="fas fa-calendar-week text-success me-1"></i>Coming up</span></h2>
                 <?php if (!$laterTasks): ?><?= dashEmpty('Nothing in the next 7 days.', 'calendar-check') ?><?php endif; ?>
                 <?php foreach ($laterTasks as $t): ?>
                     <div class="dash-row">

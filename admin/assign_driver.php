@@ -62,8 +62,8 @@ adminPageStart('Assign Driver');
     <form method="post">
         <input type="hidden" name="request_id" value="<?= $rid ?>">
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h6 class="font-bold">Outbound trip <span class="font-normal text-base-content/60 text-sm">
-                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= plate($req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h6>
+            <h2 class="text-base font-bold">Outbound trip <span class="font-normal text-base-content/60 text-sm">
+                <?= date('D, d M H:i', strtotime($win['out']['start_dt'])) ?>&ndash;<?= substr($win['out']['end'], 0, 5) ?> &middot; <?= plate($req['plate_number']) ?> (licence <?= htmlspecialchars($licence) ?>)</span></h2>
             <p class="text-sm text-base-content/60 mb-2">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). You make the final choice.</p>
             <div class="overflow-x-auto">
             <table class="table align-middle">
@@ -92,7 +92,7 @@ adminPageStart('Assign Driver');
         </div></div>
 
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h6 class="font-bold">Return trip <span class="font-normal text-base-content/60 text-sm"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h6>
+            <h2 class="text-base font-bold">Return trip <span class="font-normal text-base-content/60 text-sm"><?= date('D, d M H:i', strtotime($win['ret']['start_dt'])) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></span></h2>
             <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_same" value="same" checked>
                 <label class="text-sm" for="rm_same">Same driver and vehicle as the outbound trip</label></div>
             <div class="flex items-center gap-2"><input class="radio radio-sm radio-primary" type="radio" name="return_mode" id="rm_sep" value="separate">

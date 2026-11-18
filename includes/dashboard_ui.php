@@ -109,7 +109,7 @@ function dashBoard(mysqli $conn): string
         $x = ($hr - $from) / ($to - $from) * 100;
         if ($nowX !== null && abs($x - $nowX) < 6) { continue; }   // the "now" label sits here; don't print an hour under it
         $shift = $hr === $from ? '' : ($hr === $to ? '-translate-x-full' : '-translate-x-1/2');
-        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/50" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
+        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/65" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
     }
     $lines = '';
     for ($hr = $from + 1; $hr < $to; $hr++) {
@@ -168,8 +168,12 @@ function dashChart(string $id, string $type, array $labels, array $datasets, arr
 {
     $cfg = ['type' => $type, 'labels' => array_values($labels), 'datasets' => $datasets, 'opts' => $opts];
     $centre = isset($opts['centre']) ? '<div class="dash-chart-centre"><div><b>' . dh($opts['centre'][0]) . '</b><span>' . dh($opts['centre'][1]) . '</span></div></div>' : '';
-    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
-    $h .= '<div class="dash-chart-fallback hidden"><table class="table text-sm"><tbody>';
+    // A short spoken summary for screen readers; the full numbers are in the table below the chart
+    $summary = [];
+    foreach ($labels as $i => $l) { $summary[] = $l . ' ' . implode('/', array_map(fn($d) => (string)($d['data'][$i] ?? ''), $datasets)); }
+    $aria = implode(', ', array_column($datasets, 'label')) . ': ' . implode(', ', array_slice($summary, 0, 12)) . (count($summary) > 12 ? ' …' : '');
+    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" role="img" aria-label="' . dh($aria) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
+    $h .= '<div class="dash-chart-fallback sr-only"><table class="table text-sm"><caption class="sr-only">Chart data</caption><tbody>';
     foreach ($labels as $i => $l) {
         $h .= '<tr><td>' . dh($l) . '</td>';
         foreach ($datasets as $d) { $h .= '<td class="text-end">' . dh($d['data'][$i] ?? '') . '</td>'; }
@@ -191,26 +195,27 @@ function dashChartScript(): void
         if (typeof Chart === 'undefined') {            // no chart library: show the numbers instead
             wrap.classList.add('hidden');
             var t = wrap.nextElementSibling;
-            if (t) { t.classList.remove('hidden'); }
+            if (t) { t.classList.remove('sr-only'); }
             return;
         }
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
+        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var narrow = window.innerWidth < 576, stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
         var datasets = c.datasets.map(function (d) {
             var color = d.color || '#15804f';
             var set = { label: d.label, data: d.data, borderWidth: round ? 2 : (c.type === 'line' ? 3 : 0), borderRadius: c.type === 'bar' ? 4 : 0 };
             if (round) { set.backgroundColor = d.colors; }
-            else { set.backgroundColor = c.type === 'line' ? color + '33' : color; set.borderColor = color; }
+            else { set.backgroundColor = c.type === 'line' ? color + '33' : (d.colors || color); set.borderColor = d.colors || color; }
             if (c.type === 'line') { set.fill = true; set.tension = 0.35; set.pointRadius = 4; set.pointBackgroundColor = color; }
             return set;
         });
-        var options = { responsive: true, maintainAspectRatio: false, animation: { duration: 600 },
+        var options = { responsive: true, maintainAspectRatio: false, animation: calm ? false : { duration: 400 },
             plugins: { legend: { display: round || datasets.length > 1, position: round && !narrow ? 'right' : 'bottom', labels: { boxWidth: 12, usePointStyle: true } } } };
         if (round) { options.cutout = '62%'; }
         else {
             options.indexAxis = horizontal ? 'y' : 'x';
-            options.scales = { x: { stacked: stacked, grid: { display: horizontal } }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
+            options.scales = { x: { stacked: stacked, grid: { display: horizontal }, beginAtZero: true, ticks: horizontal ? { precision: 0 } : {} }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
             if (horizontal) {                   // long names would be cut off in a narrow card: shorten them
                 options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 18 ? l.slice(0, 17) + '…' : l; };
             }

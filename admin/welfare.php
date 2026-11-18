@@ -148,7 +148,7 @@ adminPageStart('Welfare Duty');
     <p class="text-base-content/60 text-sm mb-4">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-6"><div class="card-body">
-        <h6 class="font-bold mb-4">Set welfare duty for a month</h6>
+        <h2 class="text-base font-bold mb-4">Set welfare duty for a month</h2>
         <form method="post" class="grid-12 grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-3">
                 <label class="mb-1 block text-sm font-medium" for="gen_month">Month</label>
@@ -211,7 +211,7 @@ adminPageStart('Welfare Duty');
     <dialog class="modal" id="dayModal" aria-labelledby="dayTitle">
         <form method="post" class="modal-box">
             <input type="hidden" name="action" value="update"><input type="hidden" name="month" value="<?= $h($month) ?>"><input type="hidden" name="duty_date" id="dayDate">
-            <h3 class="text-lg font-medium" id="dayTitle">Welfare duty</h3>
+            <h2 class="text-lg font-medium" id="dayTitle">Welfare duty</h2>
             <div class="mt-4">
                 <label class="mb-1 block text-sm font-medium" for="dayDriver">Driver on duty</label>
                 <select class="select w-full mb-4" id="dayDriver" name="driver_id" required>

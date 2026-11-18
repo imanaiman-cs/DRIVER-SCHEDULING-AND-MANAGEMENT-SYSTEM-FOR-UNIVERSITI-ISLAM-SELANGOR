@@ -172,7 +172,7 @@ adminPageStart('Request a Vehicle');
 
     <form method="post" enctype="multipart/form-data" id="requestForm" novalidate>
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h6 class="font-bold">1. When and how many</h6>
+            <h2 class="text-base font-bold">1. When and how many</h2>
             <div class="grid-12 grid grid-cols-12 gap-4">
                 <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_date">Departure date *</label>
                     <input type="date" class="input w-full" id="depart_date" name="depart_date" value="<?= htmlspecialchars($f['depart_date']) ?>" required></div>
@@ -193,13 +193,13 @@ adminPageStart('Request a Vehicle');
         </div></div>
 
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h6 class="font-bold">2. Choose a vehicle <span class="font-normal text-base-content/60 text-sm">(only vehicles that are free in that period and big enough are shown)</span></h6>
+            <h2 class="text-base font-bold">2. Choose a vehicle <span class="font-normal text-base-content/60 text-sm">(only vehicles that are free in that period and big enough are shown)</span></h2>
             <div id="vehicleMsg" class="text-base-content/60 text-sm" aria-live="polite">Enter the departure, the return and the number of passengers to see the available vehicles.</div>
             <div id="vehicleList" class="grid-12 grid grid-cols-12 gap-2 mt-1"></div>
         </div></div>
 
         <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h6 class="font-bold">3. Trip details</h6>
+            <h2 class="text-base font-bold">3. Trip details</h2>
             <div class="grid-12 grid grid-cols-12 gap-4">
                 <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="destination">Destination (name) *</label>
                     <input class="input w-full" id="destination" name="destination" maxlength="255" value="<?= htmlspecialchars($f['destination']) ?>" required></div>

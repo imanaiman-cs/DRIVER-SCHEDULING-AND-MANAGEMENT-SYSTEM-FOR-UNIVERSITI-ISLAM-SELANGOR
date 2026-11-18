@@ -35,7 +35,7 @@ adminPageStart('Reports');
 
     <div class="card border border-base-300 bg-base-100"><div class="card-body">
         <div class="flex flex-wrap justify-between items-start gap-2 mb-4">
-            <div><h5 class="font-bold mb-0"><?= $h($rep['title']) ?></h5><div class="text-base-content/60"><?= $h(date('F Y', strtotime($month . '-01'))) ?></div></div>
+            <div><h2 class="text-lg font-bold mb-0"><?= $h($rep['title']) ?></h2><div class="text-base-content/60"><?= $h(date('F Y', strtotime($month . '-01'))) ?></div></div>
             <div class="flex flex-wrap gap-2 no-print">
                 <button type="button" class="btn btn-sm btn-outline" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
                 <a class="btn btn-sm btn-outline btn-error" href="?<?= $q ?>&amp;export=pdf"><i class="fas fa-file-pdf me-1"></i>PDF</a>
