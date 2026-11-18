@@ -15,7 +15,7 @@ requireAdmin();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $res = sendApprovalReminder($conn, (int)($_POST['request_id'] ?? 0));
     setFlash($res['ok'] ? ($res['email_error'] ? 'warning' : 'success') : 'danger', $res['message']);
-    header('Location: reminders.php');
+    header('Location: ' . (($_POST['return'] ?? '') === 'dashboard' ? 'dashboard.php' : 'reminders.php'));
     exit();
 }
 
