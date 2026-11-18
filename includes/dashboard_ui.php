@@ -198,6 +198,7 @@ function dashChartScript(): void
             if (t) { t.classList.remove('sr-only'); }
             return;
         }
+        Chart.defaults.color = 'rgba(230,239,233,.75)'; Chart.defaults.borderColor = 'rgba(255,255,255,.08)';
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
         var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

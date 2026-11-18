@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
 </head>
-<body class="flex min-h-screen flex-col bg-gradient-to-br from-[#07301f] via-primary to-[#15804f]">
+<body class="flex min-h-screen flex-col bg-[#050c09] bg-[radial-gradient(900px_600px_at_80%_-10%,rgb(16_185_129/.22),transparent_60%),radial-gradient(700px_500px_at_0%_110%,rgb(212_160_23/.12),transparent_60%)]">
 
     <main class="flex flex-1 items-center justify-center px-4 py-10">
         <div class="w-full max-w-md overflow-hidden rounded-3xl bg-base-100 shadow-2xl">

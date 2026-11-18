@@ -17,30 +17,31 @@
 @plugin "daisyui/theme" {
   name: "uis";
   default: true;
-  color-scheme: light;
+  color-scheme: dark;
 
-  --color-base-100: #ffffff;
-  --color-base-200: #f5f6f5;
-  --color-base-300: #e6e8e7;
-  --color-base-content: #18181b;
+  /* Forest: green-black surfaces, emerald (readable on dark) as primary, UIS gold as secondary */
+  --color-base-100: #0f1c16;     /* cards, fields, dialogs */
+  --color-base-200: #13241c;     /* tiles, hover */
+  --color-base-300: #1f3529;     /* hairlines, borders */
+  --color-base-content: #e6efe9;
 
-  --color-primary: oklch(41% 0.09 158);          /* #0b5d3b UIS green */
-  --color-primary-content: oklch(98% 0.01 158);
-  --color-secondary: oklch(68% 0.14 80);         /* #c69214 UIS gold */
-  --color-secondary-content: oklch(22% 0.04 80);
-  --color-accent: oklch(52% 0.12 158);
-  --color-accent-content: oklch(98% 0.01 158);
-  --color-neutral: #1f2a24;
+  --color-primary: #10b981;
+  --color-primary-content: #04140d;
+  --color-secondary: #d4a017;
+  --color-secondary-content: #1b1400;
+  --color-accent: #34d399;
+  --color-accent-content: #04140d;
+  --color-neutral: #0a0f0c;
   --color-neutral-content: #f8faf9;
 
-  --color-info: #0e7490;
-  --color-info-content: oklch(98% 0.01 220);
-  --color-success: #15803d;
-  --color-success-content: oklch(98% 0.01 150);
-  --color-warning: #b45309;
-  --color-warning-content: #ffffff;
-  --color-error: #b91c1c;
-  --color-error-content: oklch(98% 0.01 27);
+  --color-info: #38bdf8;
+  --color-info-content: #04121a;
+  --color-success: #22c55e;
+  --color-success-content: #04140d;
+  --color-warning: #f59e0b;
+  --color-warning-content: #1b1400;
+  --color-error: #f87171;
+  --color-error-content: #1a0505;
 
   --radius-selector: 0.5rem;
   --radius-field: 0.875rem;
@@ -184,7 +185,7 @@
 /* ---------- "Ember" look in UIS green: floating icon rail, rounded panel, borderless cards, pills.
    Sits in the utilities layer (and under .ember-panel) so it wins over DaisyUI and the page classes. ---------- */
 @layer utilities {
-  :root { --ember-shadow: 0 1px 2px rgb(16 24 20 / .04), 0 12px 32px -16px rgb(16 24 20 / .16); --ember-dark: #121614; }
+  :root { --ember-shadow: 0 0 0 1px rgb(255 255 255 / .06), 0 20px 40px -28px rgb(0 0 0 / .9); --ember-dark: #0a1611; --ember-glow: 0 0 0 4px rgb(16 185 129 / .2), 0 0 28px -2px rgb(16 185 129 / .75); }
 
   /* Rail */
   .ember-rail .rail-item {
@@ -195,19 +196,35 @@
   .ember-rail .rail-item i { width: 1.1rem; text-align: center; }
   @media (hover: hover) { .ember-rail .rail-item:hover { background: rgb(255 255 255 / .09); color: #ffffff; } }
   .ember-rail .rail-item.is-active {
-    background: linear-gradient(140deg, #22a96b 0%, var(--color-primary) 100%); color: #ffffff;
-    box-shadow: 0 0 0 4px rgb(21 128 79 / .25), 0 10px 22px -6px rgb(21 128 79 / .85);
+    background: linear-gradient(140deg, #34d399 0%, #059669 100%); color: #04140d;
+    box-shadow: var(--ember-glow);
   }
   .ember-rail .rail-count {
     margin-inline-start: auto; display: grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
     border-radius: 999px; background: var(--color-secondary); color: #1b1400; font-size: .65rem; font-weight: 700;
   }
   .ember-rail .rail-logout:hover { background: rgb(220 38 38 / .22); color: #fecaca; }
-  .ember-rail .tooltip { --tt-bg: var(--ember-dark); }
+  .ember-rail .tooltip { --tt-bg: #1f3529; }
   @media (min-width: 1024px) {
+    /* Collapsed: a narrow icon rail; names stay readable by screen readers and show as tooltips */
+    .ember-rail { width: 4.5rem; align-items: center; transition: width .2s ease; }
+    .ember-rail > ul { align-items: center; overflow: visible; }
+    .ember-rail > a { margin-inline: 0; }
     .ember-rail .rail-item { width: 2.6rem; justify-content: center; padding: 0; }
     .ember-rail .rail-count { position: absolute; top: -.2rem; right: -.25rem; margin: 0; box-shadow: 0 0 0 2px var(--ember-dark); }
-    .ember-rail > ul { overflow: visible; }
+    .ember-rail .rail-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    .ember-rail .rail-section { position: absolute; }
+
+    /* Expanded: labels and section names, tooltips off */
+    html.rail-open .ember-rail { width: 15rem; align-items: stretch; }
+    html.rail-open .ember-rail > ul { align-items: stretch; overflow-y: auto; }
+    html.rail-open .ember-rail > a { margin-inline: .75rem; }
+    html.rail-open .ember-rail .rail-item { width: auto; justify-content: flex-start; padding: 0 .85rem; }
+    html.rail-open .ember-rail .rail-count { position: static; margin-inline-start: auto; box-shadow: none; }
+    html.rail-open .ember-rail .rail-label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: nowrap; }
+    html.rail-open .ember-rail .rail-section { display: block; }
+    html.rail-open .ember-rail .tooltip::before, html.rail-open .ember-rail .tooltip::after { display: none; }
+    html.rail-open #railToggle i { transform: rotate(180deg); }
   }
 
   /* Cards: white, no border, very round, soft shadow */
@@ -222,25 +239,25 @@
   /* Buttons: pills. A button without a colour is white with a soft shadow */
   .btn { border-radius: 999px; font-weight: 500; }
   .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active) {
-    --btn-color: #ffffff; border-color: transparent; box-shadow: var(--ember-shadow);
+    --btn-color: #1a2e24; color: var(--color-base-content); border-color: rgb(255 255 255 / .08); box-shadow: none;
   }
-  .btn-primary { box-shadow: 0 8px 18px -8px rgb(11 93 59 / .7); }
-  .btn-neutral { --btn-color: var(--ember-dark); }
+  .btn-primary { box-shadow: 0 0 24px -8px rgb(16 185 129 / .8); }
+  .btn-neutral { --btn-color: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -6px rgb(16 185 129 / .8); }
 
   /* Tabs: a white pill bar, the active tab a dark pill */
   .ember-panel .tabs-border {
     display: inline-flex; width: auto; max-width: 100%; gap: .25rem; padding: .3rem; border-radius: 999px;
-    background: #ffffff; box-shadow: var(--ember-shadow);
+    background: var(--color-base-100); box-shadow: var(--ember-shadow);
   }
   .ember-panel .tabs-border > .tab { height: 2.15rem; padding-inline: 1rem; border-radius: 999px; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
   .ember-panel .tabs-border > .tab::before { display: none; }
-  .ember-panel .tabs-border > .tab.tab-active { background: var(--ember-dark); color: #ffffff; }
-  .ember-panel .tabs-border > .tab.tab-active span { color: rgb(255 255 255 / .7); }
+  .ember-panel .tabs-border > .tab.tab-active { background: var(--color-primary); color: var(--color-primary-content); }
+  .ember-panel .tabs-border > .tab.tab-active span { color: rgb(4 20 13 / .75); }
 
   /* Fields: soft rounded, white, green when focused */
-  .input, .select, .textarea, .file-input { background-color: #ffffff; border-color: var(--color-base-300); }
+  .input, .select, .textarea, .file-input { background-color: var(--color-base-200); border-color: var(--color-base-300); }
   .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
-    border-color: var(--color-primary); outline: 4px solid rgb(21 128 79 / .14); outline-offset: 0;
+    border-color: var(--color-primary); outline: 3px solid rgb(16 185 129 / .3); outline-offset: 0;
   }
 
   /* Tables: airy, light header */
@@ -254,7 +271,7 @@
   @media (hover: hover) { .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 4%, transparent); } }
 
   /* ---- Ember dashboard pieces ---- */
-  .e-card { position: relative; border-radius: 24px; background: #ffffff; padding: 1.5rem; box-shadow: var(--ember-shadow); }
+  .e-card { position: relative; border-radius: 24px; background: var(--color-base-100); padding: 1.5rem; box-shadow: var(--ember-shadow); }
   .e-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
   .e-head h2 { font-size: 1.125rem; font-weight: 500; letter-spacing: -.01em; }
   .e-icon-btn {
@@ -262,40 +279,45 @@
     background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent); font-size: .8rem;
     transition: background-color .15s ease, color .15s ease;
   }
-  @media (hover: hover) { .e-icon-btn:hover { background: var(--ember-dark); color: #ffffff; } }
+  @media (hover: hover) { .e-icon-btn:hover { background: var(--color-primary); color: var(--color-primary-content); } }
   .e-icon-btn-light { background: rgb(255 255 255 / .16); color: #ffffff; }
   @media (hover: hover) { .e-icon-btn-light:hover { background: #ffffff; color: var(--ember-dark); } }
 
-  /* The green accent card (the reference's coral card), with two soft light circles */
+  /* The accent card: emerald with a soft light, glowing on the dark page */
   .e-accent {
     position: relative; overflow: hidden; border-radius: 24px; padding: 1.5rem; color: #ffffff;
-    background: radial-gradient(circle at 105% -10%, rgb(255 255 255 / .22) 0 22%, transparent 23%),
-                radial-gradient(circle at 85% 115%, rgb(255 255 255 / .12) 0 30%, transparent 31%),
-                linear-gradient(150deg, #23a86b 0%, #15804f 45%, #0b5d3b 100%);
-    box-shadow: 0 18px 36px -18px rgb(11 93 59 / .8);
+    background: radial-gradient(circle at 100% 0%, rgb(110 231 183 / .35), transparent 45%),
+                linear-gradient(150deg, #10b981 0%, #0b7a52 50%, #064e33 100%);
+    box-shadow: 0 0 0 1px rgb(110 231 183 / .25), 0 24px 60px -24px rgb(16 185 129 / .8);
   }
   .e-accent .e-head h2 { color: #ffffff; }
 
-  /* The dark card */
-  .e-dark { position: relative; overflow: hidden; border-radius: 24px; padding: 1.5rem; color: #ffffff; background: var(--ember-dark); box-shadow: var(--ember-shadow); }
+  /* The deep-gold card */
+  .e-dark { position: relative; overflow: hidden; border-radius: 24px; padding: 1.5rem; color: #ffffff; background: linear-gradient(150deg, #2a2106 0%, #1a1505 100%); border: 1px solid rgb(212 160 23 / .3); }
   .e-dark .e-head h2 { color: #ffffff; }
+  .e-dark .bg-white\/10 { background: rgb(212 160 23 / .15); }
 
-  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 500; background: rgb(21 128 79 / .1); color: var(--color-primary); }
-  .e-chip-down { background: rgb(185 28 28 / .08); color: var(--color-error); }
+  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 500; background: rgb(16 185 129 / .15); color: #6ee7b7; }
+  .e-chip-down { background: rgb(248 113 113 / .12); color: var(--color-error); }
 
   .e-tile { display: flex; flex-direction: column; gap: .15rem; border-radius: 18px; background: var(--color-base-200); padding: .85rem 1rem; transition: background-color .15s ease; }
   @media (hover: hover) { .e-tile:hover { background: color-mix(in oklab, var(--color-primary) 8%, var(--color-base-200)); } }
   .e-tile-label { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 62%, transparent); }
   .e-tile-value { font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-  .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 600; color: #ffffff; box-shadow: 0 0 0 2px #ffffff; }
+  .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 600; color: #ffffff; box-shadow: 0 0 0 2px var(--color-base-100); }
   .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #c69214; color: #1b1400; } .e-avatar-2 { background: #121614; } .e-avatar-3 { background: #15804f; }
 
   .e-day { display: flex; flex-direction: column; align-items: center; gap: .15rem; border-radius: 16px; background: var(--color-base-200); padding: .5rem 0; }
   .e-day span { font-size: .68rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   .e-day b { font-size: .95rem; font-weight: 500; }
-  .e-day.is-today { background: var(--ember-dark); color: #ffffff; box-shadow: 0 8px 16px -8px rgb(0 0 0 / .5); }
-  .e-day.is-today span { color: rgb(255 255 255 / .65); }
+  button.e-day { cursor: pointer; border: 0; color: inherit; font: inherit; min-height: 44px; transition: background-color .15s, box-shadow .15s; }
+  button.e-day:hover:not([aria-pressed=true]) { background: var(--color-base-300); }
+  button.e-day:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .e-day.is-today[aria-pressed=false] { background: color-mix(in oklab, var(--color-primary) 18%, var(--color-base-200)); color: inherit; box-shadow: none; }
+  .e-day.is-today[aria-pressed=false] span { color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
+  .e-day.is-today, .e-day[aria-pressed=true] { background: var(--color-primary); color: var(--color-primary-content); box-shadow: 0 0 24px -4px rgb(16 185 129 / .7); }
+  .e-day.is-today span, .e-day[aria-pressed=true] span { color: rgb(4 20 13 / .75); }
 
   /* Older dashboard parts (staff, head of department, driver) in the same look */
   .ember-panel .dash-card { border: 0; border-radius: 24px; box-shadow: var(--ember-shadow); padding: 1.5rem; }
@@ -304,15 +326,15 @@
   .ember-panel .dash-row + .dash-row { border-top: 1px solid var(--color-base-200); }
   .ember-panel .dash-kpi { border: 0; border-radius: 22px; box-shadow: var(--ember-shadow); }
   .ember-panel .dash-kpi::before { display: none; }
-  .ember-panel .dash-kpi-icon { border-radius: 999px; background: color-mix(in oklab, var(--kpi) 12%, #ffffff); color: var(--kpi); box-shadow: none; }
+  .ember-panel .dash-kpi-icon { border-radius: 999px; background: color-mix(in oklab, var(--kpi) 20%, var(--color-base-100)); color: color-mix(in oklab, var(--kpi) 60%, #ffffff); box-shadow: none; }
   .ember-panel .dash-kpi-value { font-weight: 500; }
   .ember-panel .dash-hero { background: transparent; color: var(--color-base-content); box-shadow: none; padding: 0 0 .5rem; border-radius: 0; }
   .ember-panel .dash-hero::after { display: none; }
   .ember-panel .dash-hero h1 { font-size: 2rem; font-weight: 500; color: var(--color-base-content); }
-  .ember-panel .dash-hero .dash-chip { background: #ffffff; border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-hero .dash-chip { background: var(--color-base-100); border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
   .ember-panel .dash-hero .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
-  .ember-panel .dash-hero .btn { --btn-color: var(--ember-dark); color: #ffffff; }
-  .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: #ffffff; color: var(--color-base-content); border: 0; box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-hero .btn { --btn-color: var(--color-primary); color: var(--color-primary-content); }
+  .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: #1a2e24; color: var(--color-base-content); border: 1px solid rgb(255 255 255 / .08); box-shadow: none; }
   .ember-panel .dash-alert { border-radius: 18px; }
 
   /* ---- ui-ux-pro-max: touch (P2), readable inputs (P5), reduced motion (P7) ---- */
@@ -331,6 +353,11 @@
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   }
 
+  .plate { box-shadow: 0 0 0 1px rgb(255 255 255 / .22); }
+  .dash-alert i { background: rgb(255 255 255 / .08); }
+  .ember-panel { border: 1px solid rgb(255 255 255 / .05); }
+  .ember-rail { border: 1px solid rgb(255 255 255 / .06); }
+
   /* Badges: small pills */
   .badge { border-radius: 999px; font-weight: 600; }
 
@@ -338,6 +365,7 @@
   .alert { border-radius: 18px; }
   .modal-box { border-radius: 26px; }
 }
+
 
 @media print {
   .no-print, .drawer-side, .navbar { display: none !important; }

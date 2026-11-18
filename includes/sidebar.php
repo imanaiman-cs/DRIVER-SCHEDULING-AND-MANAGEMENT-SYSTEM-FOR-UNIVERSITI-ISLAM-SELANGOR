@@ -136,21 +136,21 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
     <label for="app-drawer" class="drawer-overlay" aria-label="Close navigation menu"></label>
 
     <!-- Floating icon rail on large screens; a labelled panel when it slides in on phones -->
-    <nav class="ember-rail m-3 flex h-[calc(100dvh-1.5rem)] w-64 flex-col rounded-[28px] bg-[#121614] py-4 lg:w-[4.5rem] lg:items-center">
+    <nav id="appRail" class="ember-rail m-3 flex h-[calc(100dvh-1.5rem)] w-64 flex-col rounded-[28px] bg-[#0a1611] py-4">
         <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="mx-3 mb-3 flex shrink-0 items-center gap-3 lg:mx-0" title="UIS Driver Management">
             <span class="grid size-11 shrink-0 place-items-center rounded-full bg-white p-1.5 shadow-[0_0_0_4px_rgb(21_128_79/.35)]"><img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS" class="size-full object-contain"></span>
-            <span class="leading-tight text-white lg:hidden"><span class="block font-semibold">UIS</span><span class="block text-xs text-white/60">Driver Management</span></span>
+            <span class="rail-label leading-tight text-white"><span class="block font-semibold">UIS</span><span class="block text-xs text-white/60">Driver Management</span></span>
         </a>
 
         <ul class="flex w-full grow flex-col gap-1 overflow-y-auto px-3 [scrollbar-width:none] lg:items-center">
             <?php $_first = true; foreach ($_menu as $_section => $_items): ?>
             <?php if (!$_first): ?><li class="my-1.5 h-px w-full bg-white/10 lg:w-6" aria-hidden="true"></li><?php endif; $_first = false; ?>
-            <li class="px-2 pt-1 text-[0.68rem] font-medium text-white/45 lg:sr-only"><?php echo htmlspecialchars($_section); ?></li>
+            <li class="rail-label rail-section px-2 pt-1 text-[0.68rem] font-medium text-white/60"><?php echo htmlspecialchars($_section); ?></li>
                 <?php foreach ($_items as [$_pages, $_url, $_icon, $_label, $_bk]): $_on = sidebarActive($_pages, $current_page) !== ''; ?>
             <li class="lg:tooltip lg:tooltip-right" data-tip="<?php echo htmlspecialchars($_label); ?>">
                 <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="rail-item <?php echo $_on ? 'is-active' : ''; ?>" <?php echo $_on ? 'aria-current="page"' : ''; ?>>
                     <i class="fas fa-<?php echo $_icon; ?>" aria-hidden="true"></i>
-                    <span class="grow lg:sr-only"><?php echo htmlspecialchars($_label); ?></span>
+                    <span class="rail-label grow"><?php echo htmlspecialchars($_label); ?></span>
                     <?php if ($_bk !== null && $_badge[$_bk] > 0): ?>
                     <span class="rail-count"><?php echo (int)$_badge[$_bk]; ?></span>
                     <?php endif; ?>
@@ -162,21 +162,24 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 
         <ul class="mt-2 flex w-full shrink-0 flex-col gap-1 border-t border-white/10 px-3 pt-3 lg:items-center">
             <li class="lg:tooltip lg:tooltip-right" data-tip="Help &amp; Guide">
-                <a href="<?php echo SITE_URL; ?>/help.php" class="rail-item <?php echo $current_page === 'help.php' ? 'is-active' : ''; ?>"><i class="fas fa-circle-question" aria-hidden="true"></i><span class="grow lg:sr-only">Help &amp; Guide</span></a>
+                <a href="<?php echo SITE_URL; ?>/help.php" class="rail-item <?php echo $current_page === 'help.php' ? 'is-active' : ''; ?>"><i class="fas fa-circle-question" aria-hidden="true"></i><span class="rail-label grow">Help &amp; Guide</span></a>
             </li>
             <li class="lg:tooltip lg:tooltip-right" data-tip="Log Out">
                 <a href="<?php echo SITE_URL; ?>/logout.php" class="rail-item rail-logout"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
-                    <i class="fas fa-right-from-bracket" aria-hidden="true"></i><span class="grow lg:sr-only">Log Out</span></a>
+                    <i class="fas fa-right-from-bracket" aria-hidden="true"></i><span class="rail-label grow">Log Out</span></a>
             </li>
         </ul>
     </nav>
 </aside>
 
 <div class="drawer-content min-w-0 lg:py-3 lg:pe-3">
-<div class="ember-panel flex min-h-dvh flex-col bg-base-200 lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[28px]">
+<div class="ember-panel flex min-h-dvh flex-col bg-[#0a1611] lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[28px]">
 
 <header class="sticky top-0 z-30 flex items-center gap-3 px-4 pt-4 pb-2 sm:px-6 lg:static lg:px-8 lg:pt-6 no-print">
+    <button type="button" class="btn btn-circle btn-sm hidden lg:inline-flex" id="railToggle" aria-controls="appRail" aria-expanded="false" aria-label="Expand sidebar" title="Expand / collapse sidebar">
+        <i class="fas fa-angles-right transition-transform" aria-hidden="true"></i>
+    </button>
     <label for="app-drawer" class="btn btn-circle btn-sm lg:hidden" aria-label="Open navigation menu">
         <i class="fas fa-bars" aria-hidden="true"></i>
     </label>
@@ -301,6 +304,23 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 <script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 
 <script>
+/* Sidebar: expanded (labels) or collapsed (icons) on large screens; remembered in this browser */
+(function () {
+    var btn = document.getElementById('railToggle'), root = document.documentElement;
+    if (!btn) { return; }
+    function sync() {
+        var open = root.classList.contains('rail-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Collapse sidebar' : 'Expand sidebar');
+    }
+    btn.addEventListener('click', function () {
+        root.classList.toggle('rail-open');
+        try { localStorage.setItem('uis-rail', root.classList.contains('rail-open') ? 'open' : 'closed'); } catch (e) {}
+        sync();
+    });
+    sync();
+})();
+
 /* Live clock in the top bar */
 (function () {
     var el = document.getElementById('dhClock');
