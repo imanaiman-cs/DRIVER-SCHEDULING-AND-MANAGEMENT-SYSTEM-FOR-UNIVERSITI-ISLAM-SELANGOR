@@ -90,6 +90,8 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
     header('Referrer-Policy: same-origin');              // page addresses are not leaked to other sites
 }
 
+require_once __DIR__ . '/../includes/i18n.php';
+uisI18nBoot();                                              // ?lang=ms|en, and BM translation of the page when chosen
 require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/request_view.php';

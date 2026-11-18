@@ -83,3 +83,18 @@ Follows the Master + Overrides pattern of [ui-ux-pro-max](https://github.com/nex
 - [ ] Each screen has one primary action
 - [ ] Empty, loading and error states have words, not blanks
 - [ ] `php tests/run.php` and the HTTP suites in `tests/http` pass as before
+
+## Light mode
+
+A second DaisyUI theme, `uis-light`, sits next to the dark `uis` (Forest) theme. The sun/moon button (`[data-theme-toggle]`, in the
+header and on the login page) switches `data-theme` on `<html>`; the choice is saved in `localStorage` (`uis-theme`) and applied
+before paint. Light tokens: page `#e3ebe6`, panel `#f4f7f5`, cards white, text `#07110d`, primary `#047857` (white text), gold `#b8860b`.
+The rail stays dark green (`#0b2a1d`) in both themes. Surfaces that differ use `--uis-page`, `--uis-panel`, `--uis-btn`, `--uis-line`,
+`--uis-chip-fg`, `--uis-rail`; charts redraw on the `uis-theme` event with deeper tones in light mode. Both themes pass axe (0 violations).
+
+## Language (BM / EN)
+
+Pages are written in English. The BM | EN switch (header; account menu on phones; login page) sets the `uis_lang` cookie via `?lang=ms|en`.
+In BM, `includes/i18n.php` translates the finished HTML (text nodes and readable attributes) from `lang/ms.php`, and `assets/js/i18n.js`
+translates text that scripts add later with the same dictionary. **When you add a label, add its BM text to `lang/ms.php`**
+(`exact` for fixed text, `patterns` for text with numbers or names). Data typed by users is never translated.

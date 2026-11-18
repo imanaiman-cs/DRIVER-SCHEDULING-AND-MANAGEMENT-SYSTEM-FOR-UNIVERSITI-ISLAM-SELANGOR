@@ -19,6 +19,7 @@ function appHead(string $title): void
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script>try { if (localStorage.getItem('uis-rail') === 'open') { document.documentElement.classList.add('rail-open'); } } catch (e) {}</script>
+    <?php uisThemeHead(); ?>
     <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
 <?php
 }
@@ -39,7 +40,7 @@ function adminPageStart(string $title): void
 <head>
 <?php appHead($title); ?>
 </head>
-<body class="min-h-screen bg-[#050c09] bg-[radial-gradient(900px_500px_at_80%_-10%,rgb(16_185_129/.12),transparent_60%)]">
+<body class="uis-page min-h-screen">
 <?php require __DIR__ . '/sidebar.php'; ?>
 <main class="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-2 pb-8 sm:px-6 lg:px-8" id="mainContent">
     <?php showFlash(); ?>

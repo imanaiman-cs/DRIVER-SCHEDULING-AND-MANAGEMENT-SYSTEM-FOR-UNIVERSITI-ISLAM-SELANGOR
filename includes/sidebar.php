@@ -136,7 +136,7 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
     <label for="app-drawer" class="drawer-overlay" aria-label="Close navigation menu"></label>
 
     <!-- Floating icon rail on large screens; a labelled panel when it slides in on phones -->
-    <nav id="appRail" class="ember-rail m-3 flex h-[calc(100dvh-1.5rem)] w-64 flex-col rounded-[28px] bg-[#0a1611] py-4">
+    <nav id="appRail" class="ember-rail m-3 flex h-[calc(100dvh-1.5rem)] w-64 flex-col rounded-[28px] py-4">
         <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="mx-3 mb-3 flex shrink-0 items-center gap-3 lg:mx-0" title="UIS Driver Management">
             <span class="grid size-11 shrink-0 place-items-center rounded-full bg-white p-1.5 shadow-[0_0_0_4px_rgb(21_128_79/.35)]"><img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS" class="size-full object-contain"></span>
             <span class="rail-label leading-tight text-white"><span class="block font-semibold">UIS</span><span class="block text-xs text-white/60">Driver Management</span></span>
@@ -174,7 +174,7 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 </aside>
 
 <div class="drawer-content min-w-0 lg:py-3 lg:pe-3">
-<div class="ember-panel flex min-h-dvh flex-col bg-[#0a1611] lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[28px]">
+<div class="ember-panel flex min-h-dvh flex-col lg:min-h-[calc(100dvh-1.5rem)] lg:rounded-[28px]">
 
 <header class="sticky top-0 z-30 flex items-center gap-3 px-4 pt-4 pb-2 sm:px-6 lg:static lg:px-8 lg:pt-6 no-print">
     <button type="button" class="btn btn-circle btn-sm hidden lg:inline-flex" id="railToggle" aria-controls="appRail" aria-expanded="false" aria-label="Expand sidebar" title="Expand / collapse sidebar">
@@ -191,6 +191,9 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
             <span class="truncate"><?php echo htmlspecialchars($page_title ?? ''); ?></span>
         </div>
     </div>
+
+    <?php echo uisLangSwitch('hidden sm:flex'); ?>
+    <?php echo uisThemeSwitch(); ?>
 
     <span id="dhClock" class="hidden rounded-full bg-base-100 px-3.5 py-2 text-sm font-medium tabular-nums shadow-[var(--ember-shadow)] xl:inline"></span>
 
@@ -236,6 +239,8 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
                 <span class="block truncate font-semibold text-base-content"><?php echo htmlspecialchars($full_name); ?></span>
                 <span class="block text-xs font-normal"><?php echo htmlspecialchars($role_label); ?></span>
             </li>
+            <li class="sm:hidden"><a class="rounded-2xl" href="<?php echo htmlspecialchars(uisLangUrl(uisLang() === 'ms' ? 'en' : 'ms')); ?>" lang="<?php echo uisLang() === 'ms' ? 'en' : 'ms'; ?>" data-no-translate>
+                <i class="fas fa-language w-4" aria-hidden="true"></i><?php echo uisLang() === 'ms' ? 'English' : 'Bahasa Melayu'; ?></a></li>
             <li><a class="rounded-2xl" href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4" aria-hidden="true"></i>Help</a></li>
             <li><a class="rounded-2xl text-error" href="<?php echo SITE_URL; ?>/logout.php"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
