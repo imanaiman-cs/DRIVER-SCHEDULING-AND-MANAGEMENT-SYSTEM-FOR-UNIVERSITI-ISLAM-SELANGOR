@@ -198,6 +198,8 @@ function dashChartScript(): void
             if (t) { t.classList.remove('sr-only'); }
             return;
         }
+        var look = document.documentElement.getAttribute('data-look');
+        if (look === 'glass' || look === 'forest') { Chart.defaults.color = 'rgba(255,255,255,.75)'; Chart.defaults.borderColor = 'rgba(255,255,255,.1)'; }
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
         var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

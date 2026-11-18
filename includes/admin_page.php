@@ -34,7 +34,11 @@ function adminPageStart(string $title): void
     $page_title = $title;
     ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="uis">
+<?php
+    if (isset($_GET['look'])) { $_SESSION['look_preview'] = in_array($_GET['look'], ['glass', 'bento', 'forest'], true) ? $_GET['look'] : ''; }
+    $look = $_SESSION['look_preview'] ?? '';
+?>
+<html lang="en" data-theme="uis"<?= $look ? ' data-look="' . $look . '"' : '' ?>>
 <head>
 <?php appHead($title); ?>
 </head>
