@@ -55,7 +55,7 @@ $hist->close();
 adminPageStart('Replace Driver');
 ?>
     <a class="text-sm no-underline" href="vehicle_requests.php?tab=processed"><i class="fas fa-arrow-left me-1"></i>Vehicle requests</a>
-    <h1 class="text-2xl font-medium my-2">Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight my-2"><i class="fas fa-right-left me-2 text-[0.8em] text-primary"></i>Replace driver &mdash; request #<?= (int)$task['request_id'] ?>, <?= (int)$task['leg_no'] === 2 ? 'return' : 'outbound' ?> trip</h1>
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body text-sm">
         <div><strong><?= htmlspecialchars($task['req_destination']) ?></strong> &middot; <?= date('D, d M Y H:i', strtotime($task['start_dt'])) ?>&ndash;<?= date('H:i', strtotime($task['end_dt'])) ?></div>
         <div>Vehicle: <?= plate($task['plate_number']) ?> <?= htmlspecialchars((string)$task['model']) ?> (licence <?= htmlspecialchars((string)$task['license_required']) ?>)</div>
@@ -67,7 +67,7 @@ adminPageStart('Replace Driver');
     <?php else: ?>
     <form method="post" class="card border border-base-300 bg-base-100"><div class="card-body">
         <input type="hidden" name="schedule_id" value="<?= $sid ?>">
-        <h6 class="font-bold">Choose the new driver <span class="font-normal text-base-content/60 text-sm">(only drivers without a clash can be chosen)</span></h6>
+        <h2 class="text-base font-bold">Choose the new driver <span class="font-normal text-base-content/60 text-sm">(only drivers without a clash can be chosen)</span></h2>
         <div class="overflow-x-auto"><table class="table align-middle">
             <thead class=""><tr><th></th><th>#</th><th>Driver</th><th class="text-center">Tasks this month</th><th class="text-center">Outside working hours</th><th class="text-center">Score</th><th></th></tr></thead>
             <tbody>
@@ -77,8 +77,8 @@ adminPageStart('Replace Driver');
                     <td><?= (int)$d['rank'] ?></td>
                     <td><label for="nd<?= (int)$d['driver_id'] ?>" class="mb-0"><?= htmlspecialchars($d['name']) ?></label></td>
                     <td class="text-center"><?= (int)$d['tasks'] ?></td><td class="text-center"><?= (int)$d['outside'] ?></td>
-                    <td class="text-center"><span class="badge badge-soft badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
-                    <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-soft badge-warning">Welfare duty</span>' : '' ?></td>
+                    <td class="text-center"><span class="badge badge-success"><?= number_format((float)$d['score'], 1) ?></span></td>
+                    <td class="text-sm"><?= $d['welfare'] ? '<span class="badge badge-warning">Welfare duty</span>' : '' ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -91,7 +91,7 @@ adminPageStart('Replace Driver');
 
     <?php if ($history): ?>
     <div class="card border border-base-300 bg-base-100 mt-4"><div class="card-body text-sm">
-        <h6 class="font-bold">Replacement history of this task</h6>
+        <h2 class="text-base font-bold">Replacement history of this task</h2>
         <?php foreach ($history as $h): ?><div><?= date('d M Y H:i', strtotime($h['changed_at'])) ?> &middot; <?= htmlspecialchars((string)$h['old_name']) ?> &rarr; <?= htmlspecialchars((string)$h['new_name']) ?> &middot; <?= htmlspecialchars((string)$h['reason']) ?></div><?php endforeach; ?>
     </div></div>
     <?php endif; ?>

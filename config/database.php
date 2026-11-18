@@ -407,15 +407,15 @@ function requireSupervisor(): void
 function requestStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'   => 'badge-soft badge-warning',
-        'approved'  => 'badge-soft badge-success',
-        'rejected'  => 'badge-soft badge-error',
-        'assigned'  => 'badge-soft badge-info',
-        'processed' => 'badge-soft badge-primary',
-        'cancelled' => 'badge-ghost',
-        'lapsed'    => 'badge-ghost',
+        'pending'   => 'badge-warning',
+        'approved'  => 'badge-success',
+        'rejected'  => 'badge-error',
+        'assigned'  => 'badge-info',
+        'processed' => 'badge-primary',
+        'cancelled' => 'border-0 bg-slate-500 text-white',
+        'lapsed'    => 'border-0 bg-slate-500 text-white',
         'completed' => 'badge-neutral',
-        default     => 'badge-ghost',
+        default     => 'border-0 bg-slate-500 text-white',
     };
 }
 
@@ -604,16 +604,16 @@ function formatTime(?string $time): string
  *
  * @param string $status One of: pending, approved, in_progress, completed, cancelled
  *
- * @return string DaisyUI badge classes, e.g. 'badge-soft badge-warning'
+ * @return string DaisyUI badge classes, e.g. 'badge-warning'
  */
 function statusBadgeClass(string $status): string
 {
     return match ($status) {
-        'pending'     => 'badge-soft badge-warning',
-        'approved'    => 'badge-soft badge-primary',
-        'in_progress' => 'badge-soft badge-info',
-        'completed'   => 'badge-soft badge-success',
-        'cancelled'   => 'badge-ghost',
+        'pending'     => 'badge-warning',
+        'approved'    => 'badge-primary',
+        'in_progress' => 'badge-info',
+        'completed'   => 'badge-success',
+        'cancelled'   => 'border-0 bg-slate-500 text-white',
         default       => 'badge-neutral',
     };
 }
@@ -628,9 +628,9 @@ function statusBadgeClass(string $status): string
 function driverStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'active'   => 'badge-soft badge-success',
-        'inactive' => 'badge-soft badge-error',
-        default    => 'badge-ghost',
+        'active'   => 'badge-success',
+        'inactive' => 'badge-error',
+        default    => 'border-0 bg-slate-500 text-white',
     };
 }
 
@@ -644,10 +644,10 @@ function driverStatusBadgeClass(string $status): string
 function vehicleStatusBadgeClass(string $status): string
 {
     return match ($status) {
-        'available'   => 'badge-soft badge-success',
-        'in_use'      => 'badge-soft badge-primary',
-        'maintenance' => 'badge-soft badge-warning',
-        'inactive'    => 'badge-ghost',
+        'available'   => 'badge-success',
+        'in_use'      => 'badge-primary',
+        'maintenance' => 'badge-warning',
+        'inactive'    => 'border-0 bg-slate-500 text-white',
         default       => 'badge-neutral',
     };
 }

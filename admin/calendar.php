@@ -23,7 +23,7 @@ adminPageStart('Schedule Calendar');
     .cal-month .cal-dow { padding: .375rem .25rem; font-size: .75rem; font-weight: 500; text-align: center; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); }
     .cal-cell { min-height: 7rem; padding: .25rem; border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); overflow: hidden; cursor: pointer; }
     .cal-cell:hover { background: var(--color-base-200); }
-    .cal-cell.other { color: color-mix(in oklab, var(--color-base-content) 40%, transparent); }
+    .cal-cell.other { color: color-mix(in oklab, var(--color-base-content) 62%, transparent); }
     .cal-cell.today .cal-num { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--color-base-content); color: var(--color-base-100); }
     .cal-cell .cal-num { font-size: .8125rem; font-family: var(--font-mono); }
     .cal-chip { display: block; width: 100%; text-align: left; border: 0; border-radius: 4px; padding: 0 .375rem; margin-top: .25rem; font-size: .75rem; line-height: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -55,7 +55,7 @@ adminPageStart('Schedule Calendar');
     }
 </style>
 
-    <h1 class="text-2xl font-medium mb-1">Schedule Calendar</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-calendar-days me-2 text-[0.8em] text-primary"></i>Schedule Calendar</h1>
     <p class="text-base-content/60 text-sm mb-4">Trips (request tasks), internal tasks and welfare duty together. Click an item for its details.</p>
 
     <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
@@ -90,7 +90,7 @@ adminPageStart('Schedule Calendar');
 
     <dialog class="modal" id="calModal" aria-labelledby="calModalTitle">
         <div class="modal-box">
-            <h3 class="text-lg font-medium" id="calModalTitle"></h3>
+            <h2 class="text-lg font-medium" id="calModalTitle"></h2>
             <dl class="mt-4 grid grid-cols-[9rem_1fr] gap-x-4 gap-y-2 text-sm" id="calModalBody"></dl>
             <form method="dialog" class="modal-action">
                 <a class="btn btn-sm" id="calSheet" target="_blank" rel="noopener"><i class="fas fa-print"></i>Task sheet</a>

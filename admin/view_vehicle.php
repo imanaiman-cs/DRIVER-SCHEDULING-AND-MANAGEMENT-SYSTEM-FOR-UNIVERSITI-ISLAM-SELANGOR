@@ -23,7 +23,7 @@ $trips = vehicleUpcomingTrips($conn, $id);
 adminPageStart($v['plate_number']);
 ?>
     <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><?= plate($v['plate_number']) ?>
             <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
         <div class="flex flex-wrap gap-1">
             <a class="btn btn-outline btn-sm" href="edit_vehicle.php?id=<?= $id ?>"><i class="fas fa-pen me-1"></i>Edit</a>
@@ -55,7 +55,7 @@ adminPageStart($v['plate_number']);
             <?php endif; ?>
         </div></div></div>
         <div class="col-span-12 lg:col-span-7"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Upcoming trips</h6>
+            <h2 class="text-base font-bold">Upcoming trips</h2>
             <?php if (!$trips): ?><p class="text-base-content/60 text-sm mb-0">No upcoming trips. This vehicle can be deactivated.</p>
             <?php else: ?><?= fleetItemsList($trips) ?><?php endif; ?>
         </div></div></div>

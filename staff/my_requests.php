@@ -37,16 +37,16 @@ $open = (int)($_GET['open'] ?? 0);
 adminPageStart('My Requests');
 ?>
     <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
-        <h1 class="text-2xl font-medium mb-0">My Requests</h1>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><i class="fas fa-list-check me-2 text-[0.8em] text-primary"></i>My Requests</h1>
         <a class="btn btn-success btn-sm" href="request_vehicle.php"><i class="fas fa-plus me-1"></i>New request</a>
     </div>
 
-    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
-        <a role="tab" class="tab gap-2 <?= $filter === 'all' ? 'tab-active' : '' ?>" href="?status=all">All <span class="font-mono text-xs text-base-content/60"><?= array_sum($counts) ?></span></a>
+    <nav aria-label="My requests by status" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+        <a class="tab gap-2 <?= $filter === 'all' ? 'tab-active' : '' ?>" <?= $filter === 'all' ? 'aria-current="page"' : '' ?> href="?status=all">All <span class="font-mono text-xs text-base-content/60"><?= array_sum($counts) ?></span></a>
         <?php foreach (['pending', 'approved', 'assigned', 'processed', 'rejected', 'cancelled', 'lapsed', 'completed'] as $st): if (empty($counts[$st])) { continue; } ?>
-            <a role="tab" class="tab gap-2 <?= $filter === $st ? 'tab-active' : '' ?>" href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="font-mono text-xs text-base-content/60"><?= $counts[$st] ?></span></a>
+            <a class="tab gap-2 <?= $filter === $st ? 'tab-active' : '' ?>" <?= $filter === $st ? 'aria-current="page"' : '' ?> href="?status=<?= $st ?>"><?= htmlspecialchars(requestStatusLabel($st)) ?> <span class="font-mono text-xs text-base-content/60"><?= $counts[$st] ?></span></a>
         <?php endforeach; ?>
-    </div>
+    </nav>
 
     <?php if (!$requests): ?>
         <div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">No requests yet.</div></div>

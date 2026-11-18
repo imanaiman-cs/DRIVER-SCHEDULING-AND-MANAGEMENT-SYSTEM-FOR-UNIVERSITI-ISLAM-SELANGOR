@@ -7,85 +7,69 @@ require_once __DIR__ . '/dashboard_data.php';
 
 function dh($s): string { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
 
-/** DaisyUI colour name for the tones the dashboards use (alerts). */
-function dashTone(string $tone): string
+/** A KPI card. $trend comes from dashTrend() (or null). $good: is "up" good news? */
+function dashKpi(string $label, $value, string $icon, string $tone, ?string $href = null, ?array $trend = null, bool $upIsGood = true, string $hint = ''): string
 {
-    return ['danger' => 'error', 'secondary' => 'neutral'][$tone] ?? $tone;
-}
-
-/**
- * A row of figures (DaisyUI stats). Each item: ['label' => ..., 'value' => ..., 'href' => ?, 'trend' => dashTrend() or null,
- * 'upIsGood' => bool, 'hint' => ?]. Numbers only: no icons.
- */
-function dashStats(array $items): string
-{
-    $h = '<div class="stats stats-vertical mb-6 w-full rounded-box border border-base-300 sm:stats-horizontal [&>.stat]:border-solid [&>.stat]:border-base-300 sm:[&>.stat]:border-b-0">';
-    foreach ($items as $it) {
-        $desc = [];
-        if (!empty($it['trend'])) {
-            $tr = $it['trend'];
-            if ($tr['pct'] === null) {
-                $desc[] = 'None last month';
-            } elseif ($tr['dir'] === 'flat') {
-                $desc[] = 'Same as last month';
-            } else {
-                $good = ($tr['dir'] === 'up') === ($it['upIsGood'] ?? true);
-                $desc[] = '<span class="' . ($good ? 'text-success' : 'text-error') . '">' . ($tr['pct'] > 0 ? '+' : '') . (int)$tr['pct'] . '%</span> vs last month';
-            }
-        }
-        if (($it['hint'] ?? '') !== '') { $desc[] = dh($it['hint']); }
-        $inner = '<div class="stat-title whitespace-normal">' . dh($it['label']) . '</div>'
-               . '<div class="stat-value text-3xl font-medium tabular-nums">' . dh($it['value']) . '</div>'
-               . ($desc ? '<div class="stat-desc whitespace-normal">' . implode('. ', $desc) . '</div>' : '');
-        $h .= !empty($it['href'])
-            ? '<a class="stat transition-colors hover:bg-base-200" href="' . dh($it['href']) . '">' . $inner . '</a>'
-            : '<div class="stat">' . $inner . '</div>';
+    $t = '';
+    if ($trend !== null) {
+        $up = $trend['dir'] === 'up'; $flat = $trend['dir'] === 'flat';
+        $cls = $flat ? 'text-base-content/60' : (($up === $upIsGood) ? 'text-success' : 'text-error');
+        $arrow = $flat ? 'minus' : ($up ? 'arrow-trend-up' : 'arrow-trend-down');
+        $t = '<span class="dash-trend ' . $cls . '" title="Compared with last month"><i class="fas fa-' . $arrow . '"></i> ' . ($trend['pct'] === null ? 'new' : ($trend['pct'] > 0 ? '+' : '') . $trend['pct'] . '%') . '</span>';
     }
-    return $h . '</div>';
+    $inner = '<div class="dash-kpi dash-kpi-' . dh($tone) . '"><div class="dash-kpi-icon"><i class="fas fa-' . dh($icon) . '"></i></div>'
+           . '<div class="dash-kpi-body"><div class="dash-kpi-value">' . dh($value) . ' ' . $t . '</div><div class="dash-kpi-label">' . dh($label) . '</div>'
+           . ($hint !== '' ? '<div class="dash-kpi-hint">' . dh($hint) . '</div>' : '') . '</div></div>';
+    return $href ? '<a class="block h-full no-underline" href="' . dh($href) . '">' . $inner . '</a>' : $inner;
 }
 
-/** Where a request is on its way to Confirmed, as one line of text (current step in green). */
+/** The four steps of a request, with the current one marked. */
 function dashStepper(string $status): string
 {
     $steps = ['pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned', 'processed' => 'Confirmed'];
     $keys = array_keys($steps);
     $at = array_search($status, $keys, true);
     if ($at === false) { $at = $status === 'completed' ? count($keys) : -1; }
-    $h = '<ol class="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs" aria-label="Progress">';
+    $h = '<ol class="dash-steps">';
     foreach ($keys as $i => $k) {
-        $cls = $i === $at ? 'font-medium text-primary' : ($i < $at ? 'text-base-content/70' : 'text-base-content/40');
-        $h .= ($i ? '<li aria-hidden="true" class="text-base-content/30">&rsaquo;</li>' : '')
-            . '<li class="' . $cls . '"' . ($i === $at ? ' aria-current="step"' : '') . '>' . dh($steps[$k]) . '</li>';
+        $cls = $i < $at ? 'done' : ($i === $at ? 'now' : '');
+        $h .= '<li class="' . $cls . '"><span class="dot"></span><span class="lbl">' . dh($status === 'pending' && $k === 'assigned' ? $steps[$k] : $steps[$k]) . '</span></li>';
     }
     return $h . '</ol>';
 }
 
-/** The heading of a dashboard: the day as the title, then at most one primary and one secondary action (HTML). */
-function dashHeader(string $title, string $actions = ''): string
+/** Up to two initials of a name, for the small avatar circles. */
+function dashInitials(string $name): string
 {
-    return '<header class="mb-6 flex flex-wrap items-center justify-between gap-4" data-dashboard>'
-         . '<h1 class="text-2xl font-medium">' . dh($title) . '</h1>'
-         . ($actions !== '' ? '<div class="flex flex-wrap gap-2">' . $actions . '</div>' : '')
-         . '</header>';
+    $parts = array_values(array_filter(preg_split('/\s+/', trim($name)), fn($w) => !in_array(strtolower($w), ['bin', 'binti', 'a/l', 'a/p'], true)));
+    return strtoupper(substr($parts[0] ?? '?', 0, 1) . substr($parts[1] ?? '', 0, 1));
 }
 
-/** An empty state: the plain fact, nothing else. */
-function dashEmpty(string $text): string
+/** "Good morning" / "Good afternoon" / "Good evening" (Malaysia time). */
+function dashGreeting(): string
 {
-    return '<p class="dash-empty">' . dh($text) . '</p>';
+    $h = (int)date('G');
+    return $h < 12 ? 'Good morning' : ($h < 18 ? 'Good afternoon' : 'Good evening');
 }
 
-/** Counts as a ranked list with a thin bar each (instead of a many-coloured doughnut). $rows: label => count */
-function dashRanked(array $rows): string
+/** The small rounded labels in the hero banner: [[icon, text], ...] */
+function dashChips(array $chips): string
 {
-    arsort($rows);
-    $max = max(1, ...array_values($rows ?: [0]));
-    $h = '<ul class="space-y-3">';
-    foreach ($rows as $label => $n) {
-        $h .= '<li><div class="flex justify-between text-sm"><span>' . dh($label) . '</span><span class="font-mono">' . (int)$n . '</span></div>'
-            . '<div class="mt-1 h-1.5 rounded-full bg-base-200"><div class="h-full rounded-full bg-base-content/30" style="width:' . round($n / $max * 100) . '%"></div></div></li>';
-    }
-    return $h . '</ul>';
+    $h = '';
+    foreach ($chips as [$icon, $text]) { $h .= '<span class="dash-chip"><i class="fas fa-' . dh($icon) . '"></i>' . dh($text) . '</span>'; }
+    return $h;
+}
+
+/** A friendly empty state. */
+function dashEmpty(string $text, string $icon = 'mug-hot'): string
+{
+    return '<div class="dash-empty"><i class="fas fa-' . dh($icon) . '"></i>' . dh($text) . '</div>';
+}
+
+/** DaisyUI colour name for the alert tones. */
+function dashTone(string $tone): string
+{
+    return ['danger' => 'error', 'secondary' => 'neutral'][$tone] ?? $tone;
 }
 
 /**
@@ -120,10 +104,12 @@ function dashBoard(mysqli $conn): string
     uasort($rows, fn($a, $b) => (count($b['items']) > 0) <=> (count($a['items']) > 0));
 
     $hours = '';
+    $nowX = ($nowTs > $t0 && $nowTs < $t0 + $span) ? $pos($nowTs) : null;
     for ($hr = $from; $hr <= $to; $hr++) {
         $x = ($hr - $from) / ($to - $from) * 100;
+        if ($nowX !== null && abs($x - $nowX) < 6) { continue; }   // the "now" label sits here; don't print an hour under it
         $shift = $hr === $from ? '' : ($hr === $to ? '-translate-x-full' : '-translate-x-1/2');
-        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/50" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
+        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/65" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
     }
     $lines = '';
     for ($hr = $from + 1; $hr < $to; $hr++) {
@@ -131,8 +117,8 @@ function dashBoard(mysqli $conn): string
     }
     $now = '';
     if ($nowTs > $t0 && $nowTs < $t0 + $span) {
-        $now = '<span class="absolute inset-y-0 w-px bg-base-content" style="left:' . $pos($nowTs) . '%"></span>'
-             . '<span class="absolute -top-5 -translate-x-1/2 rounded-sm bg-base-content px-1 font-mono text-[0.6875rem] text-base-100" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
+        $now = '<span class="absolute inset-y-0 w-px bg-primary" style="left:' . $pos($nowTs) . '%"></span>'
+             . '<span class="absolute -top-6 z-[1] -translate-x-1/2 rounded bg-primary px-1.5 py-px text-[0.6875rem] font-semibold tabular-nums text-primary-content" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
     }
 
     $h = '<div class="overflow-x-auto"><div class="min-w-[44rem]">'
@@ -182,8 +168,12 @@ function dashChart(string $id, string $type, array $labels, array $datasets, arr
 {
     $cfg = ['type' => $type, 'labels' => array_values($labels), 'datasets' => $datasets, 'opts' => $opts];
     $centre = isset($opts['centre']) ? '<div class="dash-chart-centre"><div><b>' . dh($opts['centre'][0]) . '</b><span>' . dh($opts['centre'][1]) . '</span></div></div>' : '';
-    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
-    $h .= '<div class="dash-chart-fallback hidden"><table class="table text-sm"><tbody>';
+    // A short spoken summary for screen readers; the full numbers are in the table below the chart
+    $summary = [];
+    foreach ($labels as $i => $l) { $summary[] = $l . ' ' . implode('/', array_map(fn($d) => (string)($d['data'][$i] ?? ''), $datasets)); }
+    $aria = implode(', ', array_column($datasets, 'label')) . ': ' . implode(', ', array_slice($summary, 0, 12)) . (count($summary) > 12 ? ' …' : '');
+    $h = '<div class="dash-chart" style="height:' . (int)($opts['height'] ?? 240) . 'px"><canvas id="' . dh($id) . '" role="img" aria-label="' . dh($aria) . '" data-chart="' . dh(json_encode($cfg, JSON_UNESCAPED_UNICODE)) . '"></canvas>' . $centre . '</div>';
+    $h .= '<div class="dash-chart-fallback sr-only"><table class="table text-sm"><caption class="sr-only">Chart data</caption><tbody>';
     foreach ($labels as $i => $l) {
         $h .= '<tr><td>' . dh($l) . '</td>';
         foreach ($datasets as $d) { $h .= '<td class="text-end">' . dh($d['data'][$i] ?? '') . '</td>'; }
@@ -205,31 +195,29 @@ function dashChartScript(): void
         if (typeof Chart === 'undefined') {            // no chart library: show the numbers instead
             wrap.classList.add('hidden');
             var t = wrap.nextElementSibling;
-            if (t) { t.classList.remove('hidden'); }
+            if (t) { t.classList.remove('sr-only'); }
             return;
         }
         var c = JSON.parse(el.getAttribute('data-chart'));
         var o = c.opts || {};
+        var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var narrow = window.innerWidth < 576, stacked = !!o.stacked, horizontal = !!o.horizontal, round = c.type === 'doughnut';
-        Chart.defaults.font.family = '"IBM Plex Sans", system-ui, sans-serif';
-        Chart.defaults.color = '#737373';
-        Chart.defaults.borderColor = '#f4f4f5';
         var datasets = c.datasets.map(function (d) {
-            var color = d.color || '#0b5d3b';
+            var color = d.color || '#15804f';
             var set = { label: d.label, data: d.data, borderWidth: round ? 2 : (c.type === 'line' ? 3 : 0), borderRadius: c.type === 'bar' ? 4 : 0 };
             if (round) { set.backgroundColor = d.colors; }
-            else { set.backgroundColor = c.type === 'line' ? color + '33' : color; set.borderColor = color; }
-            if (c.type === 'line') { set.fill = false; set.tension = 0; set.pointRadius = 3; set.borderWidth = 2; set.pointBackgroundColor = color; }
+            else { set.backgroundColor = c.type === 'line' ? color + '33' : (d.colors || color); set.borderColor = d.colors || color; }
+            if (c.type === 'line') { set.fill = true; set.tension = 0.35; set.pointRadius = 4; set.pointBackgroundColor = color; }
             return set;
         });
-        var options = { responsive: true, maintainAspectRatio: false, animation: false,
+        var options = { responsive: true, maintainAspectRatio: false, animation: calm ? false : { duration: 400 },
             plugins: { legend: { display: round || datasets.length > 1, position: round && !narrow ? 'right' : 'bottom', labels: { boxWidth: 12, usePointStyle: true } } } };
         if (round) { options.cutout = '62%'; }
         else {
             options.indexAxis = horizontal ? 'y' : 'x';
-            options.scales = { x: { stacked: stacked, grid: { display: horizontal } }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
-            if (horizontal && narrow) {        // long names would be cut off on a phone: shorten them
-                options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 15 ? l.slice(0, 14) + '…' : l; };
+            options.scales = { x: { stacked: stacked, grid: { display: horizontal }, beginAtZero: true, ticks: horizontal ? { precision: 0 } : {} }, y: { stacked: stacked, beginAtZero: true, ticks: { precision: 0 } } };
+            if (horizontal) {                   // long names would be cut off in a narrow card: shorten them
+                options.scales.y.ticks.callback = function (v) { var l = this.getLabelForValue(v); return l.length > 18 ? l.slice(0, 17) + '…' : l; };
             }
         }
         new Chart(el, { type: c.type, data: { labels: c.labels, datasets: datasets }, options: options });

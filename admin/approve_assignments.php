@@ -33,7 +33,7 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Approve Assignments');
 ?>
-    <h1 class="text-2xl font-medium mb-1">Approve Assignments</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-user-check me-2 text-[0.8em] text-primary"></i>Approve Assignments</h1>
     <p class="text-base-content/60 text-sm">Vehicles and drivers chosen by the Administrative Assistant. The driver and the staff member are told only when you approve.</p>
 
     <?php if (!$requests): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12"><i class="fas fa-circle-check fa-2x text-success mb-2"></i><div>Nothing is waiting for your approval.</div></div></div><?php endif; ?>

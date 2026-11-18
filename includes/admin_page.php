@@ -16,7 +16,7 @@ function appHead(string $title): void
     <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
 <?php
@@ -25,7 +25,7 @@ function appHead(string $title): void
 /** Closes the drawer opened by sidebar.php (the page column, then the drawer itself). */
 function appLayoutEnd(): void
 {
-    echo "</div><!-- /.drawer-content -->\n</div><!-- /.drawer -->\n";
+    echo "</div><!-- /.ember-panel -->\n</div><!-- /.drawer-content -->\n</div><!-- /.drawer -->\n";
 }
 
 function adminPageStart(string $title): void
@@ -38,9 +38,9 @@ function adminPageStart(string $title): void
 <head>
 <?php appHead($title); ?>
 </head>
-<body class="min-h-screen bg-base-100">
+<body class="min-h-screen bg-[#e6e9e7]">
 <?php require __DIR__ . '/sidebar.php'; ?>
-<main class="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8" id="mainContent">
+<main class="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-2 pb-8 sm:px-6 lg:px-8" id="mainContent">
     <?php showFlash(); ?>
 <?php
 }

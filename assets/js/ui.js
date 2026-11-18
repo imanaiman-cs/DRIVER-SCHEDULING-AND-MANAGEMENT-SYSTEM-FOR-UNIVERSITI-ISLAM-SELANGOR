@@ -215,6 +215,38 @@
         }
     });
 
+    // ── Scrollable regions (wide tables, the vehicle board) can be reached and scrolled with the keyboard ──
+    function labelScrollers() {
+        document.querySelectorAll('main .overflow-x-auto').forEach(function (box) {
+            var scrolls = box.scrollWidth > box.clientWidth + 1;
+            if (box.closest('nav, [role]') && box.getAttribute('role') !== 'region') { return; }   // tab bars and other widgets keep their own role
+            if (scrolls && !box.hasAttribute('tabindex')) {
+                var card = box.closest('section, .card, .dash-card, .e-card');
+                var heading = card ? card.querySelector('h1, h2, h3') : null;
+                box.setAttribute('tabindex', '0');
+                box.setAttribute('role', 'region');
+                box.setAttribute('aria-label', (heading ? heading.textContent.trim() : 'Table') + ' (scrolls sideways)');
+            } else if (!scrolls && box.getAttribute('role') === 'region') {
+                box.removeAttribute('tabindex'); box.removeAttribute('role'); box.removeAttribute('aria-label');
+            }
+        });
+    }
+    ready(labelScrollers);
+    window.addEventListener('resize', function () { clearTimeout(labelScrollers.t); labelScrollers.t = setTimeout(labelScrollers, 200); });
+
+    // ── Inline errors are announced with their field ─────────────
+    ready(function () {
+        var n = 0;
+        document.querySelectorAll('.input-error, .select-error, .textarea-error, .file-input-error').forEach(function (field) {
+            var err = field.nextElementSibling;
+            if (!err || !err.classList.contains('text-error')) { return; }
+            if (!err.id) { err.id = 'fieldError' + (++n); }
+            field.setAttribute('aria-invalid', 'true');
+            var by = (field.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+            if (by.indexOf(err.id) === -1) { by.unshift(err.id); field.setAttribute('aria-describedby', by.join(' ')); }
+        });
+    });
+
     // ── Error recovery: focus the first problem on page load ────
     ready(function () {
         var invalid = document.querySelector('.input-error, .select-error, .textarea-error');

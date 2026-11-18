@@ -46,14 +46,14 @@ $shown = vehicleDisplayStatus($conn, $id, $v['status']);
 adminPageStart('Vehicle Maintenance');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h1 class="text-2xl font-medium mb-0"><?= plate($v['plate_number']) ?>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><?= plate($v['plate_number']) ?>
             <span class="badge <?= vehicleStatusBadgeClass($shown) ?> text-base ms-2"><?= vehicleStatusLabel($shown) ?></span></h1>
         <a class="btn btn-outline btn-sm" href="view_vehicle.php?id=<?= $id ?>">Back to vehicle</a>
     </div>
     <?php if ($error): ?><div class="alert alert-soft alert-error" role="alert"><?= htmlspecialchars($error) ?><?= fleetItemsList($blocked) ?></div><?php endif; ?>
     <div class="grid-12 grid grid-cols-12 gap-4">
         <div class="col-span-12 lg:col-span-5"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Change status</h6>
+            <h2 class="text-base font-bold">Change status</h2>
             <p class="text-sm text-base-content/60">In Use cannot be chosen: the system shows it while a Confirmed trip is running.</p>
             <form method="post" id="statusForm" class="grid-12 grid grid-cols-12 gap-2">
                 <input type="hidden" name="id" value="<?= $id ?>">
@@ -72,7 +72,7 @@ adminPageStart('Vehicle Maintenance');
             </form>
         </div></div></div>
         <div class="col-span-12 lg:col-span-7"><div class="card border border-base-300 bg-base-100"><div class="card-body">
-            <h6 class="font-bold">Maintenance history</h6>
+            <h2 class="text-base font-bold">Maintenance history</h2>
             <div class="overflow-x-auto"><table class="table align-middle mb-0">
                 <thead class=""><tr><th>Workshop</th><th>Started</th><th>Expected return</th><th>Closed</th></tr></thead>
                 <tbody>
@@ -80,7 +80,7 @@ adminPageStart('Vehicle Maintenance');
                     <tr><td><?= htmlspecialchars((string)($h['workshop'] ?? '-')) ?></td>
                         <td class="whitespace-nowrap"><?= date('d M Y', strtotime($h['start_date'])) ?></td>
                         <td class="whitespace-nowrap"><?= date('d M Y', strtotime($h['end_date'])) ?></td>
-                        <td class="whitespace-nowrap"><?= $h['closed_at'] ? date('d M Y H:i', strtotime($h['closed_at'])) : '<span class="badge badge-soft badge-warning">Open</span>' ?></td></tr>
+                        <td class="whitespace-nowrap"><?= $h['closed_at'] ? date('d M Y H:i', strtotime($h['closed_at'])) : '<span class="badge badge-warning">Open</span>' ?></td></tr>
                 <?php endforeach; ?>
                 <?php if (!$history): ?><tr><td colspan="4" class="text-center text-base-content/60 py-4">No maintenance recorded.</td></tr><?php endif; ?>
                 </tbody>

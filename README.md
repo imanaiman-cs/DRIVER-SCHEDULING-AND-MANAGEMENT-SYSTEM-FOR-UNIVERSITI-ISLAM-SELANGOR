@@ -113,6 +113,11 @@ card, stats, table, tabs, modal, badge, alert). There is no Bootstrap and no jQu
 - **Dialogs:** `assets/js/ui.js` gives `UIS.confirm()`, `UIS.alert()`, `UIS.askReason()` and `data-confirm="…"` on
   links/buttons, built on DaisyUI's `<dialog class="modal">`.
 - **Plates:** print a registration number with `plate($plateNumber)` (PHP), which sets it like a number plate.
+- **Design system:** colours, type, components, rules and the pre-delivery checklist are in
+  `design-system/uis-driver-management/MASTER.md` (page overrides in `pages/`). Read it before adding a page.
+- **Design skills for Claude Code:** `.claude/skills/` holds the [UI/UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)
+  skills (v2.15.0, MIT, see `.claude/skills/LICENSE-ui-ux-pro-max.txt`), installed with `npx ui-ux-pro-max-cli init --ai claude`.
+  Any Claude Code session opened in this project picks them up. Update with `npx ui-ux-pro-max-cli@latest init --ai claude --force`.
 
 ## Tests
 

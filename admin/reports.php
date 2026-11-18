@@ -23,7 +23,7 @@ $h = fn($s) => htmlspecialchars(reportCellText($s), ENT_QUOTES, 'UTF-8');
 $q = http_build_query(['type' => $type, 'month' => $month]);
 adminPageStart('Reports');
 ?>
-    <h1 class="text-2xl font-medium mb-1 no-print">Reports</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-1 no-print"><i class="fas fa-chart-column me-2 text-[0.8em] text-primary"></i>Reports</h1>
     <p class="text-base-content/60 text-sm mb-4 no-print">Choose a report and a month. You can print it or export it as PDF or Excel.</p>
     <form method="get" class="grid-12 grid grid-cols-12 gap-2 items-end mb-4 no-print">
         <div class="col-span-12 md:col-span-5"><label class="mb-1 block text-sm font-medium" for="type">Report</label>
@@ -35,7 +35,7 @@ adminPageStart('Reports');
 
     <div class="card border border-base-300 bg-base-100"><div class="card-body">
         <div class="flex flex-wrap justify-between items-start gap-2 mb-4">
-            <div><h5 class="font-bold mb-0"><?= $h($rep['title']) ?></h5><div class="text-base-content/60"><?= $h(date('F Y', strtotime($month . '-01'))) ?></div></div>
+            <div><h2 class="text-lg font-bold mb-0"><?= $h($rep['title']) ?></h2><div class="text-base-content/60"><?= $h(date('F Y', strtotime($month . '-01'))) ?></div></div>
             <div class="flex flex-wrap gap-2 no-print">
                 <button type="button" class="btn btn-sm btn-outline" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
                 <a class="btn btn-sm btn-outline btn-error" href="?<?= $q ?>&amp;export=pdf"><i class="fas fa-file-pdf me-1"></i>PDF</a>

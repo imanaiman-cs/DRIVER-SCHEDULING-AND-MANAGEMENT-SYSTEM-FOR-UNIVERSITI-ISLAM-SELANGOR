@@ -13,16 +13,16 @@
   themes: uis --default;
 }
 
-/* UIS theme: green (Islamic identity) + gold (wisdom). Everything else is plain DaisyUI. */
+/* UIS theme: green (Islamic identity) + gold (wisdom), on a light green-grey page, as in the original design. */
 @plugin "daisyui/theme" {
   name: "uis";
   default: true;
   color-scheme: light;
 
   --color-base-100: #ffffff;
-  --color-base-200: #f4f4f5;
-  --color-base-300: #e4e4e7;
-  --color-base-content: #171717;
+  --color-base-200: #f5f6f5;
+  --color-base-300: #e6e8e7;
+  --color-base-content: #18181b;
 
   --color-primary: oklch(41% 0.09 158);          /* #0b5d3b UIS green */
   --color-primary-content: oklch(98% 0.01 158);
@@ -30,21 +30,21 @@
   --color-secondary-content: oklch(22% 0.04 80);
   --color-accent: oklch(52% 0.12 158);
   --color-accent-content: oklch(98% 0.01 158);
-  --color-neutral: #262626;
-  --color-neutral-content: #fafafa;
+  --color-neutral: #1f2a24;
+  --color-neutral-content: #f8faf9;
 
-  --color-info: oklch(58% 0.11 220);
+  --color-info: #0e7490;
   --color-info-content: oklch(98% 0.01 220);
-  --color-success: oklch(55% 0.14 150);
+  --color-success: #15803d;
   --color-success-content: oklch(98% 0.01 150);
-  --color-warning: oklch(78% 0.15 75);
-  --color-warning-content: oklch(25% 0.05 75);
-  --color-error: oklch(55% 0.2 27);
+  --color-warning: #b45309;
+  --color-warning-content: #ffffff;
+  --color-error: #b91c1c;
   --color-error-content: oklch(98% 0.01 27);
 
   --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0.75rem;
+  --radius-field: 0.875rem;
+  --radius-box: 1.375rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -53,15 +53,18 @@
 }
 
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Outfit", ui-sans-serif, system-ui, sans-serif;   /* times and counts: Outfit with tabular figures */
   --font-plate: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
 }
 
 
 /* ---------- Base typography (Tailwind's reset removes these; the pages rely on them) ---------- */
 @layer base {
-  :where(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  :where(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; text-wrap: balance; }
+  :where(main p) { text-wrap: pretty; }
+  :where(.badge, .stat-value, .indicator-item) { font-variant-numeric: tabular-nums; }
   :where(h1) { font-size: var(--text-2xl); }
   :where(h2) { font-size: var(--text-xl); }
   :where(h3, h4) { font-size: var(--text-lg); }
@@ -99,16 +102,76 @@
   .required-legend { @apply mb-4 text-sm text-base-content/60; }
 
 
-  /* Dashboard panels (admin, staff, head of department, driver) */
-  .dash-card { @apply rounded-box border border-base-300 bg-base-100 p-5; }
-  .grid-12 > * > .dash-card { @apply h-full; }
-  .dash-card > h6 { @apply mb-4 flex items-center justify-between gap-2 text-sm font-medium; }
-  .dash-card > h6 a { @apply link link-primary font-normal no-underline; }
-  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-field px-2 py-2 text-sm; }
-  a.dash-row { @apply -mx-2 transition-colors hover:bg-base-200; }
-  .dash-group { @apply mt-5 mb-1 text-xs font-medium text-base-content/60 first-of-type:mt-0; }
-  .dash-time { @apply inline-block min-w-24 font-medium tabular-nums; }
-  .dash-empty { @apply py-6 text-center text-sm text-base-content/60; }
+  /* ---------- Dashboards (admin, staff, head of department, driver): the original UIS look ---------- */
+  .dash-hero {
+    @apply relative overflow-hidden rounded-[18px] px-7 py-6 text-white shadow-md;
+    background: radial-gradient(circle at 85% 20%, rgb(198 146 20 / .35) 0, transparent 38%),
+                linear-gradient(120deg, #122018 0%, var(--color-primary) 55%, #15804f 100%);
+  }
+  .dash-hero::after {
+    content: '\f1b9'; font-family: 'Font Awesome 6 Free'; font-weight: 900;
+    @apply pointer-events-none absolute right-6 -bottom-5 rotate-[-12deg] text-[7.5rem] text-white/[.07];
+  }
+  .dash-hero > * { @apply relative z-[1]; }
+  .dash-hero h1 { @apply text-[1.45rem] font-bold tracking-tight text-white; }
+  .dash-hero .text-base-content\/60 { @apply text-white/80; }
+  .dash-chip { @apply me-1.5 mb-1 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-0.5 text-[0.8rem]; }
+
+  .dash-kpi {
+    @apply relative flex h-full items-start gap-3.5 rounded-2xl border border-base-300 bg-base-100 px-4 py-4 shadow-sm transition-[transform,box-shadow,border-color] duration-150;
+    --kpi: var(--color-success);
+  }
+  .dash-kpi::before { content: ''; @apply absolute inset-y-[18%] left-0 w-1 rounded-r; background: var(--kpi); }
+  @media (hover: hover) { a:hover > .dash-kpi { @apply -translate-y-0.5 border-primary/25 shadow-md; } }
+  a:active > .dash-kpi { @apply scale-[0.98]; }
+  .dash-kpi-icon { @apply grid size-11 shrink-0 place-items-center rounded-xl text-lg text-white; background: var(--kpi); box-shadow: 0 4px 10px -3px var(--kpi); }
+  .dash-kpi-body { @apply min-w-0; }
+  .dash-kpi-value { @apply flex flex-wrap items-center gap-x-2 text-[1.75rem] leading-[2.75rem] font-extrabold tracking-tight tabular-nums text-base-content; }
+  .dash-kpi-label { @apply text-[0.8125rem] leading-snug font-medium text-base-content/80; text-wrap: pretty; }
+  .dash-kpi-hint { @apply mt-0.5 text-xs text-base-content/65; text-wrap: pretty; }
+  .dash-trend { @apply inline-flex items-center gap-1 self-center rounded-full bg-base-content/5 px-2 py-0.5 text-[0.68rem] leading-4 font-bold tracking-normal; }
+  .dash-trend.text-success { @apply bg-success/10; }
+  .dash-trend.text-error { @apply bg-error/10; }
+  .dash-kpi-success { --kpi: var(--color-success); }
+  .dash-kpi-info { --kpi: var(--color-info); }
+  .dash-kpi-warning { --kpi: var(--color-secondary); }
+  .dash-kpi-primary { --kpi: #1d4ed8; }
+  .dash-kpi-danger { --kpi: var(--color-error); }
+  .dash-kpi-secondary { --kpi: #475569; }
+
+  .dash-card { @apply h-full rounded-2xl border border-base-300 bg-base-100 px-5 py-4 shadow-sm; }
+  .dash-card > h2 { @apply mb-3 flex items-center justify-between gap-2 border-b border-base-200 pb-2.5 text-[0.95rem] font-bold; }
+  .dash-card > h2 small { @apply text-xs; }
+  .dash-card > h2 .fas { --fa-display: inline-grid; @apply me-1.5 size-7 place-items-center rounded-lg bg-primary/10 align-middle text-[0.8rem]; }
+  .dash-card > h2 a { @apply text-primary; }
+  .dash-empty { @apply py-6 text-center text-sm text-base-content/65; }
+  .dash-empty i { --fa-display: block; @apply mb-1.5 text-3xl text-base-content/20; }
+  .dash-row { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2.5 text-sm transition-colors; }
+  .dash-row + .dash-row { border-top: 1px dashed var(--color-base-300); }
+  a.dash-row:hover { @apply bg-primary/5; }
+  .dash-group { @apply mt-3 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-[0.08em] text-base-content/65 uppercase first:mt-0; }
+  .dash-group::before { content: ''; @apply size-2 rounded-full bg-success; }
+  .dash-group.warn::before { @apply bg-secondary; }
+  .dash-group.info::before { @apply bg-info; }
+  .dash-alert { @apply mb-2 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-sm text-base-content; }
+  .dash-alert i { --fa-display: grid; @apply size-7 shrink-0 place-items-center rounded-full bg-white/75; }
+  .dash-alert-danger { @apply border-error/25 bg-error/10; } .dash-alert-danger i { @apply text-error; }
+  .dash-alert-warning { @apply border-secondary/30 bg-secondary/10; } .dash-alert-warning i { @apply text-secondary; }
+  .dash-alert-info { @apply border-info/25 bg-info/10; } .dash-alert-info i { @apply text-info; }
+  .dash-time { @apply inline-block min-w-24 font-bold tabular-nums text-primary; }
+  .dash-next { @apply rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5; }
+  .dash-bar { @apply mt-1 h-2 overflow-hidden rounded-full bg-base-200; }
+  .dash-bar > span { @apply block h-full rounded-full; background: var(--bar, var(--color-success)); }
+
+  /* The four steps of a request: small dots joined by a line */
+  .dash-steps { @apply mt-2.5 flex list-none p-0; }
+  .dash-steps li { @apply relative flex-1 text-center text-[0.68rem] leading-tight text-base-content/60; }
+  .dash-steps li::before { content: ''; @apply absolute top-2 -left-1/2 h-[3px] w-full bg-base-300; }
+  .dash-steps li:first-child::before { display: none; }
+  .dash-steps .dot { @apply relative z-[1] mx-auto mb-1 block size-[17px] rounded-full border-[3px] border-base-300 bg-base-100; }
+  .dash-steps li.done, .dash-steps li.now { @apply font-semibold text-primary; }
+  .dash-steps li.done .dot, .dash-steps li.now .dot { @apply border-success bg-success; }
+  .dash-steps li.done::before, .dash-steps li.now::before { @apply bg-success; }
 
   /* A chart canvas wrapper; the centre label sits over a doughnut */
   .dash-chart { @apply relative w-full; }
@@ -118,6 +181,165 @@
   .dash-chart-centre span { @apply text-xs text-base-content/60; }
 }
 
+/* ---------- "Ember" look in UIS green: floating icon rail, rounded panel, borderless cards, pills.
+   Sits in the utilities layer (and under .ember-panel) so it wins over DaisyUI and the page classes. ---------- */
+@layer utilities {
+  :root { --ember-shadow: 0 1px 2px rgb(16 24 20 / .04), 0 12px 32px -16px rgb(16 24 20 / .16); --ember-dark: #121614; }
+
+  /* Rail */
+  .ember-rail .rail-item {
+    position: relative; display: flex; align-items: center; gap: .75rem; height: 2.6rem; padding: 0 .85rem;
+    border-radius: 999px; color: rgb(255 255 255 / .66); font-size: .9rem;
+    transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .ember-rail .rail-item i { width: 1.1rem; text-align: center; }
+  @media (hover: hover) { .ember-rail .rail-item:hover { background: rgb(255 255 255 / .09); color: #ffffff; } }
+  .ember-rail .rail-item.is-active {
+    background: linear-gradient(140deg, #22a96b 0%, var(--color-primary) 100%); color: #ffffff;
+    box-shadow: 0 0 0 4px rgb(21 128 79 / .25), 0 10px 22px -6px rgb(21 128 79 / .85);
+  }
+  .ember-rail .rail-count {
+    margin-inline-start: auto; display: grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
+    border-radius: 999px; background: var(--color-secondary); color: #1b1400; font-size: .65rem; font-weight: 700;
+  }
+  .ember-rail .rail-logout:hover { background: rgb(220 38 38 / .22); color: #fecaca; }
+  .ember-rail .tooltip { --tt-bg: var(--ember-dark); }
+  @media (min-width: 1024px) {
+    .ember-rail .rail-item { width: 2.6rem; justify-content: center; padding: 0; }
+    .ember-rail .rail-count { position: absolute; top: -.2rem; right: -.25rem; margin: 0; box-shadow: 0 0 0 2px var(--ember-dark); }
+    .ember-rail > ul { overflow: visible; }
+  }
+
+  /* Cards: white, no border, very round, soft shadow */
+  .ember-panel .card, .ember-panel .stats { border-color: transparent; border-radius: 22px; box-shadow: var(--ember-shadow); }
+  .ember-panel .card:has(table) { overflow: hidden; }
+  .ember-panel .card-body { padding: 1.5rem; }
+
+  /* Page titles: big and light, like the reference; the small icon lives in the header */
+  .ember-panel main h1 { font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.35rem); font-weight: 500; letter-spacing: -.025em; line-height: 1.15; }
+  .ember-panel main h1 > i.fas { --fa-display: none; }
+
+  /* Buttons: pills. A button without a colour is white with a soft shadow */
+  .btn { border-radius: 999px; font-weight: 500; }
+  .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active) {
+    --btn-color: #ffffff; border-color: transparent; box-shadow: var(--ember-shadow);
+  }
+  .btn-primary { box-shadow: 0 8px 18px -8px rgb(11 93 59 / .7); }
+  .btn-neutral { --btn-color: var(--ember-dark); }
+
+  /* Tabs: a white pill bar, the active tab a dark pill */
+  .ember-panel .tabs-border {
+    display: inline-flex; width: auto; max-width: 100%; gap: .25rem; padding: .3rem; border-radius: 999px;
+    background: #ffffff; box-shadow: var(--ember-shadow);
+  }
+  .ember-panel .tabs-border > .tab { height: 2.15rem; padding-inline: 1rem; border-radius: 999px; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+  .ember-panel .tabs-border > .tab::before { display: none; }
+  .ember-panel .tabs-border > .tab.tab-active { background: var(--ember-dark); color: #ffffff; }
+  .ember-panel .tabs-border > .tab.tab-active span { color: rgb(255 255 255 / .7); }
+
+  /* Fields: soft rounded, white, green when focused */
+  .input, .select, .textarea, .file-input { background-color: #ffffff; border-color: var(--color-base-300); }
+  .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
+    border-color: var(--color-primary); outline: 4px solid rgb(21 128 79 / .14); outline-offset: 0;
+  }
+
+  /* Tables: airy, light header */
+  .table { font-variant-numeric: tabular-nums; }
+  .table :where(thead) th {
+    background: transparent; color: color-mix(in oklab, var(--color-base-content) 68%, transparent);
+    font-size: .72rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; padding-block: .9rem;
+    border-bottom: 1px solid var(--color-base-300);
+  }
+  .table :where(tbody) :where(td, th) { border-color: var(--color-base-200); }
+  @media (hover: hover) { .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 4%, transparent); } }
+
+  /* ---- Ember dashboard pieces ---- */
+  .e-card { position: relative; border-radius: 24px; background: #ffffff; padding: 1.5rem; box-shadow: var(--ember-shadow); }
+  .e-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
+  .e-head h2 { font-size: 1.125rem; font-weight: 500; letter-spacing: -.01em; }
+  .e-icon-btn {
+    display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex-shrink: 0; border-radius: 999px;
+    background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent); font-size: .8rem;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  @media (hover: hover) { .e-icon-btn:hover { background: var(--ember-dark); color: #ffffff; } }
+  .e-icon-btn-light { background: rgb(255 255 255 / .16); color: #ffffff; }
+  @media (hover: hover) { .e-icon-btn-light:hover { background: #ffffff; color: var(--ember-dark); } }
+
+  /* The green accent card (the reference's coral card), with two soft light circles */
+  .e-accent {
+    position: relative; overflow: hidden; border-radius: 24px; padding: 1.5rem; color: #ffffff;
+    background: radial-gradient(circle at 105% -10%, rgb(255 255 255 / .22) 0 22%, transparent 23%),
+                radial-gradient(circle at 85% 115%, rgb(255 255 255 / .12) 0 30%, transparent 31%),
+                linear-gradient(150deg, #23a86b 0%, #15804f 45%, #0b5d3b 100%);
+    box-shadow: 0 18px 36px -18px rgb(11 93 59 / .8);
+  }
+  .e-accent .e-head h2 { color: #ffffff; }
+
+  /* The dark card */
+  .e-dark { position: relative; overflow: hidden; border-radius: 24px; padding: 1.5rem; color: #ffffff; background: var(--ember-dark); box-shadow: var(--ember-shadow); }
+  .e-dark .e-head h2 { color: #ffffff; }
+
+  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 500; background: rgb(21 128 79 / .1); color: var(--color-primary); }
+  .e-chip-down { background: rgb(185 28 28 / .08); color: var(--color-error); }
+
+  .e-tile { display: flex; flex-direction: column; gap: .15rem; border-radius: 18px; background: var(--color-base-200); padding: .85rem 1rem; transition: background-color .15s ease; }
+  @media (hover: hover) { .e-tile:hover { background: color-mix(in oklab, var(--color-primary) 8%, var(--color-base-200)); } }
+  .e-tile-label { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 62%, transparent); }
+  .e-tile-value { font-size: 1.5rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 600; color: #ffffff; box-shadow: 0 0 0 2px #ffffff; }
+  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #c69214; color: #1b1400; } .e-avatar-2 { background: #121614; } .e-avatar-3 { background: #15804f; }
+
+  .e-day { display: flex; flex-direction: column; align-items: center; gap: .15rem; border-radius: 16px; background: var(--color-base-200); padding: .5rem 0; }
+  .e-day span { font-size: .68rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
+  .e-day b { font-size: .95rem; font-weight: 500; }
+  .e-day.is-today { background: var(--ember-dark); color: #ffffff; box-shadow: 0 8px 16px -8px rgb(0 0 0 / .5); }
+  .e-day.is-today span { color: rgb(255 255 255 / .65); }
+
+  /* Older dashboard parts (staff, head of department, driver) in the same look */
+  .ember-panel .dash-card { border: 0; border-radius: 24px; box-shadow: var(--ember-shadow); padding: 1.5rem; }
+  .ember-panel .dash-card > h2 { border-bottom: 0; padding-bottom: 0; margin-bottom: 1rem; font-size: 1.05rem; font-weight: 500; }
+  .ember-panel .dash-card > h2 .fas { border-radius: 999px; background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent) !important; }
+  .ember-panel .dash-row + .dash-row { border-top: 1px solid var(--color-base-200); }
+  .ember-panel .dash-kpi { border: 0; border-radius: 22px; box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-kpi::before { display: none; }
+  .ember-panel .dash-kpi-icon { border-radius: 999px; background: color-mix(in oklab, var(--kpi) 12%, #ffffff); color: var(--kpi); box-shadow: none; }
+  .ember-panel .dash-kpi-value { font-weight: 500; }
+  .ember-panel .dash-hero { background: transparent; color: var(--color-base-content); box-shadow: none; padding: 0 0 .5rem; border-radius: 0; }
+  .ember-panel .dash-hero::after { display: none; }
+  .ember-panel .dash-hero h1 { font-size: 2rem; font-weight: 500; color: var(--color-base-content); }
+  .ember-panel .dash-hero .dash-chip { background: #ffffff; border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-hero .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
+  .ember-panel .dash-hero .btn { --btn-color: var(--ember-dark); color: #ffffff; }
+  .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: #ffffff; color: var(--color-base-content); border: 0; box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-alert { border-radius: 18px; }
+
+  /* ---- ui-ux-pro-max: touch (P2), readable inputs (P5), reduced motion (P7) ---- */
+  html { touch-action: manipulation; }                        /* no 300 ms tap delay */
+  @media (pointer: coarse) {                                  /* 44 px touch targets on phones and tablets */
+    .btn-sm, .btn-xs { min-height: 2.75rem; }
+    .btn-square.btn-sm, .btn-circle.btn-sm, .btn-square.btn-xs { min-width: 2.75rem; }
+    .ember-rail .rail-item { height: 2.75rem; }
+    .ember-panel .tabs-border > .tab { height: 2.75rem; }
+    .e-icon-btn { width: 2.75rem; height: 2.75rem; }
+  }
+  @media (max-width: 640px) {                                 /* 16 px fields: iOS does not zoom in when typing */
+    .input, .select, .textarea, .file-input, .input input { font-size: 1rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
+
+  /* Badges: small pills */
+  .badge { border-radius: 999px; font-weight: 600; }
+
+  /* Alerts and dialogs follow the round shapes */
+  .alert { border-radius: 18px; }
+  .modal-box { border-radius: 26px; }
+}
+
 @media print {
   .no-print, .drawer-side, .navbar { display: none !important; }
+  .ember-panel { background: #ffffff !important; }
 }

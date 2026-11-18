@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 adminPageStart('Edit Driver');
 ?>
-    <h1 class="text-2xl font-medium mb-4">Edit Driver</h1>
+    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-pen me-2 text-[0.8em] text-primary"></i>Edit Driver</h1>
     <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.</div><?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
         <input type="hidden" name="id" value="<?= $id ?>">

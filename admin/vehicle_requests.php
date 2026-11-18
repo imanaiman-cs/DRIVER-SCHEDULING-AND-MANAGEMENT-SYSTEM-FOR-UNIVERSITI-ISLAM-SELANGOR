@@ -31,17 +31,19 @@ $open = (int)($_GET['open'] ?? 0);
 
 adminPageStart('Vehicle Requests');
 ?>
-    <h1 class="text-2xl font-medium mb-4">Vehicle Requests</h1>
-    <div role="tablist" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
+    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-file-signature me-2 text-[0.8em] text-primary"></i>Vehicle Requests</h1>
+    <nav aria-label="Requests by status" class="tabs tabs-border mb-6 flex-nowrap overflow-x-auto">
         <?php foreach ($tabs as $k => [$label]): ?>
-            <a role="tab" class="tab gap-2 <?= $tab === $k ? 'tab-active' : '' ?>" href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="font-mono text-xs text-base-content/60"><?= $tabCount($k) ?></span></a>
+            <a class="tab gap-2 <?= $tab === $k ? 'tab-active' : '' ?>" <?= $tab === $k ? 'aria-current="page"' : '' ?> href="?tab=<?= $k ?>"><?= htmlspecialchars($label) ?> <span class="font-mono text-xs text-base-content/60"><?= $tabCount($k) ?></span></a>
         <?php endforeach; ?>
-    </div>
+    </nav>
 
     <?php if (!$requests): ?><div class="card border border-base-300 bg-base-100"><div class="card-body text-center text-base-content/60 py-12">Nothing here.</div></div><?php endif; ?>
 
     <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $rules = cancelRulesFor($r); $ret = 'admin/vehicle_requests.php?tab=' . $tab . '&open=' . $rid; ?>
-    <details class="card border border-base-300 bg-base-100 mb-2" <?= $rid === $open ? 'open' : '' ?>>
+    <div class="relative mb-3">
+    <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success absolute top-3.5 right-28 z-[1] max-sm:static max-sm:mb-2" href="assign_driver.php?request_id=<?= $rid ?>"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
+    <details class="card border border-base-300 bg-base-100" <?= $rid === $open ? 'open' : '' ?>>
         <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
             <div class="flex flex-wrap justify-between items-center gap-2">
                 <div>
@@ -49,7 +51,6 @@ adminPageStart('Vehicle Requests');
                     <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax<?= $r['plate_number'] ? ' &middot; ' . plate($r['plate_number']) : '' ?></div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success" href="assign_driver.php?request_id=<?= $rid ?>" onclick="event.stopPropagation();"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
                     <?= requestStatusBadge($r['status']) ?>
                 </div>
             </div>
@@ -89,5 +90,6 @@ adminPageStart('Vehicle Requests');
             <?php endif; ?>
         </div>
     </details>
+    </div>
     <?php endforeach; ?>
 <?php adminPageEnd(); ?>

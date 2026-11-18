@@ -39,7 +39,7 @@ if ($status === 'in_use') { $vehicles = array_values(array_filter($vehicles, fn(
 adminPageStart('Vehicles');
 ?>
     <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
-        <h1 class="text-2xl font-medium mb-0">Vehicles</h1>
+        <h1 class="text-2xl font-extrabold tracking-tight mb-0"><i class="fas fa-bus me-2 text-[0.8em] text-primary"></i>Vehicles</h1>
         <a href="add_vehicle.php" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add vehicle</a>
     </div>
     <p class="text-base-content/60 text-sm">Vehicles are never deleted. A vehicle that is not used any more is made Inactive. "In Use" is shown by the system while a Confirmed trip is running.</p>
