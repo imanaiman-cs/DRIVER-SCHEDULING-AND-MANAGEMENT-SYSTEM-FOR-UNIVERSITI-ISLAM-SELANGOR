@@ -21,3 +21,6 @@ node_modules/
 
 # Python bytecode from the HTTP test suites
 __pycache__/
+
+# Personal Claude Code settings (local hooks)
+.claude/settings.local.json
