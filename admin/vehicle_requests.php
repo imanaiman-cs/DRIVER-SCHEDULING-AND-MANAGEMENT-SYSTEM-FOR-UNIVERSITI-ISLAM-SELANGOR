@@ -42,7 +42,7 @@ adminPageStart('Vehicle Requests');
 
     <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $rules = cancelRulesFor($r); $ret = 'admin/vehicle_requests.php?tab=' . $tab . '&open=' . $rid; ?>
     <div class="relative mb-3">
-    <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-success absolute top-3.5 right-28 z-[1] max-sm:static max-sm:mb-2" href="assign_driver.php?request_id=<?= $rid ?>"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
+    <?php if ($r['status'] === 'approved'): ?><a class="btn btn-sm btn-primary absolute top-1/2 right-6 z-[1] -translate-y-1/2 max-sm:static max-sm:mb-2 max-sm:translate-y-0" href="assign_driver.php?request_id=<?= $rid ?>"><i class="fas fa-user-plus me-1"></i>Assign driver</a><?php endif; ?>
     <details class="card border border-base-300 bg-base-100" <?= $rid === $open ? 'open' : '' ?>>
         <summary class="card-body py-2" style="cursor:pointer;list-style:none;">
             <div class="flex flex-wrap justify-between items-center gap-2">
@@ -50,7 +50,7 @@ adminPageStart('Vehicle Requests');
                     <span class="font-semibold">#<?= $rid ?> &middot; <?= htmlspecialchars($r['staff_name']) ?> &middot; <?= htmlspecialchars($r['destination']) ?></span>
                     <div class="text-sm text-base-content/60"><?= requestPeriodText($r) ?> &middot; <?= (int)$r['passenger_count'] ?> pax<?= $r['plate_number'] ? ' &middot; ' . plate($r['plate_number']) : '' ?></div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 <?= $r['status'] === 'approved' ? 'sm:me-48' : '' ?>">
                     <?= requestStatusBadge($r['status']) ?>
                 </div>
             </div>

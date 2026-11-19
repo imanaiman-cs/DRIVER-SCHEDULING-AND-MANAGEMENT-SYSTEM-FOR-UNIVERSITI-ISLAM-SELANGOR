@@ -16,7 +16,7 @@ function appHead(string $title): void
     <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script>try { if (localStorage.getItem('uis-rail') === 'open') { document.documentElement.classList.add('rail-open'); } } catch (e) {}</script>
     <?php uisThemeHead(); ?>
@@ -36,7 +36,7 @@ function adminPageStart(string $title): void
     $page_title = $title;
     ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="uis">
+<html lang="en" data-theme="uis-light">
 <head>
 <?php appHead($title); ?>
 </head>

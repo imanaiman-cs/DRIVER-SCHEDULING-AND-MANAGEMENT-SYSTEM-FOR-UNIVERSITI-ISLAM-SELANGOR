@@ -177,7 +177,7 @@ function uisThemeHead(): void
     <script>
     (function () {
         var KEY = 'uis-theme', root = document.documentElement;
-        try { if (localStorage.getItem(KEY) === 'light') { root.setAttribute('data-theme', 'uis-light'); } } catch (e) {}
+        try { if (localStorage.getItem(KEY) === 'dark') { root.setAttribute('data-theme', 'uis'); } } catch (e) {}
         function sync() {
             var light = root.getAttribute('data-theme') === 'uis-light';
             document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {

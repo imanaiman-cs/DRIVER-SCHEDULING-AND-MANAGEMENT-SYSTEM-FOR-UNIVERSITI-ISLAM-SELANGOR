@@ -50,7 +50,7 @@ $home = match ($_SESSION['role'] ?? '') {
 };
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="uis">
+<html lang="en" data-theme="uis-light">
 <head>
 <?php appHead('Change password'); ?>
 </head>

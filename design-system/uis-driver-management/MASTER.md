@@ -13,30 +13,26 @@ Follows the Master + Overrides pattern of [ui-ux-pro-max](https://github.com/nex
 > "tech" palette with Fira Code / Fira Sans and glassmorphism. It was **not adopted**: the UIS brand is green and gold, and the
 > Ember look was chosen from a reference. Its UX rules and pre-delivery checklist *were* adopted (see the checklist below).
 
-## Tokens
+## Tokens ("Emerald Pill", chosen 19 Nov 2026 from four directions based on the DTech UI Kit catalog)
 
-| Token | Value | Use |
-|---|---|---|
-| `--color-primary` | `#10b981` (content `#04140d`) | emerald: primary actions, active nav, key figures, today |
-| gradient | emerald glow (`.e-accent`) | the one accent card per dashboard, active rail item |
-| `--color-secondary` | `#d4a017` | UIS gold: counts on the rail, welfare duty, the `.e-dark` card |
-| `--ember-dark` | `#0a1611` | rail and panel |
-| page background | `#050c09` + emerald radial glow | behind the panel |
-| `--color-base-100` | `#0f1c16` | cards |
-| `--color-base-200` | `#13241c` | tiles, fields, hover |
-| `--color-base-300` | `#1f3529` | hairlines, field borders, tooltips |
-| `--color-base-content` | `#e6efe9` | text |
-| muted text | `text-base-content/65` or more | never below 65% |
-| `--color-success` / `--color-error` / `--color-info` / `--color-warning` | `#22c55e` / `#f87171` / `#38bdf8` / `#f59e0b` | status |
-| radius | cards 22–24 px, fields 14 px, buttons / tabs / badges full pill | |
-| `--ember-shadow` | `0 0 0 1px rgb(255 255 255/.06), 0 20px 40px -28px rgb(0 0 0/.9)` | the only card shadow |
-| font | Outfit 300–700 (body, headings, figures with `tabular-nums`) | IBM Plex Sans Condensed 600 only for number plates |
-| type scale | 12 · 14 · 16 · 18 · 24 · 32–38 (page title) · 48–60 (hero figure, weight 300) | |
-| spacing | Tailwind 4 px scale; card padding 24 px; gaps 20 px between cards | |
+Light is the default theme (`uis-light`); dark (`uis`) is the same design on green-black.
+
+| Token | Light | Dark | Use |
+|---|---|---|---|
+| `--color-primary` | `#0b5d3b` (white text) | `#10b981` (dark text) | UIS green: primary buttons, active rail item, this month's bar, the pass card |
+| `--uis-ink` | `#101814` | `#e7eeea` | the active pill in the header menu and in tabs |
+| `--color-secondary` | `#d4a017` | `#d4a017` | UIS gold: rail counts, avatar, maintenance |
+| `--color-base-100` | `#ffffff` | `#121b17` | cards, rail, fields |
+| `--color-base-200` | `#f3f5f4` | `#0b120f` | the page, tiles |
+| `--color-base-300` | `#e4e9e6` | `#24302a` | hairlines (cards have a 1 px hairline, no shadow) |
+| `--color-base-content` | `#0a120e` | `#e7eeea` | text; muted text never below 66% |
+| radius | cards 22 px, tiles 16 px, rail items 12 px, buttons / menus / tabs full pill | | |
+| font | Plus Jakarta Sans 400-800 | | IBM Plex Sans Condensed 600 for number plates (outlined, ink on paper) |
 
 ## Layout
 
-- **Rail:** `includes/sidebar.php`. On ≥1024 px it collapses to icons with tooltips (`data-tip`) or opens to 15 rem with labels; the `#railToggle` button in the header switches it, the choice is kept in `localStorage` (`uis-rail`) and applied before paint (`html.rail-open`). A labelled panel on phones (DaisyUI drawer).
+- **Header:** page date and title on the left, the role's main areas as a pill menu in the middle (1280 px and wider), then BM | EN, light/dark, notifications and the account.
+- **Rail:** `includes/sidebar.php`, white and flush to the left edge. On ≥1024 px it collapses to icons with tooltips (`data-tip`) or opens to 15 rem with labels; the `#railToggle` button in the header switches it, the choice is kept in `localStorage` (`uis-rail`) and applied before paint (`html.rail-open`). A labelled panel on phones (DaisyUI drawer).
   The active item is the green gradient circle with a soft glow. Help and Log out sit apart at the bottom.
 - **Panel:** everything else lives in `.ember-panel` (rounded 28 px). Header: date, the page's icon + title, clock, notifications, avatar.
 - **Page title:** one `<h1>` per page, large and light. Card titles are `<h2>`. Never skip a level.
