@@ -190,9 +190,9 @@ function dashChartScript(): void
 <script>
 (function () {
     var canvases = document.querySelectorAll('canvas[data-chart]');
-    // the dark palette, swapped for deeper tones that read on white in light mode
-    var LIGHT = { '#cbd5e1': '#64748b', '#86efac': '#16a34a', '#34d399': '#059669', '#10b981': '#047857', '#38bdf8': '#0284c7', '#d4a017': '#b8860b' };
-    function tone(c) { return document.documentElement.getAttribute('data-theme') === 'uis-light' ? (LIGHT[c] || c) : c; }
+    // the light palette, swapped for brighter tones that read on the dark theme
+    var DARK = { '#0b5d3b': '#10b981', '#13a86a': '#34d399', '#1d4ed8': '#60a5fa', '#64748b': '#cbd5e1', '#101814': '#e7eeea' };
+    function tone(c) { return document.documentElement.getAttribute('data-theme') === 'uis' ? (DARK[c] || c) : c; }
     function draw() {
     var light = document.documentElement.getAttribute('data-theme') === 'uis-light';
     canvases.forEach(function (el) {
