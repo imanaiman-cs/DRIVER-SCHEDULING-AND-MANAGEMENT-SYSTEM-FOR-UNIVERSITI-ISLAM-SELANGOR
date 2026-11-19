@@ -38,6 +38,33 @@ function dashStepper(string $status): string
     return $h . '</ol>';
 }
 
+/** The name to greet with: "Norliza binti Abdul Rahman" -> "Norliza". */
+function dashShortName(string $full): string
+{
+    return explode(' bin ', explode(' binti ', trim($full))[0])[0];
+}
+
+/** The top of every dashboard: greeting on the left, up to two pill buttons on the right ([label, href, icon, primary?]). */
+function dashHeader(array $buttons, string $sub = ''): string
+{
+    $h = '<div class="mb-6 flex flex-wrap items-end justify-between gap-4" data-dashboard><div>';
+    if ($sub !== '') { $h .= '<p class="text-sm text-base-content/65">' . dh($sub) . '</p>'; }
+    $h .= '<h1>' . dashGreeting() . ', ' . dh(dashShortName($_SESSION['full_name'] ?? '')) . '</h1></div><div class="flex flex-wrap items-center gap-2">';
+    foreach ($buttons as [$label, $href, $icon, $primary]) {
+        $h .= '<a class="btn' . ($primary ? ' btn-neutral' : '') . '" href="' . dh($href) . '"><i class="fas fa-' . dh($icon) . '"></i>' . dh($label) . '</a>';
+    }
+    return $h . '</div></div>';
+}
+
+/** A request's progress as four short segments (Pending, Approved, Driver Assigned, Confirmed). */
+function dashProgress(string $status): string
+{
+    $at = ['pending' => 1, 'approved' => 2, 'assigned' => 3, 'processed' => 4, 'completed' => 4][$status] ?? 0;
+    $h = '<span class="flex w-24 gap-1" role="img" aria-label="Step ' . $at . ' of 4">';
+    for ($i = 1; $i <= 4; $i++) { $h .= '<span class="h-1.5 flex-1 rounded-full ' . ($i <= $at ? 'bg-primary' : 'bg-base-300') . '"></span>'; }
+    return $h . '</span>';
+}
+
 /** Up to two initials of a name, for the small avatar circles. */
 function dashInitials(string $name): string
 {

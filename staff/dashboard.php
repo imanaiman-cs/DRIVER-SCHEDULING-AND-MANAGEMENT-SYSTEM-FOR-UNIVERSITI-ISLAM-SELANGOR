@@ -12,12 +12,6 @@ requireRequester();   // every role is also staff
 $uid = (int)$_SESSION['user_id'];
 adminPageStart('Dashboard');
 ?>
-    <div class="dash-hero mb-4 flex flex-wrap justify-between items-center gap-2" data-dashboard>
-        <div>
-            <h1 class="font-bold mb-2"><?= dashGreeting() ?>, <?= dh($_SESSION['full_name'] ?? '') ?></h1>
-            <div><?= dashChips([['building-columns', (string)($_SESSION['department'] ?? 'Universiti Islam Selangor')], ['calendar-day', date('l, d F Y')]]) ?></div>
-        </div>
-        <a class="btn" href="request_vehicle.php"><i class="fas fa-car-side me-1"></i>Request a vehicle</a>
-    </div>
+    <?= dashHeader([['Request a vehicle', 'request_vehicle.php', 'car-side', true]], (string)($_SESSION['department'] ?? 'Universiti Islam Selangor') . ' · ' . date('l, j F Y')) ?>
     <?php dashMyRequestsSection($conn, $uid); ?>
 <?php adminPageEnd(); ?>
