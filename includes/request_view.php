@@ -152,17 +152,25 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
 
         <?php if ($o['history'] ?? true): ?>
         <div class="col-span-12">
-            <div class="text-base-content/60">Status history</div>
-            <ul class="list-none ps-0 mb-0">
+            <div class="mb-2 text-base-content/60">Status history</div>
+            <ol class="relative ms-3 border-s border-base-300">
             <?php $internalOnly = ['assign', 'reject_assignment', 'replace_driver'];   // the Vehicle Section's own steps
-                  foreach (requestHistory($conn, $rid) as $h): if ($h['action'] === 'comment' || (!isAdmin() && in_array($h['action'], $internalOnly, true))) { continue; } ?>
-                <li>
-                    <span class="text-base-content/60"><?= date('d M Y H:i', strtotime($h['created_at'])) ?></span>
-                    <strong><?= reqH($h['label']) ?></strong> - <?= reqH($h['who']) ?>
-                    <?= $h['reason'] && !in_array($h['action'], ['submit'], true) ? '<span class="text-base-content/60"> (' . reqH($h['reason']) . ')</span>' : '' ?>
+                  $icon = ['submit' => ['paper-plane', 'bg-base-300 text-base-content'], 'approve' => ['thumbs-up', 'bg-primary text-primary-content'],
+                           'reject' => ['xmark', 'bg-error text-error-content'], 'cancel' => ['ban', 'bg-error text-error-content'],
+                           'lapse' => ['hourglass-end', 'bg-warning text-warning-content'], 'assign' => ['user-plus', 'bg-info text-info-content'],
+                           'confirm' => ['circle-check', 'bg-primary text-primary-content'], 'reject_assignment' => ['user-xmark', 'bg-error text-error-content'],
+                           'replace_driver' => ['right-left', 'bg-info text-info-content'], 'complete' => ['flag-checkered', 'bg-primary text-primary-content'],
+                           'reminder' => ['bell', 'bg-secondary text-secondary-content']];
+                  foreach (requestHistory($conn, $rid) as $h): if ($h['action'] === 'comment' || (!isAdmin() && in_array($h['action'], $internalOnly, true))) { continue; }
+                      [$ic, $cls] = $icon[$h['action']] ?? ['circle', 'bg-base-300 text-base-content']; ?>
+                <li class="relative ms-6 pb-4 last:pb-0">
+                    <span class="absolute -start-[2.15rem] grid size-7 place-items-center rounded-full ring-4 ring-base-100 <?= $cls ?>"><i class="fas fa-<?= $ic ?> text-[0.7rem]" aria-hidden="true"></i></span>
+                    <div class="font-semibold"><?= reqH($h['label']) ?></div>
+                    <div class="text-xs text-base-content/65"><?= reqH($h['who']) ?> &middot; <?= date('d M Y H:i', strtotime($h['created_at'])) ?></div>
+                    <?= $h['reason'] && !in_array($h['action'], ['submit'], true) ? '<div class="mt-1 rounded-xl bg-base-200 px-3 py-1.5 text-sm">' . reqH($h['reason']) . '</div>' : '' ?>
                 </li>
             <?php endforeach; ?>
-            </ul>
+            </ol>
         </div>
         <?php endif; ?>
     </div>
