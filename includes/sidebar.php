@@ -47,7 +47,7 @@ function sidebarActive(string|array $pages, string $current): string
 
 // ── Counts shown as small badges ─────────────────────────────────
 $_sidebar_uid     = (int)($_SESSION['user_id'] ?? 0);
-$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0];
+$_badge           = ['requests' => 0, 'assignments' => 0, 'approvals' => 0];
 $_app_unread      = 0;   // unread notifications (the bell)
 $_app_notifs      = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
@@ -55,7 +55,6 @@ if ($_sidebar_uid > 0 && isset($conn)) {
         if ($_is_admin_role) {
             $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
             $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
-            $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
         }
         if ($role === 'supervisor') {
             $st = $conn->prepare("SELECT COUNT(*) FROM vehicle_requests WHERE supervisor_id = ? AND status = 'pending'");
@@ -91,7 +90,6 @@ if ($_is_admin_role) {
         'Requests' => array_merge(
             [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
             $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
-            [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
         ),
         'Schedule' => [
             [['calendar.php'],       'admin/calendar.php',       'calendar-days', 'Schedule Calendar', null],

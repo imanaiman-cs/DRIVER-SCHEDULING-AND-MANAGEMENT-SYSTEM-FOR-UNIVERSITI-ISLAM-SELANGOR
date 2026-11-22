@@ -151,8 +151,14 @@ adminPageStart('Vehicle Requests');
                             <a class="btn" href="replace_driver.php?schedule_id=<?= (int)$t['schedule_id'] ?>"><i class="fas fa-right-left"></i>Replace driver (<?= (int)$t['leg_no'] === 2 ? 'return' : 'outbound' ?>)</a>
                         <?php endforeach; ?>
                     <?php endif; ?>
-                    <?php if ($sel['status'] === 'pending'): ?>
-                        <a class="btn" href="reminders.php"><i class="fas fa-bell-concierge"></i>Approval Reminders</a>
+                    <?php if ($sel['status'] === 'pending'):
+                        // The approval reminder is automatic (runRequestJobs); show when it went out or will go out.
+                        $rs = $conn->prepare('SELECT MAX(sent_at) FROM reminders WHERE request_id = ?');
+                        $rs->bind_param('i', $rid); $rs->execute(); $remSent = $rs->get_result()->fetch_row()[0]; $rs->close();
+                        $remDue = max(time(), strtotime($sel['created_at']) + reminderHours($conn) * 3600); ?>
+                        <span class="text-sm text-base-content/70"><i class="fas fa-bell me-1" aria-hidden="true"></i><?= $remSent
+                            ? 'Reminder sent to the Head of Department on ' . date('d M Y, H:i', strtotime($remSent))
+                            : 'Automatic reminder to the Head of Department on ' . date('d M Y, H:i', $remDue) ?></span>
                     <?php endif; ?>
                     <?php if ($rules['allowed']): ?>
                         <button type="button" class="btn btn-ghost ms-auto text-error" data-open-dialog="cancelDialog"><i class="fas fa-ban"></i>Cancel request</button>

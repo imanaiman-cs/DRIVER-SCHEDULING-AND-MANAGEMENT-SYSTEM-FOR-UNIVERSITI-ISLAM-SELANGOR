@@ -12,5 +12,5 @@ Applies to `admin/dashboard.php`, `staff/dashboard.php`, `supervisor/dashboard.p
 - Figures use weight 300 at 48–60 px; labels stay ≥ 12 px at 65% or more.
 - Empty states are a sentence ("Nothing is waiting. Well done."), never an empty chart.
 - **Cards act, not just show:**
-  - rows in "Needs your action" carry their action — Assign (driver queue), Review (Head of Admin queue), Remind (POST to `reminders.php`, `return=dashboard`);
+  - rows in "Needs your action" carry their action — Assign (driver queue), Review (Head of Admin queue), View (opens the pending request; its approval reminder is automatic);
   - sections marked `data-live` (with an `id`) are refreshed every 60 s by re-fetching the page; paused while the tab is hidden, and a section holding focus is left alone. "Live · updated hh:mm" sits by the heading.

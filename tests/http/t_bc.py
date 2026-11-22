@@ -106,7 +106,7 @@ ok('pending for more than 2 days -> Lapsed', st(rC)=='lapsed')
 ok('lapse releases the lock', sql("SELECT COUNT(*) FROM vehicle_locks WHERE request_id=%d"%rC)=='0')
 ok('lapse notifies the staff member and the Head of Department', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username IN ('stf002','hos003') AND n.message LIKE '%%#%d%%lapsed%%'"%rC))==2)
 # automatic reminder (UC016): one reminder after REMINDER_HOURS (24), sent by the jobs, never by hand
-r=hos2.get('admin/reminders.php'); ok('Head of Department cannot open the reminder page', r.status_code==302)
+ok('there is no manual reminder page any more', not __import__('os').path.exists(ROOT+'/admin/reminders.php'))
 sql("DELETE FROM reminders")
 sql("UPDATE vehicle_requests SET created_at = DATE_SUB(NOW(), INTERVAL 10 HOUR) WHERE request_id=1")
 run_jobs(); ok('no reminder before 24 hours', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='0')
@@ -117,10 +117,10 @@ ok('pending over 24 hours -> one automatic reminder, sent by the system', sql("S
 ok('reminder went to the staff member AND the Head of Department', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username IN ('stf001','hos002') AND n.message LIKE 'Reminder: request #1 %'"))-n0==2)
 ok('and by e-mail (logged)', int(sql("SELECT COUNT(*) FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'"))>=2)
 run_jobs(); ok('the reminder is sent only once', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='1')
-page=ad.get('admin/reminders.php'); ok('reminder page lists pending requests and when the reminder was sent', page.status_code==200 and 'Hours pending' in page.text and 'Sent' in page.text)
-ok('reminder page has no manual sending', 'Send Reminder' not in page.text and 'name="request_id"' not in page.text)
-before=sql("SELECT COUNT(*) FROM reminders")
-ad.post('admin/reminders.php',{'request_id':1}); ok('a POST to the reminder page sends nothing', sql("SELECT COUNT(*) FROM reminders")==before)
+page=ad.get('admin/vehicle_requests.php',tab='pending',open=1); ok('the pending request shows when the reminder was sent', page.status_code==200 and 'Reminder sent to the Head of Department on' in page.text)
+sql("DELETE FROM reminders WHERE request_id=1"); sql("UPDATE vehicle_requests SET created_at = NOW() WHERE request_id=1")
+page=ad.get('admin/vehicle_requests.php',tab='pending',open=1); ok('a new pending request shows when the automatic reminder will go out', 'Automatic reminder to the Head of Department on' in page.text)
+sql("UPDATE vehicle_requests SET created_at = DATE_SUB(NOW(), INTERVAL 30 HOUR) WHERE request_id=1"); run_jobs()
 ok('setting: the reminder must come before the lapse', 'must go out before the request lapses' in ad.post('admin/settings.php',{'W_TASKS':'0.6','W_AFTER_HOURS':'0.4','LAPSE_HOURS':'48','REMINDER_HOURS':'48','WORK_START':'08:00','WORK_END':'17:30','TASK_DURATION_HOURS':'2','SESSION_TIMEOUT_MIN':'15','MAX_FAILED_ATTEMPTS':'5','LOCKOUT_MINUTES':'15'}).text)
 # mail failure: the reminder is still saved
 cfg=ROOT+'/config/mail.php'

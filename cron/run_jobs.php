@@ -6,7 +6,7 @@
 //   1. a request still "Pending" after 2 days (or whose trip time has passed) becomes "Lapsed":
 //      the vehicle lock is released and the staff member and the Head of Department are told
 //   2. a request still "Pending" after 24 hours (setting REMINDER_HOURS) gets one automatic approval reminder:
-//      the Head of Department and the staff member are told in the system and by e-mail (see admin/reminders.php)
+//      the Head of Department and the staff member are told in the system and by e-mail
 //   3. an "Approved" or "Driver Assigned" request that nobody confirmed before the trip time is cancelled
 //   4. a "Confirmed" request whose trip is over becomes "Completed"
 //

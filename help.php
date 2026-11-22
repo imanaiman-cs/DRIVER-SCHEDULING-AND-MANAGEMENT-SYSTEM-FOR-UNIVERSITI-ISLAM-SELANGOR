@@ -31,7 +31,7 @@ $steps = [
                      'A request from a Head of Department is approved by his own head.'],
     'admin' => ['<strong>Vehicle Requests</strong>: Approved requests need a driver. Press <em>Assign driver</em>: the recommendation (fewer tasks and fewer tasks outside working hours rank higher) is shown first; you choose the outbound driver, then use the same driver and vehicle for the return trip or choose a separate driver and vehicle.',
                 'The Head of Admin approves every assignment. A Confirmed trip can have a driver replaced (reason required) until the task starts.',
-                '<strong>Approval Reminders</strong>: a request still waiting for the Head of Department after 24 hours is reminded automatically (Head of Department and staff member, in the system and by e-mail); the page shows when each reminder was sent.',
+                '<strong>Approval reminders</strong> are automatic: a request still waiting for the Head of Department after 24 hours is reminded once (Head of Department and staff member, in the system and by e-mail). The request shows when the reminder went out.',
                 '<strong>Internal Tasks</strong>, <strong>Welfare Duty</strong> and the <strong>Schedule Calendar</strong>; <strong>Drivers</strong> and <strong>Vehicles</strong> (never deleted, only deactivated); <strong>Reports</strong> by month (screen, print, PDF, Excel).'],
 ];
 $steps['head_admin'] = array_merge($steps['admin'], ['<strong>Approve Assignments</strong> (Head of Admin only): approve or reject each assignment, also the ones you made yourself. A rejection needs a reason.']);
