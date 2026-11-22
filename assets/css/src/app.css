@@ -313,6 +313,16 @@
 
   /* ---- Fields: white, green ring when focused ---- */
   .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--color-base-300); }
+  /* Browser autofill paints its own (blue) box behind the text; keep the field's own colours. */
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus,
+  textarea:-webkit-autofill, select:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-base-content);
+    caret-color: var(--color-base-content);
+    -webkit-box-shadow: 0 0 0 1000px var(--color-base-100) inset;
+    box-shadow: 0 0 0 1000px var(--color-base-100) inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+  input:autofill { background-color: transparent; }
   .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
     border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-primary) 22%, transparent); outline-offset: 0;
   }
