@@ -421,6 +421,23 @@
   .pf-swatch > span { width: 1.6rem; height: 1rem; border-radius: 3px; box-shadow: 0 0 0 1px rgb(0 0 0 / .08); }
   .pf-flag { display: grid; place-items: center; width: 3rem; height: 2.25rem; border-radius: 6px; background: var(--color-base-200); font-weight: 700; font-size: .85rem; flex-shrink: 0; }
 
+  /* ---- Vehicles: status tiles (filters) and a gallery of cards ---- */
+  .vh-tile { display: inline-flex; align-items: center; gap: .7rem; min-width: 9.5rem; padding: .65rem 1rem; border-radius: 8px; background: var(--color-base-100);
+    box-shadow: inset 0 0 0 1px var(--color-base-300); font-size: .85rem; font-weight: 500; transition: box-shadow .15s ease; }
+  .vh-tile b { margin-inline-start: auto; font-size: 1.3rem; font-weight: 700; }
+  @media (hover: hover) { .vh-tile:hover { box-shadow: inset 0 0 0 1px var(--color-primary); } }
+  .vh-tile.is-on { box-shadow: inset 0 0 0 2px var(--color-primary); }
+  @media (max-width: 639px) { .vh-tile { min-width: 0; } .vh-tile .vh-st { white-space: normal; } .vh-tile:first-child { grid-column: 1 / -1; } }
+  .vh-st { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+  .vh-st::before { content: ''; width: .5rem; height: .5rem; border-radius: 999px; background: currentColor; }
+  .vh-av { color: #15803d; } .vh-use { color: #1d4ed8; } .vh-mt { color: #b45309; } .vh-in { color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+  [data-theme=uis] .vh-av { color: #86efac; } [data-theme=uis] .vh-use { color: #7dd3fc; } [data-theme=uis] .vh-mt { color: #fbbf24; }
+  .vh-card { display: flex; flex-direction: column; border-radius: 10px; overflow: visible; background: var(--color-base-100); box-shadow: var(--ember-shadow); transition: box-shadow .15s ease, transform .15s ease; }
+  @media (hover: hover) { .vh-card:hover { box-shadow: 0 0 0 1px var(--color-primary), var(--ember-lift); } }
+  .vh-img { display: block; aspect-ratio: 2 / 1; overflow: hidden; border-radius: 10px 10px 0 0; background: #eef5f1; }
+  .vh-img img { width: 100%; height: 100%; object-fit: cover; }
+  .vh-card.is-inactive .vh-img img { filter: grayscale(1); opacity: .6; }
+
   /* ---- Number plates: outlined, ink on paper ---- */
   .plate { background: transparent; color: var(--color-base-content); box-shadow: inset 0 0 0 1.5px currentColor; border-radius: 4px; padding-inline: .4rem; font-size: .75rem; line-height: 1.25rem; }
 
