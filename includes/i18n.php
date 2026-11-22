@@ -186,6 +186,7 @@ function uisThemeHead(): void
             });
         }
         document.addEventListener('DOMContentLoaded', sync);
+        document.addEventListener('uis-theme', sync);              // the Profile page can change the theme too
         document.addEventListener('click', function (e) {
             var b = e.target.closest && e.target.closest('[data-theme-toggle]');
             if (!b) { return; }
