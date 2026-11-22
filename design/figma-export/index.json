@@ -1,0 +1,106 @@
+[
+  {
+    "file": "01-login.html",
+    "title": "Sign in",
+    "width": 1440,
+    "height": 900,
+    "nodes": 41,
+    "depth": 9
+  },
+  {
+    "file": "02-admin-dashboard.html",
+    "title": "Dashboard",
+    "width": 1440,
+    "height": 2433,
+    "nodes": 368,
+    "depth": 12
+  },
+  {
+    "file": "03-admin-vehicle-requests.html",
+    "title": "Vehicle Requests",
+    "width": 1440,
+    "height": 1550,
+    "nodes": 288,
+    "depth": 14
+  },
+  {
+    "file": "04-admin-assign-driver.html",
+    "title": "Assign Driver",
+    "width": 1440,
+    "height": 1105,
+    "nodes": 248,
+    "depth": 14
+  },
+  {
+    "file": "05-admin-calendar.html",
+    "title": "Schedule Calendar",
+    "width": 1440,
+    "height": 1048,
+    "nodes": 322,
+    "depth": 10
+  },
+  {
+    "file": "06-admin-drivers.html",
+    "title": "Drivers",
+    "width": 1440,
+    "height": 1082,
+    "nodes": 339,
+    "depth": 11
+  },
+  {
+    "file": "07-admin-vehicles.html",
+    "title": "Vehicles",
+    "width": 1440,
+    "height": 1094,
+    "nodes": 362,
+    "depth": 11
+  },
+  {
+    "file": "08-admin-reports.html",
+    "title": "Reports",
+    "width": 1440,
+    "height": 1033,
+    "nodes": 176,
+    "depth": 10
+  },
+  {
+    "file": "09-staff-dashboard.html",
+    "title": "Dashboard",
+    "width": 1440,
+    "height": 996,
+    "nodes": 186,
+    "depth": 12
+  },
+  {
+    "file": "10-staff-request-vehicle.html",
+    "title": "Request a Vehicle",
+    "width": 1440,
+    "height": 1141,
+    "nodes": 98,
+    "depth": 11
+  },
+  {
+    "file": "11-hod-dashboard.html",
+    "title": "Dashboard",
+    "width": 1440,
+    "height": 1357,
+    "nodes": 154,
+    "depth": 11
+  },
+  {
+    "file": "12-driver-dashboard.html",
+    "title": "Dashboard",
+    "width": 1440,
+    "height": 900,
+    "nodes": 115,
+    "depth": 11
+  },
+  {
+    "file": "13-staff-dashboard-mobile.html",
+    "title": "Dashboard",
+    "width": 390,
+    "height": 1918,
+    "nodes": 161,
+    "depth": 11
+  }
+]

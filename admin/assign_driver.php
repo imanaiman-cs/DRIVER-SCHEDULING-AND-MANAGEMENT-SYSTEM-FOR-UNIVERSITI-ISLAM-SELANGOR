@@ -120,7 +120,7 @@ adminPageStart('Assign Driver');
                         <div class="text-xs text-base-content/65"><?= date('D, d M', strtotime($win['ret']['start_dt'])) ?> &middot; <?= substr($win['ret']['start'], 0, 5) ?>&ndash;<?= substr($win['ret']['end'], 0, 5) ?></div>
                         <fieldset class="mt-2.5">
                             <legend class="sr-only">Return trip</legend>
-                            <div class="flex flex-col gap-1 rounded-2xl bg-base-200 p-1 text-xs font-semibold min-[480px]:flex-row min-[480px]:rounded-full">
+                            <div class="flex flex-col gap-1 rounded-lg bg-base-200 p-1 text-xs font-semibold min-[480px]:flex-row min-[480px]:rounded-full">
                                 <label class="flex-1 cursor-pointer rounded-full px-2 py-1.5 text-center whitespace-nowrap text-base-content/70 has-[:checked]:bg-base-100 has-[:checked]:text-base-content has-[:checked]:shadow-[var(--ember-shadow)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary">
                                     <input class="sr-only" type="radio" name="return_mode" value="same" checked><i class="fas fa-link me-1 text-primary" aria-hidden="true"></i>Same driver &amp; vehicle</label>
                                 <label class="flex-1 cursor-pointer rounded-full px-2 py-1.5 text-center whitespace-nowrap text-base-content/70 has-[:checked]:bg-base-100 has-[:checked]:text-base-content has-[:checked]:shadow-[var(--ember-shadow)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary">
@@ -134,7 +134,7 @@ adminPageStart('Assign Driver');
                         </div>
                     </li>
                 </ol>
-                <div class="mt-5 rounded-2xl bg-base-200 p-3 text-xs text-base-content/65"><b class="text-base-content">Purpose</b> &middot; <?= htmlspecialchars($req['purpose']) ?></div>
+                <div class="mt-5 rounded-lg bg-base-200 p-3 text-xs text-base-content/65"><b class="text-base-content">Purpose</b> &middot; <?= htmlspecialchars($req['purpose']) ?></div>
             </section>
 
             <!-- The drivers -->
@@ -219,7 +219,7 @@ adminPageStart('Assign Driver');
                 <?php if ($rec['excluded']): ?>
                 <details class="mt-3 text-sm">
                     <summary class="cursor-pointer text-center text-base-content/65">Drivers who cannot be chosen (<?= count($rec['excluded']) ?>)</summary>
-                    <ul class="mt-2 space-y-1 rounded-2xl bg-base-100 p-4 shadow-[var(--ember-shadow)]"><?php foreach ($rec['excluded'] as $x): ?><li><b><?= htmlspecialchars($x['name']) ?></b> &mdash; <?= htmlspecialchars($x['reason']) ?></li><?php endforeach; ?></ul>
+                    <ul class="mt-2 space-y-1 rounded-lg bg-base-100 p-4 shadow-[var(--ember-shadow)]"><?php foreach ($rec['excluded'] as $x): ?><li><b><?= htmlspecialchars($x['name']) ?></b> &mdash; <?= htmlspecialchars($x['reason']) ?></li><?php endforeach; ?></ul>
                 </details>
                 <?php endif; ?>
                 <p class="mt-4 text-xs text-base-content/65">Recommendation: fewer tasks this month and fewer outside working hours rank higher (weights <?= htmlspecialchars((string)$rec['weights']['tasks']) ?> / <?= htmlspecialchars((string)$rec['weights']['outside']) ?>). Tasks this month count trips, internal tasks and welfare duty days.</p>
@@ -227,7 +227,7 @@ adminPageStart('Assign Driver');
         </div>
 
         <!-- The choice so far, and the button -->
-        <div class="sticky bottom-4 z-20 mt-6 flex flex-wrap items-center gap-3 rounded-[28px] bg-[var(--uis-ink)] py-2 ps-3 pe-2 text-sm text-[var(--uis-ink-content)] shadow-xl sm:rounded-full">
+        <div class="sticky bottom-4 z-20 mt-6 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--uis-ink)] py-2 ps-3 pe-2 text-sm text-[var(--uis-ink-content)] shadow-xl sm:rounded-full">
             <span class="hidden -space-x-2 sm:flex" aria-hidden="true"><span class="grid size-9 place-items-center rounded-full bg-[#0e7a4e] text-xs font-bold text-white ring-2 ring-[var(--uis-ink)]" id="sumOutAv"><?= $best ? $initials($best['name']) : '?' ?></span><span class="grid size-9 place-items-center rounded-full bg-[#0e7a4e] text-xs font-bold text-white ring-2 ring-[var(--uis-ink)]" id="sumRetAv"><?= $best ? $initials($best['name']) : '?' ?></span></span>
             <span class="min-w-0 flex-1 truncate text-xs sm:text-sm" aria-live="polite"><span class="opacity-70">Outbound</span> <b id="sumOut"><?= $best ? htmlspecialchars($best['name']) : '—' ?></b> <span class="max-sm:hidden"><span class="opacity-40">|</span> <span class="opacity-70">Return</span> <b id="sumRet">same driver &amp; vehicle</b></span></span>
             <span class="hidden text-xs opacity-70 lg:inline">Next: the Head of Admin approves</span>

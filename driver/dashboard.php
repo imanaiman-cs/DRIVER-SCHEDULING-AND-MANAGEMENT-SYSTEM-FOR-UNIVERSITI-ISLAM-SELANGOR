@@ -62,7 +62,7 @@ adminPageStart('Dashboard');
                 <?php foreach ($todayTasks as $t): $int = $t['kind'] === 'Internal'; ?>
                 <li class="flex gap-3">
                     <span class="w-12 shrink-0 pt-2.5 text-xs font-semibold text-base-content/65 tabular-nums"><?= date('H:i', strtotime($t['start'])) ?></span>
-                    <div class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border-s-4 <?= $int ? 'border-base-content/30 bg-base-200' : 'border-primary bg-primary/10' ?> px-3 py-2.5">
+                    <div class="flex min-w-0 flex-1 items-center gap-3 rounded-lg border-s-4 <?= $int ? 'border-base-content/30 bg-base-200' : 'border-primary bg-primary/10' ?> px-3 py-2.5">
                         <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold"><?= dh($t['title']) ?></span>
                             <span class="block text-xs text-base-content/65"><?= dh($t['kind']) ?> &middot; <?= date('H:i', strtotime($t['start'])) ?>–<?= date('H:i', strtotime($t['end'])) ?></span></span>
                         <?= plate($t['vehicle']) ?>

@@ -97,7 +97,7 @@ adminPageStart('My Tasks');
                     </div>
                     <span class="badge <?= ['trip' => 'badge-primary', 'internal' => 'badge-ghost', 'welfare' => 'badge-secondary'][$t['kind']] ?? 'badge-ghost' ?>"><?= $h($t['type']) ?></span>
                 </div>
-                <dl class="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm [&_dt]:text-base-content/60 [&_dd]:break-words">
+                <dl class="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm [&_dt]:text-base-content/70 [&_dd]:break-words">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
                     <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $t['vehicle'] ?></dd><?php endif; ?>
                     <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?></dd><?php endif; ?>
