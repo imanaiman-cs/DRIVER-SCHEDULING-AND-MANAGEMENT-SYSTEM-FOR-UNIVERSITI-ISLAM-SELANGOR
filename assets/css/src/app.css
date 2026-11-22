@@ -377,7 +377,7 @@
     .vr-table tr.vr-row.is-open td { background: transparent; box-shadow: none; }
     .vr-table tr.vr-row.is-open { background: color-mix(in oklab, var(--color-primary) 8%, transparent); }
   }
-  /* The chosen request: a pop-up in the middle of the screen over the table */
+  /* The chosen request: a pop-up in the middle of the content area, over the table */
   .vr-drawer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1.5rem; }
   .vr-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .5); animation: vr-fade .15s ease-out; }
   .vr-panel { position: relative; width: min(52rem, 100%); max-height: calc(100dvh - 3rem); overflow-y: auto; overscroll-behavior: contain;
@@ -386,6 +386,10 @@
   @keyframes vr-in { from { transform: translateY(.75rem) scale(.98); opacity: 0; } }
   @keyframes vr-fade { from { opacity: 0; } }
   @media (max-width: 640px) { .vr-drawer { padding: .5rem; } .vr-panel { max-height: calc(100dvh - 1rem); padding: 1rem; } }
+  @media (min-width: 1024px) {                               /* centred on the content area, beside the sidebar (open or collapsed) */
+    .vr-drawer { left: 15.5rem; }
+    html.rail-closed .vr-drawer { left: 4.25rem; }
+  }
 
   /* ---- Number plates: outlined, ink on paper ---- */
   .plate { background: transparent; color: var(--color-base-content); box-shadow: inset 0 0 0 1.5px currentColor; border-radius: 4px; padding-inline: .4rem; font-size: .75rem; line-height: 1.25rem; }
