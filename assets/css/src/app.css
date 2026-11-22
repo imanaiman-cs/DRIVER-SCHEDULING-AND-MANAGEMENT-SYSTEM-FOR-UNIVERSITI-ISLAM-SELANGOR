@@ -377,11 +377,15 @@
     .vr-table tr.vr-row.is-open td { background: transparent; box-shadow: none; }
     .vr-table tr.vr-row.is-open { background: color-mix(in oklab, var(--color-primary) 8%, transparent); }
   }
-  .vr-drawer { position: fixed; inset: 0; z-index: 60; }
-  .vr-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .45); }
-  .vr-panel { position: absolute; top: 0; right: 0; height: 100%; width: min(46rem, 100%); overflow-y: auto; overscroll-behavior: contain;
-    background: var(--uis-page); padding: 1.25rem; box-shadow: -24px 0 60px rgb(0 0 0 / .35); animation: vr-in .2s ease-out; }
-  @keyframes vr-in { from { transform: translateX(1.5rem); opacity: 0; } }
+  /* The chosen request: a pop-up in the middle of the screen over the table */
+  .vr-drawer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1.5rem; }
+  .vr-backdrop { position: absolute; inset: 0; background: rgb(0 0 0 / .5); animation: vr-fade .15s ease-out; }
+  .vr-panel { position: relative; width: min(52rem, 100%); max-height: calc(100dvh - 3rem); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--uis-page); padding: 1.25rem; border-radius: 12px; box-shadow: 0 30px 80px rgb(0 0 0 / .45), 0 0 0 1px var(--color-base-300);
+    animation: vr-in .18s ease-out; }
+  @keyframes vr-in { from { transform: translateY(.75rem) scale(.98); opacity: 0; } }
+  @keyframes vr-fade { from { opacity: 0; } }
+  @media (max-width: 640px) { .vr-drawer { padding: .5rem; } .vr-panel { max-height: calc(100dvh - 1rem); padding: 1rem; } }
 
   /* ---- Number plates: outlined, ink on paper ---- */
   .plate { background: transparent; color: var(--color-base-content); box-shadow: inset 0 0 0 1.5px currentColor; border-radius: 4px; padding-inline: .4rem; font-size: .75rem; line-height: 1.25rem; }

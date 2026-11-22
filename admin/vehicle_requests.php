@@ -5,7 +5,7 @@
 //
 // Layout: a full-width table (search, status tabs) with a Remark per request (what is happening to it now: who it waits
 // for, the automatic reminder, an urgent trip, the reason it was rejected or cancelled) and the action in the row.
-// A row opens the request in a drawer on the right (?open=ID): summary, action, progress, details, history, comments.
+// A row opens the request in a pop-up in the middle of the screen (?open=ID): summary, action, progress, details, history, comments.
 //
 //   Approved          -> "Assign driver" (UC017, with the recommendation UC018)
 //   Driver Assigned   -> waits for the Head of Admin (admin/approve_assignments.php)
@@ -256,6 +256,7 @@ document.addEventListener('click', function (e) {
 (function () {
     var drawer = document.getElementById('reqDrawer');
     if (!drawer) { return; }
+    document.body.appendChild(drawer);   // above the sidebar and the top bar, so the whole screen is dimmed
     document.documentElement.classList.add('overflow-hidden');
     var close = document.getElementById('drawerClose'); if (close) { close.focus(); }
     document.addEventListener('keydown', function (e) {
