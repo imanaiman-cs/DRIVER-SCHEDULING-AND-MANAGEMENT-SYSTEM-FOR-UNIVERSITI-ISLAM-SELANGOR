@@ -16,7 +16,7 @@ Every role is also Staff, so every account can request a vehicle (menu: Request 
    Name     : Rozaimi bin Kamaruzzaman
    Can do   : process approved requests (recommended driver -> "Driver Assigned"), Replace Driver,
               vehicles and maintenance, drivers, internal tasks, welfare duty, calendar,
-              manual approval reminders, the four monthly reports, settings
+              approval reminders (automatic, view only), the four monthly reports, settings
 
 2. HEAD OF ADMIN
    Username : head001        Password : head001@uis

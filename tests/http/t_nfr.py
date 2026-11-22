@@ -6,7 +6,7 @@ ADMIN_ONLY=[]; PAGES=[]
 for f in sorted(glob.glob(ROOT+'/**/*.php',recursive=True)):
     rel=os.path.relpath(f,ROOT)
     top=rel.split('/')[0]
-    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor') or rel in ('index.php','logout.php','login.php') or rel.endswith('fleet_helpers.php'): continue
+    if top in ('includes','config','cron','tests','tools','uploads','docs','migrations','vendor','lang','node_modules','design','scripts') or rel in ('index.php','logout.php','login.php') or rel.endswith('fleet_helpers.php'): continue
     PAGES.append(rel)
 # 1. anonymous visitors get nothing
 bad=[]
@@ -35,7 +35,7 @@ for rel in PAGES:
         if role in allowed: continue
         ok('%s is NOT open to %s'%(rel,role), not is_ok)
 # 3. CSRF on every POST
-r=sess['admin'].post('admin/reminders.php',{'request_id':1},csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code==419)
+r=sess['admin'].post('admin/settings.php',{'LAPSE_HOURS':'48'},csrf=False); ok('POST without a CSRF token is refused (419)', r.status_code==419)
 r=sess['staff'].post('ajax/cancel_request.php',{'request_id':1},csrf=False); ok('AJAX POST without a CSRF token is refused (419)', r.status_code==419)
 # 4. login rules
 c=C()

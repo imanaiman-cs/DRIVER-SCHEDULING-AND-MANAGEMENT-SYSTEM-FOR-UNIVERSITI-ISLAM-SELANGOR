@@ -181,8 +181,7 @@ $badTrend = dashTrend($badNow, $badBefore);
                                 <?php elseif ($tone === 'info'): ?>
                                     <a class="btn btn-sm" href="<?= dh($queueLink) ?>" aria-label="Review request #<?= $rid ?>">Review</a>
                                 <?php else: ?>
-                                    <form method="post" action="reminders.php"><input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return" value="dashboard">
-                                        <button class="btn btn-sm" type="submit" data-loading-text="Sending…" aria-label="Send a reminder for request #<?= $rid ?>">Remind</button></form>
+                                    <a class="btn btn-sm" href="reminders.php" aria-label="See the automatic reminder for request #<?= $rid ?>">Reminder</a>
                                 <?php endif; ?>
                             </td>
                         </tr>

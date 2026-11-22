@@ -48,7 +48,7 @@ No framework, no new top-level layers. Prepared statements for every query; CSRF
 * Status engine: `changeRequestStatus($conn,$id,$to,['reason'=>…,'system'=>bool])`, `cancelRulesFor($req)`, `REQUEST_ACTIVE_STATUSES`.
 * Assignment: `assignRequestDrivers($conn,$id,$outDriver,$retDriver=null,$retVehicle=null)`, `approveAssignment($conn,$id)`, `rejectAssignment($conn,$id,$reason)`, `replaceTaskDriver($conn,$schedule_id,$new_driver,$reason)`.
 * Comments: `addRequestComment($conn,$req,$text)`, `requestComments($conn,$id)`. Visibility: `requestForCurrentUser($conn,$id)`, `hodOwnsRequest()`.
-* Reminder (manual): `sendApprovalReminder($conn,$id)`.
+* Reminder (automatic since 22 Nov 2026, after `REMINDER_HOURS`, from `runRequestJobs()`): `sendApprovalReminder($conn,$id)`.
 * Jobs: `runRequestJobs($conn)` (lapse, cancel unhandled, complete).
 * Driver visibility: `SCHEDULE_CONFIRMED_ONLY_SQL` (table alias `s` = schedules) — a driver sees a task only when its request is Confirmed/Completed.
 

@@ -433,6 +433,7 @@ INSERT INTO settings (setting_key, setting_value, description) VALUES
  ('W_TASKS',             '0.6',   'Weight of the number of tasks this month in the driver score'),
  ('W_AFTER_HOURS',       '0.4',   'Weight of the number of tasks outside working hours in the driver score'),
  ('LAPSE_HOURS',         '48',    'A request still Pending after this many hours becomes Lapsed'),
+ ('REMINDER_HOURS',      '24',    'A request still Pending after this many hours gets one automatic approval reminder'),
  ('WORK_START',          '08:00', 'Working hours start (a task before this is outside working hours)'),
  ('WORK_END',            '17:30', 'Working hours end (a task after this is outside working hours)'),
  ('SESSION_TIMEOUT_MIN', '15',    'Minutes without activity before a user is signed out'),
