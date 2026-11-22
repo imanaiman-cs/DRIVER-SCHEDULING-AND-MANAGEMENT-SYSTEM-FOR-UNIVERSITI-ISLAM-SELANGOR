@@ -307,6 +307,7 @@
   }
   .ember-panel .tabs-border > .tab { height: 2.1rem; padding-inline: 1rem; border-radius: 999px; font-weight: 500; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
   .ember-panel .tabs-border > .tab::before { display: none; }
+  .ember-panel .tabs-border > .tab { flex-shrink: 0; white-space: nowrap; }
   .ember-panel .tabs-border > .tab.tab-active { background: var(--uis-ink); color: var(--uis-ink-content); }
   .ember-panel .tabs-border > .tab.tab-active span { color: inherit; opacity: .8; }
 
