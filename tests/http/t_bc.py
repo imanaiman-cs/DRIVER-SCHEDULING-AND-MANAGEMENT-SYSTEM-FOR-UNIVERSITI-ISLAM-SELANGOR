@@ -117,6 +117,7 @@ ok('pending over 24 hours -> one automatic reminder, sent by the system', sql("S
 ok('reminder went to the staff member AND the Head of Department', int(sql("SELECT COUNT(*) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username IN ('stf001','hos002') AND n.message LIKE 'Reminder: request #1 %'"))-n0==2)
 ok('and by e-mail (logged)', int(sql("SELECT COUNT(*) FROM email_log WHERE subject LIKE '%%Reminder: request #1%%'"))>=2)
 run_jobs(); ok('the reminder is sent only once', sql("SELECT COUNT(*) FROM reminders WHERE request_id=1")=='1')
+page=ad.get('admin/vehicle_requests.php',tab='pending'); ok('the request table shows the reminder in the Remark column', 'Remark' in page.text and 'Head of Department to approve; reminder sent' in page.text and 'id="reqDrawer"' not in page.text)
 page=ad.get('admin/vehicle_requests.php',tab='pending',open=1); ok('the pending request shows when the reminder was sent', page.status_code==200 and 'Reminder sent to the Head of Department on' in page.text)
 sql("DELETE FROM reminders WHERE request_id=1"); sql("UPDATE vehicle_requests SET created_at = NOW() WHERE request_id=1")
 page=ad.get('admin/vehicle_requests.php',tab='pending',open=1); ok('a new pending request shows when the automatic reminder will go out', 'Automatic reminder to the Head of Department on' in page.text)

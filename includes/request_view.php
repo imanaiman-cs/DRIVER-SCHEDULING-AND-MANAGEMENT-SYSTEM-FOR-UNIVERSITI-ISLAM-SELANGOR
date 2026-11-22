@@ -113,7 +113,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php if ($tasks): ?>
         <div class="col-span-12">
             <div class="text-base-content/60">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
-            <div class="overflow-x-auto"><table class="table mb-0">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Assigned drivers and vehicles"><table class="table mb-0">
                 <tbody>
                 <?php foreach ($tasks as $t): ?>
                     <tr>
