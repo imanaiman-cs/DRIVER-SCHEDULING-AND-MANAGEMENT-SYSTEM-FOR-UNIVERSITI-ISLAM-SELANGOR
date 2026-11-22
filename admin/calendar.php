@@ -20,10 +20,10 @@ adminPageStart('Schedule Calendar');
     .cal-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
     .cal-title { font-weight: 500; font-size: 1.125rem; min-width: 11rem; text-align: center; }
     .cal-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-left: 1px solid var(--color-base-300); border-top: 1px solid var(--color-base-300); }
-    .cal-month .cal-dow { padding: .375rem .25rem; font-size: .75rem; font-weight: 500; text-align: center; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); }
+    .cal-month .cal-dow { padding: .375rem .25rem; font-size: .75rem; font-weight: 500; text-align: center; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); }
     .cal-cell { min-height: 7rem; padding: .25rem; border-right: 1px solid var(--color-base-300); border-bottom: 1px solid var(--color-base-300); overflow: hidden; cursor: pointer; }
     .cal-cell:hover { background: var(--color-base-200); }
-    .cal-cell.other { color: color-mix(in oklab, var(--color-base-content) 62%, transparent); }
+    .cal-cell.other { color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
     .cal-cell.today .cal-num { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--color-base-content); color: var(--color-base-100); }
     .cal-cell .cal-num { font-size: .8125rem; font-family: var(--font-mono); }
     .cal-chip { display: block; width: 100%; text-align: left; border: 0; border-radius: 4px; padding: 0 .375rem; margin-top: .25rem; font-size: .75rem; line-height: 1.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -32,7 +32,7 @@ adminPageStart('Schedule Calendar');
     /* Welfare duty is on every day, so it stays a quiet tint; trips are the solid colour */
     .cal-chip.welfare, .cal-key.welfare { background: color-mix(in oklab, var(--color-secondary) 22%, var(--color-base-100)); color: var(--color-base-content); }
     .cal-dots i.welfare { background: var(--color-secondary); }
-    .cal-more { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); margin-top: .125rem; }
+    .cal-more { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); margin-top: .125rem; }
     .cal-dots { display: none; flex-wrap: wrap; gap: 2px; margin-top: .25rem; }
     .cal-dots i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .5rem; }
@@ -42,7 +42,7 @@ adminPageStart('Schedule Calendar');
     .cal-item { display: block; width: 100%; text-align: left; border: 0; border-left: 3px solid; background: var(--color-base-200); border-radius: 4px; padding: .375rem .5rem; margin-bottom: .375rem; font-size: .8125rem; }
     .cal-item:hover { background: var(--color-base-300); }
     .cal-item.trip { border-color: var(--color-primary); } .cal-item.internal { border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent); } .cal-item.welfare { border-color: var(--color-secondary); }
-    .cal-item .t { font-weight: 500; } .cal-item .s { color: color-mix(in oklab, var(--color-base-content) 60%, transparent); font-size: .75rem; }
+    .cal-item .t { font-weight: 500; } .cal-item .s { color: color-mix(in oklab, var(--color-base-content) 70%, transparent); font-size: .75rem; }
     .cal-day .cal-item { font-size: .9375rem; padding: .625rem .75rem; }
     .cal-legend span { display: inline-flex; align-items: center; gap: .375rem; margin-right: 1rem; font-size: .8125rem; }
     .cal-key { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }

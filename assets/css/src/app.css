@@ -330,8 +330,7 @@
   .ember-panel .tabs-border > .tab.tab-active span { color: inherit; opacity: .8; }
 
   /* ---- Fields: white, green ring when focused ---- */
-<<<<<<< Updated upstream
-  .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--color-base-300); }
+  .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--uis-line); }
   /* Browser autofill paints its own (blue) box behind the text; keep the field's own colours. */
   input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus,
   textarea:-webkit-autofill, select:-webkit-autofill {
@@ -342,9 +341,6 @@
     transition: background-color 9999s ease-out 0s;
   }
   input:autofill { background-color: transparent; }
-=======
-  .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--uis-line); }
->>>>>>> Stashed changes
   .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
     border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-primary) 18%, transparent); outline-offset: 0;
   }
@@ -356,6 +352,7 @@
     font-size: .75rem; font-weight: 600; padding-block: .7rem; border-bottom: 1px solid var(--color-base-300);
   }
   .table :where(tbody) :where(td, th) { border-color: var(--color-base-200); }
+  .table :where(tfoot) :where(td, th) { color: var(--color-base-content); }   /* totals row at full strength */
   @media (hover: hover) { .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 4%, transparent); } }
 
   /* ---- Number plates: outlined, ink on paper ---- */
@@ -396,7 +393,7 @@
   .e-stripe { background: repeating-linear-gradient(135deg, var(--uis-stripe-a) 0 6px, var(--uis-stripe-b) 6px 12px); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-primary) 18%, transparent); }
 
   .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 700; color: #ffffff; box-shadow: 0 0 0 2px var(--color-base-100); }
-  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #b8860b; } .e-avatar-2 { background: #17211c; } .e-avatar-3 { background: #0e7a4e; }
+  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #b8860b; color: #17211c; } .e-avatar-2 { background: #17211c; } .e-avatar-3 { background: #0e7a4e; }
 
   .e-day { display: flex; flex-direction: column; align-items: center; gap: .1rem; border-radius: 6px; background: var(--color-base-200); padding: .45rem 0; }
   .e-day span { font-size: .68rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
