@@ -49,7 +49,7 @@ function dashMyRequestsSection(mysqli $conn, int $uid): void
                 <div class="mt-1 text-sm text-base-content/65"><?= requestPeriodText($next) ?> &middot; <?= (int)$next['passenger_count'] ?> pax</div>
                 <?= dashStepper($next['status']) ?>
                 <div class="mt-auto pt-4">
-                    <div class="rounded-2xl bg-base-200 p-4 text-sm">
+                    <div class="rounded-lg bg-base-200 p-4 text-sm">
                         <?php if ($next['status'] === 'processed'):
                             $a = dashRows($conn, "SELECT DISTINCT d.name FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id WHERE s.request_id = ? AND s.status <> 'cancelled'", 'i', [(int)$next['request_id']]); ?>
                             <div class="flex flex-wrap items-center justify-between gap-2">

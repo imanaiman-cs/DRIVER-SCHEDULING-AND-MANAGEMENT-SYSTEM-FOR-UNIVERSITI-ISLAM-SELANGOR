@@ -7,7 +7,7 @@
 // Needs $page_title / $current_page to be set before adminPageStart() (the sidebar reads them).
 // ============================================================
 
-/** The <head> tags every signed-in page shares (Tailwind + DaisyUI build, Font Awesome icons, IBM Plex). */
+/** The <head> tags every signed-in page shares (Tailwind + DaisyUI build, Font Awesome icons, IBM Plex Sans). */
 function appHead(string $title): void
 {
     ?>
@@ -16,9 +16,9 @@ function appHead(string $title): void
     <title><?= htmlspecialchars($title) ?> | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="<?= SITE_URL ?>/assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script>try { if (localStorage.getItem('uis-rail') === 'open') { document.documentElement.classList.add('rail-open'); } } catch (e) {}</script>
+    <script>try { if (localStorage.getItem('uis-rail') === 'closed') { document.documentElement.classList.add('rail-closed'); } } catch (e) {}</script>
     <?php uisThemeHead(); ?>
     <link href="<?= SITE_URL ?>/assets/css/app.css?v=<?= @filemtime(__DIR__ . '/../assets/css/app.css') ?>" rel="stylesheet">
 <?php
@@ -42,7 +42,7 @@ function adminPageStart(string $title): void
 </head>
 <body class="uis-page min-h-screen">
 <?php require __DIR__ . '/sidebar.php'; ?>
-<main class="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-2 pb-8 sm:px-6 lg:px-8" id="mainContent">
+<main class="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-6 pb-10 sm:px-6 lg:px-8" id="mainContent">
     <?php showFlash(); ?>
 <?php
 }

@@ -93,7 +93,7 @@ adminPageStart('Vehicle Requests');
             <ul class="flex flex-col gap-1 lg:max-h-[calc(100dvh-15rem)] lg:overflow-y-auto">
                 <?php foreach ($requests as $r): $rid = (int)$r['request_id']; $on = $sel && (int)$sel['request_id'] === $rid; $urgent = $isUrgent($r); ?>
                 <li>
-                    <a href="<?= htmlspecialchars($link(['open' => $rid])) ?>" class="block rounded-2xl px-3 py-3 transition-colors <?= $on ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-base-200' ?>" <?= $on ? 'aria-current="true"' : '' ?>>
+                    <a href="<?= htmlspecialchars($link(['open' => $rid])) ?>" class="block rounded-lg px-3 py-3 transition-colors <?= $on ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-base-200' ?>" <?= $on ? 'aria-current="true"' : '' ?>>
                         <div class="flex items-center justify-between gap-2">
                             <span class="flex items-center gap-2 text-xs font-semibold text-base-content/65">#<?= $rid ?>
                                 <?php if ($urgent): ?><span class="inline-flex items-center gap-1 rounded-full bg-error/10 px-2 py-0.5 text-error"><i class="fas fa-clock" aria-hidden="true"></i>Leaves in <?= $hoursLeft($r) ?> h</span><?php endif; ?>
@@ -129,7 +129,7 @@ adminPageStart('Vehicle Requests');
                 </div>
 
                 <?php if ($urgent): ?>
-                <div class="mt-4 flex items-start gap-3 rounded-2xl bg-error/10 px-4 py-3 text-sm text-error" role="note"><i class="fas fa-triangle-exclamation mt-0.5" aria-hidden="true"></i><span><strong>Leaves in <?= $hoursLeft($sel) ?> h</strong> and is not Confirmed yet.</span></div>
+                <div class="mt-4 flex items-start gap-3 rounded-lg bg-error/10 px-4 py-3 text-sm text-error" role="note"><i class="fas fa-triangle-exclamation mt-0.5" aria-hidden="true"></i><span><strong>Leaves in <?= $hoursLeft($sel) ?> h</strong> and is not Confirmed yet.</span></div>
                 <?php endif; ?>
 
                 <!-- The next action -->

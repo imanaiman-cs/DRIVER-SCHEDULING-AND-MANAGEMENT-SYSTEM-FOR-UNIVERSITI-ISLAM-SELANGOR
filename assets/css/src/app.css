@@ -42,9 +42,9 @@
   --color-error: #f87171;
   --color-error-content: #1a0505;
 
-  --radius-selector: 0.5rem;
-  --radius-field: 0.875rem;
-  --radius-box: 1.375rem;
+  --radius-selector: 0.25rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -52,18 +52,18 @@
   --noise: 0;
 }
 
-/* Light (the default, "Emerald Pill"): pale grey page, white cards with a hairline, UIS green, near-black ink */
+/* Light (the default, "Corporate", chosen 22 Nov 2026): pale grey page, white bordered cards, UIS green, small radii */
 @plugin "daisyui/theme" {
   name: "uis-light";
   default: true;
   color-scheme: light;
   --color-base-100: #ffffff;
-  --color-base-200: #f3f5f4;
-  --color-base-300: #e4e9e6;
-  --color-base-content: #0a120e;
+  --color-base-200: #f4f6f5;
+  --color-base-300: #dde3e0;
+  --color-base-content: #17211c;
   --color-primary: #0b5d3b;
   --color-primary-content: #ffffff;
-  --color-secondary: #d4a017;
+  --color-secondary: #b8860b;
   --color-secondary-content: #1b1400;
   --color-accent: #13a86a;
   --color-accent-content: #ffffff;
@@ -77,9 +77,9 @@
   --color-warning-content: #ffffff;
   --color-error: #b91c1c;
   --color-error-content: #ffffff;
-  --radius-selector: 0.5rem;
-  --radius-field: 0.875rem;
-  --radius-box: 1.375rem;
+  --radius-selector: 0.25rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.5rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -88,8 +88,8 @@
 }
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;   /* times and counts: tabular figures */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;   /* times and counts: tabular figures */
   --font-plate: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
 }
 
@@ -216,102 +216,121 @@
   .dash-chart-centre span { @apply text-xs text-base-content/60; }
 }
 
-/* ---------- "Emerald Pill" look (chosen from the DTech catalog directions): a slim white icon rail, a pill menu in
-   the header, white cards with a hairline, UIS green, near-black ink for the active pill, outlined number plates.
+/* ---------- "Corporate" look (direction A, chosen 22 Nov 2026): a full white sidebar with labelled sections, a white top bar
+   with a breadcrumb, white cards with a 1 px border and 8 px corners, small-radius buttons and an underline tab bar.
    Class names keep their old "ember"/"e-" prefixes so the pages did not need to change.
    Sits in the utilities layer (and under .ember-panel) so it wins over DaisyUI and the page classes. ---------- */
 @layer utilities {
   :root {
-    --ember-shadow: 0 0 0 1px var(--color-base-300);          /* cards: a hairline instead of a shadow */
-    --ember-lift: 0 1px 2px rgb(16 24 20 / .04), 0 10px 28px -18px rgb(16 24 20 / .25);
-    --ember-dark: #101814;
-    --uis-ink: #101814; --uis-ink-content: #ffffff;           /* the active pill in menus and tabs */
+    --ember-shadow: 0 0 0 1px var(--color-base-300);          /* cards: a 1 px border, no shadow */
+    --ember-lift: 0 1px 2px rgb(16 24 20 / .05), 0 8px 24px -16px rgb(16 24 20 / .25);
+    --ember-dark: #17211c;
+    --uis-ink: #17211c; --uis-ink-content: #ffffff;
     --uis-page: var(--color-base-200); --uis-panel: transparent; --uis-rail: var(--color-base-100);
-    --uis-btn: var(--color-base-100); --uis-line: var(--color-base-300); --uis-chip-fg: var(--color-primary);
+    --uis-btn: var(--color-base-100); --uis-line: #cfd8d3; --uis-chip-fg: var(--color-primary);
+    --uis-active-bg: #e8f2ed;
     --uis-stripe-a: #cfe9dc; --uis-stripe-b: #eef8f3;
   }
   [data-theme=uis] {
     --ember-lift: 0 10px 30px -18px rgb(0 0 0 / .8);
     --ember-dark: #e7eeea; --uis-ink: #e7eeea; --uis-ink-content: #0b120f; --uis-chip-fg: #6ee7b7;
+    --uis-line: var(--color-base-300); --uis-active-bg: rgb(16 185 129 / .14);
     --uis-stripe-a: rgb(16 185 129 / .30); --uis-stripe-b: rgb(16 185 129 / .08);
   }
   .uis-page { background: var(--uis-page); }
 
-  /* ---- Rail: white, flush to the left edge, icons in rounded squares ---- */
+  /* ---- Sidebar: white, full width with labels and section names; collapses to icons on request ---- */
   .ember-rail { background: var(--uis-rail); border-inline-end: 1px solid var(--color-base-300); }
   .ember-rail .rail-item {
-    position: relative; display: flex; align-items: center; gap: .75rem; height: 2.5rem; padding: 0 .8rem;
-    border-radius: 12px; color: color-mix(in oklab, var(--color-base-content) 62%, transparent); font-size: .9rem; font-weight: 500;
+    position: relative; display: flex; align-items: center; gap: .75rem; height: 2.5rem; padding: 0 .75rem;
+    border-radius: 6px; color: color-mix(in oklab, var(--color-base-content) 78%, transparent); font-size: .875rem; font-weight: 500;
     transition: background-color .15s ease, color .15s ease;
   }
-  .ember-rail .rail-item i { width: 1.1rem; text-align: center; }
+  .ember-rail .rail-item i { width: 1.1rem; text-align: center; color: color-mix(in oklab, var(--color-base-content) 60%, transparent); }
   @media (hover: hover) { .ember-rail .rail-item:hover { background: var(--color-base-200); color: var(--color-base-content); } }
-  .ember-rail .rail-item.is-active { background: var(--color-primary); color: var(--color-primary-content); }
+  .ember-rail .rail-item.is-active { background: var(--uis-active-bg); color: var(--color-primary); font-weight: 600; }
+  [data-theme=uis] .ember-rail .rail-item.is-active { color: #6ee7b7; }
+  .ember-rail .rail-item.is-active i { color: inherit; }
   .ember-rail .rail-count {
-    margin-inline-start: auto; display: grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
-    border-radius: 999px; background: var(--color-secondary); color: #1b1400; font-size: .65rem; font-weight: 700;
+    margin-inline-start: auto; display: grid; place-items: center; min-width: 1.4rem; height: 1.25rem; padding: 0 .4rem;
+    border-radius: 999px; background: #fbf1d6; color: #7a5800; font-size: .72rem; font-weight: 600;
   }
+  [data-theme=uis] .ember-rail .rail-count { background: rgb(212 160 23 / .2); color: #f5d37a; }
+  .ember-rail .rail-divider { display: none; }
+  .ember-rail .rail-section { padding: .9rem .75rem .3rem; font-size: .68rem; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+    color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   @media (hover: hover) { .ember-rail .rail-logout:hover { background: color-mix(in oklab, var(--color-error) 10%, transparent); color: var(--color-error); } }
+  .ember-rail .rail-logout { color: var(--color-error); }
+  .ember-rail .rail-logout i { color: inherit; }
   .ember-rail .tooltip { --tt-bg: var(--uis-ink); --tt-color: var(--uis-ink-content); }
   @media (min-width: 1024px) {
-    /* Collapsed: a 68 px icon rail; names stay readable by screen readers and show as tooltips */
-    .ember-rail { width: 4.25rem; align-items: center; transition: width .2s ease; }
-    .ember-rail > ul { align-items: center; overflow: visible; }
-    .ember-rail > a { margin-inline: 0; }
-    .ember-rail .rail-item { width: 2.5rem; justify-content: center; padding: 0; }
-    .ember-rail .rail-count { position: absolute; top: -.25rem; right: -.3rem; margin: 0; box-shadow: 0 0 0 2px var(--uis-rail); }
-    .ember-rail .rail-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-    .ember-rail .rail-section { position: absolute; }
+    /* Open (default): a 15 rem labelled sidebar; tooltips off */
+    .ember-rail { width: 15.5rem; align-items: stretch; transition: width .2s ease; }
+    .ember-rail .tooltip::before, .ember-rail .tooltip::after { display: none; }
+    html.rail-closed .ember-rail .rail-divider { display: block; }
 
-    /* Expanded: labels and section names, tooltips off */
-    html.rail-open .ember-rail { width: 15rem; align-items: stretch; }
-    html.rail-open .ember-rail > ul { align-items: stretch; overflow-y: auto; }
-    html.rail-open .ember-rail > a { margin-inline: .75rem; }
-    html.rail-open .ember-rail .rail-item { width: auto; justify-content: flex-start; padding: 0 .8rem; }
-    html.rail-open .ember-rail .rail-count { position: static; margin-inline-start: auto; box-shadow: none; }
-    html.rail-open .ember-rail .rail-label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: nowrap; }
-    html.rail-open .ember-rail .rail-section { display: block; }
-    html.rail-open .ember-rail .tooltip::before, html.rail-open .ember-rail .tooltip::after { display: none; }
-    html.rail-open #railToggle i { transform: rotate(180deg); }
+    /* Collapsed: a 68 px icon rail; names stay readable by screen readers and show as tooltips */
+    html.rail-closed .ember-rail { width: 4.25rem; align-items: center; }
+    html.rail-closed .ember-rail > ul { align-items: center; overflow: visible; }
+    html.rail-closed .ember-rail > a { margin-inline: 0; }
+    html.rail-closed .ember-rail .rail-item { width: 2.5rem; justify-content: center; padding: 0; }
+    html.rail-closed .ember-rail .rail-count { position: absolute; top: -.25rem; right: -.3rem; margin: 0; min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem; font-size: .62rem; box-shadow: 0 0 0 2px var(--uis-rail); }
+    html.rail-closed .ember-rail .rail-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    html.rail-closed .ember-rail .rail-section { position: absolute; }
+    html.rail-closed .ember-rail .tooltip::before, html.rail-closed .ember-rail .tooltip::after { display: revert; }
+    html:not(.rail-closed) #railToggle i { transform: rotate(180deg); }
   }
 
-  /* ---- Header pill menu (the main areas of the role) ---- */
-  .uis-pillnav { align-items: center; gap: .15rem; padding: .25rem; border-radius: 999px; background: var(--color-base-100); box-shadow: var(--ember-shadow); }
-  .uis-pillnav a { display: inline-flex; align-items: center; height: 2.1rem; padding: 0 1rem; border-radius: 999px; font-size: .84rem; font-weight: 500;
-    color: color-mix(in oklab, var(--color-base-content) 68%, transparent); transition: background-color .15s, color .15s; white-space: nowrap; }
-  @media (hover: hover) { .uis-pillnav a:hover { color: var(--color-base-content); background: var(--color-base-200); } }
-  .uis-pillnav a[aria-current] { background: var(--uis-ink); color: var(--uis-ink-content); }
+  /* ---- Top bar: white, full width, breadcrumb on the left ---- */
+  .uis-topbar { background: var(--color-base-100); border-bottom: 1px solid var(--color-base-300); }
+  .uis-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .78rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
+  .uis-crumbs a:hover { color: var(--color-primary); text-decoration: underline; }
+  .uis-crumbs .sep { opacity: .6; }
+  .uis-user-name { font-size: .875rem; font-weight: 600; line-height: 1.2; }
+  .uis-user-role { font-size: .75rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); line-height: 1.2; }
+  .uis-topbar .btn-circle { border-radius: 6px; }
 
-  /* ---- Cards: white with a hairline ---- */
+  /* Kept for older markup: the header pill menu, now a plain link row */
+  .uis-pillnav { align-items: center; gap: .15rem; }
+  .uis-pillnav a { display: inline-flex; align-items: center; height: 2.1rem; padding: 0 .8rem; border-radius: 6px; font-size: .84rem; font-weight: 500;
+    color: color-mix(in oklab, var(--color-base-content) 72%, transparent); white-space: nowrap; }
+  .uis-pillnav a[aria-current] { background: var(--uis-active-bg); color: var(--color-primary); }
+
+  /* ---- Cards: white with a 1 px border, 8 px corners ---- */
   .ember-panel { background: var(--uis-panel); }
-  .ember-panel .card, .ember-panel .stats { border-color: transparent; border-radius: 22px; box-shadow: var(--ember-shadow); }
+  .ember-panel .card, .ember-panel .stats { border-color: transparent; border-radius: 8px; box-shadow: var(--ember-shadow); }
   .ember-panel .card:has(table) { overflow: hidden; }
-  .ember-panel .card-body { padding: 1.5rem; }
+  .ember-panel .card-body { padding: 1.25rem 1.5rem; }
+  .ember-panel .card-title { font-size: 1rem; font-weight: 600; }
 
-  /* Page titles: bold and tight; the small icon lives in the header */
-  .ember-panel main h1 { font-size: clamp(1.6rem, 1.25rem + 1.1vw, 2rem); font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }
+  /* Page titles: plain and firm */
+  .ember-panel main h1 { font-size: clamp(1.4rem, 1.2rem + .6vw, 1.65rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
   .ember-panel main h1 > i.fas { --fa-display: none; }
 
-  /* ---- Buttons: pills; a plain button is white with a hairline ---- */
-  .btn { border-radius: 999px; font-weight: 600; }
+  /* ---- Buttons: 6 px corners; a plain button is white with a border ---- */
+  .btn { border-radius: 6px; font-weight: 600; }
+  .btn-circle { border-radius: 999px; }
   .btn:not(.btn-primary, .btn-secondary, .btn-accent, .btn-neutral, .btn-info, .btn-success, .btn-warning, .btn-error, .btn-ghost, .btn-link, .btn-outline, .btn-soft, .btn-dash, .btn-active) {
     --btn-color: var(--uis-btn); color: var(--color-base-content); border-color: var(--uis-line); box-shadow: none;
   }
   .btn-primary { box-shadow: none; }
   .btn-neutral { --btn-color: var(--color-primary); color: var(--color-primary-content); border-color: transparent; box-shadow: none; }
 
-  /* ---- Tabs: a white pill bar, the active tab an ink pill ---- */
+  /* ---- Tabs: an underline bar, the active tab green ---- */
   .ember-panel .tabs-border {
-    display: inline-flex; width: auto; max-width: 100%; gap: .2rem; padding: .25rem; border-radius: 999px;
-    background: var(--color-base-100); box-shadow: var(--ember-shadow);
+    display: flex; width: 100%; max-width: 100%; gap: .25rem; padding: 0; border-radius: 0; overflow-x: auto;
+    background: transparent; box-shadow: inset 0 -1px 0 var(--color-base-300);
   }
-  .ember-panel .tabs-border > .tab { height: 2.1rem; padding-inline: 1rem; border-radius: 999px; font-weight: 500; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
+  .ember-panel .tabs-border > .tab { height: 2.6rem; padding-inline: .9rem; border-radius: 0; font-weight: 500; flex-shrink: 0; white-space: nowrap;
+    color: color-mix(in oklab, var(--color-base-content) 72%, transparent); border-bottom: 2px solid transparent; }
   .ember-panel .tabs-border > .tab::before { display: none; }
-  .ember-panel .tabs-border > .tab { flex-shrink: 0; white-space: nowrap; }
-  .ember-panel .tabs-border > .tab.tab-active { background: var(--uis-ink); color: var(--uis-ink-content); }
+  .ember-panel .tabs-border > .tab:hover { color: var(--color-base-content); }
+  .ember-panel .tabs-border > .tab.tab-active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; background: transparent; }
+  [data-theme=uis] .ember-panel .tabs-border > .tab.tab-active { color: #6ee7b7; border-bottom-color: #6ee7b7; }
   .ember-panel .tabs-border > .tab.tab-active span { color: inherit; opacity: .8; }
 
   /* ---- Fields: white, green ring when focused ---- */
+<<<<<<< Updated upstream
   .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--color-base-300); }
   /* Browser autofill paints its own (blue) box behind the text; keep the field's own colours. */
   input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus,
@@ -323,53 +342,51 @@
     transition: background-color 9999s ease-out 0s;
   }
   input:autofill { background-color: transparent; }
+=======
+  .input, .select, .textarea, .file-input { background-color: var(--color-base-100); border-color: var(--uis-line); }
+>>>>>>> Stashed changes
   .input:focus, .input:focus-within, .select:focus, .select:focus-within, .textarea:focus, .file-input:focus {
-    border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-primary) 22%, transparent); outline-offset: 0;
+    border-color: var(--color-primary); outline: 3px solid color-mix(in oklab, var(--color-primary) 18%, transparent); outline-offset: 0;
   }
 
-  /* ---- Tables: small muted header, hairline rows ---- */
+  /* ---- Tables: grey header row, hairline rows ---- */
   .table { font-variant-numeric: tabular-nums; }
   .table :where(thead) th {
-    background: transparent; color: color-mix(in oklab, var(--color-base-content) 66%, transparent);
-    font-size: .75rem; font-weight: 500; padding-block: .8rem; border-bottom: 1px solid var(--color-base-300);
+    background: color-mix(in oklab, var(--color-base-200) 70%, var(--color-base-100)); color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+    font-size: .75rem; font-weight: 600; padding-block: .7rem; border-bottom: 1px solid var(--color-base-300);
   }
   .table :where(tbody) :where(td, th) { border-color: var(--color-base-200); }
   @media (hover: hover) { .table :where(tbody) tr:hover { background: color-mix(in oklab, var(--color-primary) 4%, transparent); } }
 
   /* ---- Number plates: outlined, ink on paper ---- */
-  .plate { background: transparent; color: var(--color-base-content); box-shadow: inset 0 0 0 1.5px currentColor; border-radius: 6px; padding-inline: .4rem; font-size: .75rem; line-height: 1.25rem; }
+  .plate { background: transparent; color: var(--color-base-content); box-shadow: inset 0 0 0 1.5px currentColor; border-radius: 4px; padding-inline: .4rem; font-size: .75rem; line-height: 1.25rem; }
 
   /* ---- Dashboard pieces ---- */
-  .e-card { position: relative; border-radius: 22px; background: var(--color-base-100); padding: 1.5rem; box-shadow: var(--ember-shadow); }
-  .e-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: 1rem; }
-  .e-head h2 { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
+  .e-card { position: relative; border-radius: 8px; background: var(--color-base-100); padding: 1.25rem 1.5rem; box-shadow: var(--ember-shadow); }
+  .e-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: -1.25rem -1.5rem 1rem; padding: .9rem 1.5rem; border-bottom: 1px solid var(--color-base-200); }
+  .e-accent .e-head, .e-dark .e-head { margin: 0 0 1rem; padding: 0; border: 0; }
+  .e-head h2 { font-size: 1rem; font-weight: 600; letter-spacing: 0; }
   .e-icon-btn {
-    display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex-shrink: 0; border-radius: 999px;
-    background: var(--color-base-100); box-shadow: var(--ember-shadow); color: color-mix(in oklab, var(--color-base-content) 70%, transparent); font-size: .8rem;
+    display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex-shrink: 0; border-radius: 6px;
+    background: var(--color-base-100); box-shadow: 0 0 0 1px var(--uis-line); color: color-mix(in oklab, var(--color-base-content) 72%, transparent); font-size: .8rem;
     transition: background-color .15s ease, color .15s ease;
   }
   @media (hover: hover) { .e-icon-btn:hover { background: var(--color-primary); color: var(--color-primary-content); box-shadow: none; } }
   .e-icon-btn-light { background: rgb(255 255 255 / .16); color: #ffffff; box-shadow: none; }
   @media (hover: hover) { .e-icon-btn-light:hover { background: #ffffff; color: #0b5d3b; } }
 
-  /* The pass card: UIS green with soft circles — one per dashboard */
-  .e-accent {
-    position: relative; overflow: hidden; isolation: isolate; border-radius: 18px; padding: 1.25rem; color: #ffffff;
-    background: linear-gradient(135deg, #0b5d3b 0%, #0e7a4e 55%, #13a86a 100%);
-  }
-  .e-accent::before, .e-accent::after { content: ''; position: absolute; z-index: -1; border-radius: 999px; background: rgb(255 255 255 / .1); }
-  .e-accent::before { width: 10rem; height: 10rem; right: -2.5rem; top: -2.5rem; }
-  .e-accent::after { width: 6rem; height: 6rem; right: -.5rem; top: 3.5rem; }
+  /* The highlighted card: solid UIS green — one per dashboard */
+  .e-accent { position: relative; overflow: hidden; border-radius: 8px; padding: 1.25rem 1.5rem; color: #ffffff; background: #0b5d3b; }
   .e-accent .e-head h2 { color: #ffffff; }
 
-  /* An ink card (black in light mode) */
-  .e-dark { position: relative; overflow: hidden; border-radius: 22px; padding: 1.5rem; color: var(--uis-ink-content); background: var(--uis-ink); }
+  /* A contrast card (dark ink in light mode) */
+  .e-dark { position: relative; overflow: hidden; border-radius: 8px; padding: 1.25rem 1.5rem; color: var(--uis-ink-content); background: var(--uis-ink); }
   .e-dark .e-head h2 { color: inherit; }
 
-  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; padding: .25rem .65rem; font-size: .75rem; font-weight: 600; background: color-mix(in oklab, var(--color-primary) 12%, transparent); color: var(--uis-chip-fg); }
+  .e-chip { display: inline-flex; align-items: center; gap: .35rem; border-radius: 4px; padding: .2rem .55rem; font-size: .75rem; font-weight: 600; background: color-mix(in oklab, var(--color-primary) 12%, transparent); color: var(--uis-chip-fg); }
   .e-chip-down { background: color-mix(in oklab, var(--color-error) 12%, transparent); color: var(--color-error); }
 
-  .e-tile { display: flex; flex-direction: column; gap: .15rem; border-radius: 16px; background: var(--color-base-200); padding: .8rem 1rem; transition: background-color .15s ease; }
+  .e-tile { display: flex; flex-direction: column; gap: .15rem; border-radius: 6px; background: var(--color-base-200); padding: .8rem 1rem; transition: background-color .15s ease; }
   @media (hover: hover) { a.e-tile:hover, a > .e-tile:hover { background: color-mix(in oklab, var(--color-primary) 8%, var(--color-base-200)); } }
   .e-tile-label { font-size: .78rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   .e-tile-value { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -379,9 +396,9 @@
   .e-stripe { background: repeating-linear-gradient(135deg, var(--uis-stripe-a) 0 6px, var(--uis-stripe-b) 6px 12px); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-primary) 18%, transparent); }
 
   .e-avatar { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; font-size: .62rem; font-weight: 700; color: #ffffff; box-shadow: 0 0 0 2px var(--color-base-100); }
-  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #d4a017; color: #1b1400; } .e-avatar-2 { background: #101814; } .e-avatar-3 { background: #0e7a4e; }
+  .e-avatar-0 { background: #0b5d3b; } .e-avatar-1 { background: #b8860b; } .e-avatar-2 { background: #17211c; } .e-avatar-3 { background: #0e7a4e; }
 
-  .e-day { display: flex; flex-direction: column; align-items: center; gap: .1rem; border-radius: 14px; background: var(--color-base-200); padding: .45rem 0; }
+  .e-day { display: flex; flex-direction: column; align-items: center; gap: .1rem; border-radius: 6px; background: var(--color-base-200); padding: .45rem 0; }
   .e-day span { font-size: .68rem; color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   .e-day b { font-size: .9rem; font-weight: 600; }
   button.e-day { cursor: pointer; border: 0; color: inherit; font: inherit; min-height: 44px; transition: background-color .15s; }
@@ -397,22 +414,22 @@
   .e-status::before { content: ''; width: .45rem; height: .45rem; border-radius: 999px; background: currentColor; }
 
   /* Older dashboard parts (staff, head of department, driver) in the same look */
-  .ember-panel .dash-card { border: 0; border-radius: 22px; box-shadow: var(--ember-shadow); padding: 1.5rem; }
-  .ember-panel .dash-card > h2 { border-bottom: 0; padding-bottom: 0; margin-bottom: 1rem; font-size: 1rem; font-weight: 600; }
-  .ember-panel .dash-card > h2 .fas { border-radius: 10px; background: var(--color-base-200); color: color-mix(in oklab, var(--color-base-content) 70%, transparent) !important; }
+  .ember-panel .dash-card { border: 0; border-radius: 8px; box-shadow: var(--ember-shadow); padding: 1.25rem 1.5rem; }
+  .ember-panel .dash-card > h2 { border-bottom: 1px solid var(--color-base-200); padding-bottom: .75rem; margin-bottom: 1rem; font-size: 1rem; font-weight: 600; }
+  .ember-panel .dash-card > h2 .fas { border-radius: 6px; background: var(--uis-active-bg); color: var(--color-primary) !important; }
   .ember-panel .dash-row + .dash-row { border-top: 1px solid var(--color-base-200); }
-  .ember-panel .dash-kpi { border: 0; border-radius: 22px; box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-kpi { border: 0; border-radius: 8px; box-shadow: var(--ember-shadow); }
   .ember-panel .dash-kpi::before { display: none; }
-  .ember-panel .dash-kpi-icon { border-radius: 14px; background: color-mix(in oklab, var(--kpi) 14%, var(--color-base-100)); color: var(--kpi); box-shadow: none; }
+  .ember-panel .dash-kpi-icon { border-radius: 6px; background: color-mix(in oklab, var(--kpi) 12%, var(--color-base-100)); color: var(--kpi); box-shadow: none; }
   .ember-panel .dash-kpi-value { font-weight: 700; }
   .ember-panel .dash-hero { background: transparent; color: var(--color-base-content); box-shadow: none; padding: 0 0 .5rem; border-radius: 0; }
   .ember-panel .dash-hero::after { display: none; }
-  .ember-panel .dash-hero h1 { font-size: clamp(1.6rem, 1.25rem + 1.1vw, 2rem); font-weight: 700; color: var(--color-base-content); }
-  .ember-panel .dash-hero .dash-chip { background: var(--color-base-100); border: 0; color: color-mix(in oklab, var(--color-base-content) 70%, transparent); box-shadow: var(--ember-shadow); }
+  .ember-panel .dash-hero h1 { font-size: clamp(1.4rem, 1.2rem + .6vw, 1.65rem); font-weight: 700; color: var(--color-base-content); }
+  .ember-panel .dash-hero .dash-chip { background: var(--color-base-100); border: 0; border-radius: 4px; color: color-mix(in oklab, var(--color-base-content) 72%, transparent); box-shadow: var(--ember-shadow); }
   .ember-panel .dash-hero .text-base-content\/60 { color: color-mix(in oklab, var(--color-base-content) 66%, transparent); }
   .ember-panel .dash-hero .btn { --btn-color: var(--color-primary); color: var(--color-primary-content); }
   .ember-panel .dash-hero .btn.btn-hero-outline { --btn-color: var(--uis-btn); color: var(--color-base-content); border: 1px solid var(--uis-line); box-shadow: none; }
-  .ember-panel .dash-alert { border-radius: 16px; }
+  .ember-panel .dash-alert { border-radius: 6px; }
   .dash-alert i { background: var(--color-base-100); }
 
   /* Muted text never below 66% (4.5:1 on white and on the grey page) */
@@ -437,12 +454,12 @@
 
   .theme-switching, .theme-switching * { transition: none !important; }
 
-  /* Badges: small pills */
-  .badge { border-radius: 999px; font-weight: 600; }
+  /* Badges: small rounded tags */
+  .badge { border-radius: 4px; font-weight: 600; }
 
-  /* Alerts and dialogs follow the round shapes */
-  .alert { border-radius: 16px; }
-  .modal-box { border-radius: 24px; }
+  /* Alerts and dialogs: small corners */
+  .alert { border-radius: 6px; }
+  .modal-box { border-radius: 10px; }
 }
 
 

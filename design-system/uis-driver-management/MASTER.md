@@ -5,7 +5,7 @@ Follows the Master + Overrides pattern of [ui-ux-pro-max](https://github.com/nex
 
 - **Product:** internal web app of Universiti Islam Selangor. Staff request vehicles, Heads of Department approve,
   the Vehicle Section assigns drivers, the Head of Admin confirms, drivers see their trips.
-- **Style:** "Forest": the Ember layout (floating icon rail, one big rounded panel, borderless cards, pills) in a dark theme, emerald + UIS gold. `color-scheme: dark`; charts use light text on dark.
+- **Style:** "Corporate" (direction A, chosen 22 Nov 2026 from three mockups): a full white sidebar with labelled sections, a white top bar with a breadcrumb, white cards with a 1 px border and 8 px corners, 6 px buttons, underline tabs. UIS green + gold. Light is the default; dark (`uis`) keeps the same shapes.
 - **Stack:** plain PHP 8 pages, Tailwind CSS 4 + DaisyUI 5 (`assets/css/src/app.css` → `assets/css/app.css`), Font Awesome 6 icons,
   Chart.js 4. Rebuild CSS after changing classes: `npm run build:css`.
 
@@ -13,28 +13,27 @@ Follows the Master + Overrides pattern of [ui-ux-pro-max](https://github.com/nex
 > "tech" palette with Fira Code / Fira Sans and glassmorphism. It was **not adopted**: the UIS brand is green and gold, and the
 > Ember look was chosen from a reference. Its UX rules and pre-delivery checklist *were* adopted (see the checklist below).
 
-## Tokens ("Emerald Pill", chosen 19 Nov 2026 from four directions based on the DTech UI Kit catalog)
-
-Light is the default theme (`uis-light`); dark (`uis`) is the same design on green-black.
+## Tokens ("Corporate", 22 Nov 2026; replaces "Emerald Pill")
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--color-primary` | `#0b5d3b` (white text) | `#10b981` (dark text) | UIS green: primary buttons, active rail item, this month's bar, the pass card |
-| `--uis-ink` | `#101814` | `#e7eeea` | the active pill in the header menu and in tabs |
-| `--color-secondary` | `#d4a017` | `#d4a017` | UIS gold: rail counts, avatar, maintenance |
-| `--color-base-100` | `#ffffff` | `#121b17` | cards, rail, fields |
-| `--color-base-200` | `#f3f5f4` | `#0b120f` | the page, tiles |
-| `--color-base-300` | `#e4e9e6` | `#24302a` | hairlines (cards have a 1 px hairline, no shadow) |
-| `--color-base-content` | `#0a120e` | `#e7eeea` | text; muted text never below 66% |
-| radius | cards 22 px, tiles 16 px, rail items 12 px, buttons / menus / tabs full pill | | |
-| font | Plus Jakarta Sans 400-800 | | IBM Plex Sans Condensed 600 for number plates (outlined, ink on paper) |
+| `--color-primary` | `#0b5d3b` (white text) | `#10b981` (dark text) | UIS green: primary buttons, active sidebar item text, active tab underline |
+| `--uis-active-bg` | `#e8f2ed` | emerald 14% | background of the active sidebar item |
+| `--color-secondary` | `#b8860b` (dark text) | `#d4a017` | UIS gold: counts, recommended driver, avatar |
+| `--color-base-100` | `#ffffff` | `#121b17` | cards, sidebar, top bar, fields |
+| `--color-base-200` | `#f4f6f5` | `#0b120f` | the page, tiles, table header |
+| `--color-base-300` | `#dde3e0` | `#24302a` | card borders and hairlines |
+| `--uis-line` | `#cfd8d3` | base-300 | button and field borders |
+| `--color-base-content` | `#17211c` | `#e7eeea` | text; muted text never below 66% |
+| radius | cards 8 px, buttons/fields 6 px, badges/chips 4 px, dialogs 10 px | | |
+| font | IBM Plex Sans 400-700 | | IBM Plex Sans Condensed 600 for number plates |
 
 ## Layout
 
-- **Header:** page date and title on the left, the role's main areas as a pill menu in the middle (1280 px and wider), then BM | EN, light/dark, notifications and the account.
-- **Rail:** `includes/sidebar.php`, white and flush to the left edge. On ≥1024 px it collapses to icons with tooltips (`data-tip`) or opens to 15 rem with labels; the `#railToggle` button in the header switches it, the choice is kept in `localStorage` (`uis-rail`) and applied before paint (`html.rail-open`). A labelled panel on phones (DaisyUI drawer).
-  The active item is the green gradient circle with a soft glow. Help and Log out sit apart at the bottom.
-- **Panel:** everything else lives in `.ember-panel` (rounded 28 px). Header: date, the page's icon + title, clock, notifications, avatar.
+- **Top bar:** white, full width, 1 px bottom border. Left: sidebar toggle, breadcrumb (Home / section / page) and the date. Right: BM | EN, light/dark, notifications, then the account (avatar, name, role).
+- **Sidebar:** `includes/sidebar.php`, white with a right border. On ≥1024 px it is open by default at 15.5 rem with uppercase section names; `#railToggle` collapses it to a 68 px icon rail with tooltips. The choice is kept in `localStorage` (`uis-rail` = `closed`) and applied before paint (`html.rail-closed`). A labelled panel on phones (DaisyUI drawer).
+  The active item has a pale green background and green text. Help and Log out sit apart at the bottom.
+- **Panel:** everything else lives in `.ember-panel`, under the top bar, on the grey page.
 - **Page title:** one `<h1>` per page, large and light. Card titles are `<h2>`. Never skip a level.
 - Max content width 1400 px. No horizontal page scroll at 390 px; wide tables and the vehicle board scroll inside their card.
 
@@ -42,15 +41,15 @@ Light is the default theme (`uis-light`); dark (`uis`) is the same design on gre
 
 | Need | Use |
 |---|---|
-| Card | `.card` (pages) or `.e-card` (dashboards). No borders, `--ember-shadow` |
+| Card | `.card` (pages) or `.e-card` (dashboards). 1 px border via `--ember-shadow`, 8 px corners |
 | Card header | `.e-head` with an `<h2>` and an optional round `.e-icon-btn` (needs `aria-label`) |
-| The one highlighted card | `.e-accent` (green gradient) — at most one per page |
+| The one highlighted card | `.e-accent` (solid UIS green) — at most one per page |
 | Contrast card | `.e-dark` |
 | Small figure | `.e-tile` (label + value) inside a card |
 | Trend | `.e-chip` / `.e-chip-down`, always "…vs last month" |
 | Primary action | `.btn.btn-primary` (green) or `.btn.btn-neutral` (dark pill) — one per screen |
 | Secondary action | `.btn` (white pill) |
-| Filters / sub-pages | `<nav aria-label="…" class="tabs tabs-border">` with `<a class="tab">`, `aria-current="page"` on the active one |
+| Filters / sub-pages (underline tabs) | `<nav aria-label="…" class="tabs tabs-border">` with `<a class="tab">`, `aria-current="page"` on the active one |
 | Status | `requestStatusBadge()` / `vehicleStatusBadgeClass()` — text plus colour, never colour alone |
 | Vehicle registration | `plate()` / `vehicleHtml()` — the number-plate signature |
 | Dialog | `UIS.confirm()`, `UIS.alert()`, `UIS.askReason()` or `data-confirm` (DaisyUI `<dialog class="modal">`) |

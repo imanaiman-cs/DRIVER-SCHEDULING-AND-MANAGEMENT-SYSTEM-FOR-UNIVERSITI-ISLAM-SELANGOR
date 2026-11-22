@@ -129,23 +129,24 @@ if ($_is_admin_role) {
 <?php
 // The icon of the page we are on (shown in the header next to the page title)
 $_page_icon = 'house';
-foreach ($_menu as $_items) { foreach ($_items as [$_pages, $_url, $_icon]) { if (sidebarActive($_pages, $current_page)) { $_page_icon = $_icon; } } }
-if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($current_page === 'notifications.php') { $_page_icon = 'bell'; }
+$_page_section = '';
+foreach ($_menu as $_sec => $_items) { foreach ($_items as [$_pages, $_url, $_icon]) { if (sidebarActive($_pages, $current_page)) { $_page_icon = $_icon; $_page_section = $_sec; } } }
+if ($current_page === 'profile.php') { $_page_icon = 'user'; } elseif ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($current_page === 'notifications.php') { $_page_icon = 'bell'; }
 ?>
 <aside class="drawer-side z-40" aria-label="Main navigation">
     <label for="app-drawer" class="drawer-overlay" aria-label="Close navigation menu"></label>
 
-    <!-- A slim white icon rail on large screens; a labelled panel when it slides in on phones -->
-    <nav id="appRail" class="ember-rail flex h-dvh w-64 flex-col py-5">
-        <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="mx-3 mb-3 flex shrink-0 items-center gap-3 lg:mx-0" title="UIS Driver Management">
+    <!-- A full white sidebar with labelled sections (collapsible to icons on large screens); slides in on phones -->
+    <nav id="appRail" class="ember-rail flex h-dvh w-64 flex-col pt-4 pb-4">
+        <a href="<?php echo SITE_URL . '/' . $_role_home; ?>" class="mx-3 mb-2 flex shrink-0 items-center gap-3 border-b border-base-200 px-1 pb-4" title="UIS Driver Management">
             <span class="grid size-10 shrink-0 place-items-center"><img src="<?php echo SITE_URL; ?>/assets/images/uis-favicon.png" alt="UIS" class="size-full object-contain"></span>
-            <span class="rail-label leading-tight"><span class="block font-bold">UIS</span><span class="block text-xs text-base-content/65">Driver Management</span></span>
+            <span class="rail-label leading-tight"><span class="block text-[0.95rem] font-bold">DSMS</span><span class="block text-xs text-base-content/65">UIS Vehicle Section</span></span>
         </a>
 
-        <ul class="flex w-full grow flex-col gap-1 overflow-y-auto px-3 [scrollbar-width:none] lg:items-center">
+        <ul class="flex w-full grow flex-col gap-0.5 overflow-y-auto px-3 [scrollbar-width:thin]">
             <?php $_first = true; foreach ($_menu as $_section => $_items): ?>
-            <?php if (!$_first): ?><li class="my-1.5 h-px w-full bg-base-300 lg:w-6" aria-hidden="true"></li><?php endif; $_first = false; ?>
-            <li class="rail-label rail-section px-2 pt-1 text-[0.68rem] font-semibold text-base-content/65"><?php echo htmlspecialchars($_section); ?></li>
+            <?php if (!$_first): ?><li class="rail-divider my-1.5 h-px w-6 bg-base-300" aria-hidden="true"></li><?php endif; $_first = false; ?>
+            <li class="rail-label rail-section"><?php echo htmlspecialchars($_section); ?></li>
                 <?php foreach ($_items as [$_pages, $_url, $_icon, $_label, $_bk]): $_on = sidebarActive($_pages, $current_page) !== ''; ?>
             <li class="lg:tooltip lg:tooltip-right" data-tip="<?php echo htmlspecialchars($_label); ?>">
                 <a href="<?php echo SITE_URL . '/' . $_url; ?>" class="rail-item <?php echo $_on ? 'is-active' : ''; ?>" <?php echo $_on ? 'aria-current="page"' : ''; ?>>
@@ -160,7 +161,7 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
             <?php endforeach; ?>
         </ul>
 
-        <ul class="mt-2 flex w-full shrink-0 flex-col gap-1 border-t border-base-300 px-3 pt-3 lg:items-center">
+        <ul class="mt-2 flex w-full shrink-0 flex-col gap-0.5 border-t border-base-300 px-3 pt-3">
             <li class="lg:tooltip lg:tooltip-right" data-tip="Help &amp; Guide">
                 <a href="<?php echo SITE_URL; ?>/help.php" class="rail-item <?php echo $current_page === 'help.php' ? 'is-active' : ''; ?>"><i class="fas fa-circle-question" aria-hidden="true"></i><span class="rail-label grow">Help &amp; Guide</span></a>
             </li>
@@ -176,43 +177,33 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 <div class="drawer-content min-w-0">
 <div class="ember-panel flex min-h-dvh flex-col">
 
-<header class="sticky top-0 z-30 flex items-center gap-3 px-4 pt-4 pb-2 sm:px-6 lg:static lg:px-8 lg:pt-6 no-print">
-    <button type="button" class="btn btn-circle btn-sm hidden lg:inline-flex" id="railToggle" aria-controls="appRail" aria-expanded="false" aria-label="Expand sidebar" title="Expand / collapse sidebar">
+<header class="uis-topbar sticky top-0 z-30 flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8 no-print">
+    <button type="button" class="btn btn-square btn-sm hidden lg:inline-flex" id="railToggle" aria-controls="appRail" aria-expanded="true" aria-label="Collapse sidebar" title="Expand / collapse sidebar">
         <i class="fas fa-angles-right transition-transform" aria-hidden="true"></i>
     </button>
-    <label for="app-drawer" class="btn btn-circle btn-sm lg:hidden" aria-label="Open navigation menu">
+    <label for="app-drawer" class="btn btn-square btn-sm lg:hidden" aria-label="Open navigation menu">
         <i class="fas fa-bars" aria-hidden="true"></i>
     </label>
 
-    <div class="min-w-0 flex-1 xl:flex-none">
-        <div class="text-xs text-base-content/65"><?php echo date('l, j F'); ?></div>
-        <div class="flex items-center gap-2 truncate text-[0.95rem] font-medium">
-            <i class="fas fa-<?php echo htmlspecialchars($_page_icon); ?> text-[0.8rem] text-base-content/60" aria-hidden="true"></i>
-            <span class="truncate"><?php echo htmlspecialchars($page_title ?? ''); ?></span>
-        </div>
-    </div>
-
-    <?php // the main areas of this role as a pill menu (the rail keeps every page)
-    $_pill = [];
-    foreach ($_menu as $_section => $_items) {
-        $_on = false;
-        foreach ($_items as [$_pages]) { if (sidebarActive($_pages, $current_page)) { $_on = true; } }
-        $_pill[] = [$_section === 'Main' ? $_items[0][3] : $_section, $_items[0][1], $_on];
-    } ?>
-    <nav class="uis-pillnav mx-auto hidden xl:inline-flex" aria-label="Main areas">
-        <?php foreach (array_slice($_pill, 0, 5) as [$_pl, $_pu, $_pon]): ?>
-        <a href="<?php echo SITE_URL . '/' . $_pu; ?>"<?php echo $_pon ? ' aria-current="true"' : ''; ?>><?php echo htmlspecialchars($_pl); ?></a>
-        <?php endforeach; ?>
+    <nav class="min-w-0 flex-1" aria-label="Breadcrumb">
+        <ol class="uis-crumbs">
+            <li><a href="<?php echo SITE_URL . '/' . $_role_home; ?>">Home</a></li>
+            <?php if ($_page_section !== '' && $_page_section !== 'Main' && $_page_section !== ($page_title ?? '')): ?>
+            <li class="sep" aria-hidden="true">/</li><li><?php echo htmlspecialchars($_page_section); ?></li>
+            <?php endif; ?>
+            <li class="sep" aria-hidden="true">/</li><li class="truncate font-medium text-base-content" aria-current="page"><?php echo htmlspecialchars($page_title ?? ''); ?></li>
+        </ol>
+        <div class="hidden text-xs text-base-content/65 sm:block"><?php echo date('l, j F Y'); ?></div>
     </nav>
 
     <?php echo uisLangSwitch('hidden sm:flex'); ?>
     <?php echo uisThemeSwitch(); ?>
 
-    <span id="dhClock" class="hidden rounded-full bg-base-100 px-3.5 py-2 text-sm font-medium tabular-nums shadow-[var(--ember-shadow)] 2xl:inline"></span>
+    <span id="dhClock" class="hidden rounded-md border border-base-300 px-3 py-1.5 text-sm font-medium tabular-nums 2xl:inline"></span>
 
     <!-- Notifications -->
     <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-circle" aria-label="Notifications<?php echo $_app_unread ? ' (' . $_app_unread . ' unread)' : ''; ?>">
+        <div tabindex="0" role="button" class="btn btn-square" aria-label="Notifications<?php echo $_app_unread ? ' (' . $_app_unread . ' unread)' : ''; ?>">
             <div class="indicator">
                 <i class="fas fa-bell" aria-hidden="true"></i>
                 <?php if ($_app_unread > 0): ?>
@@ -220,12 +211,12 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
                 <?php endif; ?>
             </div>
         </div>
-        <div tabindex="0" class="dropdown-content z-50 mt-2 w-80 rounded-[22px] bg-base-100 p-2 shadow-xl">
+        <div tabindex="0" class="dropdown-content z-50 mt-2 w-80 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg">
             <div class="px-3 pt-2 pb-1 text-sm font-semibold">Notifications<?php if ($_app_unread): ?> <span class="badge badge-sm badge-primary ms-1"><?php echo $_app_unread; ?> new</span><?php endif; ?></div>
             <ul class="menu w-full p-0">
                 <?php foreach ($_app_notifs as $_n): ?>
                 <li>
-                    <a href="<?php echo SITE_URL; ?>/notifications.php?open=<?php echo (int)$_n['notification_id']; ?>" class="flex-col items-start gap-0.5 rounded-2xl">
+                    <a href="<?php echo SITE_URL; ?>/notifications.php?open=<?php echo (int)$_n['notification_id']; ?>" class="flex-col items-start gap-0.5 rounded-md">
                         <span class="text-sm <?php echo $_n['is_read'] ? 'text-base-content/70' : 'font-medium'; ?>">
                             <?php if (!$_n['is_read']): ?><span class="me-1.5 inline-block size-2 rounded-full bg-primary align-middle"></span><?php endif; ?>
                             <?php echo htmlspecialchars($_n['message']); ?>
@@ -244,18 +235,22 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 
     <!-- Account -->
     <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="flex cursor-pointer items-center gap-2 rounded-full" aria-label="Account menu">
-            <span class="grid size-10 place-items-center rounded-full bg-secondary text-sm font-bold text-secondary-content"><?php echo htmlspecialchars($initials); ?></span>
+        <div tabindex="0" role="button" class="flex cursor-pointer items-center gap-2.5 rounded-md py-1 ps-1 pe-2 hover:bg-base-200" aria-label="Account menu">
+            <span class="grid size-9 place-items-center rounded-full bg-[#fbf1d6] text-sm font-bold text-[#7a5800]"><?php echo htmlspecialchars($initials); ?></span>
+            <span class="hidden flex-col md:flex"><span class="uis-user-name max-w-44 truncate"><?php echo htmlspecialchars($full_name); ?></span><span class="uis-user-role"><?php echo htmlspecialchars($role_label); ?></span></span>
+            <i class="fas fa-chevron-down hidden text-[0.65rem] text-base-content/60 md:inline" aria-hidden="true"></i>
         </div>
-        <ul tabindex="0" class="menu dropdown-content z-50 mt-2 w-64 rounded-[22px] bg-base-100 p-2 shadow-xl">
+        <ul tabindex="0" class="menu dropdown-content z-50 mt-2 w-64 rounded-lg border border-base-300 bg-base-100 p-2 shadow-lg">
             <li class="menu-title normal-case">
                 <span class="block truncate font-semibold text-base-content"><?php echo htmlspecialchars($full_name); ?></span>
                 <span class="block text-xs font-normal"><?php echo htmlspecialchars($role_label); ?></span>
             </li>
-            <li class="sm:hidden"><a class="rounded-2xl" href="<?php echo htmlspecialchars(uisLangUrl(uisLang() === 'ms' ? 'en' : 'ms')); ?>" lang="<?php echo uisLang() === 'ms' ? 'en' : 'ms'; ?>" data-no-translate>
+            <li class="sm:hidden"><a class="rounded-md" href="<?php echo htmlspecialchars(uisLangUrl(uisLang() === 'ms' ? 'en' : 'ms')); ?>" lang="<?php echo uisLang() === 'ms' ? 'en' : 'ms'; ?>" data-no-translate>
                 <i class="fas fa-language w-4" aria-hidden="true"></i><?php echo uisLang() === 'ms' ? 'English' : 'Bahasa Melayu'; ?></a></li>
-            <li><a class="rounded-2xl" href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4" aria-hidden="true"></i>Help</a></li>
-            <li><a class="rounded-2xl text-error" href="<?php echo SITE_URL; ?>/logout.php"
+            <li><a class="rounded-md<?php echo $current_page === 'profile.php' ? ' menu-active' : ''; ?>" href="<?php echo SITE_URL; ?>/profile.php"><i class="fas fa-user w-4" aria-hidden="true"></i>My Profile</a></li>
+            <li><a class="rounded-md" href="<?php echo SITE_URL; ?>/change_password.php"><i class="fas fa-key w-4" aria-hidden="true"></i>Change password</a></li>
+            <li><a class="rounded-md" href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4" aria-hidden="true"></i>Help</a></li>
+            <li><a class="rounded-md text-error" href="<?php echo SITE_URL; ?>/logout.php"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">
                 <i class="fas fa-right-from-bracket w-4" aria-hidden="true"></i>Log Out</a></li>
         </ul>
@@ -322,18 +317,18 @@ if ($current_page === 'help.php') { $_page_icon = 'circle-question'; } elseif ($
 <script src="<?php echo SITE_URL; ?>/assets/js/ui.js"></script>
 
 <script>
-/* Sidebar: expanded (labels) or collapsed (icons) on large screens; remembered in this browser */
+/* Sidebar: open (labels, the default) or collapsed (icons) on large screens; remembered in this browser */
 (function () {
     var btn = document.getElementById('railToggle'), root = document.documentElement;
     if (!btn) { return; }
     function sync() {
-        var open = root.classList.contains('rail-open');
+        var open = !root.classList.contains('rail-closed');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         btn.setAttribute('aria-label', open ? 'Collapse sidebar' : 'Expand sidebar');
     }
     btn.addEventListener('click', function () {
-        root.classList.toggle('rail-open');
-        try { localStorage.setItem('uis-rail', root.classList.contains('rail-open') ? 'open' : 'closed'); } catch (e) {}
+        root.classList.toggle('rail-closed');
+        try { localStorage.setItem('uis-rail', root.classList.contains('rail-closed') ? 'closed' : 'open'); } catch (e) {}
         sync();
     });
     sync();

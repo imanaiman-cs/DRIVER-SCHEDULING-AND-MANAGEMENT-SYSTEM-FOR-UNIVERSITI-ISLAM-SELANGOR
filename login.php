@@ -115,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Sign in | UIS Driver Management</title>
     <link rel="icon" type="image/png" href="assets/images/uis-favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css?v=<?= @filemtime(__DIR__ . '/assets/css/app.css') ?>" rel="stylesheet">
     <?php uisThemeHead(); ?>
@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <main class="flex flex-1 items-center justify-center px-4 pt-4 pb-10">
-        <div class="w-full max-w-md overflow-hidden rounded-3xl bg-base-100 shadow-2xl">
+        <div class="w-full max-w-md overflow-hidden rounded-lg bg-base-100 shadow-2xl">
 
             <div class="relative bg-gradient-to-br from-[#07301f] to-primary px-6 pt-9 pb-7 text-center text-white">
                 <span class="mx-auto mb-4 grid size-20 place-items-center rounded-full bg-white shadow-lg ring-4 ring-secondary/60">

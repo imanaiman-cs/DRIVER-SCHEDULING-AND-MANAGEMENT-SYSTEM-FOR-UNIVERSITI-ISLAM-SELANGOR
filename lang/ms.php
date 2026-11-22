@@ -16,6 +16,29 @@ $roles = [
 ];
 
 $exact = [
+    // ---- profile page (22 Nov 2026) ----
+    'My Profile' => 'Profil Saya',
+    'Account summary' => 'Ringkasan akaun',
+    'Account details' => 'Butiran akaun',
+    'These come from the UIS staff system and cannot be changed here.' => 'Butiran ini datang daripada sistem staf UIS dan tidak boleh diubah di sini.',
+    'Full name' => 'Nama penuh',
+    'Staff ID' => 'ID Staf',
+    'Department' => 'Jabatan',
+    'Role' => 'Peranan',
+    'Last sign-in' => 'Log masuk terakhir',
+    'Contact details' => 'Butiran hubungan',
+    'Used by the Vehicle Section to reach you about your trips.' => 'Digunakan oleh Seksyen Kenderaan untuk menghubungi anda tentang perjalanan anda.',
+    'Please correct the highlighted field.' => 'Sila betulkan medan yang ditanda.',
+    'Driving licence' => 'Lesen memandu',
+    'Kept by the Administrative Assistant. Tell the Vehicle Section if anything here is wrong.' => 'Diselenggara oleh Pembantu Tadbir. Maklumkan Seksyen Kenderaan jika ada maklumat yang salah.',
+    'Expiry date' => 'Tarikh tamat',
+    'Experience' => 'Pengalaman',
+    'Valid' => 'Sah',
+    'Expired' => 'Tamat tempoh',
+    'Your profile has been updated.' => 'Profil anda telah dikemas kini.',
+    'Enter a valid phone number.' => 'Masukkan nombor telefon yang sah.',
+    'Breadcrumb' => 'Laluan navigasi',
+    'Home' => 'Utama',
     // ---- layout, navigation, header ----
     'UIS Driver Management' => 'Pengurusan Pemandu UIS',
     'Driver Management' => 'Pengurusan Pemandu',
@@ -782,6 +805,8 @@ $patterns = array_merge([
 
 // dates: day and month names, only where they sit next to a number or a comma
 $patterns = array_merge($patterns, [
+    ['^Expires in (\\d+) days$', 'Tamat dalam $1 hari'],
+    ['^([\\d.]+) years$', '$1 tahun'],
     ['\bMonday\b', 'Isnin'], ['\bTuesday\b', 'Selasa'], ['\bWednesday\b', 'Rabu'], ['\bThursday\b', 'Khamis'],
     ['\bFriday\b', 'Jumaat'], ['\bSaturday\b', 'Sabtu'], ['\bSunday\b', 'Ahad'],
     ['\bMon(?=, \d)', 'Isn'], ['\bTue(?=, \d)', 'Sel'], ['\bWed(?=, \d)', 'Rab'], ['\bThu(?=, \d)', 'Kha'],
