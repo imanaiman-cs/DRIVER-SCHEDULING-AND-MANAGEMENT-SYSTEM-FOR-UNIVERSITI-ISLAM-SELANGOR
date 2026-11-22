@@ -107,6 +107,9 @@ $dot = ['available' => 'vh-av', 'in_use' => 'vh-use', 'maintenance' => 'vh-mt', 
                     <span><i class="fas fa-shapes me-1" aria-hidden="true"></i><?= htmlspecialchars($v['vehicle_type']) ?></span>
                     <span><i class="fas fa-users me-1" aria-hidden="true"></i><?= (int)$v['capacity'] ?> seats</span>
                     <span><i class="fas fa-id-card me-1" aria-hidden="true"></i>Licence <?= htmlspecialchars($v['license_required']) ?></span>
+                    <?php if ($v['fuel_level'] !== null): $fl = (int)$v['fuel_level']; ?>
+                        <span class="<?= $fl === 0 ? 'text-error font-semibold' : ($fl === 1 ? 'vh-mt font-semibold' : '') ?>" title="Last fuel level recorded by a driver"><i class="fas fa-gas-pump me-1" aria-hidden="true"></i><?= ['Almost empty', '¼', '½', '¾', 'Full'][$fl] ?></span>
+                    <?php endif; ?>
                 </div>
                 <div class="mt-3 grow text-sm text-base-content/70"><i class="fas fa-<?= $line[0] ?> me-1.5" aria-hidden="true"></i><?= htmlspecialchars($line[1]) ?></div>
                 <div class="mt-4 flex gap-2">
