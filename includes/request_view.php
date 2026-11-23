@@ -52,7 +52,11 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Requester</div>
             <div class="font-semibold"><?= reqH($req['staff_name']) ?> <span class="text-base-content/60 font-normal">(<?= reqH($req['staff_department']) ?>)</span></div>
-            <div><?= reqH($req['officer_phone']) ?></div>
+            <div><?= reqH($req['staff_phone'] ?? '') ?></div>
+        </div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Officers to contact</div>
+            <div class="flex flex-col gap-0.5"><?= officersHtml($req['officer_name'], $req['officer_phone']) ?: '-' ?></div>
         </div>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Trip</div>

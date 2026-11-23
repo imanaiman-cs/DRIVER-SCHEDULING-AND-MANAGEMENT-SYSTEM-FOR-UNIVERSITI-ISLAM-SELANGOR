@@ -90,6 +90,14 @@ function taskSheetValue(?string $value): string
     return htmlspecialchars(mb_strtoupper($value, 'UTF-8'), ENT_QUOTES, 'UTF-8');
 }
 
+/** Several values (e.g. officers): numbered lines "1) …" when more than one, escaped and upper-case. */
+function taskSheetList(array $values): string
+{
+    $values = array_values(array_filter(array_map('trim', $values), 'strlen'));
+    if (count($values) <= 1) { return taskSheetValue($values[0] ?? ''); }
+    return implode('<br>', array_map(fn($v, $i) => ($i + 1) . ') ' . taskSheetValue($v), $values, array_keys($values)));
+}
+
 /**
  * Echoes the "Tugasan Pemandu" sheet body for one schedule.
  *
@@ -135,8 +143,8 @@ function renderTaskSheet(array $s): void
         'Lokasi'          => taskSheetValue($s['destination'] ?? ''),
         'Tempat Menunggu' => taskSheetValue($s['waiting_place'] ?? ''),
         'Tujuan'          => taskSheetValue($s['purpose'] ?? ''),
-        'Pegawai'         => taskSheetValue($s['officer_name'] ?? ''),
-        'No. Tel'         => taskSheetValue($s['officer_phone'] ?? ''),
+        'Pegawai'         => taskSheetList(array_column(officerPairs($s['officer_name'] ?? '', $s['officer_phone'] ?? ''), 'name')),
+        'No. Tel'         => taskSheetList(array_column(officerPairs($s['officer_name'] ?? '', $s['officer_phone'] ?? ''), 'phone')),
     ];
 
     $logo       = htmlspecialchars(SITE_URL . '/assets/images/uis-logo.png', ENT_QUOTES, 'UTF-8');

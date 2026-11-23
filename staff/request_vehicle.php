@@ -45,9 +45,22 @@ $f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_tim
       'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => '',
       'dest_lat' => '', 'dest_lng' => '', 'wait_lat' => '', 'wait_lng' => ''];
 [$addrProvider, $addrKey] = addressSuggestConfig($conn);
+$officers = [['name' => $full_name, 'phone' => (string)($me['phone'] ?? '')]];   // the requester by default; can be changed
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
+    // Contact officers (up to 3): name + phone each. Without the list (older forms) the requester is the officer.
+    if (isset($_POST['officer_name']) && is_array($_POST['officer_name'])) {
+        $officers = [];
+        foreach (array_slice($_POST['officer_name'], 0, 3, true) as $i => $n) {
+            $n = trim(preg_replace('/\s+/', ' ', (string)$n));
+            $ph = trim((string)($_POST['officer_phone'][$i] ?? ''));
+            if ($n === '' && $ph === '') { continue; }
+            $officers[] = ['name' => $n, 'phone' => $ph];
+        }
+    } else {
+        $officers = [['name' => $full_name, 'phone' => $f['phone']]];
+    }
     $pax = (int)$f['passengers'];
     $vehicle_id = (int)$f['vehicle_id'];
 
@@ -76,8 +89,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($f['destination'] === '' || mb_strlen($f['destination']) > 255) { $errors[] = 'Destination name is required (max 255 characters).'; }
     if ($f['destination_address'] === '' || mb_strlen($f['destination_address']) > 500) { $errors[] = 'The full destination address is required (max 500 characters).'; }
     if (mb_strlen($f['purpose']) < 10) { $errors[] = 'Please describe the purpose (at least 10 characters).'; }
-    if (mb_strlen($f['passenger_names']) > 2000) { $errors[] = 'Passenger names: at most 2000 characters.'; }   // optional: the driver deals with the officer
-    if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
+    if (!$officers) { $errors[] = 'Enter at least one officer to contact.'; }
+    foreach ($officers as $i => $o) {
+        if (mb_strlen($o['name']) < 2 || mb_strlen($o['name']) > 120) { $errors[] = 'Officer ' . ($i + 1) . ': enter the name.'; }
+        if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $o['phone'])) { $errors[] = 'Officer ' . ($i + 1) . ': enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
+    }
     if (!in_array($f['waiting_place'], WAITING_LOCATIONS, true)) { $errors[] = 'Choose the waiting location.'; }
     if ($f['waiting_place'] === 'Other' && ($f['waiting_address'] === '' || mb_strlen($f['waiting_address']) > 255)) { $errors[] = 'Enter the address of the waiting location.'; }
     if ($vehicle_id <= 0) { $errors[] = 'Choose a vehicle.'; }
@@ -129,9 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $st_time = timeWithSeconds($f['depart_time']);
+            $noPassengers = '';   // passenger names are not asked any more; the driver deals with the officers
+            $offNames  = implode("\n", array_column($officers, 'name'));
+            $offPhones = implode("\n", array_column($officers, 'phone'));
             $rt_time = timeWithSeconds($f['return_time']);
             $stmt->bind_param('iisssssssisssssidddd', $staff_id, $vehicle_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
-                $f['destination'], $f['destination_address'], $f['purpose'], $pax, $f['passenger_names'], $full_name, $f['phone'],
+                $f['destination'], $f['destination_address'], $f['purpose'], $pax, $noPassengers, $offNames, $offPhones,
                 $f['waiting_place'], $wait_addr, $approver_id, $dLat, $dLng, $wLat, $wLng);
             $stmt->execute();
             $rid = (int)$stmt->insert_id;
@@ -220,10 +239,20 @@ adminPageStart('Request a Vehicle');
                            data-addr-suggest data-lat="dest_lat" data-lng="dest_lng" data-fill-mode="address"></div>
                 <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="purpose">Purpose *</label>
                     <textarea class="textarea w-full" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
-                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="passenger_names">Passenger names <span class="font-normal text-base-content/70">(optional)</span></label>
-                    <textarea class="textarea w-full" id="passenger_names" name="passenger_names" rows="2" maxlength="2000"><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
-                <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="phone">Phone number *</label>
-                    <input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
+                <fieldset class="col-span-12" id="officers">
+                    <legend class="mb-1 block text-sm font-medium">Officers to contact *</legend>
+                    <p class="mb-2 text-xs text-base-content/70">The driver calls these officers about the trip. You are filled in; change it if someone else goes, and add up to 3.</p>
+                    <div class="flex flex-col gap-2" id="officerRows">
+                        <?php foreach ($officers ?: [['name' => '', 'phone' => '']] as $i => $o): ?>
+                        <div class="officer-row grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_14rem_auto]">
+                            <input class="input col-span-2 w-full sm:col-span-1" name="officer_name[]" maxlength="120" value="<?= htmlspecialchars($o['name']) ?>" aria-label="Officer <?= $i + 1 ?>: name" placeholder="Name" required>
+                            <input class="input w-full" name="officer_phone[]" maxlength="20" inputmode="tel" value="<?= htmlspecialchars($o['phone']) ?>" aria-label="Officer <?= $i + 1 ?>: phone" placeholder="Phone" required>
+                            <button type="button" class="btn btn-ghost btn-square text-error" data-remove-officer aria-label="Remove officer <?= $i + 1 ?>" <?= $i === 0 ? 'tabindex="-1" aria-hidden="true" style="visibility:hidden"' : '' ?>><i class="fas fa-xmark" aria-hidden="true"></i></button>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="button" class="btn btn-sm mt-2" id="addOfficer"><i class="fas fa-user-plus" aria-hidden="true"></i>Add another officer</button>
+                </fieldset>
                 <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="waiting_place">Waiting location *</label>
                     <select class="select w-full" id="waiting_place" name="waiting_place">
                         <?php foreach (WAITING_LOCATIONS as $w): ?><option <?= $f['waiting_place'] === $w ? 'selected' : '' ?>><?= htmlspecialchars($w) ?></option><?php endforeach; ?>
@@ -294,6 +323,34 @@ adminPageStart('Request a Vehicle');
     function syncOther() { el('otherRow').style.display = wp.value === 'Other' ? '' : 'none'; }
     wp.addEventListener('change', syncOther); syncOther();
     search();
+})();
+</script>
+<script>
+// Contact officers: add (up to 3) and remove rows
+(function () {
+    var box = document.getElementById('officerRows'), add = document.getElementById('addOfficer');
+    if (!box || !add) { return; }
+    function renumber() {
+        var rows = box.querySelectorAll('.officer-row');
+        rows.forEach(function (r, i) {
+            var n = i + 1, inp = r.querySelectorAll('input'), rm = r.querySelector('[data-remove-officer]');
+            inp[0].setAttribute('aria-label', 'Officer ' + n + ': name'); inp[1].setAttribute('aria-label', 'Officer ' + n + ': phone');
+            rm.setAttribute('aria-label', 'Remove officer ' + n);
+            rm.style.visibility = i === 0 ? 'hidden' : '';          // keeps its place so the rows line up
+            if (i === 0) { rm.setAttribute('tabindex', '-1'); rm.setAttribute('aria-hidden', 'true'); } else { rm.removeAttribute('tabindex'); rm.removeAttribute('aria-hidden'); }
+        });
+        add.hidden = rows.length >= 3;
+    }
+    add.addEventListener('click', function () {
+        var first = box.querySelector('.officer-row'), row = first.cloneNode(true);
+        row.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+        box.appendChild(row); renumber(); row.querySelector('input').focus();
+    });
+    box.addEventListener('click', function (e) {
+        var rm = e.target.closest('[data-remove-officer]'); if (!rm) { return; }
+        rm.closest('.officer-row').remove(); renumber(); add.focus();
+    });
+    renumber();
 })();
 </script>
 <?php if ($addrProvider !== 'off'): ?><script src="<?= SITE_URL ?>/assets/js/address-suggest.js?v=<?= @filemtime(__DIR__ . '/../assets/js/address-suggest.js') ?>"></script><?php endif; ?>

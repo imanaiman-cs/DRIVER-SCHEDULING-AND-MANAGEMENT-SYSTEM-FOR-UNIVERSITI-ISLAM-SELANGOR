@@ -117,8 +117,7 @@ adminPageStart('My Tasks');
                     <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?><?= !empty($t['map']) ? '<div class="mt-1.5">' . $t['map'] . '</div>' : '' ?></dd><?php endif; ?>
                     <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?><?= !empty($t['waitmap']) ? '<div class="mt-1.5">' . $t['waitmap'] . '</div>' : '' ?></dd><?php endif; ?>
                     <?php if ($t['purpose']): ?><dt><?= $t['kind'] === 'trip' ? 'Purpose' : 'Details' ?></dt><dd><?= $h($t['purpose']) ?></dd><?php endif; ?>
-                    <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
-                        <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>
+                    <?php if ($t['officer'] || $t['phone']): ?><dt><?= count(officerPairs($t['officer'], $t['phone'])) > 1 ? 'Officers' : 'Officer' ?></dt><dd class="flex flex-col gap-0.5"><?= officersHtml($t['officer'], $t['phone']) ?></dd><?php endif; ?>
                 </dl>
                 <?php if ($t['sheet']): ?><a class="btn btn-sm btn-outline mt-2 self-start" href="task_sheet.php?id=<?= (int)$t['sheet'] ?>" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Task sheet</a><?php endif; ?>
                 <?php if (!empty($t['vehicle_id']) && $s <= time()): $rd = $readings[$t['rkind'] . $t['rid']] ?? null; $fid = $t['rkind'] . $t['rid']; ?>

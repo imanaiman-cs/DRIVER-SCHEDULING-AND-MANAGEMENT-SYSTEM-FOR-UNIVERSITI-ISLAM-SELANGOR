@@ -94,6 +94,29 @@ function waitingText(?string $place, ?string $address): string
     return $p;
 }
 
+/** Contact officers of a request: one per line in officer_name / officer_phone, same order. @return array<int,array{name:string,phone:string}> */
+function officerPairs(?string $names, ?string $phones): array
+{
+    $n = array_values(array_filter(array_map('trim', preg_split('/\R/', (string)$names)), 'strlen'));
+    $p = array_map('trim', preg_split('/\R/', (string)$phones));
+    $out = [];
+    foreach ($n as $i => $name) { $out[] = ['name' => $name, 'phone' => (string)($p[$i] ?? '')]; }
+    if (!$out && trim((string)$phones) !== '') { $out[] = ['name' => '', 'phone' => trim((string)$phones)]; }
+    return $out;
+}
+
+/** The officers as HTML: "Name · 012-345 6789" per line, the phone as a tel: link. */
+function officersHtml(?string $names, ?string $phones): string
+{
+    $rows = [];
+    foreach (officerPairs($names, $phones) as $o) {
+        $tel = preg_replace('/[^0-9+]/', '', $o['phone']);
+        $rows[] = '<div>' . htmlspecialchars($o['name'], ENT_QUOTES) . ($o['phone'] !== ''
+            ? ' <a class="whitespace-nowrap link link-hover" href="tel:' . htmlspecialchars($tel, ENT_QUOTES) . '"><i class="fas fa-phone me-1 text-xs" aria-hidden="true"></i>' . htmlspecialchars($o['phone'], ENT_QUOTES) . '</a>' : '') . '</div>';
+    }
+    return implode('', $rows);
+}
+
 /**
  * Google Maps and Waze buttons for a place: by its coordinates when known, else by the address text.
  * No API key is needed: these are plain links that open the app on a phone.
@@ -756,7 +779,10 @@ function driverTaskWhatsAppText(array $t): string
     $place = (string)$t['destination'];
     $maps = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($hasLL ? $ll : $place);
     $waze = 'https://waze.com/ul?' . ($hasLL ? 'll=' . rawurlencode($ll) : 'q=' . rawurlencode($place)) . '&navigate=yes';
-    $officer = $up($t['officer_name'] ?? '') . (trim((string)($t['officer_phone'] ?? '')) !== '' ? ' (' . trim((string)$t['officer_phone']) . ')' : '');
+    $offs = officerPairs($t['officer_name'] ?? '', $t['officer_phone'] ?? '');
+    $num = fn(array $list) => count($list) > 1 ? implode("\n", array_map(fn($v, $i) => ($i + 1) . ') ' . $v, $list, array_keys($list))) : implode('', $list);
+    $officer = $num(array_map(fn($o) => $up($o['name']), $offs));
+    $phones  = $num(array_values(array_filter(array_map(fn($o) => $o['phone'], $offs), 'strlen')));
     $rows = [
         'Nama Pemandu'    => $up($t['driver_name'] ?? ''),
         'Tarikh Tugasan'  => date('d.m.Y', strtotime((string)$t['trip_date'])),
@@ -768,8 +794,9 @@ function driverTaskWhatsAppText(array $t): string
         'Tempat Menunggu' => $up($t['waiting_place'] ?? ''),
         'Tujuan'          => $up($t['purpose'] ?? ''),
         'Pegawai'         => $officer,
+        'No. Tel'         => $phones,
     ];
-    $out = '';
+    $out = "*TUGASAN PEMANDU*\n\n";
     foreach ($rows as $label => $value) {
         if (trim($value) === '') { continue; }
         $out .= '*' . $label . ' :*' . "\n" . $value . "\n";

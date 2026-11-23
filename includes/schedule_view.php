@@ -93,7 +93,8 @@ function calendarEvents(mysqli $conn, string $from_dt, string $to_dt, int $drive
             'leg' => legLabel($leg),
             'destination' => destinationText($r['destination'] ?? $r['s_dest'], $r['destination_address']),
             'purpose' => (string)($r['purpose'] ?? $r['s_purpose'] ?? ''),
-            'officer' => trim((string)($r['officer_name'] ?? $r['s_officer'] ?? '') . ' ' . (($r['officer_phone'] ?? $r['s_phone']) ? '(' . ($r['officer_phone'] ?? $r['s_phone']) . ')' : '')),
+            'officer' => implode('; ', array_map(fn($o) => trim($o['name'] . ($o['phone'] !== '' ? ' (' . $o['phone'] . ')' : '')),
+                                                 officerPairs($r['officer_name'] ?? $r['s_officer'] ?? '', $r['officer_phone'] ?? $r['s_phone'] ?? ''))),
             'waiting' => waitingText($r['waiting_place'] ?? $r['s_wait'], $r['waiting_address']),
             'schedule_id' => (int)$r['schedule_id'],
         ];
