@@ -32,6 +32,8 @@ const SETTING_DEFAULTS = [
     'W_AFTER_HOURS'       => '0.4',
     'LAPSE_HOURS'         => '48',
     'REMINDER_HOURS'      => '24',
+    'ADDRESS_SUGGEST'     => 'photon',   // photon (OpenStreetMap, free, no key) | google (needs GOOGLE_MAPS_KEY) | off
+    'GOOGLE_MAPS_KEY'     => '',
     'WORK_START'          => '08:00',
     'WORK_END'            => '17:30',
     'SESSION_TIMEOUT_MIN' => '15',
@@ -75,6 +77,60 @@ function saveSetting(mysqli $conn, string $key, string $value): void
 }
 
 /** Fixed list of waiting locations; 'Other' asks for a free-text address. */
+/** The full destination: name + address. */
+function destinationText(?string $destination, ?string $address): string
+{
+    $d = trim((string)$destination); $a = trim((string)$address);
+    if ($a === '' || $a === $d) { return $d; }
+    if ($d !== '' && stripos($a, $d) === 0) { return $a; }   // a picked suggestion already starts with the name
+    return $d === '' ? $a : "$d, $a";
+}
+
+/** Where the driver waits: the place, or the typed address when the place is "Other". */
+function waitingText(?string $place, ?string $address): string
+{
+    $p = trim((string)$place); $a = trim((string)$address);
+    if (strcasecmp($p, 'Other') === 0) { return $a !== '' ? $a : 'Other'; }
+    return $p;
+}
+
+/**
+ * Google Maps and Waze buttons for a place: by its coordinates when known, else by the address text.
+ * No API key is needed: these are plain links that open the app on a phone.
+ */
+function mapLinks(?string $address, $lat = null, $lng = null, string $size = 'btn-xs'): string
+{
+    $address = trim((string)$address);
+    $hasLL = $lat !== null && $lng !== null && $lat !== '' && $lng !== '';
+    if (!$hasLL && $address === '') { return ''; }
+    $ll = $hasLL ? rtrim(rtrim(sprintf('%.6f', $lat), '0'), '.') . ',' . rtrim(rtrim(sprintf('%.6f', $lng), '0'), '.') : '';
+    $g = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($hasLL ? $ll : $address);
+    $w = 'https://waze.com/ul?' . ($hasLL ? 'll=' . rawurlencode($ll) : 'q=' . rawurlencode($address)) . '&navigate=yes';
+    $label = htmlspecialchars($address !== '' ? $address : $ll, ENT_QUOTES);
+    return '<span class="map-links inline-flex flex-wrap gap-1.5">'
+        . '<a class="btn ' . $size . '" href="' . htmlspecialchars($g, ENT_QUOTES) . '" target="_blank" rel="noopener" aria-label="Open ' . $label . ' in Google Maps"><i class="fas fa-map-location-dot" aria-hidden="true"></i>Maps</a>'
+        . '<a class="btn ' . $size . '" href="' . htmlspecialchars($w, ENT_QUOTES) . '" target="_blank" rel="noopener" aria-label="Open ' . $label . ' in Waze"><i class="fas fa-location-arrow" aria-hidden="true"></i>Waze</a>'
+        . '</span>';
+}
+
+/** Address suggestion settings for the request form: [provider, google key]. */
+function addressSuggestConfig(mysqli $conn): array
+{
+    $p = (string)getSetting($conn, 'ADDRESS_SUGGEST');
+    $k = trim((string)getSetting($conn, 'GOOGLE_MAPS_KEY'));
+    if ($p === 'google' && $k === '') { $p = 'photon'; }   // no key: fall back to the free service
+    return [in_array($p, ['photon', 'google', 'off'], true) ? $p : 'photon', $p === 'google' ? $k : ''];
+}
+
+/** A latitude / longitude posted by the request form, or null when missing or out of range. */
+function postedCoord($v, float $limit): ?float
+{
+    $v = trim((string)$v);
+    if ($v === '' || !preg_match('/^-?\d{1,3}(\.\d{1,8})?$/', $v)) { return null; }
+    $f = (float)$v;
+    return abs($f) <= $limit ? round($f, 6) : null;
+}
+
 const WAITING_LOCATIONS = ['Main entrance', 'Library', 'Administration building', 'Faculty entrance', 'Student Affairs lobby', 'Mosque', 'Other'];
 
 /** Supporting documents: PDF, JPG or PNG, at most 5 MB each (checked on the server in includes/upload.php). */

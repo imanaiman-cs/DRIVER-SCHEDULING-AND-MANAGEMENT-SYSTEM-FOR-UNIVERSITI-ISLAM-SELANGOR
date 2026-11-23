@@ -163,6 +163,10 @@ CREATE TABLE `vehicle_requests` (
   `depart_at` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
   `return_at` datetime GENERATED ALWAYS AS (timestamp(`return_date`,`end_time`)) STORED,
   `lapsed_notified` tinyint(1) NOT NULL DEFAULT 0,
+  `dest_lat` decimal(9,6) DEFAULT NULL,
+  `dest_lng` decimal(9,6) DEFAULT NULL,
+  `wait_lat` decimal(9,6) DEFAULT NULL,
+  `wait_lng` decimal(9,6) DEFAULT NULL,
   PRIMARY KEY (`request_id`),
   KEY `fk_vr_staff` (`staff_id`),
   KEY `fk_vr_vehicle` (`vehicle_id`),
@@ -589,4 +593,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_vehicle_fuel');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_vehicle_fuel'), ('2026_11_request_coords');

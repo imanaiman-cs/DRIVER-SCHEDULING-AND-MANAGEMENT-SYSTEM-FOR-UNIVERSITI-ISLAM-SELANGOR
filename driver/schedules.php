@@ -32,7 +32,7 @@ if ($driver_id > 0) {
                 COALESCE(vr.purpose, s.purpose) AS purpose, COALESCE(vr.officer_name, s.officer_name) AS officer_name,
                 COALESCE(vr.officer_phone, s.officer_phone) AS officer_phone,
                 COALESCE(vr.waiting_place, s.waiting_place) AS waiting_place, vr.waiting_address,
-                s.vehicle_id, v.plate_number, v.brand, v.model
+                vr.dest_lat, vr.dest_lng, vr.wait_lat, vr.wait_lng, s.vehicle_id, v.plate_number, v.brand, v.model
            FROM schedules s
            JOIN vehicle_requests vr ON vr.request_id = s.request_id
            LEFT JOIN vehicles v ON v.vehicle_id = s.vehicle_id
@@ -45,7 +45,9 @@ if ($driver_id > 0) {
                     'ref' => 'Request #' . $r['request_id'], 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']),
                     'destination' => destinationText($r['destination'], $r['destination_address']), 'waiting' => waitingText($r['waiting_place'], $r['waiting_address']),
                     'purpose' => (string)$r['purpose'], 'officer' => (string)$r['officer_name'], 'phone' => (string)$r['officer_phone'], 'sheet' => (int)$r['schedule_id'],
-                    'rkind' => 'trip', 'rid' => (int)$r['schedule_id'], 'vehicle_id' => (int)$r['vehicle_id']];
+                    'rkind' => 'trip', 'rid' => (int)$r['schedule_id'], 'vehicle_id' => (int)$r['vehicle_id'],
+                    'map' => mapLinks(destinationText($r['destination'], $r['destination_address']), $r['dest_lat'], $r['dest_lng']),
+                    'waitmap' => strcasecmp((string)$r['waiting_place'], 'Other') === 0 ? mapLinks($r['waiting_address'], $r['wait_lat'], $r['wait_lng']) : ''];
     }
     $stmt->close();
 
@@ -59,7 +61,8 @@ if ($driver_id > 0) {
         $tasks[] = ['kind' => 'internal', 'start' => $r['start_dt'], 'end' => $r['end_dt'], 'type' => internalTaskTypeLabel($r['task_type']),
                     'ref' => '', 'vehicle' => vehicleHtml($r['plate_number'], $r['brand'], $r['model']), 'destination' => (string)$r['location'], 'waiting' => '',
                     'purpose' => (string)$r['description'], 'officer' => '', 'phone' => '', 'sheet' => 0,
-                    'rkind' => 'internal', 'rid' => (int)$r['task_id'], 'vehicle_id' => (int)$r['vehicle_id']];
+                    'rkind' => 'internal', 'rid' => (int)$r['task_id'], 'vehicle_id' => (int)$r['vehicle_id'],
+                    'map' => mapLinks((string)$r['location']), 'waitmap' => ''];
     }
     $stmt->close();
 
@@ -111,8 +114,8 @@ adminPageStart('My Tasks');
                 <dl class="mt-2 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm [&_dt]:text-base-content/70 [&_dd]:break-words">
                     <?php if ($t['ref']): ?><dt>Request</dt><dd><?= $h($t['ref']) ?></dd><?php endif; ?>
                     <?php if ($t['vehicle']): ?><dt>Vehicle</dt><dd><?= $t['vehicle'] ?></dd><?php endif; ?>
-                    <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?></dd><?php endif; ?>
-                    <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?></dd><?php endif; ?>
+                    <?php if ($t['destination']): ?><dt><?= $t['kind'] === 'trip' ? 'Destination' : 'Place' ?></dt><dd><?= $h($t['destination']) ?><?= !empty($t['map']) ? '<div class="mt-1.5">' . $t['map'] . '</div>' : '' ?></dd><?php endif; ?>
+                    <?php if ($t['waiting']): ?><dt>Waiting location</dt><dd><?= $h($t['waiting']) ?><?= !empty($t['waitmap']) ? '<div class="mt-1.5">' . $t['waitmap'] . '</div>' : '' ?></dd><?php endif; ?>
                     <?php if ($t['purpose']): ?><dt><?= $t['kind'] === 'trip' ? 'Purpose' : 'Details' ?></dt><dd><?= $h($t['purpose']) ?></dd><?php endif; ?>
                     <?php if ($t['officer']): ?><dt>Officer</dt><dd><?= $h($t['officer']) ?>
                         <?php if ($t['phone']): ?><br><a href="tel:<?= $h(preg_replace('/[^0-9+]/', '', $t['phone'])) ?>"><i class="fas fa-phone me-1"></i><?= $h($t['phone']) ?></a><?php endif; ?></dd><?php endif; ?>

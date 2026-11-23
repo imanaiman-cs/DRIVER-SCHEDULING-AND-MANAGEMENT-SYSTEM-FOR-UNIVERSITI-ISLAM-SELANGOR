@@ -63,10 +63,12 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             <div class="text-base-content/60">Destination</div>
             <div class="font-semibold"><?= reqH($req['destination']) ?></div>
             <div><?= reqH($req['destination_address']) ?></div>
+            <div class="mt-1.5"><?= mapLinks(destinationText($req['destination'], $req['destination_address']), $req['dest_lat'] ?? null, $req['dest_lng'] ?? null) ?></div>
         </div>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Waiting location</div>
             <div><?= reqH($req['waiting_place'] === 'Other' ? ($req['waiting_address'] ?: 'Other') : $req['waiting_place']) ?></div>
+            <?php if ($req['waiting_place'] === 'Other' && ($req['waiting_address'] || ($req['wait_lat'] ?? null))): ?><div class="mt-1.5"><?= mapLinks($req['waiting_address'], $req['wait_lat'] ?? null, $req['wait_lng'] ?? null) ?></div><?php endif; ?>
         </div>
         <div class="col-span-12">
             <div class="text-base-content/60">Purpose</div>

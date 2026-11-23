@@ -41,22 +41,6 @@ function vehicleText(?string $plate, ?string $brand = null, ?string $model = nul
     return $m !== '' ? "$plate ($m)" : $plate;
 }
 
-/** The full destination: name + address. */
-function destinationText(?string $destination, ?string $address): string
-{
-    $d = trim((string)$destination); $a = trim((string)$address);
-    if ($a === '' || $a === $d) { return $d; }
-    return $d === '' ? $a : "$d, $a";
-}
-
-/** Where the driver waits: the place, or the typed address when the place is "Other". */
-function waitingText(?string $place, ?string $address): string
-{
-    $p = trim((string)$place); $a = trim((string)$address);
-    if (strcasecmp($p, 'Other') === 0) { return $a !== '' ? $a : 'Other'; }
-    return $p;
-}
-
 /** Binds a dynamic list of parameters (types are derived from the PHP types). */
 function bindDynamic(mysqli_stmt $stmt, array $params): void
 {
@@ -179,6 +163,7 @@ function taskSheetRow(mysqli $conn, int $schedule_id, int $driver_id = 0): ?arra
                    COALESCE(vr.purpose, s.purpose) AS purpose, COALESCE(vr.officer_name, s.officer_name) AS officer_name,
                    COALESCE(vr.officer_phone, s.officer_phone) AS officer_phone,
                    COALESCE(vr.waiting_place, s.waiting_place) AS waiting_place, vr.waiting_address,
+                   vr.dest_lat, vr.dest_lng, vr.wait_lat, vr.wait_lng,
                    d.name AS driver_name, v.plate_number AS vehicle_plate, v.brand AS vehicle_brand,
                    v.model AS vehicle_model, v.vehicle_type AS vehicle_type
               FROM schedules s
