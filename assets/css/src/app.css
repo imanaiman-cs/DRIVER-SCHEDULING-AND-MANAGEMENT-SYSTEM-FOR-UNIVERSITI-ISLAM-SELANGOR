@@ -566,6 +566,61 @@
   /* Alerts and dialogs: small corners */
   .alert { border-radius: 6px; }
   .modal-box { border-radius: 10px; }
+
+
+  /* ==== Sidebar (chosen 23 Nov 2026): open = A "curved notch" on dark UIS green; collapsed = C "floating dock" ====
+     The active item is the page colour and joins the page with two inverted corners (the ::before / ::after
+     shadows). Collapsed on large screens, the rail becomes a green pill floating on the left, icons only, the
+     names as tooltips. Phones use the open look in the slide-in drawer. */
+  .ember-rail { --rail-bg: #0b3d28; --rail-ink: #d7ebe1; --rail-mute: rgb(215 235 225 / .62); --notch: var(--uis-page);
+    background: var(--rail-bg); border-inline-end: 0; color: var(--rail-ink); }
+  [data-theme=uis] .ember-rail { --rail-bg: #0d2c20; }
+  .ember-rail > a { border-color: rgb(255 255 255 / .1) !important; }
+  .ember-rail > a .rail-label, .ember-rail > a .rail-label span:first-child { color: #ffffff; }
+  .ember-rail > a .text-base-content\/65 { color: var(--rail-mute); }
+  .ember-rail > a > span:first-child { background: #ffffff; border-radius: 10px; padding: 4px; }
+  .ember-rail .rail-section { color: var(--rail-mute); letter-spacing: .12em; }
+  .ember-rail .rail-item { color: var(--rail-ink); height: 2.75rem; padding: 0 1rem; border-radius: 1.375rem 0 0 1.375rem; font-weight: 500; }
+  .ember-rail .rail-item i { color: inherit; opacity: .9; width: 1.25rem; }
+  @media (hover: hover) { .ember-rail .rail-item:not(.is-active):hover { background: rgb(255 255 255 / .08); color: #ffffff; } }
+  .ember-rail .rail-item.is-active, [data-theme=uis] .ember-rail .rail-item.is-active { background: var(--notch); color: var(--color-primary); font-weight: 600; padding-inline-end: .5rem; }
+  [data-theme=uis] .ember-rail .rail-item.is-active { color: #6ee7b7; }
+  .ember-rail .rail-item.is-active i { --fa-display: inline-flex; display: inline-flex; align-items: center; justify-content: center; line-height: 1 !important; width: 2rem; height: 2rem; margin-inline-start: -.4rem; border-radius: 999px;
+    background: var(--color-primary); color: var(--color-primary-content); opacity: 1; font-size: .85rem; }
+  .ember-rail .rail-item.is-active::before, .ember-rail .rail-item.is-active::after {
+    content: ''; position: absolute; right: 0; width: 1.375rem; height: 1.375rem; background: transparent; pointer-events: none; }
+  .ember-rail .rail-item.is-active::before { top: -1.375rem; border-bottom-right-radius: 1.375rem; box-shadow: .5rem .5rem 0 .5rem var(--notch); }
+  .ember-rail .rail-item.is-active::after { bottom: -1.375rem; border-top-right-radius: 1.375rem; box-shadow: .5rem -.5rem 0 .5rem var(--notch); }
+  .ember-rail .rail-item .rail-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ember-rail .rail-item i { flex: none; }
+  .ember-rail .rail-count, [data-theme=uis] .ember-rail .rail-count { background: #d4a017; color: #1b1400; }
+  .ember-rail .rail-item.is-active .rail-count { margin-inline-end: .5rem; }
+  @media (min-width: 1024px) { html:not(.rail-closed) .ember-rail { width: 17.5rem; } }
+  .ember-rail > ul { padding-inline-end: 0 !important; overflow-x: visible; }
+  .ember-rail > ul + ul { border-color: rgb(255 255 255 / .1) !important; }
+  .ember-rail .rail-logout, .ember-rail .rail-logout i { color: #fca5a5; }
+  @media (hover: hover) { .ember-rail .rail-logout:hover { background: rgb(248 113 113 / .15); color: #fecaca; } }
+  .ember-rail .tooltip { --tt-bg: #17211c; --tt-color: #ffffff; }
+  .ember-rail .rail-item:focus-visible { outline: 2px solid #6ee7b7; outline-offset: -2px; }
+
+  @media (min-width: 1024px) {
+    /* C: collapsed = a floating green pill */
+    html.rail-closed .drawer-side { display: flex !important; align-items: center; background: var(--uis-page); overflow: visible !important; z-index: 30; }
+    html.rail-closed .ember-rail .rail-item .rail-label { overflow: hidden; }
+    html.rail-closed .ember-rail { width: 4.5rem; height: auto; max-height: calc(100dvh - 2rem); margin: 0 .9rem; padding: .75rem 0; border-radius: 2.25rem;
+      background: #0b5d3b; box-shadow: 0 22px 44px -20px rgb(11 93 59 / .85); }
+    [data-theme=uis] html.rail-closed .ember-rail, html.rail-closed[data-theme=uis] .ember-rail { background: #0f4a32; }
+    html.rail-closed .ember-rail > a { border: 0 !important; padding: 0 0 .5rem; margin: 0 auto; }
+    html.rail-closed .ember-rail > a > span:first-child { width: 2.75rem; height: 2.75rem; border-radius: 999px; }
+    html.rail-closed .ember-rail > ul { padding: 0 !important; gap: .3rem; align-items: center; }
+    html.rail-closed .ember-rail > ul + ul { border-top: 1px solid rgb(255 255 255 / .15) !important; margin: .5rem 1rem 0; padding-top: .5rem !important; }
+    html.rail-closed .ember-rail .rail-divider { width: 1.75rem; background: rgb(255 255 255 / .18); margin: .2rem 0; }
+    html.rail-closed .ember-rail .rail-item { width: 2.9rem; height: 2.9rem; padding: 0; border-radius: 999px; justify-content: center; }
+    html.rail-closed .ember-rail .rail-item.is-active { background: #ffffff; color: #0b5d3b; box-shadow: 0 6px 16px -6px rgb(0 0 0 / .45); }
+    html.rail-closed .ember-rail .rail-item.is-active i { --fa-display: inline-block; background: transparent; color: inherit; width: auto; height: auto; margin: 0; font-size: 1rem; }
+    html.rail-closed .ember-rail .rail-item.is-active::before, html.rail-closed .ember-rail .rail-item.is-active::after { display: none; }
+    html.rail-closed .ember-rail .rail-count { box-shadow: 0 0 0 2px #0b5d3b; }
+  }
 }
 
 
