@@ -114,7 +114,7 @@ $badTrend = dashTrend($badNow, $badBefore);
             <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3" id="live-progress" data-live>
                 <a class="e-tile" href="vehicle_requests.php?tab=approved"><span class="e-tile-label">Need a driver</span><span class="font-medium tabular-nums"><?= count($needDriver) ?></span></a>
                 <a class="e-tile" href="<?= dh($queueLink) ?>"><span class="e-tile-label">Waiting for the Head of Admin</span><span class="font-medium tabular-nums"><?= count($waitingHead) ?></span></a>
-                <a class="e-tile" href="reminders.php"><span class="e-tile-label">Pending with Heads of Department</span><span class="font-medium tabular-nums"><?= (int)($status['pending'] ?? 0) ?></span></a>
+                <a class="e-tile" href="vehicle_requests.php?tab=pending"><span class="e-tile-label">Pending with Heads of Department</span><span class="font-medium tabular-nums"><?= (int)($status['pending'] ?? 0) ?></span></a>
             </div>
             <p class="mt-3 text-xs text-base-content/65"><?= count($stalePending) ?> pending over 24 hours</p>
         </section>
@@ -167,7 +167,7 @@ $badTrend = dashTrend($badNow, $badBefore);
                 <table class="table">
                     <thead><tr><th>Request</th><th>Destination</th><th>Staff</th><th>Trip</th><th>Waiting</th><th>Status</th><th><span class="sr-only">Action</span></th></tr></thead>
                     <tbody>
-                    <?php foreach ($rows as [$r, $tone, $label]): $rid = (int)$r['request_id']; $href = $tone === 'success' ? 'vehicle_requests.php?tab=approved' : ($tone === 'info' ? $queueLink : 'reminders.php'); ?>
+                    <?php foreach ($rows as [$r, $tone, $label]): $rid = (int)$r['request_id']; $href = $tone === 'success' ? 'vehicle_requests.php?tab=approved' : ($tone === 'info' ? $queueLink : 'vehicle_requests.php?tab=pending&open=' . $rid); ?>
                         <tr>
                             <td><a class="hover:underline" href="<?= dh($href) ?>"><strong>#<?= $rid ?></strong></a></td>
                             <td class="min-w-48"><?= dh($r['destination']) ?></td>
@@ -181,8 +181,7 @@ $badTrend = dashTrend($badNow, $badBefore);
                                 <?php elseif ($tone === 'info'): ?>
                                     <a class="btn btn-sm" href="<?= dh($queueLink) ?>" aria-label="Review request #<?= $rid ?>">Review</a>
                                 <?php else: ?>
-                                    <form method="post" action="reminders.php"><input type="hidden" name="request_id" value="<?= $rid ?>"><input type="hidden" name="return" value="dashboard">
-                                        <button class="btn btn-sm" type="submit" data-loading-text="Sending…" aria-label="Send a reminder for request #<?= $rid ?>">Remind</button></form>
+                                    <a class="btn btn-sm" href="vehicle_requests.php?tab=pending&amp;open=<?= $rid ?>" aria-label="View request #<?= $rid ?>">View</a>
                                 <?php endif; ?>
                             </td>
                         </tr>

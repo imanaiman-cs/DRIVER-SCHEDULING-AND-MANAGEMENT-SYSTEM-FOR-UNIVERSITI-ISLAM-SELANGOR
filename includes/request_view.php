@@ -52,7 +52,11 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Requester</div>
             <div class="font-semibold"><?= reqH($req['staff_name']) ?> <span class="text-base-content/60 font-normal">(<?= reqH($req['staff_department']) ?>)</span></div>
-            <div><?= reqH($req['officer_phone']) ?></div>
+            <div><?= reqH($req['staff_phone'] ?? '') ?></div>
+        </div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="text-base-content/60">Officers to contact</div>
+            <div class="flex flex-col gap-0.5"><?= officersHtml($req['officer_name'], $req['officer_phone']) ?: '-' ?></div>
         </div>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Trip</div>
@@ -63,10 +67,12 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
             <div class="text-base-content/60">Destination</div>
             <div class="font-semibold"><?= reqH($req['destination']) ?></div>
             <div><?= reqH($req['destination_address']) ?></div>
+            <div class="mt-1.5"><?= mapLinks(destinationText($req['destination'], $req['destination_address']), $req['dest_lat'] ?? null, $req['dest_lng'] ?? null) ?></div>
         </div>
         <div class="col-span-12 md:col-span-6">
             <div class="text-base-content/60">Waiting location</div>
             <div><?= reqH($req['waiting_place'] === 'Other' ? ($req['waiting_address'] ?: 'Other') : $req['waiting_place']) ?></div>
+            <?php if ($req['waiting_place'] === 'Other' && ($req['waiting_address'] || ($req['wait_lat'] ?? null))): ?><div class="mt-1.5"><?= mapLinks($req['waiting_address'], $req['wait_lat'] ?? null, $req['wait_lng'] ?? null) ?></div><?php endif; ?>
         </div>
         <div class="col-span-12">
             <div class="text-base-content/60">Purpose</div>
@@ -113,7 +119,7 @@ function requestDetailsHtml(mysqli $conn, array $req, array $o = []): string
         <?php if ($tasks): ?>
         <div class="col-span-12">
             <div class="text-base-content/60">Driver and vehicle <?= $req['status'] === 'assigned' ? '(waiting for the Head of Admin to approve)' : '' ?></div>
-            <div class="overflow-x-auto"><table class="table mb-0">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Assigned drivers and vehicles"><table class="table mb-0">
                 <tbody>
                 <?php foreach ($tasks as $t): ?>
                     <tr>

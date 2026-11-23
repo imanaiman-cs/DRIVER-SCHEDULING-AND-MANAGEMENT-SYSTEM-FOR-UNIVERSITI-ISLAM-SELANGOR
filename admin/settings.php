@@ -16,12 +16,16 @@ $FIELDS = [
     'W_TASKS'              => ['Weight: tasks this month',         'float', 0, 1,   'Share of the driver score that depends on how many tasks (request trips + internal tasks + welfare duty days) the driver already has this month. Fewer tasks = better rank.'],
     'W_AFTER_HOURS'        => ['Weight: outside working hours',    'float', 0, 1,   'Share that depends on tasks outside working hours (Saturday/Sunday, before the start or after the end of working hours). Must add up to 1 with the weight above.'],
     'LAPSE_HOURS'          => ['Lapse after (hours)',              'int',   1, 720, 'A request still Pending after this many hours (48 = two days) becomes Lapsed and its vehicle is released.'],
+    'REMINDER_HOURS'       => ['Approval reminder after (hours)',  'int',   1, 719, 'A request still Pending after this many hours (24) gets one automatic reminder to the Head of Department and the staff member, in the system and by e-mail. It must be less than the lapse time.'],
     'WORK_START'           => ['Working hours start',              'time',  0, 0,   'A task starting before this time is outside working hours (08:00).'],
     'WORK_END'             => ['Working hours end',                'time',  0, 0,   'A task ending after this time is outside working hours (17:30).'],
     'TASK_DURATION_HOURS'  => ['Length of a trip task (hours)',    'int',   1, 12,  'The outbound and the return task of a trip each last this long (the vehicle stays locked for the whole departure-to-return period).'],
     'SESSION_TIMEOUT_MIN'  => ['Idle sign-out (minutes)',          'int',   1, 240, 'A user is signed out after this many minutes without activity (15).'],
     'MAX_FAILED_ATTEMPTS'  => ['Failed logins before blocking',    'int',   1, 20,  'After this many wrong passwords in a row the login is blocked (5).'],
     'LOCKOUT_MINUTES'      => ['Login block (minutes)',            'int',   1, 240, 'How long the login stays blocked after too many failed attempts (15).'],
+    'ADDRESS_SUGGEST'      => ['Address suggestions',              'choice', ['photon' => 'OpenStreetMap (free, no key)', 'google' => 'Google Maps (needs an API key)', 'off' => 'Off'], 0,
+                               'Suggestions while staff type the destination on the request form. OpenStreetMap needs no key. Google needs the key below; without a key OpenStreetMap is used.'],
+    'GOOGLE_MAPS_KEY'      => ['Google Maps API key',              'text',  0, 100, 'Only for Google suggestions: a browser key with the Places API (New) enabled, restricted to this website. Leave empty otherwise.'],
 ];
 
 $errors = [];
@@ -32,7 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new = [];
     foreach ($FIELDS as $k => [$label, $kind, $min, $max]) {
         $raw = trim((string)($_POST[$k] ?? ''));
-        if ($kind === 'time') {
+        if ($kind === 'choice') {
+            if (!isset($min[$raw])) { $errors[$k] = 'Choose one of the options.'; }
+        } elseif ($kind === 'text') {
+            if (strlen($raw) > $max || ($raw !== '' && !preg_match('/^[A-Za-z0-9_\-]+$/', $raw))) { $errors[$k] = 'Use letters, digits, - and _ only.'; }
+        } elseif ($kind === 'time') {
             if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $raw)) { $errors[$k] = 'Use HH:MM (24-hour).'; }
         } elseif ($kind === 'int') {
             if (!preg_match('/^\d+$/', $raw) || (int)$raw < $min || (int)$raw > $max) { $errors[$k] = "Enter a whole number from $min to $max."; }
@@ -43,6 +51,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!isset($errors['W_TASKS'], $errors['W_AFTER_HOURS']) && abs((float)$new['W_TASKS'] + (float)$new['W_AFTER_HOURS'] - 1.0) > 0.0001) {
         $errors['W_AFTER_HOURS'] = 'The two weights must add up to exactly 1.';
+    }
+    if (!isset($errors['REMINDER_HOURS'], $errors['LAPSE_HOURS']) && (int)$new['REMINDER_HOURS'] >= (int)$new['LAPSE_HOURS']) {
+        $errors['REMINDER_HOURS'] = 'The reminder must go out before the request lapses.';
+    }
+    if (($new['ADDRESS_SUGGEST'] ?? '') === 'google' && ($new['GOOGLE_MAPS_KEY'] ?? '') === '') {
+        $errors['GOOGLE_MAPS_KEY'] = 'Enter the Google Maps API key, or choose OpenStreetMap.';
     }
     if (!isset($errors['WORK_START'], $errors['WORK_END']) && $new['WORK_END'] <= $new['WORK_START']) {
         $errors['WORK_END'] = 'Office hours must end after they start.';
@@ -74,8 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php foreach ($FIELDS as $k => [$label, $kind, $min, $max, $help]): ?>
             <div class="col-span-12 md:col-span-6">
                 <label class="mb-1 block text-sm font-medium" for="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($label) ?></label>
+                <?php if ($kind === 'choice'): ?>
+                <select class="select w-full <?= isset($errors[$k]) ? 'select-error' : '' ?>" id="<?= htmlspecialchars($k) ?>" name="<?= htmlspecialchars($k) ?>">
+                    <?php foreach ($min as $ov => $ol): ?><option value="<?= htmlspecialchars($ov) ?>" <?= $values[$k] === $ov ? 'selected' : '' ?>><?= htmlspecialchars($ol) ?></option><?php endforeach; ?>
+                </select>
+                <?php else: ?>
                 <input class="input w-full <?= isset($errors[$k]) ? 'input-error' : '' ?>" id="<?= htmlspecialchars($k) ?>" name="<?= htmlspecialchars($k) ?>"
-                       type="<?= $kind === 'time' ? 'time' : 'text' ?>" value="<?= htmlspecialchars($values[$k]) ?>" required>
+                       type="<?= $kind === 'time' ? 'time' : 'text' ?>" value="<?= htmlspecialchars($values[$k]) ?>" <?= $kind === 'text' ? 'autocomplete="off" spellcheck="false"' : 'required' ?>>
+                <?php endif; ?>
                 <?php if (isset($errors[$k])): ?><div class="mt-1 block text-xs text-error"><?= htmlspecialchars($errors[$k]) ?></div><?php endif; ?>
                 <div class="mt-1 block text-xs text-base-content/60"><?= htmlspecialchars($help) ?></div>
             </div>

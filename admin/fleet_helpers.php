@@ -103,7 +103,14 @@ function closeVehicleMaintenance(mysqli $conn, int $vehicle_id): void
     $stmt = $conn->prepare('UPDATE vehicle_maintenance SET closed_at = NOW() WHERE vehicle_id = ? AND closed_at IS NULL');
     $stmt->bind_param('i', $vehicle_id);
     $stmt->execute();
+    $closed = $stmt->affected_rows;
     $stmt->close();
+    if ($closed > 0) {   // back from the workshop: that was the last service
+        $stmt = $conn->prepare('UPDATE vehicles SET last_maintenance = CURDATE() WHERE vehicle_id = ?');
+        $stmt->bind_param('i', $vehicle_id);
+        $stmt->execute();
+        $stmt->close();
+    }
 }
 
 /**
@@ -354,6 +361,8 @@ function vehicleInput(array $p): array
         'capacity'     => trim((string)($p['capacity'] ?? '')),
         'fuel_type'    => trim((string)($p['fuel_type'] ?? 'Petrol')),
         'notes'        => mb_substr(trim((string)($p['notes'] ?? '')), 0, 1000),
+        'mileage'      => trim(str_replace([',', ' '], '', (string)($p['mileage'] ?? ''))),
+        'next_maintenance' => trim((string)($p['next_maintenance'] ?? '')),
     ];
 }
 
@@ -375,6 +384,8 @@ function validateVehicle(mysqli $conn, array $in, int $except_id = 0): array
     if (!preg_match('/^\d{1,3}$/', $in['capacity']) || (int)$in['capacity'] < 1) { $e['capacity'] = 'Passenger capacity must be a whole number of 1 or more.'; }
     if ($in['year'] !== '' && (!preg_match('/^\d{4}$/', $in['year']) || (int)$in['year'] < 1980 || (int)$in['year'] > (int)date('Y') + 1)) { $e['year'] = 'Enter a valid year.'; }
     if (!in_array($in['fuel_type'], FUEL_TYPES, true)) { $e['fuel_type'] = 'Choose the fuel type.'; }
+    if ($in['mileage'] !== '' && !preg_match('/^\d{1,7}$/', $in['mileage'])) { $e['mileage'] = 'Enter the mileage in km, digits only.'; }
+    if ($in['next_maintenance'] !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $in['next_maintenance']) || !strtotime($in['next_maintenance']))) { $e['next_maintenance'] = 'Enter a valid date.'; }
     return $e;
 }
 
@@ -400,13 +411,16 @@ function vehicleFormFields(array $v, array $errors, ?string $photo = null): void
         <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_shown">Licence required</label>
             <input class="input w-full" id="licence_shown" readonly tabindex="-1" aria-describedby="licHelp" value="<?= htmlspecialchars(isset(VEHICLE_TYPES[$v['vehicle_type'] ?? '']) ? licenceForVehicleType($v['vehicle_type']) : '-') ?>">
             <div class="mt-1 block text-xs text-base-content/60" id="licHelp">Set by the type: Car/Van D, Lorry GDL, Bus PSV.</div></div>
-        <details class="col-span-12 group" id="moreFields" <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) ? 'open' : '' ?>>
+        <details class="col-span-12 group" id="moreFields" <?= ($v['brand'] ?? '') . ($v['year'] ?? '') . ($v['notes'] ?? '') . ($v['mileage'] ?? '') . ($v['next_maintenance'] ?? '') !== '' || isset($errors['year']) || isset($errors['fuel_type']) || isset($errors['mileage']) || isset($errors['next_maintenance']) ? 'open' : '' ?>>
             <summary class="link link-primary inline-flex cursor-pointer list-none items-center gap-1 text-sm no-underline"><i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>More details (optional)</summary>
             <div class="grid-12 mt-4 grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="brand">Brand</label><input class="input w-full" id="brand" name="brand" maxlength="50" value="<?= $val('brand') ?>"></div>
             <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="year">Year</label><input class="input w-full" id="year" name="year" inputmode="numeric" maxlength="4" value="<?= $val('year') ?>"><?= $err('year') ?></div>
             <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="fuel_type">Fuel</label>
                 <select class="select w-full" id="fuel_type" name="fuel_type"><?php foreach (FUEL_TYPES as $f): ?><option <?= ($v['fuel_type'] ?? 'Petrol') === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= $err('fuel_type') ?></div>
+            <div class="col-span-6"><label class="mb-1 block text-sm font-medium" for="mileage">Mileage (km)</label><input class="input w-full" id="mileage" name="mileage" inputmode="numeric" maxlength="9" value="<?= $val('mileage') ?>"><?= $err('mileage') ?>
+                <div class="mt-1 block text-xs text-base-content/60">Updated by drivers after each task.</div></div>
+            <div class="col-span-6"><label class="mb-1 block text-sm font-medium" for="next_maintenance">Next service</label><input type="date" class="input w-full" id="next_maintenance" name="next_maintenance" value="<?= $val('next_maintenance') ?>"><?= $err('next_maintenance') ?></div>
             <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="notes">Notes</label><textarea class="textarea w-full" id="notes" name="notes" rows="2" maxlength="1000"><?= $val('notes') ?></textarea></div>
             <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="photo">Photo</label>
                 <?php if ($photo): ?><div class="mb-1"><img src="<?= htmlspecialchars(vehiclePhotoUrl($photo)) ?>" alt="Vehicle photo" style="max-height:80px" class="rounded border border-base-300"></div><?php endif; ?>

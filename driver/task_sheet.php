@@ -63,6 +63,7 @@ if (!$schedule) {
     <div class="toolbar no-print flex gap-2 px-2">
         <button type="button" class="btn btn-sm btn-primary" onclick="window.print()">Print</button>
         <a href="<?php echo SITE_URL; ?>/driver/schedules.php" class="btn btn-outline btn-sm">Back</a>
+        <span class="ms-auto"><?php echo mapLinks($schedule['destination'], $schedule['dest_lat'], $schedule['dest_lng'], 'btn-sm'); ?></span>
     </div>
 
     <div class="sheet-card">

@@ -31,6 +31,9 @@ const SETTING_DEFAULTS = [
     'W_TASKS'             => '0.6',
     'W_AFTER_HOURS'       => '0.4',
     'LAPSE_HOURS'         => '48',
+    'REMINDER_HOURS'      => '24',
+    'ADDRESS_SUGGEST'     => 'photon',   // photon (OpenStreetMap, free, no key) | google (needs GOOGLE_MAPS_KEY) | off
+    'GOOGLE_MAPS_KEY'     => '',
     'WORK_START'          => '08:00',
     'WORK_END'            => '17:30',
     'SESSION_TIMEOUT_MIN' => '15',
@@ -74,6 +77,83 @@ function saveSetting(mysqli $conn, string $key, string $value): void
 }
 
 /** Fixed list of waiting locations; 'Other' asks for a free-text address. */
+/** The full destination: name + address. */
+function destinationText(?string $destination, ?string $address): string
+{
+    $d = trim((string)$destination); $a = trim((string)$address);
+    if ($a === '' || $a === $d) { return $d; }
+    if ($d !== '' && stripos($a, $d) === 0) { return $a; }   // a picked suggestion already starts with the name
+    return $d === '' ? $a : "$d, $a";
+}
+
+/** Where the driver waits: the place, or the typed address when the place is "Other". */
+function waitingText(?string $place, ?string $address): string
+{
+    $p = trim((string)$place); $a = trim((string)$address);
+    if (strcasecmp($p, 'Other') === 0) { return $a !== '' ? $a : 'Other'; }
+    return $p;
+}
+
+/** Contact officers of a request: one per line in officer_name / officer_phone, same order. @return array<int,array{name:string,phone:string}> */
+function officerPairs(?string $names, ?string $phones): array
+{
+    $n = array_values(array_filter(array_map('trim', preg_split('/\R/', (string)$names)), 'strlen'));
+    $p = array_map('trim', preg_split('/\R/', (string)$phones));
+    $out = [];
+    foreach ($n as $i => $name) { $out[] = ['name' => $name, 'phone' => (string)($p[$i] ?? '')]; }
+    if (!$out && trim((string)$phones) !== '') { $out[] = ['name' => '', 'phone' => trim((string)$phones)]; }
+    return $out;
+}
+
+/** The officers as HTML: "Name · 012-345 6789" per line, the phone as a tel: link. */
+function officersHtml(?string $names, ?string $phones): string
+{
+    $rows = [];
+    foreach (officerPairs($names, $phones) as $o) {
+        $tel = preg_replace('/[^0-9+]/', '', $o['phone']);
+        $rows[] = '<div>' . htmlspecialchars($o['name'], ENT_QUOTES) . ($o['phone'] !== ''
+            ? ' <a class="whitespace-nowrap link link-hover" href="tel:' . htmlspecialchars($tel, ENT_QUOTES) . '"><i class="fas fa-phone me-1 text-xs" aria-hidden="true"></i>' . htmlspecialchars($o['phone'], ENT_QUOTES) . '</a>' : '') . '</div>';
+    }
+    return implode('', $rows);
+}
+
+/**
+ * Google Maps and Waze buttons for a place: by its coordinates when known, else by the address text.
+ * No API key is needed: these are plain links that open the app on a phone.
+ */
+function mapLinks(?string $address, $lat = null, $lng = null, string $size = 'btn-xs'): string
+{
+    $address = trim((string)$address);
+    $hasLL = $lat !== null && $lng !== null && $lat !== '' && $lng !== '';
+    if (!$hasLL && $address === '') { return ''; }
+    $ll = $hasLL ? rtrim(rtrim(sprintf('%.6f', $lat), '0'), '.') . ',' . rtrim(rtrim(sprintf('%.6f', $lng), '0'), '.') : '';
+    $g = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($hasLL ? $ll : $address);
+    $w = 'https://waze.com/ul?' . ($hasLL ? 'll=' . rawurlencode($ll) : 'q=' . rawurlencode($address)) . '&navigate=yes';
+    $label = htmlspecialchars($address !== '' ? $address : $ll, ENT_QUOTES);
+    return '<span class="map-links inline-flex flex-wrap gap-1.5">'
+        . '<a class="btn ' . $size . '" href="' . htmlspecialchars($g, ENT_QUOTES) . '" target="_blank" rel="noopener" aria-label="Open ' . $label . ' in Google Maps"><i class="fas fa-map-location-dot" aria-hidden="true"></i>Maps</a>'
+        . '<a class="btn ' . $size . '" href="' . htmlspecialchars($w, ENT_QUOTES) . '" target="_blank" rel="noopener" aria-label="Open ' . $label . ' in Waze"><i class="fas fa-location-arrow" aria-hidden="true"></i>Waze</a>'
+        . '</span>';
+}
+
+/** Address suggestion settings for the request form: [provider, google key]. */
+function addressSuggestConfig(mysqli $conn): array
+{
+    $p = (string)getSetting($conn, 'ADDRESS_SUGGEST');
+    $k = trim((string)getSetting($conn, 'GOOGLE_MAPS_KEY'));
+    if ($p === 'google' && $k === '') { $p = 'photon'; }   // no key: fall back to the free service
+    return [in_array($p, ['photon', 'google', 'off'], true) ? $p : 'photon', $p === 'google' ? $k : ''];
+}
+
+/** A latitude / longitude posted by the request form, or null when missing or out of range. */
+function postedCoord($v, float $limit): ?float
+{
+    $v = trim((string)$v);
+    if ($v === '' || !preg_match('/^-?\d{1,3}(\.\d{1,8})?$/', $v)) { return null; }
+    $f = (float)$v;
+    return abs($f) <= $limit ? round($f, 6) : null;
+}
+
 const WAITING_LOCATIONS = ['Main entrance', 'Library', 'Administration building', 'Faculty entrance', 'Student Affairs lobby', 'Mosque', 'Other'];
 
 /** Supporting documents: PDF, JPG or PNG, at most 5 MB each (checked on the server in includes/upload.php). */
@@ -225,7 +305,7 @@ function requestPageForRole(string $role): string
  * @param int|int[] $user_ids
  * @return array{sent:int, failed:int, skipped:int, errors:string[]}  e-mail results, for pages that show them
  */
-function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = null, ?string $kind = 'notice'): array
+function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = null, ?string $kind = 'notice', bool $whatsapp = true): array
 {
     $out = ['sent' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)$user_ids))));
@@ -266,7 +346,7 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
             $q->execute();
             $w = $q->get_result()->fetch_assoc();
             $q->close();
-            if ($w) {
+            if ($w && $whatsapp) {
                 $url = $link ? rtrim(SITE_URL, '/') . '/' . ltrim($link, '/') : SITE_URL;
                 sendWhatsApp($conn, $uid, $w['phone'], "[UIS Vehicle Section] $msg\n$url");
             }
@@ -673,11 +753,75 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
             $ids = requestScheduleIds($conn, $request_id);
-            notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
+            // in the system and by e-mail as before; on WhatsApp one message per task in the task-sheet format
+            notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php', 'notice', false);
+            foreach ($ids as $sid) { sendDriverTaskWhatsApp($conn, (int)$sid); }
             notifyUsers($conn, [$staff], "Your $what is confirmed. " . taskSummaryText($conn, $request_id) . '.', 'staff/my_requests.php');
             break;
         case 'completed':
             break;
+    }
+}
+
+/**
+ * The WhatsApp message a driver gets for one task, in the format the Administrative Assistant used by hand
+ * (the same fields as the "Tugasan Pemandu" task sheet), with a Google Maps and a Waze link.
+ */
+function driverTaskWhatsAppText(array $t): string
+{
+    require_once __DIR__ . '/task_sheet.php';
+    $up = fn($v) => mb_strtoupper(trim((string)$v), 'UTF-8');
+    $time = trim(formatMalayTime($t['start_time'] ?? null) . ' - ' . formatMalayTime($t['end_time'] ?? null), ' -');
+    $vehicle = trim(vehicleTypeMalay($t['vehicle_type'] ?? '') . ' ' . ($t['vehicle_brand'] ?? ''));
+    $vehicle = $up(trim($vehicle . (($t['vehicle_plate'] ?? '') !== '' ? ' - ' . $t['vehicle_plate'] : '')));
+    $hasLL = ($t['dest_lat'] ?? null) !== null && ($t['dest_lng'] ?? null) !== null;
+    $ll = $hasLL ? rtrim(rtrim(sprintf('%.6f', $t['dest_lat']), '0'), '.') . ',' . rtrim(rtrim(sprintf('%.6f', $t['dest_lng']), '0'), '.') : '';
+    $place = (string)$t['destination'];
+    $maps = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($hasLL ? $ll : $place);
+    $waze = 'https://waze.com/ul?' . ($hasLL ? 'll=' . rawurlencode($ll) : 'q=' . rawurlencode($place)) . '&navigate=yes';
+    $offs = officerPairs($t['officer_name'] ?? '', $t['officer_phone'] ?? '');
+    $num = fn(array $list) => count($list) > 1 ? implode("\n", array_map(fn($v, $i) => ($i + 1) . ') ' . $v, $list, array_keys($list))) : implode('', $list);
+    $officer = $num(array_map(fn($o) => $up($o['name']), $offs));
+    $phones  = $num(array_values(array_filter(array_map(fn($o) => $o['phone'], $offs), 'strlen')));
+    $rows = [
+        'Nama Pemandu'    => $up($t['driver_name'] ?? ''),
+        'Tarikh Tugasan'  => date('d.m.Y', strtotime((string)$t['trip_date'])),
+        'Masa'            => $time,
+        'Kenderaan'       => $vehicle,
+        'Lokasi'          => $up($place),
+        'Peta'            => $maps,
+        'Waze'            => $waze,
+        'Tempat Menunggu' => $up($t['waiting_place'] ?? ''),
+        'Tujuan'          => $up($t['purpose'] ?? ''),
+        'Pegawai'         => $officer,
+        'No. Tel'         => $phones,
+    ];
+    $out = "*TUGASAN PEMANDU*\n\n";
+    foreach ($rows as $label => $value) {
+        if (trim($value) === '') { continue; }
+        $out .= '*' . $label . ' :*' . "\n" . $value . "\n";
+    }
+    return $out . "\nSekiranya Pegawai lewat daripada masa ditetapkan, Pemandu adalah dipohon untuk menghubungi Pegawai berkaitan untuk tindakan selanjutnya.";
+}
+
+/** Sends the task message above to the driver of one task (logged in whatsapp_log; never stops the caller). */
+function sendDriverTaskWhatsApp(mysqli $conn, int $schedule_id): void
+{
+    try {
+        require_once __DIR__ . '/schedule_view.php';
+        if (!function_exists('sendWhatsApp')) { return; }
+        $t = taskSheetRow($conn, $schedule_id);
+        if (!$t) { return; }
+        $stmt = $conn->prepare("SELECT u.user_id, COALESCE(NULLIF(u.phone, ''), d.phone) AS phone FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id
+                                  LEFT JOIN users u ON u.driver_id = d.driver_id AND u.role = 'driver' WHERE s.schedule_id = ? LIMIT 1");
+        $stmt->bind_param('i', $schedule_id);
+        $stmt->execute();
+        $d = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$d) { return; }
+        sendWhatsApp($conn, $d['user_id'] !== null ? (int)$d['user_id'] : null, $d['phone'], driverTaskWhatsAppText($t));
+    } catch (Throwable $e) {
+        error_log('sendDriverTaskWhatsApp: ' . $e->getMessage());
     }
 }
 
@@ -1018,12 +1162,20 @@ function hodOwnsRequest(array $req): bool
 }
 
 // ------------------------------------------------------------
-// Manual approval reminder (UC016). There is NO automatic reminder.
+// Automatic approval reminder (UC016). Sent by runRequestJobs(), never by hand.
 // ------------------------------------------------------------
 
+/** Hours a request stays Pending before the reminder goes out (always before it lapses). */
+function reminderHours(mysqli $conn): int
+{
+    $lapse = max(1, getSettingInt($conn, 'LAPSE_HOURS'));
+    return min(max(1, getSettingInt($conn, 'REMINDER_HOURS')), max(1, $lapse - 1));
+}
+
 /**
- * The Administrative Assistant reminds the Head of Department AND the staff member about a Pending request.
- * Saved in the system and e-mailed; the reminder date is recorded. If the e-mail fails the reminder is still saved.
+ * Reminds the Head of Department AND the staff member about a Pending request.
+ * Saved in the system and e-mailed; the reminder date is recorded (sent_by NULL = the system).
+ * If the e-mail fails the reminder is still saved.
  * @return array{ok:bool, message:string, email_error:?string}
  */
 function sendApprovalReminder(mysqli $conn, int $request_id): array
@@ -1035,7 +1187,7 @@ function sendApprovalReminder(mysqli $conn, int $request_id): array
     $stmt->close();
     if (!$req || $req['status'] !== 'pending') { return ['ok' => false, 'message' => 'This request is not waiting for approval any more.', 'email_error' => null]; }
     $days = max(0, (int)floor((time() - strtotime($req['created_at'])) / 86400));
-    $by = (int)$_SESSION['user_id'];
+    $by = null;   // sent by the system
     $err = null;
     $lastErr = '';
     $res = notifyUsers($conn, array_filter([(int)$req['staff_id'], (int)($req['supervisor_id'] ?? 0)]),
@@ -1051,14 +1203,14 @@ function sendApprovalReminder(mysqli $conn, int $request_id): array
 }
 
 // ------------------------------------------------------------
-// Background jobs: lapse, cancel what nobody handled, complete finished trips.
-// (There is no automatic reminder.) Run hourly: php cron/run_jobs.php
+// Background jobs: lapse, remind, cancel what nobody handled, complete finished trips.
+// Run hourly: php cron/run_jobs.php (the pages also run them, at most every 5 minutes)
 // ------------------------------------------------------------
 
-/** @return array{lapsed:int, cancelled:int, completed:int} */
+/** @return array{lapsed:int, reminded:int, cancelled:int, completed:int} */
 function runRequestJobs(mysqli $conn): array
 {
-    $out = ['lapsed' => 0, 'cancelled' => 0, 'completed' => 0];
+    $out = ['lapsed' => 0, 'reminded' => 0, 'cancelled' => 0, 'completed' => 0];
     $hours = max(1, getSettingInt($conn, 'LAPSE_HOURS'));
 
     // 1. Pending for 2 days (or the trip time has passed): Lapsed. The vehicle lock is released.
@@ -1068,6 +1220,19 @@ function runRequestJobs(mysqli $conn): array
     $stmt->execute();
     foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
         if (changeRequestStatus($conn, (int)$row['request_id'], 'lapsed', ['system' => true])['ok']) { $out['lapsed']++; }
+    }
+    $stmt->close();
+
+    // 1b. Still Pending after REMINDER_HOURS (24) and not reminded yet: one automatic reminder
+    //     to the Head of Department and the staff member, in the system and by e-mail.
+    $remind = reminderHours($conn);
+    $stmt = $conn->prepare("SELECT vr.request_id FROM vehicle_requests vr WHERE vr.status = 'pending'
+                              AND vr.created_at <= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                              AND NOT EXISTS (SELECT 1 FROM reminders r WHERE r.request_id = vr.request_id)");
+    $stmt->bind_param('i', $remind);
+    $stmt->execute();
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+        if (sendApprovalReminder($conn, (int)$row['request_id'])['ok']) { $out['reminded']++; }
     }
     $stmt->close();
 

@@ -26,7 +26,7 @@ No framework, no new top-level layers. Prepared statements for every query; CSRF
 |---|---|
 | A accounts | `admin/users.php` (removed), `change_password.php` (hidden), `login.php`, `tools/import_staff.php`, `tools/staff_sample.csv`, `config/database.php`, `database.sql`, `admin/add_driver.php` |
 | B request | `staff/request_vehicle.php`, `staff/my_requests.php`, `ajax/get_free_vehicles.php`, `ajax/get_document.php`, `includes/workflow.php`, `includes/upload.php`, `cron/run_jobs.php` |
-| C approval | `supervisor/approvals.php`, `ajax/request_action.php`, `ajax/cancel_request.php`, `ajax/add_comment.php`, `ajax/get_comments.php`, `admin/reminders.php` |
+| C approval | `supervisor/approvals.php`, `ajax/request_action.php`, `ajax/cancel_request.php`, `ajax/add_comment.php`, `ajax/get_comments.php` (reminders: automatic, `runRequestJobs()`) |
 | D assignment | `admin/vehicle_requests.php`, `admin/assign_driver.php`, `admin/approve_assignments.php`, `admin/replace_driver.php`, `ajax/get_available_drivers.php`, `includes/recommender.php`, `includes/workflow.php` |
 | E schedule | `admin/internal_tasks.php`, `admin/welfare.php`, `admin/calendar.php`, `driver/schedules.php` |
 | F vehicles | `admin/vehicles.php`, `add_vehicle.php`, `edit_vehicle.php`, `vehicle_maintenance.php`, `ajax/update_vehicle_status.php`, `ajax/deactivate_vehicle.php`, `ajax/deactivate_driver.php` |
@@ -48,7 +48,7 @@ No framework, no new top-level layers. Prepared statements for every query; CSRF
 * Status engine: `changeRequestStatus($conn,$id,$to,['reason'=>…,'system'=>bool])`, `cancelRulesFor($req)`, `REQUEST_ACTIVE_STATUSES`.
 * Assignment: `assignRequestDrivers($conn,$id,$outDriver,$retDriver=null,$retVehicle=null)`, `approveAssignment($conn,$id)`, `rejectAssignment($conn,$id,$reason)`, `replaceTaskDriver($conn,$schedule_id,$new_driver,$reason)`.
 * Comments: `addRequestComment($conn,$req,$text)`, `requestComments($conn,$id)`. Visibility: `requestForCurrentUser($conn,$id)`, `hodOwnsRequest()`.
-* Reminder (manual): `sendApprovalReminder($conn,$id)`.
+* Reminder (automatic since 22 Nov 2026, after `REMINDER_HOURS`, from `runRequestJobs()`): `sendApprovalReminder($conn,$id)`.
 * Jobs: `runRequestJobs($conn)` (lapse, cancel unhandled, complete).
 * Driver visibility: `SCHEDULE_CONFIRMED_ONLY_SQL` (table alias `s` = schedules) — a driver sees a task only when its request is Confirmed/Completed.
 

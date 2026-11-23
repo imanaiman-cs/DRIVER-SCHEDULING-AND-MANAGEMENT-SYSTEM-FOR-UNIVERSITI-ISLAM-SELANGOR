@@ -77,6 +77,9 @@ CREATE TABLE `vehicles` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `license_required` enum('D','GDL','PSV') NOT NULL DEFAULT 'D',
+  `fuel_level` tinyint(4) DEFAULT NULL COMMENT '0 almost empty .. 4 full (quarters)',
+  `fuel_updated_at` datetime DEFAULT NULL,
+  `fuel_updated_by` int(11) DEFAULT NULL COMMENT 'driver_id',
   PRIMARY KEY (`vehicle_id`),
   UNIQUE KEY `uq_vehicles_plate_number` (`plate_number`),
   UNIQUE KEY `uq_vehicles_plate` (`plate_number`)
@@ -106,8 +109,8 @@ CREATE TABLE `schedules` (
   `destination` varchar(255) NOT NULL,
   `purpose` varchar(255) DEFAULT NULL,
   `passenger_count` int(11) NOT NULL DEFAULT 1,
-  `officer_name` varchar(255) DEFAULT NULL COMMENT 'Officer(s) the driver serves',
-  `officer_phone` varchar(50) DEFAULT NULL COMMENT 'Officer contact number',
+  `officer_name` varchar(400) DEFAULT NULL COMMENT 'Officer(s) the driver serves, one per line',
+  `officer_phone` varchar(120) DEFAULT NULL COMMENT 'Officer phone(s), one per line',
   `waiting_place` varchar(150) DEFAULT NULL COMMENT 'Where the driver waits (tempat menunggu)',
   `status` enum('pending','approved','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
   `created_by` int(11) DEFAULT NULL,
@@ -139,8 +142,8 @@ CREATE TABLE `vehicle_requests` (
   `destination` varchar(255) NOT NULL,
   `purpose` text NOT NULL,
   `passenger_count` int(11) NOT NULL DEFAULT 1,
-  `officer_name` varchar(255) DEFAULT NULL,
-  `officer_phone` varchar(50) DEFAULT NULL,
+  `officer_name` varchar(400) DEFAULT NULL,
+  `officer_phone` varchar(120) DEFAULT NULL,
   `waiting_place` varchar(150) DEFAULT NULL,
   `status` enum('pending','approved','assigned','rejected','processed','cancelled','lapsed','completed') NOT NULL DEFAULT 'pending',
   `supervisor_id` int(11) DEFAULT NULL,
@@ -160,6 +163,10 @@ CREATE TABLE `vehicle_requests` (
   `depart_at` datetime GENERATED ALWAYS AS (timestamp(`trip_date`,`start_time`)) STORED,
   `return_at` datetime GENERATED ALWAYS AS (timestamp(`return_date`,`end_time`)) STORED,
   `lapsed_notified` tinyint(1) NOT NULL DEFAULT 0,
+  `dest_lat` decimal(9,6) DEFAULT NULL,
+  `dest_lng` decimal(9,6) DEFAULT NULL,
+  `wait_lat` decimal(9,6) DEFAULT NULL,
+  `wait_lng` decimal(9,6) DEFAULT NULL,
   PRIMARY KEY (`request_id`),
   KEY `fk_vr_staff` (`staff_id`),
   KEY `fk_vr_vehicle` (`vehicle_id`),
@@ -217,6 +224,22 @@ CREATE TABLE `email_log` (
   KEY `idx_email_created` (`created_at`),
   KEY `idx_email_driver_kind` (`driver_id`,`kind`,`ref_date`),
   CONSTRAINT `fk_email_driver` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `vehicle_readings` (
+  `reading_id` int(11) NOT NULL AUTO_INCREMENT,
+  `vehicle_id` int(11) NOT NULL,
+  `driver_id` int(11) NOT NULL,
+  `schedule_id` int(11) DEFAULT NULL,
+  `task_id` int(11) DEFAULT NULL,
+  `fuel_level` tinyint(4) NOT NULL,
+  `odometer` int(11) DEFAULT NULL,
+  `recorded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`reading_id`),
+  UNIQUE KEY `uq_reading_schedule` (`schedule_id`),
+  UNIQUE KEY `uq_reading_task` (`task_id`),
+  KEY `idx_reading_vehicle` (`vehicle_id`, `recorded_at`),
+  CONSTRAINT `fk_reading_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`vehicle_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `whatsapp_log` (
@@ -425,6 +448,20 @@ INSERT INTO vehicles (vehicle_id, plate_number, vehicle_type, brand, model, year
 
 INSERT INTO vehicle_maintenance (vehicle_id, start_date, end_date, workshop, note)
 VALUES (4, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 9 DAY), 'Auto Service Klang Sdn Bhd', 'Gearbox repair');
+-- Past (closed) maintenance, for the history on the vehicle page
+INSERT INTO vehicle_maintenance (vehicle_id, start_date, end_date, workshop, note, closed_at) VALUES
+(5, DATE_SUB(CURDATE(), INTERVAL 80 DAY), DATE_SUB(CURDATE(), INTERVAL 78 DAY), 'Proton Service Centre Shah Alam', '30,000 km service', DATE_SUB(NOW(), INTERVAL 78 DAY)),
+(5, DATE_SUB(CURDATE(), INTERVAL 250 DAY), DATE_SUB(CURDATE(), INTERVAL 249 DAY), 'Proton Service Centre Shah Alam', 'Brake pads', DATE_SUB(NOW(), INTERVAL 249 DAY)),
+(1, DATE_SUB(CURDATE(), INTERVAL 60 DAY), DATE_SUB(CURDATE(), INTERVAL 57 DAY), 'Hino Service Centre Klang', 'Engine service', DATE_SUB(NOW(), INTERVAL 57 DAY));
+
+-- Odometer, service dates and the last fuel level a driver recorded (demo values)
+UPDATE vehicles SET mileage = ELT(vehicle_id, 182400, 96350, 121800, 154200, 48210, 22950, 88760, 140300, 101500, 176900, 210450, 64120),
+                    last_maintenance = DATE_SUB(CURDATE(), INTERVAL 40 + vehicle_id * 9 DAY),
+                    next_maintenance = DATE_ADD(CURDATE(), INTERVAL ELT(vehicle_id, 52, 120, 18, 9, 73, 140, 25, 96, 30, 61, -4, 110) DAY),
+                    fuel_level = ELT(vehicle_id, 3, 4, 2, NULL, 3, 1, 4, 2, NULL, 3, 0, 4),
+                    fuel_updated_at = IF(vehicle_id IN (4, 9), NULL, DATE_SUB(NOW(), INTERVAL vehicle_id * 7 HOUR)),
+                    fuel_updated_by = IF(vehicle_id IN (4, 9), NULL, 1 + (vehicle_id MOD 5));
+UPDATE vehicles SET last_maintenance = DATE_SUB(CURDATE(), INTERVAL 78 DAY) WHERE vehicle_id = 5;
 
 -- ============================================================
 -- SEED: settings
@@ -433,6 +470,7 @@ INSERT INTO settings (setting_key, setting_value, description) VALUES
  ('W_TASKS',             '0.6',   'Weight of the number of tasks this month in the driver score'),
  ('W_AFTER_HOURS',       '0.4',   'Weight of the number of tasks outside working hours in the driver score'),
  ('LAPSE_HOURS',         '48',    'A request still Pending after this many hours becomes Lapsed'),
+ ('REMINDER_HOURS',      '24',    'A request still Pending after this many hours gets one automatic approval reminder'),
  ('WORK_START',          '08:00', 'Working hours start (a task before this is outside working hours)'),
  ('WORK_END',            '17:30', 'Working hours end (a task after this is outside working hours)'),
  ('SESSION_TIMEOUT_MIN', '15',    'Minutes without activity before a user is signed out'),
@@ -555,4 +593,4 @@ WITH RECURSIVE d (day_date) AS (
 SELECT day_date, ELT(1 + (DAYOFMONTH(day_date) MOD 10), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM d;
 
 SET FOREIGN_KEY_CHECKS = 1;
-INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs');
+INSERT INTO schema_migrations (name) VALUES ('2026_10_align_srs'), ('2026_11_vehicle_fuel'), ('2026_11_request_coords'), ('2026_11_contact_officers');

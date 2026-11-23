@@ -472,6 +472,15 @@ function verifyPassword(string $plain, string $stored): bool
     return strlen($stored) === 64 && ctype_xdigit($stored) && hash_equals($stored, hash('sha256', $plain));
 }
 
+/** Why a new password is not acceptable (null when it is): at least 8 characters, with a letter and a number. */
+function passwordProblem(string $new): ?string
+{
+    if (strlen($new) < 8) { return 'The new password must have at least 8 characters.'; }
+    if (!preg_match('/[A-Za-z]/', $new) || !preg_match('/\d/', $new)) { return 'The new password must contain a letter and a number.'; }
+    if (strlen($new) > 72) { return 'The new password must have at most 72 characters.'; }
+    return null;
+}
+
 /** Replaces a legacy SHA-256 hash by a bcrypt hash after a successful sign-in. */
 function upgradeLegacyPassword(mysqli $conn, int $user_id, string $plain, string $stored): void
 {

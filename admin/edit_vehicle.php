@@ -22,6 +22,7 @@ $v = [
     'plate_number' => $cur['plate_number'], 'vehicle_type' => isset(VEHICLE_TYPES[$cur['vehicle_type']]) ? $cur['vehicle_type'] : '',
     'brand' => (string)$cur['brand'], 'model' => (string)$cur['model'], 'year' => $cur['year'] === null ? '' : (string)$cur['year'],
     'capacity' => (string)$cur['capacity'], 'fuel_type' => $cur['fuel_type'], 'notes' => (string)$cur['notes'],
+    'mileage' => (int)$cur['mileage'] > 0 ? (string)(int)$cur['mileage'] : '', 'next_maintenance' => (string)$cur['next_maintenance'],
 ];
 $errors = [];
 
@@ -41,8 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $brand = $v['brand'] === '' ? null : $v['brand'];
         $notes = $v['notes'] === '' ? null : $v['notes'];
         try {
-            $stmt = $conn->prepare('UPDATE vehicles SET plate_number = ?, vehicle_type = ?, brand = ?, model = ?, year = ?, capacity = ?, fuel_type = ?, license_required = ?, notes = ?, photo = ? WHERE vehicle_id = ?');
-            $stmt->bind_param('ssssiissssi', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo, $id);
+            $mileage = $v['mileage'] === '' ? (int)$cur['mileage'] : (int)$v['mileage'];
+            $next = $v['next_maintenance'] === '' ? null : $v['next_maintenance'];
+            $stmt = $conn->prepare('UPDATE vehicles SET plate_number = ?, vehicle_type = ?, brand = ?, model = ?, year = ?, capacity = ?, fuel_type = ?, license_required = ?, notes = ?, photo = ?, mileage = ?, next_maintenance = ? WHERE vehicle_id = ?');
+            $stmt->bind_param('ssssiissssisi', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo, $mileage, $next, $id);
             $stmt->execute();
             $stmt->close();
             if ($newPhoto) { deleteUploadedImage($cur['photo']); }

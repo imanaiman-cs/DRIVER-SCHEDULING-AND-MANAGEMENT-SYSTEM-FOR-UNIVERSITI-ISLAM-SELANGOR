@@ -28,9 +28,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $brand = $v['brand'] === '' ? null : $v['brand'];
         $notes = $v['notes'] === '' ? null : $v['notes'];
         try {
-            $stmt = $conn->prepare("INSERT INTO vehicles (plate_number, vehicle_type, brand, model, year, capacity, fuel_type, status, license_required, notes, photo)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?)");
-            $stmt->bind_param('ssssiissss', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo);
+            $mileage = $v['mileage'] === '' ? 0 : (int)$v['mileage'];
+            $next = $v['next_maintenance'] === '' ? null : $v['next_maintenance'];
+            $stmt = $conn->prepare("INSERT INTO vehicles (plate_number, vehicle_type, brand, model, year, capacity, fuel_type, status, license_required, notes, photo, mileage, next_maintenance)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?)");
+            $stmt->bind_param('ssssiissssis', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo, $mileage, $next);
             $stmt->execute();
             $stmt->close();
             auditLog($conn, 'vehicle_add', null, $v['plate_number']);
