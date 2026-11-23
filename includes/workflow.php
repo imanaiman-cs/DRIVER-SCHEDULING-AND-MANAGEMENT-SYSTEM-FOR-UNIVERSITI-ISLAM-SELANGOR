@@ -282,7 +282,7 @@ function requestPageForRole(string $role): string
  * @param int|int[] $user_ids
  * @return array{sent:int, failed:int, skipped:int, errors:string[]}  e-mail results, for pages that show them
  */
-function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = null, ?string $kind = 'notice'): array
+function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = null, ?string $kind = 'notice', bool $whatsapp = true): array
 {
     $out = ['sent' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)$user_ids))));
@@ -323,7 +323,7 @@ function notifyUsers(mysqli $conn, $user_ids, string $message, ?string $link = n
             $q->execute();
             $w = $q->get_result()->fetch_assoc();
             $q->close();
-            if ($w) {
+            if ($w && $whatsapp) {
                 $url = $link ? rtrim(SITE_URL, '/') . '/' . ltrim($link, '/') : SITE_URL;
                 sendWhatsApp($conn, $uid, $w['phone'], "[UIS Vehicle Section] $msg\n$url");
             }
@@ -730,11 +730,71 @@ function afterRequestStatusChange(mysqli $conn, array $req, string $to, ?string 
             break;
         case 'processed':                                    // UC019: the driver first, then the staff member
             $ids = requestScheduleIds($conn, $request_id);
-            notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php');
+            // in the system and by e-mail as before; on WhatsApp one message per task in the task-sheet format
+            notifyUsers($conn, driverUserIdsOfSchedules($conn, $ids), "You have a new trip: $what.", 'driver/schedules.php', 'notice', false);
+            foreach ($ids as $sid) { sendDriverTaskWhatsApp($conn, (int)$sid); }
             notifyUsers($conn, [$staff], "Your $what is confirmed. " . taskSummaryText($conn, $request_id) . '.', 'staff/my_requests.php');
             break;
         case 'completed':
             break;
+    }
+}
+
+/**
+ * The WhatsApp message a driver gets for one task, in the format the Administrative Assistant used by hand
+ * (the same fields as the "Tugasan Pemandu" task sheet), with a Google Maps and a Waze link.
+ */
+function driverTaskWhatsAppText(array $t): string
+{
+    require_once __DIR__ . '/task_sheet.php';
+    $up = fn($v) => mb_strtoupper(trim((string)$v), 'UTF-8');
+    $time = trim(formatMalayTime($t['start_time'] ?? null) . ' - ' . formatMalayTime($t['end_time'] ?? null), ' -');
+    $vehicle = trim(vehicleTypeMalay($t['vehicle_type'] ?? '') . ' ' . ($t['vehicle_brand'] ?? ''));
+    $vehicle = $up(trim($vehicle . (($t['vehicle_plate'] ?? '') !== '' ? ' - ' . $t['vehicle_plate'] : '')));
+    $hasLL = ($t['dest_lat'] ?? null) !== null && ($t['dest_lng'] ?? null) !== null;
+    $ll = $hasLL ? rtrim(rtrim(sprintf('%.6f', $t['dest_lat']), '0'), '.') . ',' . rtrim(rtrim(sprintf('%.6f', $t['dest_lng']), '0'), '.') : '';
+    $place = (string)$t['destination'];
+    $maps = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($hasLL ? $ll : $place);
+    $waze = 'https://waze.com/ul?' . ($hasLL ? 'll=' . rawurlencode($ll) : 'q=' . rawurlencode($place)) . '&navigate=yes';
+    $officer = $up($t['officer_name'] ?? '') . (trim((string)($t['officer_phone'] ?? '')) !== '' ? ' (' . trim((string)$t['officer_phone']) . ')' : '');
+    $rows = [
+        'Nama Pemandu'    => $up($t['driver_name'] ?? ''),
+        'Tarikh Tugasan'  => date('d.m.Y', strtotime((string)$t['trip_date'])),
+        'Masa'            => $time,
+        'Kenderaan'       => $vehicle,
+        'Lokasi'          => $up($place),
+        'Peta'            => $maps,
+        'Waze'            => $waze,
+        'Tempat Menunggu' => $up($t['waiting_place'] ?? ''),
+        'Tujuan'          => $up($t['purpose'] ?? ''),
+        'Pegawai'         => $officer,
+    ];
+    $out = '';
+    foreach ($rows as $label => $value) {
+        if (trim($value) === '') { continue; }
+        $out .= '*' . $label . ' :*' . "\n" . $value . "\n";
+    }
+    return $out . "\nSekiranya Pegawai lewat daripada masa ditetapkan, Pemandu adalah dipohon untuk menghubungi Pegawai berkaitan untuk tindakan selanjutnya.";
+}
+
+/** Sends the task message above to the driver of one task (logged in whatsapp_log; never stops the caller). */
+function sendDriverTaskWhatsApp(mysqli $conn, int $schedule_id): void
+{
+    try {
+        require_once __DIR__ . '/schedule_view.php';
+        if (!function_exists('sendWhatsApp')) { return; }
+        $t = taskSheetRow($conn, $schedule_id);
+        if (!$t) { return; }
+        $stmt = $conn->prepare("SELECT u.user_id, COALESCE(NULLIF(u.phone, ''), d.phone) AS phone FROM schedules s JOIN drivers d ON d.driver_id = s.driver_id
+                                  LEFT JOIN users u ON u.driver_id = d.driver_id AND u.role = 'driver' WHERE s.schedule_id = ? LIMIT 1");
+        $stmt->bind_param('i', $schedule_id);
+        $stmt->execute();
+        $d = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$d) { return; }
+        sendWhatsApp($conn, $d['user_id'] !== null ? (int)$d['user_id'] : null, $d['phone'], driverTaskWhatsAppText($t));
+    } catch (Throwable $e) {
+        error_log('sendDriverTaskWhatsApp: ' . $e->getMessage());
     }
 }
 

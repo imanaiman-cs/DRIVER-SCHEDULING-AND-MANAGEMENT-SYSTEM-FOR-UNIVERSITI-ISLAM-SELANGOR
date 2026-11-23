@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($f['destination'] === '' || mb_strlen($f['destination']) > 255) { $errors[] = 'Destination name is required (max 255 characters).'; }
     if ($f['destination_address'] === '' || mb_strlen($f['destination_address']) > 500) { $errors[] = 'The full destination address is required (max 500 characters).'; }
     if (mb_strlen($f['purpose']) < 10) { $errors[] = 'Please describe the purpose (at least 10 characters).'; }
-    if ($f['passenger_names'] === '') { $errors[] = 'Passenger names are required.'; }
+    if (mb_strlen($f['passenger_names']) > 2000) { $errors[] = 'Passenger names: at most 2000 characters.'; }   // optional: the driver deals with the officer
     if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
     if (!in_array($f['waiting_place'], WAITING_LOCATIONS, true)) { $errors[] = 'Choose the waiting location.'; }
     if ($f['waiting_place'] === 'Other' && ($f['waiting_address'] === '' || mb_strlen($f['waiting_address']) > 255)) { $errors[] = 'Enter the address of the waiting location.'; }
@@ -220,8 +220,8 @@ adminPageStart('Request a Vehicle');
                            data-addr-suggest data-lat="dest_lat" data-lng="dest_lng" data-fill-mode="address"></div>
                 <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="purpose">Purpose *</label>
                     <textarea class="textarea w-full" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
-                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="passenger_names">Passenger names *</label>
-                    <textarea class="textarea w-full" id="passenger_names" name="passenger_names" rows="2" required><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
+                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="passenger_names">Passenger names <span class="font-normal text-base-content/70">(optional)</span></label>
+                    <textarea class="textarea w-full" id="passenger_names" name="passenger_names" rows="2" maxlength="2000"><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
                 <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="phone">Phone number *</label>
                     <input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
                 <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="waiting_place">Waiting location *</label>

@@ -40,13 +40,15 @@ d=free(s1,60,2); ok('2 days or more: ok', d['timing']=='ok')
 n0=int(sql("SELECT COUNT(*) FROM vehicle_requests"))
 r=submit(s1,dep_h=10,dur_h=2,vehicle=6); ok('less than 1 day: refused, nothing saved, paper form message', r.status_code==200 and 'Please use the paper form BPTK/BPI/2025/PIN.5' in r.text and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n0)
 r=submit(s1,dep_h=30,dur_h=2,vehicle=6); ok('less than 2 days without confirming: refused', r.status_code==200 and 'confirm' in r.text.lower() and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n0)
-r=submit(s1,dep_h=30,dur_h=2,vehicle=6,confirm_short='1'); ok('less than 2 days with the confirmation: accepted', r.status_code==302 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n0+1)
+v30=next((v['vehicle_id'] for v in free(s1,30,2)['vehicles'] if v['vehicle_type']=='Car'), 6)
+r=submit(s1,dep_h=30,dur_h=2,vehicle=v30,confirm_short='1'); ok('less than 2 days with the confirmation: accepted', r.status_code==302 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n0+1)
 rA=last()
 r=submit(s1,dep_h=60,dur_h=2,vehicle=5); ok('exactly 2+ days: no hard rejection at 2 days', r.status_code==302); rB=last()
 # required fields
 n1=int(sql("SELECT COUNT(*) FROM vehicle_requests"))
-for name,kw in (('return date',{'return_date':''}),('return time',{'return_time':''}),('departure time',{'depart_time':''}),('destination address',{'destination_address':''}),('passenger names',{'passenger_names':''}),('phone',{'phone':''})):
+for name,kw in (('return date',{'return_date':''}),('return time',{'return_time':''}),('departure time',{'depart_time':''}),('destination address',{'destination_address':''}),('phone',{'phone':''})):
     r=submit(s1,dep_h=100,vehicle=1,pax=1,**kw); ok('mandatory: '+name, r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
+r=submit(s1,dep_h=400,dur_h=2,vehicle=2,pax=1,passenger_names=''); ok('passenger names are optional', r.status_code==302 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1+1); n1+=1
 r=submit(s1,dep_h=100,vehicle=1,pax=1,waiting_place='Other',waiting_address=''); ok('waiting location Other needs an address', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
 r=submit(s1,dep_h=100,dur_h=-1,vehicle=1,pax=1); ok('return must be after departure', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)
 r=submit(s1,dep_h=100,dur_h=3,vehicle=4,pax=1); ok('a vehicle under maintenance cannot be requested', r.status_code==200 and int(sql("SELECT COUNT(*) FROM vehicle_requests"))==n1)

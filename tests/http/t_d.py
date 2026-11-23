@@ -93,6 +93,11 @@ r=hd.post('admin/approve_assignments.php',{'request_id':r1,'action':'approve'});
 nd=int(sql("SELECT MIN(n.notification_id) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='drv003' AND n.message LIKE '%%new trip%%#%d%%'"%r1))
 ns=int(sql("SELECT MIN(n.notification_id) FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE '%%#%d%%confirmed%%'"%r1))
 ok('the driver is notified first, then the staff member', 0<nd<ns)
+# WhatsApp: one message per task, in the Administrative Assistant's task-sheet format (no generic WhatsApp line)
+wa=rows("SELECT w.message FROM whatsapp_log w JOIN users u ON u.user_id=w.user_id WHERE u.username='drv003' AND w.message LIKE '%%*Nama Pemandu :*%%' ORDER BY w.log_id")
+ok('driver gets the task-sheet WhatsApp for each task', len(wa)>=1 and all(k in wa[-1][0] for k in ('*Tarikh Tugasan :*','*Masa :*','*Kenderaan :*','*Lokasi :*','*Peta :*','https://www.google.com/maps/search/?api=1&query=','*Waze :*','https://waze.com/ul?','*Tempat Menunggu :*','*Tujuan :*','*Pegawai :*','Sekiranya Pegawai lewat')))
+ok('the WhatsApp has the plate, the time in Malay and the officer in capitals', 'BDG 5500 F' in wa[-1][0] and ('PAGI' in wa[-1][0] or 'PETANG' in wa[-1][0] or 'TENGAH' in wa[-1][0] or 'MALAM' in wa[-1][0]) and 'NORLIZA' in wa[-1][0].upper())
+ok('no generic "new trip" WhatsApp is sent as well', int(sql("SELECT COUNT(*) FROM whatsapp_log w JOIN users u ON u.user_id=w.user_id WHERE u.username='drv003' AND w.message LIKE '%%new trip%%#%d%%'"%r1))==0)
 ok('the staff member gets the driver and vehicle details', 'Norhaslinda' in sql("SELECT message FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE '%%#%d%%confirmed%%'"%r1) and 'BDG 5500 F' in sql("SELECT message FROM notifications n JOIN users u ON u.user_id=n.user_id WHERE u.username='stf001' AND n.message LIKE '%%#%d%%confirmed%%'"%r1))
 rs=s1.get('staff/my_requests.php',open=r1); ok('after Confirmed the staff member sees the driver and vehicle', 'Confirmed' in rs.text and 'Norhaslinda' in rs.text)
 # ---------- replace (UC021) ----------
