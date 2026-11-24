@@ -205,6 +205,16 @@ def main():
     subprocess.run(['php', ROOT + '/cron/run_jobs.php'], check=True, capture_output=True)
     ok(one(f"SELECT status FROM requests WHERE request_id={r4}") == 'lapsed', 'lapsed after two days')
 
+    print('\nUC018 by the Administrative Assistant')
+    adm.get(f'staff/request_vehicle.php?depart_date={day(12)}&depart_time=09:00&return_date={day(12)}&return_time=12:00')
+    adm.post('staff/request_vehicle.php', {'depart_date': day(12), 'depart_time': '09:00', 'return_date': day(12), 'return_time': '12:00',
+              'vehicle_type': 'Car', 'quantity': '1', 'driver_option': 'with_driver', 'purpose_type': 'official', 'purpose': 'Road tax renewal',
+              'destination': 'JPJ Shah Alam', 'address': 'Seksyen 7, Shah Alam', 'waiting_location': 'Vehicle yard', 'passengers': '1'}, files={'document': pdf})
+    ra = one("SELECT MAX(request_id) FROM requests")
+    ok(one(f"SELECT CONCAT(requester_id, '/', approver_id) FROM requests WHERE request_id={ra}") == '6/2', 'Assistant request goes to the HoD of the Vehicle Section (hos001)')
+    ok(f'request.php?id={ra}' in adm.get('staff/my_requests.php'), "the request is in the Assistant's My Request")
+    hoa.get(f'staff/request_vehicle.php?depart_date={day(12)}&depart_time=09:00&return_date={day(12)}&return_time=12:00')
+
     print('\nUC018 A1 Pay and Claim, A5 vendor buses, A2/A3 Personal Self Drive lorry')
     stf.post('staff/request_vehicle.php', {'depart_date': day(7), 'depart_time': '09:00', 'return_date': day(7), 'return_time': '12:00',
               'vehicle_type': 'Car', 'driver_option': 'pay_claim', 'purpose_type': 'official', 'purpose': 'Seminar',

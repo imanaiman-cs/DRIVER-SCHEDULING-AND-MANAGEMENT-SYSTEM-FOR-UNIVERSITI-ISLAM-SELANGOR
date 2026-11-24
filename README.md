@@ -14,8 +14,8 @@ Use case → file map: `docs/SRS_TRACEABILITY.md`.
 | Staff | `staff` | Register (UC013), New Request (UC018), My Request (UC017), Cancel (UC021), Profile (UC016) |
 | Head of Department | `supervisor` | Department Request: approve / reject (UC025, UC028) + everything Staff does. Confirmed by the Assistant. One per department. |
 | Driver | `driver` | My Task (UC023), Task Report (UC024), Schedule Change (UC022) + request vehicles (Self Drive lorry with GDL) |
-| Administrative Assistant | `admin` | User Account (UC001), Vehicle (UC002), Assign Request Task (UC003), Internal Task (UC004/005), Welfare Duty (UC006/007), Replace Driver (UC008), Driver Schedule (UC010), Report (UC011/012) |
-| Head of Admin | `head_admin` | Everything the Assistant does + Pending Approval (UC025 A2, UC026) and Schedule Change (UC027) |
+| Administrative Assistant | `admin` | New Request / My Request (UC018, UC017) like Staff; User Account (UC001), Vehicle (UC002), Assign Request Task (UC003), Internal Task (UC004/005), Welfare Duty (UC006/007), Replace Driver (UC008), Driver Schedule (UC010), Report (UC011/012) |
+| Head of Admin | `head_admin` | Everything the Assistant does (including making requests) + Pending Approval (UC025 A2, UC026) and Schedule Change (UC027) |
 
 Staff and Heads of Department register themselves (UIS email + verification code). Drivers are created by the Assistant
 (login details e-mailed). The Assistant and Head of Admin accounts come with `database.sql`. Demo accounts: `LOGIN_ACCOUNTS.txt`.
@@ -35,6 +35,7 @@ Pending ─► Rejected (reason) | Lapsed (no HoD decision in 2 days)      any a
 - **Reservation on submit** (first submitted, first served): from the departure until 1 hour after the return; released when rejected, cancelled or lapsed. Pay and Claim reserves nothing. Missing buses are marked *Vendor Bus Needed* (vendor name and plate recorded at assignment).
 - **Purpose type**: Official / Unofficial need the supporting letter (PDF/JPG/PNG, 5 MB); Personal (lorry only) needs the round-trip distance, charged RM3/km, and goes to the Assistant instead of the HoD.
 - **Urgent**: departure less than 2 days away; shown at the top of every queue. No paper form.
+- **Who can request**: every role (Staff, HoD, Driver, Administrative Assistant, Head of Admin). The Assistant's and the Head of Admin's requests go to the HoD of their department (Vehicle Section).
 - **Approver**: the HoD of the requester's department; a HoD's own request goes to the HoD of the parent department.
 - **Approval email** on submit (retried hourly if it failed), **one reminder email** after 1 day, **Lapsed** after 2 days.
 - **Tasks**: each vehicle has an outbound task at the departure and a return task at the return time, 1 hour each by default (the Assistant can change it for long trips). The driver is free between them.

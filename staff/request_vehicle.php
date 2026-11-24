@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// staff/request_vehicle.php  -  UC018 Submit Vehicle Request (Staff, Head of Department, Driver)
+// staff/request_vehicle.php  -  UC018 Submit Vehicle Request (Staff, Head of Department, Driver, Administrative Assistant, Head of Admin)
 //   1. departure date + time and return date + time -> Check Availability
 //   2. the vehicle types (car, MPV, van, bus, lorry) with the units left for that period; type + quantity
 //      With Driver | Pay and Claim (car) | Self Drive (lorry, drivers with a GDL licence only)
@@ -11,7 +11,7 @@
 $current_page = 'request_vehicle.php';
 require_once '../config/database.php';
 require_once '../includes/ui.php';
-requireRoles(['staff', 'supervisor', 'driver']);
+requireLogin();   // every role may submit a request (UC018)
 
 $me = currentUser();
 $errors = [];

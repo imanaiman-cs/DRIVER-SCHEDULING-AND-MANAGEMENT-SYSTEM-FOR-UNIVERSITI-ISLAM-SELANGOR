@@ -25,7 +25,7 @@ The system follows the final SRS (UC001–UC028, class diagram in Appendix A). E
 | UC015 Reset Password | `forgot_password.php` | `accountByStaffAndEmail()`, `setPassword()` |
 | UC016A–C Manage Profile | `profile.php` | `updateProfile()`, `changePassword()` |
 | UC017 View Request (+A1, A2, A3) | `staff/my_requests.php`, `supervisor/approvals.php`, `admin/vehicle_requests.php`, `staff/request.php`, `staff/approval_letter.php` | `requestVisibleTo()`, `requestDetailsHtml()` |
-| UC018 Submit Vehicle Request | `staff/request_vehicle.php` | `unitsLeftByType()`, `submitRequest()` |
+| UC018 Submit Vehicle Request (Staff, HoD, Driver, Administrative Assistant, Head of Admin) | `staff/request_vehicle.php` | `unitsLeftByType()`, `submitRequest()` |
 | UC019 Send Approval Email | on submit + `cron/run_jobs.php` | `sendApprovalEmail()` |
 | UC020 Send Approval Reminder Email | `cron/run_jobs.php` | `runRequestJobs()` |
 | UC021 Cancel Vehicle Request | `staff/request.php` | `cancelRequest()` |

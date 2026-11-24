@@ -9,6 +9,7 @@ New staff and Heads of Department register themselves (First Time User? Register
 
 ADMINISTRATIVE ASSISTANT   admin    / admin123      Rozaimi bin Kamaruzzaman      Vehicle Section
 HEAD OF ADMIN              head001  / head001@uis   Haji Zulkifli bin Awang       Vehicle Section
+  (both can also make vehicle requests: New Request / My Request; approved by hos001, Head of the Vehicle Section)
 
 HEADS OF DEPARTMENT
   hos005 / hos005@uis   Prof. Dr. Ahmad Zaki bin Mansor   Office of the Vice-Chancellor (parent department: approves the other HoDs' own requests)

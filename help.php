@@ -39,6 +39,7 @@ $steps = [
                 '<strong>User Account</strong>: create driver accounts, edit department, role and licence details, confirm Head of Department roles, deactivate accounts. <strong>Vehicle</strong>: add, update mileage, fuel and status, deactivate.',
                 '<strong>Report</strong>: Driver Workload, Driver Replacement and Vehicle Usage by month, exported as PDF or Excel.'],
 ];
+$steps['admin'] = array_merge($steps['admin'], $request);
 $steps['head_admin'] = array_merge(['<strong>Pending Approval</strong>: approve or reject (reason required) driver assignments, internal tasks, welfare duty schedules, driver replacements, and Pay and Claim / Self Drive / Personal Self Drive requests. A rejected assignment goes back to the Administrative Assistant.',
                                     '<strong>Schedule Change</strong>: approve or reject the drivers\' requests. Approved drivers are not recommended on those dates and their tasks are sent for replacement.'], $steps['admin']);
 adminPageStart('Help');

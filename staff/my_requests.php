@@ -16,7 +16,7 @@ $rows = dbAll($conn, requestSelectSql() . " WHERE r.requester_id = ?$w ORDER BY 
     array_merge([$uid], $p, [$pg['rows_per_page'], $pg['offset']]));
 
 adminPageStart('My Request');
-$canRequest = in_array($_SESSION['role'], ['staff', 'supervisor', 'driver'], true);
+$canRequest = true;   // every role may submit a request (UC018)
 pageHeader('My Request', 'list-check', 'Your vehicle requests and their status. A Lapsed request was not approved in time; it was not cancelled by the Vehicle Section.',
     $canRequest ? '<a class="btn btn-primary" href="request_vehicle.php"><i class="fas fa-plus"></i>New Request</a>' : '');
 echo requestFilterForm($vals);

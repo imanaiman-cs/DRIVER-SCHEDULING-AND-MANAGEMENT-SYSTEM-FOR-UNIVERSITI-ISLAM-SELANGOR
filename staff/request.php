@@ -47,7 +47,7 @@ if (hasApprovalLetter($r) && ((int)$r['requester_id'] === $uid || in_array($me['
 if (canCancelRequest($r, $me)) {
     $actions .= '<form method="post"><input type="hidden" name="action" value="cancel"><button class="btn btn-outline btn-error" type="submit" data-reason="The reason is shown in the status history and sent to everyone involved." data-reason-title="Cancel request #' . $id . '?" data-reason-button="Cancel Request"><i class="fas fa-ban"></i>Cancel Request</button></form>';
 }
-$back = match ($me['role']) { 'admin', 'head_admin' => '../admin/vehicle_requests.php', 'supervisor' => ((int)$r['requester_id'] === $uid ? 'my_requests.php' : '../supervisor/approvals.php'), default => 'my_requests.php' };
+$back = match ($me['role']) { 'admin', 'head_admin' => ((int)$r['requester_id'] === $uid ? 'my_requests.php' : '../admin/vehicle_requests.php'), 'supervisor' => ((int)$r['requester_id'] === $uid ? 'my_requests.php' : '../supervisor/approvals.php'), default => 'my_requests.php' };
 
 adminPageStart('Request #' . $id);
 pageHeader('Request #' . $id, 'file-lines', requestVehicleSummary($r) . ' to ' . $r['destination'], '<a class="btn btn-ghost" href="' . h($back) . '"><i class="fas fa-arrow-left"></i>Back</a>' . $actions);

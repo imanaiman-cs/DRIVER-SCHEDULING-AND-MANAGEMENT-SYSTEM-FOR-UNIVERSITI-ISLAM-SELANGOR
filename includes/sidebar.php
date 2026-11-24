@@ -95,6 +95,10 @@ if ($_is_admin_role) {
         [['vehicle_requests.php', 'request.php', 'approval_letter.php'], 'admin/vehicle_requests.php', 'file-signature', 'All Request', null],
         [['assign_driver.php'], 'admin/assign_driver.php', 'user-plus', 'Assign Request Task', 'assign'],
     ];
+    $_menu['My Vehicle Requests'] = [
+        [['request_vehicle.php'], 'staff/request_vehicle.php', 'car-side', 'New Request', null],
+        [['my_requests.php'], 'staff/my_requests.php', 'list-check', 'My Request', null],
+    ];
     $_menu['Schedule'] = [
         [['schedule.php', 'task.php', 'replace_driver.php'], 'admin/schedule.php', 'calendar-days', 'Driver Schedule', 'replace'],
         [['internal_tasks.php'], 'admin/internal_tasks.php', 'wrench', 'Internal Task', 'internal'],
