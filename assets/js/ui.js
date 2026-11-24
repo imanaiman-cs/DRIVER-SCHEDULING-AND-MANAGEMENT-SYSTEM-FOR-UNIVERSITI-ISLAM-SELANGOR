@@ -395,3 +395,69 @@
         }
     });
 })();
+
+
+/* ============================================================
+   [data-reason] on a submit button: ask for the reason (reject, cancel, return) before the form is sent.
+     data-reason="text shown in the dialog"  data-reason-title  data-reason-button
+   The reason goes into the form's field name="reason" (created when missing).
+
+   form[data-outside-check]: when a selected driver is outside the recommendation (option data-outside="1"),
+   show a warning with the driver's task count this month and ask for a confirmation (SRS UC003/UC005/UC007/UC008 A2).
+   ============================================================ */
+(function () {
+    'use strict';
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest ? event.target.closest('[data-reason]') : null;
+        if (!btn || !btn.form || btn.getAttribute('data-reason-passed') === '1') { return; }
+        event.preventDefault();
+        event.stopPropagation();
+        window.UIS.askReason({
+            title: btn.getAttribute('data-reason-title') || 'Reason required',
+            text: btn.getAttribute('data-reason') || '',
+            label: 'Reason',
+            confirmText: btn.getAttribute('data-reason-button') || 'Confirm',
+            minLength: 1
+        }).then(function (reason) {
+            if (reason === null || reason === undefined || String(reason).trim() === '') { return; }
+            var form = btn.form, field = form.querySelector('[name="reason"]');
+            if (!field) { field = document.createElement('input'); field.type = 'hidden'; field.name = 'reason'; form.appendChild(field); }
+            field.value = String(reason).trim();
+            if (btn.name) {
+                var hidden = form.querySelector('input[type="hidden"][data-from-button]');
+                if (!hidden) { hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.setAttribute('data-from-button', '1'); form.appendChild(hidden); }
+                hidden.name = btn.name; hidden.value = btn.value;
+            }
+            form.setAttribute('data-outside-ok', '1');
+            form.dirty = false; form.submit();
+        });
+    }, true);
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form.matches || !form.matches('form[data-outside-check]') || form.getAttribute('data-outside-ok') === '1') { return; }
+        var outside = [];
+        form.querySelectorAll('select').forEach(function (s) {
+            var o = s.options[s.selectedIndex];
+            if (o && o.getAttribute('data-outside') === '1') {
+                outside.push(o.getAttribute('data-name') + ' (' + o.getAttribute('data-tasks') + ' task(s) this month)');
+            }
+        });
+        if (!outside.length) { return; }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var submitter = event.submitter;
+        window.UIS.confirm({
+            title: 'Driver outside the recommendation',
+            text: 'You selected a driver who is not in the recommended list: ' + outside.join(', ') + '. Do you want to continue?',
+            confirmText: 'Confirm', tone: 'warning'
+        }).then(function (ok) {
+            if (!ok) { return; }
+            form.setAttribute('data-outside-ok', '1');
+            if (submitter && submitter.name) {
+                var h = document.createElement('input'); h.type = 'hidden'; h.name = submitter.name; h.value = submitter.value; form.appendChild(h);
+            }
+            form.dirty = false; form.submit();
+        });
+    }, true);
+})();

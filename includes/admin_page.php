@@ -57,14 +57,15 @@ function adminPageEnd(): void
 <?php
 }
 
-/** A valid Y-m-d date? (kept for older pages; see isValidDate in workflow.php) */
-function validDateStr(string $d): bool
-{
-    return isValidDate($d);
-}
-
-/** Active drivers (carpool drivers), for lists and pickers. */
+/** Active drivers, for lists and pickers. */
 function activeDrivers(mysqli $conn): array
 {
-    return $conn->query("SELECT driver_id, name, employee_id, license_class FROM drivers WHERE status = 'active' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
+    return dbAll($conn, "SELECT d.driver_id, d.licence_classes, d.licence_expiry, u.full_name AS name, u.staff_no FROM drivers d JOIN users u ON u.user_id = d.user_id
+                          WHERE u.status = 'active' ORDER BY u.full_name");
+}
+
+/** Every driver (also inactive), for filters. */
+function allDrivers(mysqli $conn): array
+{
+    return dbAll($conn, 'SELECT d.driver_id, u.full_name AS name, u.status FROM drivers d JOIN users u ON u.user_id = d.user_id ORDER BY u.full_name');
 }

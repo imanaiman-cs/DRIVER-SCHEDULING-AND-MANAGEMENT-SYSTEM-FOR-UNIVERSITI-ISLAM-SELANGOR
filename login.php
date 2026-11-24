@@ -6,15 +6,7 @@ $success = '';
 
 // Redirect if already logged in
 if (isLoggedIn()) {
-    if (isAdmin()) {
-        header('Location: admin/dashboard.php');
-    } elseif (isStaff()) {
-        header('Location: staff/dashboard.php');
-    } elseif (isSupervisor()) {
-        header('Location: supervisor/dashboard.php');
-    } else {
-        header('Location: driver/dashboard.php');
-    }
+    header('Location: ' . roleHomeUrl());
     exit();
 }
 
@@ -22,86 +14,61 @@ if (isLoggedIn()) {
 if (isset($_GET['msg']) && $_GET['msg'] === 'logged_out') {
     $success = 'You have been successfully logged out.';
 }
-// Notice left by the idle timeout / deactivated account
+// Notice left by the idle timeout / deactivated account, and success messages of Register / Reset Password
 if (!empty($_SESSION['login_notice'])) {
     $error = $_SESSION['login_notice'];
     unset($_SESSION['login_notice']);
 }
+if (!empty($_SESSION['login_success'])) {
+    $success = $_SESSION['login_success'];
+    unset($_SESSION['login_success']);
+}
 
-// Handle login form submission
+// Login is not a use case (SRS UC015 note): staff ID or UIS email + password
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    $generic  = 'Invalid username or password. Please try again.';
+    $generic  = 'Invalid staff ID or password. Please try again.';
 
     if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'Your page expired. Please try again.';
     } elseif ($username === '' || $password === '') {
-        $error = 'Please enter both username and password.';
+        $error = 'Please enter both your staff ID and password.';
     } else {
-        $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? LIMIT 1");
-        $stmt->bind_param('s', $username);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
+        $user = dbOne($conn, 'SELECT * FROM users WHERE staff_no = ? OR email = ? LIMIT 1', [$username, strtolower($username)]);
         $maxAttempts = max(1, getSettingInt($conn, 'MAX_FAILED_ATTEMPTS'));
         $lockMinutes = max(1, getSettingInt($conn, 'LOCKOUT_MINUTES'));
 
         if (!$user) {
             $error = $generic;
         } elseif (!empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
-            // login is blocked for LOCKOUT_MINUTES (15) after MAX_FAILED_ATTEMPTS (5) wrong passwords; it opens by itself
             $left = max(1, (int)ceil((strtotime($user['locked_until']) - time()) / 60));
-            $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes. Please try again in $left minute" . ($left > 1 ? 's' : '') . '.';
+            $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes. Please try again in $left minute" . ($left > 1 ? 's' : '') . '. You can also use Forgot Password.';
         } elseif (!verifyPassword($password, $user['password'])) {
             $uid = (int)$user['user_id'];
-            // an old block that has already expired starts the count again
             $n = (int)$user['failed_attempts'] + 1;
             if ($n >= $maxAttempts) {
-                $st = $conn->prepare('UPDATE users SET failed_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE user_id = ?');
-                $st->bind_param('ii', $lockMinutes, $uid);
-                $st->execute();
-                $st->close();
+                dbExec($conn, 'UPDATE users SET failed_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE user_id = ?', [$lockMinutes, $uid]);
                 $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes.";
             } else {
-                $st = $conn->prepare('UPDATE users SET failed_attempts = ? WHERE user_id = ?');
-                $st->bind_param('ii', $n, $uid);
-                $st->execute();
-                $st->close();
+                dbExec($conn, 'UPDATE users SET failed_attempts = ? WHERE user_id = ?', [$n, $uid]);
                 $error = $generic;
             }
-        } elseif ((int)($user['is_active'] ?? 1) === 0) {
+        } elseif ($user['status'] !== 'active') {
             $error = 'This account is not active. Please contact the Vehicle Section.';
         } else {
             $uid = (int)$user['user_id'];
-            $st = $conn->prepare('UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = ?');
-            $st->bind_param('i', $uid);
-            $st->execute();
-            $st->close();
+            dbExec($conn, 'UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = ?', [$uid]);
             upgradeLegacyPassword($conn, $uid, $password, (string)$user['password']);
-
-            // new session id after authentication (prevents session fixation)
-            session_regenerate_id(true);
-
-            $driver_id = ($user['role'] === 'driver' && isset($user['driver_id'])) ? (int)$user['driver_id'] : null;
-            $_SESSION['user_id']   = $user['user_id'];
-            $_SESSION['username']  = $user['username'];
-            $_SESSION['role']      = $user['role'];
-            $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
-            $_SESSION['driver_id'] = $driver_id;
-            $_SESSION['department']    = $user['department']    ?? null;
+            session_regenerate_id(true);                // new session id after authentication (prevents session fixation)
+            $_SESSION['user_id']       = $uid;
+            $_SESSION['username']      = $user['staff_no'];
+            $_SESSION['role']          = $user['role'];
+            $_SESSION['full_name']     = $user['full_name'];
+            $_SESSION['department_id'] = $user['department_id'];
+            $_SESSION['driver_id']     = ($d = dbValue($conn, 'SELECT driver_id FROM drivers WHERE user_id = ?', [$uid])) ? (int)$d : null;
             $_SESSION['last_activity'] = time();
-
-            if (in_array($user['role'], ['admin', 'head_admin'], true)) {
-                header('Location: admin/dashboard.php');
-            } elseif ($user['role'] === 'staff') {
-                header('Location: staff/dashboard.php');
-            } elseif ($user['role'] === 'supervisor') {
-                header('Location: supervisor/dashboard.php');
-            } else {
-                header('Location: driver/dashboard.php');
-            }
+            header('Location: ' . roleHomeUrl($user['role']));
             exit();
         }
     }
@@ -161,10 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrfToken()) ?>">
 
                     <div>
-                        <label for="username" class="mb-1.5 block text-xs font-bold tracking-[0.08em] uppercase">Username</label>
+                        <label for="username" class="mb-1.5 block text-xs font-bold tracking-[0.08em] uppercase">Staff ID or UIS email</label>
                         <label class="input input-lg w-full">
                             <i class="fas fa-user text-primary" aria-hidden="true"></i>
-                            <input type="text" id="username" name="username" class="grow text-base" placeholder="Enter your username"
+                            <input type="text" id="username" name="username" class="grow text-base" placeholder="e.g. stf001"
                                    value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" required autofocus autocomplete="username" maxlength="100">
                         </label>
                     </div>
@@ -181,12 +148,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </label>
                     </div>
 
+                    <div class="-mt-1 text-end text-sm"><a class="link link-primary" href="forgot_password.php">Forgot Password?</a></div>
+
                     <button type="submit" class="btn btn-primary btn-lg btn-block mt-1 bg-gradient-to-r from-primary to-[#15804f]" id="loginBtn">
                         <span class="loading loading-spinner loading-sm hidden" id="loginSpinner" aria-hidden="true"></span>
                         <i class="fas fa-right-to-bracket" aria-hidden="true"></i>
                         <span id="loginBtnText">Sign In</span>
                     </button>
                 </form>
+                <p class="mt-5 text-center text-sm">First Time User? <a class="link link-primary font-semibold" href="register.php">Register Now</a></p>
             </div>
 
             <div class="border-t border-base-300 bg-base-200 px-6 py-3.5 text-center text-sm text-base-content/70">

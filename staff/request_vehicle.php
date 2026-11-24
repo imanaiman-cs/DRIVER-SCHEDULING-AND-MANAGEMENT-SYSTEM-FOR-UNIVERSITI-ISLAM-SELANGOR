@@ -1,285 +1,207 @@
 <?php
 // ============================================================
-// UIS Driver Scheduling and Management System
-// staff/request_vehicle.php  -  UC010 Submit Vehicle Request
-//
-// Every role is also Staff, so every role can open this page.
-//   1. the requester enters departure date + time, return date + time (all mandatory) and the passengers
-//   2. the system shows ONLY vehicles that are free in that time period (not locked, not under maintenance or
-//      inactive) and big enough
-//   3. timing rule: less than 1 day ahead -> refused ("Please use the paper form BPTK/BPI/2025/PIN.5"),
-//      less than 2 days ahead -> a warning that must be confirmed
-//   4. the chosen vehicle is locked for departure -> return (transaction + SELECT ... FOR UPDATE, so two people
-//      submitting at the same moment cannot both get it)
-// The request goes to the approver of THIS account (a staff member -> their Head of Department;
-// a Head of Department -> his own head).
+// staff/request_vehicle.php  -  UC018 Submit Vehicle Request (Staff, Head of Department, Driver)
+//   1. departure date + time and return date + time -> Check Availability
+//   2. the vehicle types (car, MPV, van, bus, lorry) with the units left for that period; type + quantity
+//      With Driver | Pay and Claim (car) | Self Drive (lorry, drivers with a GDL licence only)
+//   3. purpose type (Official / Unofficial; Personal for lorries), purpose, destination + full address, waiting
+//      location, passengers, supporting letter (Official / Unofficial) or round-trip distance (Personal, RM3/km)
+// The vehicles are reserved on Submit (first submitted, first served). Missing buses are hired from a vendor.
 // ============================================================
 $current_page = 'request_vehicle.php';
 require_once '../config/database.php';
-require_once '../includes/admin_page.php';
-require_once '../includes/upload.php';
-requireRequester();
+require_once '../includes/ui.php';
+requireRoles(['staff', 'supervisor', 'driver']);
 
-$staff_id  = (int)$_SESSION['user_id'];
-$full_name = (string)($_SESSION['full_name'] ?? '');
-
-// The approver (read fresh from the database: the staff system may have changed it)
-$q = $conn->prepare("SELECT u.supervisor_id, u.phone FROM users u JOIN users a ON a.user_id = u.supervisor_id
-                      WHERE u.user_id = ? AND a.role = 'supervisor' AND a.is_active = 1");
-$q->bind_param('i', $staff_id);
-$q->execute();
-$me = $q->get_result()->fetch_assoc();
-$q->close();
-$approver_id = $me ? (int)$me['supervisor_id'] : null;
-if (!$me) {
-    $q = $conn->prepare('SELECT phone FROM users WHERE user_id = ?');
-    $q->bind_param('i', $staff_id);
-    $q->execute();
-    $me = $q->get_result()->fetch_assoc() ?: ['phone' => ''];
-    $q->close();
-}
-
+$me = currentUser();
 $errors = [];
-$f = ['depart_date' => '', 'depart_time' => '', 'return_date' => '', 'return_time' => '', 'passengers' => '', 'vehicle_id' => '',
-      'destination' => '', 'destination_address' => '', 'purpose' => '', 'passenger_names' => '', 'phone' => (string)($me['phone'] ?? ''),
-      'waiting_place' => WAITING_LOCATIONS[0], 'waiting_address' => '', 'confirm_short' => ''];
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    foreach ($f as $k => $_) { $f[$k] = trim((string)($_POST[$k] ?? $f[$k])); }
-    $pax = (int)$f['passengers'];
-    $vehicle_id = (int)$f['vehicle_id'];
-
-    if (!$approver_id) {
-        $errors[] = 'No approver is set for your account. Please contact the Vehicle Section.';
-    }
-    if (!isValidDate($f['depart_date']) || !isValidTime($f['depart_time']) || !isValidDate($f['return_date']) || !isValidTime($f['return_time'])) {
-        $errors[] = 'Departure date and time and return date and time are all required.';
-    }
-    if ($pax < 1 || $pax > 100) { $errors[] = 'Enter the number of passengers (1 to 100).'; }
-    $start = $end = '';
-    if (!$errors) {
-        $start = $f['depart_date'] . ' ' . timeWithSeconds($f['depart_time']);
-        $end   = $f['return_date'] . ' ' . timeWithSeconds($f['return_time']);
-        if (strtotime($end) <= strtotime($start)) { $errors[] = 'The return must be after the departure.'; }
-    }
-    // Timing rule: < 1 day refused (nothing is saved), < 2 days needs the confirmation
-    if (!$errors) {
-        $timing = requestTimingRule($start);
-        if ($timing['level'] === 'reject') {
-            $errors[] = $timing['message'];
-        } elseif ($timing['level'] === 'warn' && $f['confirm_short'] !== '1') {
-            $errors[] = $timing['message'] . ' (tick the confirmation box).';
-        }
-    }
-    if ($f['destination'] === '' || mb_strlen($f['destination']) > 255) { $errors[] = 'Destination name is required (max 255 characters).'; }
-    if ($f['destination_address'] === '' || mb_strlen($f['destination_address']) > 500) { $errors[] = 'The full destination address is required (max 500 characters).'; }
-    if (mb_strlen($f['purpose']) < 10) { $errors[] = 'Please describe the purpose (at least 10 characters).'; }
-    if ($f['passenger_names'] === '') { $errors[] = 'Passenger names are required.'; }
-    if (!preg_match('/^[0-9+\-\s()]{7,20}$/', $f['phone'])) { $errors[] = 'Enter a valid phone number (digits, spaces, + - and brackets, 7 to 20 characters).'; }
-    if (!in_array($f['waiting_place'], WAITING_LOCATIONS, true)) { $errors[] = 'Choose the waiting location.'; }
-    if ($f['waiting_place'] === 'Other' && ($f['waiting_address'] === '' || mb_strlen($f['waiting_address']) > 255)) { $errors[] = 'Enter the address of the waiting location.'; }
-    if ($vehicle_id <= 0) { $errors[] = 'Choose a vehicle.'; }
-
-    // The vehicle must still be in the list of free vehicles for this period
-    if (!$errors) {
-        $freeIds = array_map('intval', array_column(availableVehicles($conn, $start, $end, $pax), 'vehicle_id'));
-        if (!in_array($vehicle_id, $freeIds, true)) {
-            $errors[] = 'That vehicle is not available for the period you chose (locked by another request, under maintenance, inactive or too small). Please choose another one.';
-        }
-    }
-
-    // Documents: PDF, JPG or PNG, at most 5 MB each (checked by content on the server)
-    $files = collectUploadedFiles('docs');
-    if (empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-        $errors[] = 'The form was too large and was not received. Each document must be 5 MB or smaller.';
-    }
-    if (count($files) > MAX_SUPPORTING_DOCUMENTS) { $errors[] = 'You can attach at most ' . MAX_SUPPORTING_DOCUMENTS . ' documents.'; }
-    $saved = [];
-    if (!$errors) {
-        foreach ($files as $file) {
-            $res = saveUploadedDocument($file, MAX_DOCUMENT_BYTES);
-            if (empty($res['ok'])) {
-                foreach ($saved as $d) { deleteStoredDocument($d['path']); }
-                $saved = [];
-                $errors[] = 'Document "' . mb_strimwidth((string)($file['name'] ?? ''), 0, 60, '...') . '": ' . ($res['error'] ?? 'it could not be uploaded.');
-                break;
-            }
-            $saved[] = ['name' => (string)$res['original_name'], 'path' => (string)$res['path'], 'mime' => (string)$res['mime'], 'size' => (int)$res['size']];
-        }
-    }
-
-    if (!$errors) {
-        $inTx = false;
-        try {
-            $conn->begin_transaction();
-            $inTx = true;
-            $wait_addr = $f['waiting_place'] === 'Other' ? $f['waiting_address'] : null;
-            $stmt = $conn->prepare(
-                "INSERT INTO vehicle_requests (staff_id, vehicle_id, trip_date, start_time, return_date, end_time, destination, destination_address, purpose,
-                                               passenger_count, passenger_names, officer_name, officer_phone, waiting_place, waiting_address, supervisor_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-            $st_time = timeWithSeconds($f['depart_time']);
-            $rt_time = timeWithSeconds($f['return_time']);
-            $stmt->bind_param('iisssssssisssssi', $staff_id, $vehicle_id, $f['depart_date'], $st_time, $f['return_date'], $rt_time,
-                $f['destination'], $f['destination_address'], $f['purpose'], $pax, $f['passenger_names'], $full_name, $f['phone'],
-                $f['waiting_place'], $wait_addr, $approver_id);
-            $stmt->execute();
-            $rid = (int)$stmt->insert_id;
-            $stmt->close();
-
-            lockVehiclePeriod($conn, $rid, $vehicle_id, $start, $end);     // atomic: refuses a vehicle that was just taken
-
-            if ($saved) {
-                $ds = $conn->prepare("INSERT INTO request_documents (request_id, doc_type, original_name, stored_path, mime_type, file_size) VALUES (?, 'other', ?, ?, ?, ?)");
-                foreach ($saved as $d) {
-                    $ds->bind_param('isssi', $rid, $d['name'], $d['path'], $d['mime'], $d['size']);
-                    $ds->execute();
-                }
-                $ds->close();
-            }
-            $conn->commit();
-            $inTx = false;
-
-            auditLog($conn, 'submit', $rid, 'Request submitted');
-            notifyUsers($conn, [$approver_id],
-                "New vehicle request #$rid from $full_name to {$f['destination']} (" . date('d M Y H:i', strtotime($start)) . ') is waiting for your decision.',
-                'supervisor/approvals.php');
-            setFlash('success', 'Request #' . $rid . ' submitted. It is waiting for the approval of your Head of Department.');
-            header('Location: my_requests.php');
-            exit();
-        } catch (Throwable $ex) {
-            if ($inTx) { try { $conn->rollback(); } catch (Throwable $e2) {} }
-            foreach ($saved as $d) { deleteStoredDocument($d['path']); }
-            $errors[] = ($ex instanceof RuntimeException && str_starts_with($ex->getMessage(), 'Sorry,'))
-                ? $ex->getMessage()
-                : 'The request could not be saved. Please try again.';
-            if (!($ex instanceof RuntimeException)) { error_log('request_vehicle: ' . $ex->getMessage()); }
-        }
-    }
+$formError = null;
+$src = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
+$p = ['depart_date' => (string)($src['depart_date'] ?? ''), 'depart_time' => (string)($src['depart_time'] ?? ''),
+      'return_date' => (string)($src['return_date'] ?? ''), 'return_time' => (string)($src['return_time'] ?? '')];
+$checked = $p['depart_date'] !== '';
+$depart = $return = null;
+$periodOk = false;
+if ($checked) {
+    [$errors, $depart, $return] = checkTripPeriod($p['depart_date'], $p['depart_time'], $p['return_date'], $p['return_time']);
+    $periodOk = !$errors;
 }
 
-adminPageStart('Request a Vehicle');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$errors) {
+    $res = submitRequest($conn, $me, $_POST, $_FILES['document'] ?? null);
+    if ($res['ok']) { redirectWithResult($res, 'request.php?id=' . $res['request_id']); }
+    $errors = $res['errors'] ?? [];
+    $formError = $res['message'] . (isset($errors['general']) ? ' ' . $errors['general'] : '');
+}
+
+$units = $periodOk ? unitsLeftByType($conn, $depart, $return) : null;
+$urgent = $depart && $units !== null && isUrgentDeparture($conn, $depart);
+$chargePerKm = getSettingFloat($conn, 'CHARGE_PER_KM');
+$v = fn($k, $d = '') => h($_POST[$k] ?? $d);
+$selType = (string)($_POST['vehicle_type'] ?? '');
+$approver = approverFor($conn, $me);
+$approverName = $approver ? (loadUser($conn, $approver)['full_name'] ?? '') : '';
+$typeIcons = ['Car' => 'car', 'MPV' => 'car-side', 'Van' => 'van-shuttle', 'Bus' => 'bus', 'Lorry' => 'truck'];
+$options = [];
+foreach (VEHICLE_TYPES as $t) { $options[$t] = driverOptionsFor($me, $t); }
+
+adminPageStart('New Request');
+pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, select a vehicle type from the vehicles still available, then fill in the trip details.');
 ?>
-    <h1 class="text-2xl font-extrabold tracking-tight mb-4"><i class="fas fa-car-side me-2 text-[0.8em] text-primary"></i>Request a Vehicle</h1>
+<?php if ($formError): ?><div class="alert alert-soft alert-error mb-5" role="alert"><i class="fas fa-circle-exclamation"></i><span><?= h($formError) ?></span></div><?php endif; ?>
 
-    <?php if (!$approver_id): ?>
-        <div class="alert alert-soft alert-warning">No approver is set for your account, so a request cannot be submitted. Please contact the Vehicle Section.</div>
-    <?php endif; ?>
-    <?php if ($errors): ?>
-        <div class="alert alert-soft alert-error"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?></ul></div>
-    <?php endif; ?>
+<?php cardStart('1. Trip period', 'clock'); ?>
+<form method="get" class="grid grid-cols-12 items-end gap-3" novalidate>
+    <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_date">Departure date</label>
+        <input type="date" class="input w-full<?= errClass($errors, 'depart') ?>" id="depart_date" name="depart_date" min="<?= date('Y-m-d') ?>" value="<?= h($p['depart_date']) ?>" required></div>
+    <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium" for="depart_time">Departure time</label>
+        <input type="time" class="input w-full<?= errClass($errors, 'depart') ?>" id="depart_time" name="depart_time" value="<?= h($p['depart_time'] ?: '08:00') ?>" required></div>
+    <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="return_date">Return date</label>
+        <input type="date" class="input w-full<?= errClass($errors, 'return') ?>" id="return_date" name="return_date" min="<?= date('Y-m-d') ?>" value="<?= h($p['return_date']) ?>" required></div>
+    <div class="col-span-6 md:col-span-2"><label class="mb-1 block text-sm font-medium" for="return_time">Return time</label>
+        <input type="time" class="input w-full<?= errClass($errors, 'return') ?>" id="return_time" name="return_time" value="<?= h($p['return_time'] ?: '17:00') ?>" required></div>
+    <div class="col-span-12 md:col-span-2"><button class="btn btn-primary w-full" type="submit"><i class="fas fa-magnifying-glass"></i>Check Availability</button></div>
+    <div class="col-span-12"><?= fieldError($errors, 'depart') ?><?= fieldError($errors, 'return') ?></div>
+</form>
+<?php cardEnd(); ?>
 
-    <form method="post" enctype="multipart/form-data" id="requestForm" novalidate>
-        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h2 class="text-base font-bold">1. When and how many</h2>
-            <div class="grid-12 grid grid-cols-12 gap-4">
-                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_date">Departure date *</label>
-                    <input type="date" class="input w-full" id="depart_date" name="depart_date" value="<?= htmlspecialchars($f['depart_date']) ?>" required></div>
-                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="depart_time">Departure time *</label>
-                    <input type="time" class="input w-full" id="depart_time" name="depart_time" value="<?= htmlspecialchars($f['depart_time']) ?>" required></div>
-                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="return_date">Return date *</label>
-                    <input type="date" class="input w-full" id="return_date" name="return_date" value="<?= htmlspecialchars($f['return_date']) ?>" required></div>
-                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="return_time">Return time *</label>
-                    <input type="time" class="input w-full" id="return_time" name="return_time" value="<?= htmlspecialchars($f['return_time']) ?>" required></div>
-                <div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="passengers">Number of passengers *</label>
-                    <input type="number" class="input w-full" id="passengers" name="passengers" min="1" max="100" value="<?= htmlspecialchars($f['passengers']) ?>" required></div>
-            </div>
-            <div id="timingNotice" class="mt-4" style="display:none;"></div>
-            <div id="confirmRow" class="flex items-center gap-2 mt-2" style="display:none;">
-                <input class="checkbox checkbox-sm checkbox-primary" type="checkbox" id="confirm_short" name="confirm_short" value="1" <?= $f['confirm_short'] === '1' ? 'checked' : '' ?>>
-                <label class="text-sm" for="confirm_short">I understand and want to continue.</label>
-            </div>
-        </div></div>
+<?php if ($units !== null): ?>
+<?php if ($urgent): ?>
+<div class="alert alert-soft alert-warning mb-5" role="alert"><i class="fas fa-bolt"></i><span><strong>Urgent request.</strong> The departure is less than two days away. The request is saved as Urgent and shown at the top of the approvers' lists.</span></div>
+<?php endif; ?>
+<form method="post" enctype="multipart/form-data" novalidate id="requestForm">
+    <?php foreach ($p as $k => $val): ?><input type="hidden" name="<?= h($k) ?>" value="<?= h($val) ?>"><?php endforeach; ?>
 
-        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h2 class="text-base font-bold">2. Choose a vehicle <span class="font-normal text-base-content/60 text-sm">(only vehicles that are free in that period and big enough are shown)</span></h2>
-            <div id="vehicleMsg" class="text-base-content/60 text-sm" aria-live="polite">Enter the departure, the return and the number of passengers to see the available vehicles.</div>
-            <div id="vehicleList" class="grid-12 grid grid-cols-12 gap-2 mt-1"></div>
-        </div></div>
+    <?php cardStart('2. Vehicle', 'bus'); ?>
+    <p class="mb-3 text-sm text-base-content/65">Units left for <?= h(fmtPeriod($depart, $return)) ?>. A vehicle stays reserved until <?= h((int)getSettingFloat($conn, 'RESERVATION_BUFFER_HOURS')) ?> hour after the return time.</p>
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" role="radiogroup" aria-label="Vehicle type">
+        <?php foreach (VEHICLE_TYPES as $t): $left = $units[$t]; $disabled = $left === 0 && !in_array($t, ['Bus', 'Car'], true); /* 0 units: cannot be selected (a bus can come from a vendor, a car can be Pay and Claim) */ ?>
+        <label class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-base-300 p-3 text-center has-[:checked]:border-primary has-[:checked]:bg-primary/5 <?= $disabled ? 'cursor-not-allowed opacity-50' : '' ?>">
+            <input type="radio" class="radio radio-primary radio-sm" name="vehicle_type" value="<?= $t ?>" data-left="<?= $left ?>" data-options="<?= h(implode(',', $options[$t])) ?>" <?= $selType === $t ? 'checked' : '' ?> <?= $disabled ? 'disabled' : '' ?>>
+            <i class="fas fa-<?= $typeIcons[$t] ?> text-2xl text-primary" aria-hidden="true"></i>
+            <span class="font-semibold"><?= $t ?></span>
+            <span class="text-xs <?= $left ? 'text-success' : 'text-error' ?>"><?= $left ?> unit<?= $left === 1 ? '' : 's' ?> left</span>
+        </label>
+        <?php endforeach; ?>
+    </div>
+    <?= fieldError($errors, 'vehicle_type') ?>
+    <div class="mt-4 grid grid-cols-12 gap-4">
+        <div class="col-span-12 md:col-span-4" id="optionBox">
+            <label class="mb-1 block text-sm font-medium" for="driver_option">Driver</label>
+            <select class="select w-full<?= errClass($errors, 'driver_option', 'select') ?>" id="driver_option" name="driver_option">
+                <option value="with_driver">With Driver</option>
+                <option value="pay_claim" <?= ($_POST['driver_option'] ?? '') === 'pay_claim' ? 'selected' : '' ?>>Pay and Claim (use my own car)</option>
+                <option value="self_drive" <?= ($_POST['driver_option'] ?? '') === 'self_drive' ? 'selected' : '' ?>>Self Drive (I drive the lorry)</option>
+            </select>
+            <?= fieldError($errors, 'driver_option') ?>
+            <div class="mt-1 text-xs text-base-content/60" id="optionHint"></div>
+        </div>
+        <div class="col-span-6 md:col-span-2" id="qtyBox">
+            <label class="mb-1 block text-sm font-medium" for="quantity">Quantity</label>
+            <input type="number" class="input w-full<?= errClass($errors, 'quantity') ?>" id="quantity" name="quantity" min="1" max="20" value="<?= $v('quantity', '1') ?>">
+            <?= fieldError($errors, 'quantity') ?>
+        </div>
+        <div class="col-span-12 md:col-span-6">
+            <div class="alert alert-soft alert-warning hidden text-sm" id="vendorWarn"><i class="fas fa-triangle-exclamation"></i><span></span></div>
+            <div class="alert alert-soft alert-error hidden text-sm" id="qtyError"><i class="fas fa-circle-exclamation"></i><span>Not enough vehicles are available.</span></div>
+        </div>
+    </div>
+    <?php cardEnd(); ?>
 
-        <div class="card border border-base-300 bg-base-100 mb-4"><div class="card-body">
-            <h2 class="text-base font-bold">3. Trip details</h2>
-            <div class="grid-12 grid grid-cols-12 gap-4">
-                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="destination">Destination (name) *</label>
-                    <input class="input w-full" id="destination" name="destination" maxlength="255" value="<?= htmlspecialchars($f['destination']) ?>" required></div>
-                <div class="col-span-12 md:col-span-6"><label class="mb-1 block text-sm font-medium" for="destination_address">Destination (full address) *</label>
-                    <input class="input w-full" id="destination_address" name="destination_address" maxlength="500" value="<?= htmlspecialchars($f['destination_address']) ?>" required></div>
-                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="purpose">Purpose *</label>
-                    <textarea class="textarea w-full" id="purpose" name="purpose" rows="3" required><?= htmlspecialchars($f['purpose']) ?></textarea></div>
-                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="passenger_names">Passenger names *</label>
-                    <textarea class="textarea w-full" id="passenger_names" name="passenger_names" rows="2" required><?= htmlspecialchars($f['passenger_names']) ?></textarea></div>
-                <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="phone">Phone number *</label>
-                    <input class="input w-full" id="phone" name="phone" maxlength="20" value="<?= htmlspecialchars($f['phone']) ?>" required></div>
-                <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="waiting_place">Waiting location *</label>
-                    <select class="select w-full" id="waiting_place" name="waiting_place">
-                        <?php foreach (WAITING_LOCATIONS as $w): ?><option <?= $f['waiting_place'] === $w ? 'selected' : '' ?>><?= htmlspecialchars($w) ?></option><?php endforeach; ?>
-                    </select></div>
-                <div class="col-span-12 md:col-span-4" id="otherRow" style="display:none;"><label class="mb-1 block text-sm font-medium" for="waiting_address">Address of the waiting location *</label>
-                    <input class="input w-full" id="waiting_address" name="waiting_address" maxlength="255" value="<?= htmlspecialchars($f['waiting_address']) ?>"></div>
-                <div class="col-span-12"><label class="mb-1 block text-sm font-medium" for="docs">Supporting documents <span class="text-base-content/60">(PDF, JPG or PNG, up to 5 MB each, at most <?= MAX_SUPPORTING_DOCUMENTS ?>)</span></label>
-                    <input type="file" class="file-input w-full" id="docs" name="docs[]" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple></div>
-            </div>
-        </div></div>
-
-        <input type="hidden" name="vehicle_id" id="vehicle_id" value="<?= htmlspecialchars($f['vehicle_id']) ?>">
-        <button class="btn btn-success" type="submit" id="submitBtn"><i class="fas fa-paper-plane me-1"></i>Submit request</button>
-    </form>
+    <?php cardStart('3. Trip details', 'route'); ?>
+    <div class="grid grid-cols-12 gap-4">
+        <div class="col-span-12 md:col-span-4">
+            <label class="mb-1 block text-sm font-medium" for="purpose_type">Purpose type</label>
+            <select class="select w-full<?= errClass($errors, 'purpose_type', 'select') ?>" id="purpose_type" name="purpose_type" required>
+                <option value="official">Official</option>
+                <option value="unofficial" <?= ($_POST['purpose_type'] ?? '') === 'unofficial' ? 'selected' : '' ?>>Unofficial</option>
+                <option value="personal" <?= ($_POST['purpose_type'] ?? '') === 'personal' ? 'selected' : '' ?>>Personal (lorry only, charged per km)</option>
+            </select>
+            <?= fieldError($errors, 'purpose_type') ?>
+        </div>
+        <div class="col-span-12 md:col-span-8">
+            <label class="mb-1 block text-sm font-medium" for="purpose">Purpose</label>
+            <input class="input w-full<?= errClass($errors, 'purpose') ?>" id="purpose" name="purpose" maxlength="500" required value="<?= $v('purpose') ?>">
+            <?= fieldError($errors, 'purpose') ?>
+        </div>
+        <div class="col-span-12 md:col-span-5">
+            <label class="mb-1 block text-sm font-medium" for="destination">Destination</label>
+            <input class="input w-full<?= errClass($errors, 'destination') ?>" id="destination" name="destination" maxlength="200" required value="<?= $v('destination') ?>" placeholder="e.g. Putrajaya International Convention Centre">
+            <?= fieldError($errors, 'destination') ?>
+        </div>
+        <div class="col-span-12 md:col-span-7">
+            <label class="mb-1 block text-sm font-medium" for="address">Full address of the destination</label>
+            <textarea class="textarea w-full<?= errClass($errors, 'address', 'textarea') ?>" id="address" name="address" rows="2" maxlength="500" required><?= $v('address') ?></textarea>
+            <?= fieldError($errors, 'address') ?>
+        </div>
+        <div class="col-span-12 md:col-span-6">
+            <label class="mb-1 block text-sm font-medium" for="waiting_location">Waiting location</label>
+            <input class="input w-full<?= errClass($errors, 'waiting_location') ?>" id="waiting_location" name="waiting_location" maxlength="200" required value="<?= $v('waiting_location') ?>" placeholder="Where the driver picks you up, e.g. Main entrance, Block A">
+            <?= fieldError($errors, 'waiting_location') ?>
+        </div>
+        <div class="col-span-6 md:col-span-2">
+            <label class="mb-1 block text-sm font-medium" for="passengers">Passengers</label>
+            <input type="number" class="input w-full<?= errClass($errors, 'passengers') ?>" id="passengers" name="passengers" min="1" max="500" required value="<?= $v('passengers', '1') ?>">
+            <?= fieldError($errors, 'passengers') ?>
+        </div>
+        <div class="col-span-12 md:col-span-4" id="docBox">
+            <label class="mb-1 block text-sm font-medium" for="document">Supporting letter</label>
+            <input type="file" class="file-input w-full<?= errClass($errors, 'document', 'file-input') ?>" id="document" name="document" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <?= fieldError($errors, 'document') ?>
+            <div class="mt-1 text-xs text-base-content/60">Required for Official and Unofficial. PDF, JPG or PNG, max 5 MB.</div>
+        </div>
+        <div class="col-span-12 hidden md:col-span-4" id="distanceBox">
+            <label class="mb-1 block text-sm font-medium" for="distance_km">Round-trip distance (km)</label>
+            <input type="number" class="input w-full<?= errClass($errors, 'distance_km') ?>" id="distance_km" name="distance_km" min="1" step="0.1" value="<?= $v('distance_km') ?>">
+            <?= fieldError($errors, 'distance_km') ?>
+            <div class="mt-1 text-sm">Estimated charge: <strong id="chargeOut">RM 0.00</strong> <span class="text-xs text-base-content/60">(RM <?= number_format($chargePerKm, 2) ?> per km)</span></div>
+        </div>
+    </div>
+    <p class="mt-4 text-sm text-base-content/65" id="routeHint" data-hod="<?= h($approverName) ?>"></p>
+    <div class="mt-4 flex gap-2"><button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i>Submit</button><a class="btn btn-ghost" href="my_requests.php">Cancel</a></div>
+    <?php cardEnd(); ?>
+</form>
 
 <script>
 (function () {
-    var ids = ['depart_date', 'depart_time', 'return_date', 'return_time', 'passengers'];
-    var el = function (i) { return document.getElementById(i); };
-    var chosen = <?= json_encode((int)$f['vehicle_id']) ?>;
-    var timer = null, seq = 0;
-    function esc(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
-
-    function search() {
-        var q = new URLSearchParams({ depart_date: el('depart_date').value, depart_time: el('depart_time').value,
-            return_date: el('return_date').value, return_time: el('return_time').value, passengers: el('passengers').value });
-        if (ids.some(function (i) { return !el(i).value; })) { return; }
-        var mine = ++seq;
-        // Show that the search is running (the list keeps its place, so nothing jumps)
-        el('vehicleMsg').innerHTML = '<span class="loading loading-spinner loading-xs me-1.5 align-middle" aria-hidden="true"></span>Checking which vehicles are free…';
-        el('vehicleList').setAttribute('aria-busy', 'true');
-        fetch('<?= SITE_URL ?>/ajax/get_free_vehicles.php?' + q.toString(), { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                if (mine !== seq) { return; }
-                el('vehicleList').removeAttribute('aria-busy');
-                var notice = el('timingNotice'), confirmRow = el('confirmRow'), msg = el('vehicleMsg'), list = el('vehicleList');
-                list.innerHTML = '';
-                notice.style.display = 'none'; confirmRow.style.display = 'none';
-                if (!d.success) { msg.textContent = d.message; return; }
-                if (d.timing === 'reject') {
-                    notice.className = 'alert alert-soft alert-error mt-4 text-sm'; notice.textContent = d.notice; notice.style.display = '';
-                    msg.textContent = 'This request cannot be submitted online.'; return;
-                }
-                if (d.timing === 'warn') {
-                    notice.className = 'alert alert-soft alert-warning mt-4 text-sm'; notice.textContent = d.notice; notice.style.display = ''; confirmRow.style.display = '';
-                }
-                msg.textContent = d.vehicles.length ? d.vehicles.length + ' vehicle(s) available for this period.' : 'No vehicle is available for this period. Try other times or fewer passengers.';
-                d.vehicles.forEach(function (v) {
-                    var col = document.createElement('div');
-                    col.className = 'col-span-12 md:col-span-6 lg:col-span-4';
-                    col.innerHTML = '<label class="flex h-full cursor-pointer flex-col gap-1 rounded-box border border-base-300 p-3 transition-colors hover:bg-base-200 has-[:checked]:border-primary has-[:checked]:bg-primary/5"><div class="flex items-center gap-2">' +
-                        '<input class="radio radio-sm radio-primary" type="radio" name="vehicle_choice" value="' + v.vehicle_id + '"' + (chosen === v.vehicle_id ? ' checked' : '') + '>' +
-                        '<span class="plate">' + esc(v.plate_number) + '</span></div>' +
-                        '<div class="ms-6 text-sm text-base-content/60">' + esc(v.vehicle_type) + ' &middot; ' + esc(v.model) + ' &middot; ' + v.capacity + ' seats &middot; licence ' + esc(v.license_required) + '</div></label>';
-                    col.querySelector('input').addEventListener('change', function () { chosen = v.vehicle_id; el('vehicle_id').value = v.vehicle_id; });
-                    list.appendChild(col);
-                });
-                if (!d.vehicles.some(function (v) { return v.vehicle_id === chosen; })) { chosen = 0; el('vehicle_id').value = ''; }
-            })
-            .catch(function () { el('vehicleMsg').textContent = 'Could not load the vehicles. Please try again.'; });
+    var form = document.getElementById('requestForm');
+    var types = form.querySelectorAll('input[name="vehicle_type"]');
+    var opt = document.getElementById('driver_option'), qty = document.getElementById('quantity'), qtyBox = document.getElementById('qtyBox');
+    var ptype = document.getElementById('purpose_type'), doc = document.getElementById('docBox'), dist = document.getElementById('distanceBox');
+    var km = document.getElementById('distance_km'), out = document.getElementById('chargeOut'), rate = <?= json_encode($chargePerKm) ?>;
+    var vendor = document.getElementById('vendorWarn'), qErr = document.getElementById('qtyError'), hint = document.getElementById('optionHint'), route = document.getElementById('routeHint');
+    function sel() { var c = form.querySelector('input[name="vehicle_type"]:checked'); return c; }
+    function refresh() {
+        var c = sel(), type = c ? c.value : '', left = c ? parseInt(c.dataset.left, 10) : 0;
+        var allowed = c ? c.dataset.options.split(',') : ['with_driver'];
+        Array.prototype.forEach.call(opt.options, function (o) { o.hidden = o.disabled = allowed.indexOf(o.value) < 0; });
+        if (allowed.indexOf(opt.value) < 0) { opt.value = 'with_driver'; }
+        hint.textContent = type === 'Car' ? 'Pay and Claim: you use your own car; no vehicle is reserved.' : (type === 'Lorry' && allowed.indexOf('self_drive') >= 0 ? 'Self Drive: you drive the lorry without a UIS driver.' : '');
+        var single = opt.value !== 'with_driver';
+        qtyBox.classList.toggle('hidden', single);
+        if (single) { qty.value = 1; }
+        var n = parseInt(qty.value || '1', 10);
+        var short = opt.value !== 'pay_claim' && c && n > left;
+        vendor.classList.toggle('hidden', !(short && type === 'Bus'));
+        if (short && type === 'Bus') { vendor.querySelector('span').textContent = 'Only ' + left + ' bus(es) left. The remaining ' + (n - left) + ' bus(es) will be hired from a vendor.'; }
+        qErr.classList.toggle('hidden', !(short && type !== 'Bus'));
+        Array.prototype.forEach.call(ptype.options, function (o) { if (o.value === 'personal') { o.hidden = o.disabled = type !== 'Lorry'; } });
+        if (ptype.value === 'personal' && type !== 'Lorry') { ptype.value = 'official'; }
+        var personal = ptype.value === 'personal';
+        doc.classList.toggle('hidden', personal); dist.classList.toggle('hidden', !personal);
+        out.textContent = 'RM ' + ((parseFloat(km.value) || 0) * rate).toFixed(2);
+        route.textContent = personal ? 'A Personal request goes to the Administrative Assistant, then the Head of Admin. You pay the charge.'
+            : (route.dataset.hod ? 'The request goes to ' + route.dataset.hod + ' (Head of Department) for approval' + (opt.value === 'with_driver' ? ', then the Vehicle Section assigns the driver.' : ', then the Head of Admin.') : '');
     }
-    function schedule() { clearTimeout(timer); timer = setTimeout(search, 250); }
-    ids.forEach(function (i) { el(i).addEventListener('change', schedule); el(i).addEventListener('input', schedule); });
-
-    var wp = el('waiting_place');
-    function syncOther() { el('otherRow').style.display = wp.value === 'Other' ? '' : 'none'; }
-    wp.addEventListener('change', syncOther); syncOther();
-    search();
+    [opt, qty, ptype, km].forEach(function (el) { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
+    types.forEach(function (r) { r.addEventListener('change', refresh); });
+    form.addEventListener('submit', function (e) {
+        var c = sel();
+        if (!c) { e.preventDefault(); window.UIS.alert('Select a vehicle type.'); return; }
+        if (!qErr.classList.contains('hidden')) { e.preventDefault(); window.UIS.alert('Not enough vehicles are available. Lower the quantity or pick another vehicle type.'); }
+    });
+    refresh();
 })();
 </script>
+<?php endif; ?>
 <?php adminPageEnd(); ?>

@@ -3,7 +3,6 @@
 // includes/dashboard_ui.php  -  small pieces of HTML shared by the dashboards
 // ============================================================
 
-require_once __DIR__ . '/dashboard_data.php';
 
 function dh($s): string { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
 
@@ -23,17 +22,20 @@ function dashKpi(string $label, $value, string $icon, string $tone, ?string $hre
     return $href ? '<a class="block h-full no-underline" href="' . dh($href) . '">' . $inner . '</a>' : $inner;
 }
 
-/** The four steps of a request, with the current one marked. */
-function dashStepper(string $status): string
+/** The steps of a request, with the current one marked. */
+function dashStepper(array $r): string
 {
-    $steps = ['pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned', 'processed' => 'Confirmed'];
+    $steps = $r['driver_option'] === 'with_driver'
+        ? ['pending' => $r['purpose_type'] === 'personal' ? 'Pending' : 'Pending', 'hod_approved' => 'Approved by HoD', 'driver_assigned' => 'Driver Assigned', 'approved' => 'Approved']
+        : ['pending' => 'Pending', 'hod_approved' => 'Approved by HoD', 'approved' => 'Approved'];
+    if ($r['purpose_type'] === 'personal') { unset($steps['hod_approved']); }
     $keys = array_keys($steps);
-    $at = array_search($status, $keys, true);
-    if ($at === false) { $at = $status === 'completed' ? count($keys) : -1; }
+    $at = array_search($r['status'], $keys, true);
+    if ($at === false) { $at = $r['status'] === 'completed' ? count($keys) : -1; }
     $h = '<ol class="dash-steps">';
     foreach ($keys as $i => $k) {
         $cls = $i < $at ? 'done' : ($i === $at ? 'now' : '');
-        $h .= '<li class="' . $cls . '"><span class="dot"></span><span class="lbl">' . dh($status === 'pending' && $k === 'assigned' ? $steps[$k] : $steps[$k]) . '</span></li>';
+        $h .= '<li class="' . $cls . '"><span class="dot"></span><span class="lbl">' . dh($steps[$k]) . '</span></li>';
     }
     return $h . '</ol>';
 }
@@ -54,15 +56,6 @@ function dashHeader(array $buttons, string $sub = ''): string
         $h .= '<a class="btn' . ($primary ? ' btn-neutral' : '') . '" href="' . dh($href) . '"><i class="fas fa-' . dh($icon) . '"></i>' . dh($label) . '</a>';
     }
     return $h . '</div></div>';
-}
-
-/** A request's progress as four short segments (Pending, Approved, Driver Assigned, Confirmed). */
-function dashProgress(string $status): string
-{
-    $at = ['pending' => 1, 'approved' => 2, 'assigned' => 3, 'processed' => 4, 'completed' => 4][$status] ?? 0;
-    $h = '<span class="flex w-24 gap-1" role="img" aria-label="Step ' . $at . ' of 4">';
-    for ($i = 1; $i <= 4; $i++) { $h .= '<span class="h-1.5 flex-1 rounded-full ' . ($i <= $at ? 'bg-primary' : 'bg-base-300') . '"></span>'; }
-    return $h . '</span>';
 }
 
 /** Up to two initials of a name, for the small avatar circles. */
@@ -97,87 +90,6 @@ function dashEmpty(string $text, string $icon = 'mug-hot'): string
 function dashTone(string $tone): string
 {
     return ['danger' => 'error', 'secondary' => 'neutral'][$tone] ?? $tone;
-}
-
-/**
- * Today's dispatch board: one row per vehicle across the working day, with its trips and internal tasks as blocks.
- * Busy vehicles first; a vehicle with no blocks is free. Filled = Confirmed, outlined = waiting for the Head of Admin,
- * grey = internal task or already finished.
- */
-function dashBoard(mysqli $conn): string
-{
-    $items = dashToday($conn);
-    $vehicles = dashRows($conn, "SELECT plate_number, vehicle_type, brand, model, status FROM vehicles WHERE status <> 'inactive' ORDER BY plate_number");
-    $today = date('Y-m-d');
-    $nowTs = time();
-
-    // The window: 07:00 to 19:00, widened to whole hours when something starts earlier or ends later
-    $from = 7; $to = 19;
-    foreach ($items as $it) {
-        $s = strtotime($it['start']); $e = strtotime($it['end']);
-        $from = min($from, date('Y-m-d', $s) < $today ? 0 : (int)date('G', $s));
-        $to = max($to, date('Y-m-d', $e) > $today ? 24 : (int)ceil(((int)date('G', $e) * 60 + (int)date('i', $e)) / 60));
-    }
-    $t0 = strtotime("$today $from:00"); $span = ($to - $from) * 3600;
-    $pos = fn(int $ts) => max(0, min(100, ($ts - $t0) / $span * 100));
-
-    $rows = [];
-    foreach ($vehicles as $v) { $rows[$v['plate_number']] = ['v' => $v, 'items' => []]; }
-    foreach ($items as $it) {
-        $key = $it['vehicle'] !== '' && isset($rows[$it['vehicle']]) ? $it['vehicle'] : '';
-        if ($key === '' && !isset($rows[''])) { $rows[''] = ['v' => null, 'items' => []]; }
-        $rows[$key]['items'][] = $it;
-    }
-    uasort($rows, fn($a, $b) => (count($b['items']) > 0) <=> (count($a['items']) > 0));
-
-    $hours = '';
-    $nowX = ($nowTs > $t0 && $nowTs < $t0 + $span) ? $pos($nowTs) : null;
-    for ($hr = $from; $hr <= $to; $hr++) {
-        $x = ($hr - $from) / ($to - $from) * 100;
-        if ($nowX !== null && abs($x - $nowX) < 6) { continue; }   // the "now" label sits here; don't print an hour under it
-        $shift = $hr === $from ? '' : ($hr === $to ? '-translate-x-full' : '-translate-x-1/2');
-        $hours .= '<span class="absolute ' . $shift . ' font-mono text-[0.6875rem] text-base-content/65" style="left:' . $x . '%">' . sprintf('%02d', $hr % 24) . '</span>';
-    }
-    $lines = '';
-    for ($hr = $from + 1; $hr < $to; $hr++) {
-        $lines .= '<span class="absolute inset-y-0 w-px bg-base-200" style="left:' . (($hr - $from) / ($to - $from) * 100) . '%"></span>';
-    }
-    $now = '';
-    if ($nowTs > $t0 && $nowTs < $t0 + $span) {
-        $now = '<span class="absolute inset-y-0 w-px bg-primary" style="left:' . $pos($nowTs) . '%"></span>'
-             . '<span class="absolute -top-6 z-[1] -translate-x-1/2 rounded bg-primary px-1.5 py-px text-[0.6875rem] font-semibold tabular-nums text-primary-content" style="left:' . $pos($nowTs) . '%">' . date('H:i') . '</span>';
-    }
-
-    $h = '<div class="overflow-x-auto"><div class="min-w-[44rem]">'
-       . '<div class="grid grid-cols-[11rem_1fr]"><div></div><div class="relative mb-2 h-4">' . $hours . '</div></div>'
-       . '<div class="relative grid grid-cols-[11rem_1fr]">'
-       . '<div class="pointer-events-none absolute inset-y-0 right-0 left-[11rem]">' . $lines . $now . '</div>';
-    foreach ($rows as $key => $r) {
-        $v = $r['v'];
-        $label = $v ? plate($v['plate_number']) . '<span class="mt-0.5 block truncate text-xs text-base-content/60">'
-                    . dh($v['status'] === 'maintenance' ? 'In maintenance' : trim($v['vehicle_type'] . ' · ' . trim(($v['brand'] ?? '') . ' ' . ($v['model'] ?? '')), ' ·')) . '</span>'
-                    : '<span class="text-sm text-base-content/60">No vehicle</span>';
-        $blocks = '';
-        foreach ($r['items'] as $it) {
-            $s = strtotime($it['start']); $e = strtotime($it['end']);
-            $left = $pos($s); $width = max(1.5, $pos($e) - $left);
-            $done = $e < $nowTs;
-            $internal = $it['kind'] === 'Internal';
-            $waiting = !$internal && $it['status'] === 'assigned';
-            $style = $done || $internal ? 'bg-base-200 text-base-content/60' : ($waiting ? 'border border-primary/50 bg-base-100' : 'bg-primary/10');
-            $tip = date('H:i', $s) . '–' . date('H:i', $e) . ' ' . $it['title'] . ($it['who'] ? ', ' . $it['who'] : '')
-                 . ($internal ? ' (internal task)' : ($it['status'] ? ' (' . requestStatusLabel($it['status']) . ')' : ''));
-            $blocks .= '<div class="absolute inset-y-1 overflow-hidden rounded-field px-2 py-1 text-xs leading-tight ' . $style . '" style="left:' . $left . '%;width:' . $width . '%" title="' . dh($tip) . '">'
-                     . '<span class="block truncate"><span class="font-mono">' . date('H:i', $s) . '</span> <span class="font-medium">' . dh($it['title']) . '</span></span>'
-                     . '<span class="block truncate text-base-content/60">' . dh($it['who']) . '</span></div>';
-        }
-        $track = $v && $v['status'] === 'maintenance' ? 'bg-base-200' : '';
-        $h .= '<div class="flex h-14 flex-col items-start justify-center border-t border-base-200 pe-3">' . $label . '</div>'
-            . '<div class="relative h-14 border-t border-base-200 ' . $track . '">' . $blocks . '</div>';
-    }
-    $h .= '</div></div></div>';
-    $h .= '<p class="mt-3 text-xs text-base-content/60">Green: Confirmed. Outlined: waiting for the Head of Admin. Grey: internal task or finished. An empty row is a free vehicle.</p>';
-    return $h;
 }
 
 /** Waiting time as a short text: "3 h", "2 days". */

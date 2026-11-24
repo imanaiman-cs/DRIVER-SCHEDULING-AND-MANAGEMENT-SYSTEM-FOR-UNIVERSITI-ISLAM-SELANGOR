@@ -33,37 +33,15 @@ $conn->set_charset("utf8mb4");
 $conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with PHP
 
 // ============================================================
-// Database migrations
-// The schema lives in database.sql (fresh install) and in migrations/*.sql (upgrade of an existing
-// database). Every file in migrations/ that has not been applied yet is applied ONCE, the first time a
-// page is opened, so "git pull" is enough. It can also be run by hand:
-//     mysql -uroot uis_driver_db < migrations/2026_10_align_srs.sql
-// A migration is written so that running it twice does no harm.
+// Schema check: this version needs the database of database.sql (SRS UC001-UC028).
 // ============================================================
-function applyPendingMigrations(mysqli $conn): void
+function schemaIsCurrent(mysqli $conn): bool
 {
     try {
-        $conn->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(100) NOT NULL PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        $done = [];
-        $r = $conn->query('SELECT name FROM schema_migrations');
-        while ($r && ($row = $r->fetch_row())) { $done[$row[0]] = true; }
-        $files = glob(__DIR__ . '/../migrations/*.sql') ?: [];
-        sort($files);
-        foreach ($files as $file) {
-            $name = basename($file, '.sql');
-            if (isset($done[$name])) { continue; }
-            $lock = $conn->query("SELECT GET_LOCK('uis_migrate', 30)")->fetch_row()[0];
-            if ((int)$lock !== 1) { return; }
-            $conn->query("SELECT 1");
-            $sql = file_get_contents($file);
-            if ($conn->multi_query($sql)) {
-                do { if ($res = $conn->store_result()) { $res->free(); } } while ($conn->more_results() && $conn->next_result());
-            }
-            if ($conn->errno) { error_log("Migration $name failed: " . $conn->error); }
-            $conn->query("SELECT RELEASE_LOCK('uis_migrate')");
-        }
+        $r = $conn->query("SHOW TABLES LIKE 'request_vehicles'");
+        return $r && $r->num_rows > 0;
     } catch (Throwable $e) {
-        error_log('Migration skipped: ' . $e->getMessage());
+        return false;
     }
 }
 
@@ -93,14 +71,23 @@ if (PHP_SAPI !== 'cli' && !headers_sent()) {
 require_once __DIR__ . '/../includes/i18n.php';
 uisI18nBoot();                                              // ?lang=ms|en, and BM translation of the page when chosen
 require_once __DIR__ . '/../includes/workflow.php';
+require_once __DIR__ . '/../includes/upload.php';
+require_once __DIR__ . '/../includes/requests.php';
+require_once __DIR__ . '/../includes/tasks.php';
 require_once __DIR__ . '/../includes/recommender.php';
-require_once __DIR__ . '/../includes/request_view.php';
+require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
 require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
-// Apply new migrations once per session (cheap: one SELECT when nothing is pending)
-if (empty($_SESSION['migrations_checked'])) {
-    applyPendingMigrations($conn);
-    $_SESSION['migrations_checked'] = true;
+
+if (empty($_SESSION['schema_ok'])) {
+    if (!schemaIsCurrent($conn)) {
+        http_response_code(503);
+        echo '<!DOCTYPE html><meta charset="utf-8"><title>Database update needed</title><body style="font-family:sans-serif;max-width:36rem;margin:4rem auto">'
+           . '<h2>The database must be updated</h2><p>This version of the system follows the final SRS and needs the new database. '
+           . 'Import <code>database.sql</code> (phpMyAdmin &gt; Import, or <code>mysql -uroot &lt; database.sql</code>). It re-creates <code>' . htmlspecialchars(DB_NAME) . '</code> with demo data.</p></body>';
+        exit();
+    }
+    $_SESSION['schema_ok'] = true;
 }
 
 // Lapse / cancel / complete, lightly, whenever a signed-in user opens a page (cron/run_jobs.php does it hourly)
@@ -175,18 +162,20 @@ function runSecurityChecks(mysqli $conn): void
     // 2. the account itself
     try {
         $uid = (int)$_SESSION['user_id'];
-        $stmt = $conn->prepare('SELECT is_active, role, department FROM users WHERE user_id = ?');
+        $stmt = $conn->prepare('SELECT u.status, u.role, u.department_id, u.full_name, d.driver_id FROM users u LEFT JOIN drivers d ON d.user_id = u.user_id WHERE u.user_id = ?');
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $u = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$u || !(int)$u['is_active']) {
+        if (!$u || $u['status'] !== 'active') {
             session_unset();
             $_SESSION['login_notice'] = 'Your account is not available. Please contact the Vehicle Section.';
             securityStop(401, 'Your account is not available.', SITE_URL . '/login.php');
         }
-        $_SESSION['role'] = $u['role'];                 // a role changed in the UIS staff system applies at once
-        $_SESSION['department'] = $u['department'];
+        $_SESSION['role'] = $u['role'];                 // a role changed by the Administrative Assistant applies at once
+        $_SESSION['department_id'] = $u['department_id'];
+        $_SESSION['driver_id'] = $u['driver_id'] !== null ? (int)$u['driver_id'] : null;
+        $_SESSION['full_name'] = $u['full_name'];
     } catch (Throwable $e) {
         // columns not created yet (very first request): nothing to check
     }
@@ -285,15 +274,6 @@ function requireHeadAdmin(): void
 function requireRequester(): void
 {
     requireLogin();
-}
-
-/** Display name of a role (same words everywhere). */
-function roleLabel(string $role): string
-{
-    return match ($role) {
-        'staff' => 'Staff', 'driver' => 'Driver', 'supervisor' => 'Head of Department',
-        'admin', 'superadmin' => 'Administrative Assistant', 'head_admin' => 'Head of Admin', default => $role,
-    };
 }
 
 /**
@@ -397,38 +377,6 @@ function requireSupervisor(): void
         header('Location: ' . roleHomeUrl());
         exit();
     }
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a vehicle request status.
- *
- * @param string $status One of: pending, approved, rejected, processed, cancelled
- *
- * @return string DaisyUI badge classes
- */
-function requestStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'pending'   => 'badge-warning',
-        'approved'  => 'badge-success',
-        'rejected'  => 'badge-error',
-        'assigned'  => 'badge-info',
-        'processed' => 'badge-primary',
-        'cancelled' => 'border-0 bg-slate-500 text-white',
-        'lapsed'    => 'border-0 bg-slate-500 text-white',
-        'completed' => 'badge-neutral',
-        default     => 'border-0 bg-slate-500 text-white',
-    };
-}
-
-/** The words people see for a stored status ('assigned' = Driver Assigned, 'processed' = Confirmed). */
-function requestStatusLabel(string $status): string
-{
-    return match ($status) {
-        'pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned',
-        'processed' => 'Confirmed', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
-        'lapsed' => 'Lapsed', 'completed' => 'Completed', default => ucfirst($status),
-    };
 }
 
 // ============================================================
@@ -601,90 +549,6 @@ function formatTime(?string $time): string
     return date('g:i a', strtotime($time));
 }
 
-/**
- * Returns the DaisyUI badge modifier classes for a schedule status value.
- *
- * @param string $status One of: pending, approved, in_progress, completed, cancelled
- *
- * @return string DaisyUI badge classes, e.g. 'badge-warning'
- */
-function statusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'pending'     => 'badge-warning',
-        'approved'    => 'badge-primary',
-        'in_progress' => 'badge-info',
-        'completed'   => 'badge-success',
-        'cancelled'   => 'border-0 bg-slate-500 text-white',
-        default       => 'badge-neutral',
-    };
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a driver status value.
- *
- * @param string $status One of: active, inactive
- *
- * @return string DaisyUI badge classes
- */
-function driverStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'active'   => 'badge-success',
-        'inactive' => 'badge-error',
-        default    => 'border-0 bg-slate-500 text-white',
-    };
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a vehicle status value.
- *
- * @param string $status One of: available, in_use, maintenance, inactive
- *
- * @return string DaisyUI badge classes
- */
-function vehicleStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'available'   => 'badge-success',
-        'in_use'      => 'badge-primary',
-        'maintenance' => 'badge-warning',
-        'inactive'    => 'border-0 bg-slate-500 text-white',
-        default       => 'badge-neutral',
-    };
-}
-
-/** A registration number set like a number plate (HTML). Empty string when there is no plate. */
-function plate(?string $plateNumber): string
-{
-    $p = trim((string)$plateNumber);
-    return $p === '' ? '' : '<span class="plate">' . htmlspecialchars($p, ENT_QUOTES, 'UTF-8') . '</span>';
-}
-
-/** The words people see for a vehicle status. In Use is worked out by the system (see vehicleDisplayStatus). */
-function vehicleStatusLabel(string $status): string
-{
-    return ['available' => 'Available', 'in_use' => 'In Use', 'maintenance' => 'Under Maintenance', 'inactive' => 'Inactive'][$status] ?? ucfirst($status);
-}
-
-/**
- * The status to SHOW for a vehicle. "In Use" is not stored: it is shown when the vehicle has a
- * Confirmed trip (or an internal task) that covers this moment.
- */
-function vehicleDisplayStatus(mysqli $conn, int $vehicle_id, string $stored_status): string
-{
-    if ($stored_status !== 'available') { return $stored_status; }
-    $stmt = $conn->prepare(
-        "SELECT 1 FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
-    );
-    $stmt->bind_param('i', $vehicle_id);
-    $stmt->execute();
-    $busy = (bool)$stmt->get_result()->fetch_row();
-    $stmt->close();
-    return $busy ? 'in_use' : 'available';
-}
-
 // ============================================================
 // Photo helpers (vehicles and drivers)
 // Uploaded photos are stored as a path relative to the project
@@ -706,8 +570,8 @@ function vehiclePhotoUrl(?string $photo, string $vehicle_type = 'Car'): string
     if (!empty($photo)) {
         return SITE_URL . '/' . ltrim($photo, '/');
     }
-    $slug = strtolower($vehicle_type);
-    if (!in_array($slug, ['bus', 'minibus', 'van', 'car', 'lorry', 'motorcycle'], true)) {
+    $slug = strtolower($vehicle_type === 'MPV' ? 'minibus' : $vehicle_type);
+    if (!in_array($slug, ['bus', 'minibus', 'van', 'car', 'lorry'], true)) {
         $slug = 'car';
     }
     return SITE_URL . '/assets/images/vehicles/' . $slug . '.svg';
@@ -727,4 +591,41 @@ function driverPhotoUrl(?string $photo): string
         return SITE_URL . '/' . ltrim($photo, '/');
     }
     return SITE_URL . '/assets/images/drivers/avatar.svg';
+}
+
+/** The signed-in user (row of loadUser: department, driver details), loaded once per request. */
+function currentUser(): array
+{
+    global $conn;
+    static $u = null;
+    if ($u === null) { $u = isLoggedIn() ? (loadUser($conn, (int)$_SESSION['user_id']) ?? []) : []; }
+    return $u;
+}
+
+/** Only these roles may open the page; others go to their home page. */
+function requireRoles(array $roles): void
+{
+    requireLogin();
+    if (!in_array($_SESSION['role'] ?? '', $roles, true)) {
+        if (isAjaxRequest()) { securityStop(403, 'You do not have access to this action.'); }
+        header('Location: ' . roleHomeUrl());
+        exit();
+    }
+}
+
+/** A JSON answer for the ajax/ endpoints. */
+function jsonOut(array $data, int $http = 200): never
+{
+    http_response_code($http);
+    header('Content-Type: application/json');
+    echo json_encode($data);
+    exit();
+}
+
+/** Redirects with a flash message built from a workflow result. */
+function redirectWithResult(array $res, string $url): never
+{
+    setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
+    header('Location: ' . $url);
+    exit();
 }

@@ -28,91 +28,93 @@ $initials = $initials ?: 'U';
 $role_label = roleLabel($role);
 
 // Admin Assistant and Head of Admin share the admin menu (the Head of Admin has one extra item)
-$_is_admin_role = in_array($role, ['admin', 'superadmin', 'head_admin'], true);
+$_is_admin_role = in_array($role, ['admin', 'head_admin'], true);
 
 // Home URL for the current role (used by header breadcrumb)
 $_role_home = match ($role) {
-    'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
-    'staff'               => 'staff/dashboard.php',
+    'admin', 'head_admin' => 'admin/dashboard.php',
     'supervisor'          => 'supervisor/dashboard.php',
-    default               => 'driver/dashboard.php',
+    'driver'              => 'driver/dashboard.php',
+    default               => 'staff/dashboard.php',
 };
 
 // Helper: returns 'active' CSS class when $pages matches the current page
 function sidebarActive(string|array $pages, string $current): string
 {
-    $pages = (array) $pages;
-    return in_array($current, $pages, true) ? 'active' : '';
+    return in_array($current, (array)$pages, true) ? 'active' : '';
 }
 
 // ── Counts shown as small badges ─────────────────────────────────
-$_sidebar_uid     = (int)($_SESSION['user_id'] ?? 0);
-$_badge           = ['requests' => 0, 'assignments' => 0, 'reminders' => 0, 'approvals' => 0];
-$_app_unread      = 0;   // unread notifications (the bell)
-$_app_notifs      = [];  // the latest few
+$_sidebar_uid = (int)($_SESSION['user_id'] ?? 0);
+$_badge       = ['assign' => 0, 'approvals' => 0, 'hod' => 0, 'changes' => 0, 'pending_role' => 0, 'replace' => 0, 'welfare' => 0, 'internal' => 0];
+$_app_unread  = 0;   // unread notifications (the bell)
+$_app_notifs  = [];  // the latest few
 if ($_sidebar_uid > 0 && isset($conn)) {
     try {
         if ($_is_admin_role) {
-            $_badge['requests']    = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'approved'")->fetch_row()[0];
-            $_badge['assignments'] = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'assigned'")->fetch_row()[0];
-            $_badge['reminders']   = (int)$conn->query("SELECT COUNT(*) FROM vehicle_requests WHERE status = 'pending'")->fetch_row()[0];
+            $_badge['assign']       = (int)$conn->query('SELECT COUNT(*) FROM requests r WHERE ' . SQL_WAITING_ASSIGNMENT)->fetch_row()[0];
+            $_badge['pending_role'] = (int)$conn->query("SELECT COUNT(*) FROM users WHERE pending_role IS NOT NULL AND status = 'active'")->fetch_row()[0];
+            $_badge['replace']      = count(tasksNeedingReplacement($conn));
+            $_badge['internal']     = (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'waiting' AND start_dt > NOW()")->fetch_row()[0];
+            $_badge['welfare']      = (int)$conn->query("SELECT COUNT(*) FROM welfare_weeks WHERE status = 'waiting' AND week_start_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)")->fetch_row()[0];
+        }
+        if ($role === 'head_admin') {
+            $_badge['approvals'] = (int)$conn->query('SELECT COUNT(*) FROM requests r WHERE ' . SQL_WAITING_HOA)->fetch_row()[0]
+                                 + (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'driver_assigned'")->fetch_row()[0]
+                                 + (int)$conn->query("SELECT COUNT(*) FROM welfare_weeks WHERE status = 'driver_assigned'")->fetch_row()[0]
+                                 + (int)$conn->query("SELECT COUNT(*) FROM driver_replacements WHERE status = 'pending'")->fetch_row()[0];
+            $_badge['changes']   = (int)$conn->query("SELECT COUNT(*) FROM schedule_changes WHERE status = 'pending'")->fetch_row()[0];
         }
         if ($role === 'supervisor') {
-            $st = $conn->prepare("SELECT COUNT(*) FROM vehicle_requests WHERE supervisor_id = ? AND status = 'pending'");
-            $st->bind_param('i', $_sidebar_uid);
-            $st->execute();
-            $_badge['approvals'] = (int)$st->get_result()->fetch_row()[0];
-            $st->close();
+            $_badge['hod'] = (int)dbValue($conn, "SELECT COUNT(*) FROM requests WHERE approver_id = ? AND status = 'pending' AND purpose_type <> 'personal'", [$_sidebar_uid]);
         }
-        $st = $conn->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0');
-        $st->bind_param('i', $_sidebar_uid);
-        $st->execute();
-        $_app_unread = (int)$st->get_result()->fetch_row()[0];
-        $st->close();
-        $st = $conn->prepare('SELECT notification_id, message, link, is_read, created_at FROM notifications
-                               WHERE user_id = ? ORDER BY is_read ASC, created_at DESC, notification_id DESC LIMIT 6');
-        $st->bind_param('i', $_sidebar_uid);
-        $st->execute();
-        $_app_notifs = $st->get_result()->fetch_all(MYSQLI_ASSOC);
-        $st->close();
+        $_app_unread = (int)dbValue($conn, 'SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', [$_sidebar_uid]);
+        $_app_notifs = dbAll($conn, 'SELECT notification_id, message, link, is_read, date_sent AS created_at FROM notifications
+                                     WHERE user_id = ? ORDER BY is_read ASC, date_sent DESC, notification_id DESC LIMIT 6', [$_sidebar_uid]);
     } catch (Throwable $e) {
         // tables not ready yet
     }
 }
 
 // ── The menu of each role: section => [ [pages that highlight it, url, icon, label, badge key], ... ] ──
-$_my_requests = ['My Vehicle Requests' => [
-    [['request_vehicle.php'], 'staff/request_vehicle.php', 'car-side', 'Request a Vehicle', null],
-    [['my_requests.php'],     'staff/my_requests.php',     'list-check', 'My Requests', null],
+$_my_requests = ['Vehicle Requests' => [
+    [['request_vehicle.php'], 'staff/request_vehicle.php', 'car-side', 'New Request', null],
+    [['my_requests.php', 'request.php', 'approval_letter.php'], 'staff/my_requests.php', 'list-check', 'My Request', null],
 ]];
 if ($_is_admin_role) {
     $_menu = [
         'Main' => [[['dashboard.php'], 'admin/dashboard.php', 'gauge-high', 'Dashboard', null]],
-        'Requests' => array_merge(
-            [[['vehicle_requests.php', 'assign_driver.php', 'replace_driver.php'], 'admin/vehicle_requests.php', 'file-signature', 'Vehicle Requests', 'requests']],
-            $role === 'head_admin' ? [[['approve_assignments.php'], 'admin/approve_assignments.php', 'user-check', 'Approve Assignments', 'assignments']] : [],
-            [[['reminders.php'], 'admin/reminders.php', 'bell-concierge', 'Approval Reminders', 'reminders']]
-        ),
-        'Schedule' => [
-            [['calendar.php'],       'admin/calendar.php',       'calendar-days', 'Schedule Calendar', null],
-            [['internal_tasks.php'], 'admin/internal_tasks.php', 'wrench',        'Internal Tasks', null],
-            [['welfare.php'],        'admin/welfare.php',        'moon',          'Welfare Duty', null],
-        ],
-        'Fleet' => [
-            [['drivers.php', 'add_driver.php', 'edit_driver.php', 'view_driver.php'],          'admin/drivers.php',  'id-card', 'Drivers', null],
-            [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php', 'vehicle_maintenance.php'], 'admin/vehicles.php', 'bus', 'Vehicles', null],
-        ],
-        'Reports' => [[['reports.php'], 'admin/reports.php', 'chart-column', 'Reports', null]],
-        'System'  => [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]],
-    ] + $_my_requests;
+    ];
+    if ($role === 'head_admin') {
+        $_menu['Approvals'] = [
+            [['approvals.php'], 'admin/approvals.php', 'stamp', 'Pending Approval', 'approvals'],
+            [['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Change', 'changes'],
+        ];
+    }
+    $_menu['Requests'] = [
+        [['vehicle_requests.php', 'request.php', 'approval_letter.php'], 'admin/vehicle_requests.php', 'file-signature', 'All Request', null],
+        [['assign_driver.php'], 'admin/assign_driver.php', 'user-plus', 'Assign Request Task', 'assign'],
+    ];
+    $_menu['Schedule'] = [
+        [['schedule.php', 'task.php', 'replace_driver.php'], 'admin/schedule.php', 'calendar-days', 'Driver Schedule', 'replace'],
+        [['internal_tasks.php'], 'admin/internal_tasks.php', 'wrench', 'Internal Task', 'internal'],
+        [['welfare.php'], 'admin/welfare.php', 'moon', 'Welfare Duty', 'welfare'],
+    ];
+    $_menu['Manage'] = [
+        [['users.php', 'add_driver.php', 'edit_user.php', 'view_user.php'], 'admin/users.php', 'users', 'User Account', 'pending_role'],
+        [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'], 'admin/vehicles.php', 'bus', 'Vehicle', null],
+    ];
+    $_menu['Reports'] = [[['reports.php'], 'admin/reports.php', 'chart-column', 'Report', null]];
+    $_menu['System']  = [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]];
 } elseif ($role === 'supervisor') {
     $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Vehicle Approvals', 'approvals']]] + $_my_requests;
-} elseif ($role === 'staff') {
-    $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
-} else {
+              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Department Request', 'hod']]] + $_my_requests;
+} elseif ($role === 'driver') {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'My Tasks' => [[['schedules.php', 'task_sheet.php'], 'driver/schedules.php', 'route', 'My Tasks', null]]] + $_my_requests;
+              'My Work' => [[['tasks.php', 'task.php'], 'driver/tasks.php', 'route', 'My Task', null],
+                            [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null]]] + $_my_requests;
+} else {
+    $_menu = ['Main' => [[['dashboard.php'], 'staff/dashboard.php', 'house', 'Dashboard', null]]] + $_my_requests;
 }
 ?>
 
@@ -248,7 +250,7 @@ if ($current_page === 'profile.php') { $_page_icon = 'user'; } elseif ($current_
             <li class="sm:hidden"><a class="rounded-md" href="<?php echo htmlspecialchars(uisLangUrl(uisLang() === 'ms' ? 'en' : 'ms')); ?>" lang="<?php echo uisLang() === 'ms' ? 'en' : 'ms'; ?>" data-no-translate>
                 <i class="fas fa-language w-4" aria-hidden="true"></i><?php echo uisLang() === 'ms' ? 'English' : 'Bahasa Melayu'; ?></a></li>
             <li><a class="rounded-md<?php echo $current_page === 'profile.php' ? ' menu-active' : ''; ?>" href="<?php echo SITE_URL; ?>/profile.php"><i class="fas fa-user w-4" aria-hidden="true"></i>My Profile</a></li>
-            <li><a class="rounded-md" href="<?php echo SITE_URL; ?>/change_password.php"><i class="fas fa-key w-4" aria-hidden="true"></i>Change password</a></li>
+            <li><a class="rounded-md" href="<?php echo SITE_URL; ?>/profile.php#password"><i class="fas fa-key w-4" aria-hidden="true"></i>Change Password</a></li>
             <li><a class="rounded-md" href="<?php echo SITE_URL; ?>/help.php"><i class="fas fa-circle-question w-4" aria-hidden="true"></i>Help</a></li>
             <li><a class="rounded-md text-error" href="<?php echo SITE_URL; ?>/logout.php"
                    data-confirm="You will need to sign in again to continue." data-confirm-title="Log out?" data-confirm-button="Log Out" data-confirm-tone="danger">

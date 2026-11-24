@@ -27,7 +27,7 @@ function saveUploadedImage(array $file, string $subdir, int $maxBytes = 2097152)
         return ['ok' => false, 'path' => null, 'error' => $msg];
     };
 
-    if (!in_array($subdir, ['vehicles', 'drivers'], true)) {
+    if (!in_array($subdir, ['vehicles', 'drivers', 'reports'], true)) {
         return $fail('Invalid upload destination.');
     }
 
