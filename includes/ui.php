@@ -32,7 +32,7 @@ function tabsNav(array $tabs, string $current, callable $url, array $counts = []
     foreach ($tabs as $k => $label) {
         $on = $k === $current;
         $h .= '<a class="tab gap-2 whitespace-nowrap' . ($on ? ' tab-active' : '') . '"' . ($on ? ' aria-current="page"' : '') . ' href="' . h($url($k)) . '">' . h($label)
-            . (isset($counts[$k]) && $counts[$k] > 0 ? ' <span class="badge badge-sm ' . ($on ? 'badge-primary' : 'badge-ghost') . '">' . (int)$counts[$k] . '</span>' : '') . '</a>';
+            . (isset($counts[$k]) && $counts[$k] > 0 ? ' <span class="badge badge-sm badge-ghost">' . (int)$counts[$k] . '</span>' : '') . '</a>';
     }
     return $h . '</nav>';
 }
@@ -229,4 +229,18 @@ function taskRowCells(array $t): string
     return '<td class="whitespace-nowrap">' . h(date('D, d M Y', strtotime($t['start_dt']))) . '<div class="text-xs text-base-content/60">' . h(date('g:i a', strtotime($t['start_dt'])) . ' - ' . date((substr($t['start_dt'], 0, 10) === substr($t['end_dt'], 0, 10) ? '' : 'd M ') . 'g:i a', strtotime($t['end_dt']))) . '</div></td>'
          . '<td>' . h(taskTypeLabel($t)) . (!empty($t['request_id']) ? ' <a class="link text-xs" href="' . SITE_URL . '/staff/request.php?id=' . (int)$t['request_id'] . '">#' . (int)$t['request_id'] . '</a>' : '') . '</td>'
          . '<td class="whitespace-nowrap">' . (!empty($t['plate_number']) ? plate($t['plate_number']) : '-') . '</td>';
+}
+
+/** The licence class, licence expiry date and start date of service fields of a driver (UC001A, UC001C). */
+function driverFieldsHtml(array $v, array $errors): string
+{
+    $sel = array_map('trim', is_array($v['licence_classes'] ?? null) ? $v['licence_classes'] : explode(',', (string)($v['licence_classes'] ?? '')));
+    $h = '<fieldset class="col-span-12 md:col-span-6"><legend class="mb-1 text-sm font-medium">Licence classes</legend><div class="flex flex-wrap gap-4">';
+    foreach (LICENCE_CLASSES as $k => $label) {
+        $h .= '<label class="flex items-center gap-2 text-sm"><input type="checkbox" class="checkbox checkbox-sm" name="licence_classes[]" value="' . $k . '"' . (in_array($k, $sel, true) ? ' checked' : '') . '>' . h($label) . '</label>';
+    }
+    $h .= '</div>' . fieldError($errors, 'licence_classes') . '</fieldset>'
+        . '<div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="licence_expiry">Licence expiry date</label><input type="date" class="input w-full' . errClass($errors, 'licence_expiry') . '" id="licence_expiry" name="licence_expiry" value="' . h($v['licence_expiry'] ?? '') . '" required>' . fieldError($errors, 'licence_expiry') . '</div>'
+        . '<div class="col-span-6 md:col-span-3"><label class="mb-1 block text-sm font-medium" for="start_date">Start date of service</label><input type="date" class="input w-full' . errClass($errors, 'start_date') . '" id="start_date" name="start_date" max="' . date('Y-m-d') . '" value="' . h($v['start_date'] ?? '') . '" required>' . fieldError($errors, 'start_date') . '<div class="mt-1 text-xs text-base-content/60">Used for the experience in Recommend Driver.</div></div>';
+    return $h;
 }

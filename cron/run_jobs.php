@@ -3,11 +3,11 @@
 // UIS Driver Scheduling and Management System
 // cron/run_jobs.php  -  scheduled housekeeping for vehicle requests
 //
-//   1. a request still "Pending" after 2 days (or whose trip time has passed) becomes "Lapsed":
-//      the vehicle lock is released and the staff member and the Head of Department are told
-//   2. an "Approved" or "Driver Assigned" request that nobody confirmed before the trip time is cancelled
-//   3. a "Confirmed" request whose trip is over becomes "Completed"
-//   (There is no automatic approval reminder: reminders are sent by hand, see admin/reminders.php.)
+//   1. approval emails that could not be sent are sent again (UC019)
+//   2. one reminder email to the Head of Department after one day (UC020)
+//   3. a request not approved by the Head of Department within two days, or not approved before the departure
+//      time, becomes "Lapsed" and its vehicle reservation is released
+//   4. an "Approved" request whose return time has passed becomes "Completed"
 //
 // Run it at least ONCE AN HOUR from the command line:     php cron/run_jobs.php
 //
@@ -27,4 +27,4 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/mailer.php';
 
 $r = runRequestJobs($conn);
-echo date('Y-m-d H:i:s') . " lapsed={$r['lapsed']} cancelled={$r['cancelled']} completed={$r['completed']}" . PHP_EOL;
+echo date('Y-m-d H:i:s') . " emails={$r['emails']} reminders={$r['reminders']} lapsed={$r['lapsed']} completed={$r['completed']}" . PHP_EOL;

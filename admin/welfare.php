@@ -1,243 +1,107 @@
 <?php
 // ============================================================
-// admin/welfare.php  -  Welfare duty (SRS UC026 Set, UC027 Update)
-//
-// One driver is on welfare duty for 24 hours (12 am to 12 am) each day.
-//  * Set: choose a month and the drivers in rotation order; one driver per day is generated.
-//  * Update: change the driver of ONE day with a reason; both drivers are notified.
-// Welfare days count as tasks in the workload (driverMonthCounts). Days before today are never changed.
+// admin/welfare.php  -  UC006 Manage Welfare Duty + UC007 Assign Welfare Duty Task (includes UC009)
+// Welfare duty is a 24-hour standby duty using a car or van, planned per week.
+//   UC006A Create Schedule: a vehicle for each day -> Waiting for Driver; the vehicle is reserved for 24 hours
+//   UC006B View by week      UC006C change the vehicle of a day     UC006D delete the duty of a day
+//   UC007  a driver for each day (recommended drivers per day) -> Submit -> Driver Assigned -> Head of Admin (UC026)
+// Past days cannot be changed or deleted (they are counted in the driver's task count).
 // ============================================================
 $current_page = 'welfare.php';
 require_once '../config/database.php';
-require_once '../includes/admin_page.php';
+require_once '../includes/ui.php';
 requireAdmin();
 
-$h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-$month = (string)($_GET['month'] ?? $_POST['month'] ?? '');
-if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) { $month = date('Y-m'); }
-$first = $month . '-01';
-$days  = (int)date('t', strtotime($first));
-$drivers = activeDrivers($conn);
-$activeIds = array_map('intval', array_column($drivers, 'driver_id'));
-$today = date('Y-m-d');
-
-/** Roster rows of a month, keyed by date. */
-function welfareMonth(mysqli $conn, string $month): array
-{
-    $from = $month . '-01'; $to = date('Y-m-t', strtotime($from));
-    $stmt = $conn->prepare("SELECT w.*, d.name AS driver_name, p.name AS replaced_name
-                              FROM welfare_roster w JOIN drivers d ON d.driver_id = w.driver_id
-                              LEFT JOIN drivers p ON p.driver_id = w.replaced_from_driver_id
-                             WHERE w.duty_date BETWEEN ? AND ?");
-    $stmt->bind_param('ss', $from, $to);
-    $stmt->execute();
-    $out = [];
-    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) { $out[$r['duty_date']] = $r; }
-    $stmt->close();
-    return $out;
-}
-
-/** Tells every driver whose welfare days changed: $changes = [driver_id => ['add' => [dates], 'remove' => [dates]]]. */
-function notifyWelfareChanges(mysqli $conn, array $changes): void
-{
-    $fmt = fn(array $d) => implode(', ', array_map(fn($x) => date('d M', strtotime($x)), $d));
-    foreach ($changes as $driver_id => $c) {
-        $u = userIdOfDriver($conn, (int)$driver_id);
-        if (!$u) { continue; }
-        $parts = [];
-        if ($c['add'])    { $parts[] = 'You are on welfare duty (24 hours) on: ' . $fmt($c['add']) . '.'; }
-        if ($c['remove']) { $parts[] = 'You are no longer on welfare duty on: ' . $fmt($c['remove']) . '.'; }
-        if ($parts) { notifyUsers($conn, [$u], implode(' ', $parts), 'driver/schedules.php'); }
-    }
-}
-
+$monday = weekMonday(isValidDate((string)($_GET['week'] ?? $_POST['week'] ?? '')) ? ($_GET['week'] ?? $_POST['week']) : date('Y-m-d'));
+$self = 'welfare.php?week=' . $monday;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
-
-    if ($act === 'generate') {
-        // chosen drivers in rotation order
-        $picked = [];
-        foreach ((array)($_POST['use'] ?? []) as $id => $on) {
-            $id = (int)$id;
-            if (in_array($id, $activeIds, true)) { $picked[$id] = (int)(($_POST['order'][$id] ?? 0)); }
-        }
-        asort($picked);                                   // stable: keeps list order for equal numbers
-        $rotation = array_keys($picked);
-        $replaceAll = !empty($_POST['replace_existing']);
-        if (!$rotation) {
-            setFlash('danger', 'Choose at least one active driver for the rotation.');
-        } else {
-            $roster = welfareMonth($conn, $month);
-            $changes = [];
-            $conn->begin_transaction();
-            try {
-                $ins = $conn->prepare('INSERT INTO welfare_roster (duty_date, driver_id) VALUES (?, ?)
-                                       ON DUPLICATE KEY UPDATE driver_id = VALUES(driver_id), replaced_from_driver_id = NULL, replacement_reason = NULL');
-                $n = 0;
-                for ($d = 1; $d <= $days; $d++) {
-                    $date = sprintf('%s-%02d', $month, $d);
-                    if ($date < $today) { continue; }
-                    $existing = $roster[$date] ?? null;
-                    if ($existing && !$replaceAll) { continue; }
-                    $did = $rotation[($d - 1) % count($rotation)];
-                    if ($existing && (int)$existing['driver_id'] === $did && $existing['replaced_from_driver_id'] === null) { continue; }
-                    $ins->bind_param('si', $date, $did);
-                    $ins->execute();
-                    $n++;
-                    $changes[$did]['add'][] = $date;
-                    if ($existing && (int)$existing['driver_id'] !== $did) { $changes[(int)$existing['driver_id']]['remove'][] = $date; }
-                }
-                $ins->close();
-                $conn->commit();
-            } catch (Throwable $e) {
-                $conn->rollback();
-                error_log('welfare generate: ' . $e->getMessage());
-                setFlash('danger', 'Database error. Nothing was changed.');
-                header('Location: welfare.php?month=' . urlencode($month));
-                exit();
-            }
-            foreach ($changes as &$c) { $c += ['add' => [], 'remove' => []]; }
-            unset($c);
-            auditLog($conn, 'welfare_generate', null, "Welfare duty $month: $n day(s) set, rotation of " . count($rotation) . ' driver(s)');
-            notifyWelfareChanges($conn, $changes);
-            setFlash($n ? 'success' : 'warning', $n ? "Welfare duty set for $n day(s) of " . date('F Y', strtotime($first)) . '. The drivers were notified.'
-                                                   : 'Nothing to set: every day is already filled or in the past. Tick "Regenerate days that already have a driver" to replace them.');
-        }
-    } elseif ($act === 'update') {
-        $date = trim($_POST['duty_date'] ?? '');
-        $did  = (int)($_POST['driver_id'] ?? 0);
-        $reason = mb_substr(trim($_POST['reason'] ?? ''), 0, 500);
-        $roster = isValidDate($date) ? welfareMonth($conn, substr($date, 0, 7)) : [];
-        $existing = $roster[$date] ?? null;
-        if (!isValidDate($date) || $date < $today) {
-            setFlash('danger', 'Choose a day that is today or later.');
-        } elseif (!in_array($did, $activeIds, true)) {
-            setFlash('danger', 'Choose an active driver.');
-        } elseif ($existing && (int)$existing['driver_id'] === $did) {
-            setFlash('warning', 'That driver is already on duty that day.');
-        } elseif ($existing && mb_strlen($reason) < 3) {
-            setFlash('danger', 'Please give the reason for changing the duty driver.');
-        } else {
-            $from = $existing ? (int)$existing['driver_id'] : null;
-            $rs   = $existing ? $reason : null;
-            $stmt = $conn->prepare('INSERT INTO welfare_roster (duty_date, driver_id, replaced_from_driver_id, replacement_reason) VALUES (?, ?, ?, ?)
-                                    ON DUPLICATE KEY UPDATE driver_id = VALUES(driver_id), replaced_from_driver_id = VALUES(replaced_from_driver_id), replacement_reason = VALUES(replacement_reason)');
-            $stmt->bind_param('siis', $date, $did, $from, $rs);
-            $stmt->execute();
-            $stmt->close();
-            auditLog($conn, 'welfare_update', null, "Welfare duty $date: driver $did" . ($from ? " replaces $from. Reason: $reason" : ''));
-            $nice = date('d M Y', strtotime($date));
-            if ($u = userIdOfDriver($conn, $did)) { notifyUsers($conn, [$u], "You are on welfare duty (24 hours) on $nice." . ($rs ? " Reason for the change: $rs" : ''), 'driver/schedules.php'); }
-            if ($from && ($u = userIdOfDriver($conn, $from))) { notifyUsers($conn, [$u], "You are no longer on welfare duty on $nice. Reason: $rs", 'driver/schedules.php'); }
-            setFlash('success', "Welfare duty on $nice updated. " . ($from ? 'Both drivers were notified.' : 'The driver was notified.'));
-        }
-    }
-    header('Location: welfare.php?month=' . urlencode($month));
-    exit();
+    $res = match ($act) {
+        'create' => createWelfareWeek($conn, $monday, array_map('intval', (array)($_POST['vehicle'] ?? []))),
+        'update' => updateWelfareDay($conn, $monday, (string)($_POST['date'] ?? ''), (int)($_POST['vehicle_id'] ?? 0)),
+        'delete' => deleteWelfareDay($conn, (int)($_POST['task_id'] ?? 0)),
+        'assign' => assignWelfareWeek($conn, $monday, array_map('intval', (array)($_POST['driver'] ?? []))),
+        default  => wfFail('Unknown action.'),
+    };
+    redirectWithResult($res, $self);
 }
 
-$roster = welfareMonth($conn, $month);
-$prev_m = date('Y-m', strtotime("$first -1 month"));
-$next_m = date('Y-m', strtotime("$first +1 month"));
-$count = [];
-foreach ($roster as $r) { $count[$r['driver_name']] = ($count[$r['driver_name']] ?? 0) + 1; }
-arsort($count);
+$week = loadWelfareWeek($conn, $monday);
+$days = welfareDays($conn, $week, $monday);
+$editDay = (string)($_GET['edit'] ?? '');
+$prev = date('Y-m-d', strtotime("$monday -7 days")); $next = date('Y-m-d', strtotime("$monday +7 days"));
+$vehiclesFor = function (string $date, int $exceptTask = 0) use ($conn) {
+    [$s, $e] = welfareWindow($conn, $date);
+    return array_values(array_filter(freeVehicles($conn, null, $s, $e, 0, $exceptTask), fn($v) => in_array($v['vehicle_type'], WELFARE_VEHICLE_TYPES, true)));
+};
+$weekStatus = $week ? ['waiting' => 'Waiting for Driver', 'driver_assigned' => 'Driver Assigned', 'approved' => 'Approved'][$week['status']] : null;
+$assignable = array_filter($days, fn($t) => $t && $t['status'] === 'waiting' && strtotime($t['start_dt']) > time());
+
 adminPageStart('Welfare Duty');
+pageHeader('Welfare Duty', 'moon', '24-hour standby duty with a car or van, from ' . getSetting($conn, 'WELFARE_START') . ' each day. Welfare duty is counted in each driver\'s task count, so it rotates among drivers.');
 ?>
-    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-moon me-2 text-[0.8em] text-primary"></i>Welfare Duty</h1>
-    <p class="text-base-content/60 text-sm mb-4">One driver is on welfare duty for 24 hours (12 am to 12 am) each day. Welfare days count in the driver's workload. Days before today are never changed.</p>
+<div class="mb-5 flex flex-wrap items-center gap-2">
+    <a class="btn btn-sm btn-outline" href="?week=<?= $prev ?>"><i class="fas fa-chevron-left"></i>Previous week</a>
+    <form method="get" class="flex items-center gap-1"><label class="sr-only" for="week">Week</label><input type="date" class="input input-sm" id="week" name="week" value="<?= h($monday) ?>"><button class="btn btn-sm">Go</button></form>
+    <a class="btn btn-sm btn-outline" href="?week=<?= $next ?>">Next week<i class="fas fa-chevron-right"></i></a>
+    <span class="ms-2 font-semibold">Week of <?= h(date('d M Y', strtotime($monday))) ?> - <?= h(date('d M Y', strtotime("$monday +6 days"))) ?></span>
+    <?php if ($weekStatus): ?><span class="badge <?= $week['status'] === 'approved' ? 'badge-success' : ($week['status'] === 'waiting' ? 'badge-warning' : 'badge-primary badge-outline') ?>"><?= h($weekStatus) ?></span><?php endif; ?>
+</div>
+<?php if ($week && $week['reject_reason'] && $week['status'] === 'waiting'): ?><div class="alert alert-soft alert-warning mb-5"><i class="fas fa-rotate-left"></i><span>Returned by the Head of Admin: <?= h($week['reject_reason']) ?></span></div><?php endif; ?>
 
-    <div class="card border border-base-300 bg-base-100 mb-6"><div class="card-body">
-        <h2 class="text-base font-bold mb-4">Set welfare duty for a month</h2>
-        <form method="post" class="grid-12 grid grid-cols-12 gap-4">
-            <div class="col-span-12 md:col-span-3">
-                <label class="mb-1 block text-sm font-medium" for="gen_month">Month</label>
-                <input type="month" class="input w-full" id="gen_month" name="month" value="<?= $h($month) ?>" required>
-            </div>
-            <div class="col-span-12 md:col-span-9">
-                <div class="mb-1 block text-sm font-medium">Drivers in rotation order <span class="text-base-content/60 font-normal text-sm">(tick the drivers and number them: 1 is on duty on day 1)</span></div>
-                <div class="grid-12 grid grid-cols-12 gap-2">
-                <?php foreach ($drivers as $i => $d): $id = (int)$d['driver_id']; ?>
-                    <div class="col-span-12 sm:col-span-6 lg:col-span-4">
-                        <div class="join w-full">
-                            <div class="join-item flex items-center border border-base-300 bg-base-200 px-3 text-sm"><input class="checkbox checkbox-sm checkbox-primary mt-0" type="checkbox" name="use[<?= $id ?>]" value="1" checked aria-label="Use <?= $h($d['name']) ?>"></div>
-                            <input type="number" min="1" max="99" class="input w-full" style="max-width:4.5rem" name="order[<?= $id ?>]" value="<?= $i + 1 ?>" aria-label="Order of <?= $h($d['name']) ?>">
-                            <span class="input w-full truncate" title="<?= $h($d['name']) ?>"><?= $h($d['name']) ?></span>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="col-span-12 flex flex-wrap items-center gap-4">
-                <input type="hidden" name="action" value="generate">
-                <div class="flex items-center gap-2"><input class="checkbox checkbox-sm checkbox-primary" type="checkbox" id="replace_existing" name="replace_existing" value="1">
-                    <label class="text-sm" for="replace_existing">Regenerate days that already have a driver</label></div>
-                <button class="btn btn-primary" type="submit"><i class="fas fa-wand-magic-sparkles me-1"></i>Generate the month</button>
-            </div>
-        </form>
-    </div></div>
-
-    <div class="flex flex-wrap items-center gap-2 mb-4">
-        <a class="btn btn-sm btn-outline btn-success" href="?month=<?= $prev_m ?>" aria-label="Previous month">&laquo;</a>
-        <strong><?= $h(date('F Y', strtotime($first))) ?></strong>
-        <a class="btn btn-sm btn-outline btn-success" href="?month=<?= $next_m ?>" aria-label="Next month">&raquo;</a>
-        <?php if ($count): ?><span class="text-sm text-base-content/60 ms-2"><?php foreach ($count as $n => $c): ?><span class="badge badge-ghost me-1"><?= $h($n) ?>: <?= (int)$c ?></span><?php endforeach; ?></span><?php endif; ?>
-    </div>
-    <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto">
-        <table class="table align-middle mb-0">
-            <thead class=""><tr><th>Date</th><th>Day</th><th>Driver on duty</th><th class="text-end">Update</th></tr></thead>
-            <tbody>
-            <?php for ($d = 1; $d <= $days; $d++):
-                $date = sprintf('%s-%02d', $month, $d); $w = $roster[$date] ?? null; ?>
-                <tr class="<?= $date === $today ? 'table-active' : '' ?>">
-                    <td class="whitespace-nowrap"><?= date('d M', strtotime($date)) ?></td>
-                    <td class="<?= (int)date('N', strtotime($date)) >= 6 ? 'text-base-content/60' : '' ?>"><?= date('D', strtotime($date)) ?></td>
-                    <td><?php if ($w): ?><strong><?= $h($w['driver_name']) ?></strong>
-                        <?php if ($w['replaced_name']): ?><div class="text-sm text-base-content/60">Replaced <?= $h($w['replaced_name']) ?>: <?= $h($w['replacement_reason']) ?></div><?php endif; ?>
-                        <?php else: ?><span class="text-base-content/60">Not set</span><?php endif; ?></td>
-                    <td class="text-end">
-                        <?php if ($date >= $today): ?>
-                        <button type="button" class="btn btn-sm" data-welfare-day
-                                data-date="<?= $date ?>" data-nice="<?= $h(date('D, d M Y', strtotime($date))) ?>" data-driver="<?= $w ? (int)$w['driver_id'] : 0 ?>" data-has="<?= $w ? 1 : 0 ?>">
-                            <?= $w ? 'Change' : 'Set' ?></button>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endfor; ?>
-            </tbody>
-        </table>
-    </div></div>
-
-    <dialog class="modal" id="dayModal" aria-labelledby="dayTitle">
-        <form method="post" class="modal-box">
-            <input type="hidden" name="action" value="update"><input type="hidden" name="month" value="<?= $h($month) ?>"><input type="hidden" name="duty_date" id="dayDate">
-            <h2 class="text-lg font-medium" id="dayTitle">Welfare duty</h2>
-            <div class="mt-4">
-                <label class="mb-1 block text-sm font-medium" for="dayDriver">Driver on duty</label>
-                <select class="select w-full mb-4" id="dayDriver" name="driver_id" required>
-                    <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>"><?= $h($d['name']) ?></option><?php endforeach; ?>
-                </select>
-                <div id="reasonBox">
-                    <label class="mb-1 block text-sm font-medium" for="dayReason">Reason for the change</label>
-                    <textarea class="textarea w-full" id="dayReason" name="reason" rows="2" maxlength="500"></textarea>
-                    <div class="mt-1 block text-xs text-base-content/60">Both the old and the new driver are notified.</div>
-                </div>
-            </div>
-            <div class="modal-action"><button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()">Close</button><button class="btn btn-primary" type="submit">Save</button></div>
-        </form>
-        <form method="dialog" class="modal-backdrop"><button>Close</button></form>
-    </dialog>
-    <script>
-    document.querySelectorAll('[data-welfare-day]').forEach(function (b) {
-        b.addEventListener('click', function () {
-            var has = b.dataset.has === '1';
-            document.getElementById('dayDate').value = b.dataset.date;
-            document.getElementById('dayTitle').textContent = 'Welfare duty, ' + b.dataset.nice;
-            if (b.dataset.driver !== '0') { document.getElementById('dayDriver').value = b.dataset.driver; }
-            var r = document.getElementById('dayReason'); r.value = ''; r.required = has;
-            document.getElementById('reasonBox').style.display = has ? '' : 'none';
-            document.getElementById('dayModal').showModal();
-        });
-    });
-    </script>
+<?php if (!$week): ?>
+    <?php if ($monday < weekMonday(date('Y-m-d'))): ?>
+        <div class="dash-empty"><i class="fas fa-inbox"></i>No record is found for this week.</div>
+    <?php else: cardStart('Create Schedule', 'plus'); ?>
+    <p class="mb-3 text-sm text-base-content/65">Select the vehicle (car or van) for each day. The vehicle is reserved for the 24-hour duty.</p>
+    <form method="post" novalidate><input type="hidden" name="action" value="create"><input type="hidden" name="week" value="<?= h($monday) ?>">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <?php foreach ($days as $d => $t): $passed = welfareDayPassed($conn, $d); $vs = $passed ? [] : $vehiclesFor($d); ?>
+            <div class="rounded-lg border border-base-300 p-3"><label class="mb-1 block text-sm font-semibold" for="v<?= $d ?>"><?= h(date('l, d M', strtotime($d))) ?></label>
+            <?php if ($passed): ?><span class="text-xs text-base-content/60">Passed</span><?php else: ?>
+                <select class="select select-sm w-full" id="v<?= $d ?>" name="vehicle[<?= $d ?>]" required><option value="">Select the vehicle</option>
+                    <?php foreach ($vs as $i => $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= $i === 0 ? 'selected' : '' ?>><?= h($v['plate_number'] . ' ' . $v['vehicle_type'] . ' ' . $v['model']) ?></option><?php endforeach; ?></select>
+                <?php if (!$vs): ?><div class="mt-1 text-xs text-error">No car or van is available.</div><?php endif; ?>
+            <?php endif; ?></div>
+        <?php endforeach; ?>
+        </div>
+        <button class="btn btn-primary mt-4" type="submit"><i class="fas fa-floppy-disk"></i>Save</button>
+    </form>
+    <?php cardEnd(); endif; ?>
+<?php else: ?>
+<form method="post" data-outside-check novalidate id="assignForm"><input type="hidden" name="action" value="assign"><input type="hidden" name="week" value="<?= h($monday) ?>"></form>
+<div class="card mb-5 border border-base-300 bg-base-100"><div class="overflow-x-auto"><table class="table">
+<thead><tr><th>Day</th><th>Vehicle</th><th>Driver</th><th>Status</th><th class="text-end">Actions</th></tr></thead><tbody>
+<?php foreach ($days as $d => $t): $passed = welfareDayPassed($conn, $d); ?>
+<tr>
+    <td class="whitespace-nowrap font-medium"><?= h(date('l, d M', strtotime($d))) ?><?= isWeekend($d) ? ' <span class="badge badge-ghost badge-xs">weekend</span>' : '' ?></td>
+    <td>
+    <?php if ($editDay === $d && !$passed): $vs = $vehiclesFor($d, $t ? (int)$t['task_id'] : 0); ?>
+        <form method="post" class="flex gap-1"><input type="hidden" name="action" value="update"><input type="hidden" name="week" value="<?= h($monday) ?>"><input type="hidden" name="date" value="<?= h($d) ?>">
+            <select class="select select-sm" name="vehicle_id" required aria-label="Vehicle"><?php foreach ($vs as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= $t && (int)$t['vehicle_id'] === (int)$v['vehicle_id'] ? 'selected' : '' ?>><?= h($v['plate_number'] . ' ' . $v['vehicle_type']) ?></option><?php endforeach; ?></select>
+            <button class="btn btn-sm btn-primary" type="submit">Save</button><a class="btn btn-sm btn-ghost" href="<?= h($self) ?>">Cancel</a></form>
+    <?php elseif ($t): ?><?= plate($t['plate_number']) ?> <span class="text-xs text-base-content/60"><?= h($t['vehicle_type']) ?></span>
+    <?php else: ?><span class="text-base-content/50">No duty</span><?php endif; ?>
+    </td>
+    <td class="min-w-72">
+    <?php if ($t && $t['status'] === 'waiting' && !$passed):
+        $rec = recommendDrivers($conn, ['licence' => $t['licence_required'], 'start' => $t['start_dt'], 'end' => $t['end_dt'], 'except_task' => (int)$t['task_id']]); ?>
+        <select class="select select-sm w-full" name="driver[<?= (int)$t['task_id'] ?>]" form="assignForm" aria-label="Driver for <?= h($d) ?>"><?= driverOptionsHtml($rec, (int)$t['driver_id']) ?></select>
+        <?php if (!$rec['ranked']): ?><div class="text-xs text-error">No driver is available on that day.</div><?php endif; ?>
+    <?php elseif ($t): ?><?= h($t['driver_name'] ?? '-') ?><?php endif; ?>
+    </td>
+    <td><?= $t ? taskStatusBadge($t['status']) : '' ?></td>
+    <td class="text-end whitespace-nowrap"><?php if (!$passed && $editDay !== $d): ?>
+        <a class="btn btn-sm btn-outline" href="<?= h($self) ?>&edit=<?= $d ?>"><i class="fas fa-pen"></i><?= $t ? 'Edit' : 'Add' ?></a>
+        <?php if ($t): ?><form method="post" class="inline"><input type="hidden" name="action" value="delete"><input type="hidden" name="week" value="<?= h($monday) ?>"><input type="hidden" name="task_id" value="<?= (int)$t['task_id'] ?>">
+            <button class="btn btn-sm btn-outline btn-error" type="submit" aria-label="Delete" data-confirm="The duty on <?= h(date('l, d M', strtotime($d))) ?> is deleted and the vehicle reservation released<?= $t['driver_id'] ? '; the driver is notified' : '' ?>." data-confirm-title="Delete this duty?" data-confirm-button="Confirm" data-confirm-tone="danger"><i class="fas fa-trash"></i></button></form><?php endif; ?>
+    <?php endif; ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody></table></div></div>
+<?php if ($assignable): ?>
+<div class="flex flex-wrap items-center gap-3"><button class="btn btn-primary" type="submit" form="assignForm"><i class="fas fa-paper-plane"></i>Submit to the Head of Admin</button>
+<span class="text-sm text-base-content/65">Every day waiting for a driver needs a driver. Drivers are ranked per day by tasks this month, weekend tasks and experience; drivers with an approved schedule change are not offered.</span></div>
+<?php endif; ?>
+<?php endif; ?>
 <?php adminPageEnd(); ?>

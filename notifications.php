@@ -50,8 +50,8 @@ $stmt->execute();
 [$total, $unread] = array_map('intval', $stmt->get_result()->fetch_row());
 $stmt->close();
 $pg = paginate($total, max(1, (int)($_GET['page'] ?? 1)), 20);
-$stmt = $conn->prepare('SELECT notification_id, message, link, is_read, created_at FROM notifications WHERE user_id = ?
-                         ORDER BY is_read ASC, created_at DESC, notification_id DESC LIMIT ? OFFSET ?');
+$stmt = $conn->prepare('SELECT notification_id, message, link, is_read, date_sent AS created_at FROM notifications WHERE user_id = ?
+                         ORDER BY is_read ASC, date_sent DESC, notification_id DESC LIMIT ? OFFSET ?');
 $stmt->bind_param('iii', $uid, $pg['rows_per_page'], $pg['offset']);
 $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

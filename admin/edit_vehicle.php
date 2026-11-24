@@ -1,71 +1,38 @@
 <?php
 // ============================================================
-// admin/edit_vehicle.php  -  UC007 Update Vehicle (details only)
-// The status is changed on vehicle_maintenance.php / the vehicle list (UC008, UC009).
+// admin/edit_vehicle.php  -  UC002C Update Vehicle: current fuel level, current mileage and status
+// (Active / Under Maintenance). A lower mileage is refused. Under Maintenance with upcoming bookings is refused:
+// the bookings are listed on the vehicle page to move each one to another vehicle.
 // ============================================================
 $current_page = 'edit_vehicle.php';
 require_once '../config/database.php';
-require_once '../includes/admin_page.php';
-require_once '../includes/upload.php';
-require_once 'fleet_helpers.php';
+require_once '../includes/ui.php';
 requireAdmin();
 
-$id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
-$stmt = $conn->prepare('SELECT * FROM vehicles WHERE vehicle_id = ?');
-$stmt->bind_param('i', $id);
-$stmt->execute();
-$cur = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if (!$cur) { setFlash('danger', 'Vehicle not found.'); header('Location: vehicles.php'); exit(); }
-
-$v = [
-    'plate_number' => $cur['plate_number'], 'vehicle_type' => isset(VEHICLE_TYPES[$cur['vehicle_type']]) ? $cur['vehicle_type'] : '',
-    'brand' => (string)$cur['brand'], 'model' => (string)$cur['model'], 'year' => $cur['year'] === null ? '' : (string)$cur['year'],
-    'capacity' => (string)$cur['capacity'], 'fuel_type' => $cur['fuel_type'], 'notes' => (string)$cur['notes'],
-];
-$errors = [];
-
+$id = (int)($_GET['id'] ?? $_POST['vehicle_id'] ?? 0);
+$v = loadVehicle($conn, $id);
+if (!$v || $v['status'] === 'inactive') { setFlash('warning', 'Only an active vehicle can be updated.'); header('Location: vehicles.php'); exit(); }
+$errors = []; $formError = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $v = vehicleInput($_POST);
-    $errors = validateVehicle($conn, $v, $id);
-    $photo = $cur['photo'];
-    $newPhoto = null;
-    if (!$errors) {
-        $up = saveUploadedImage($_FILES['photo'] ?? ['error' => UPLOAD_ERR_NO_FILE], 'vehicles');
-        if (!$up['ok']) { $errors['photo'] = $up['error']; } elseif ($up['path']) { $newPhoto = $up['path']; $photo = $newPhoto; }
-    }
-    if (!$errors) {
-        $lic  = licenceForVehicleType($v['vehicle_type']);
-        $year = $v['year'] === '' ? null : (int)$v['year'];
-        $cap  = (int)$v['capacity'];
-        $brand = $v['brand'] === '' ? null : $v['brand'];
-        $notes = $v['notes'] === '' ? null : $v['notes'];
-        try {
-            $stmt = $conn->prepare('UPDATE vehicles SET plate_number = ?, vehicle_type = ?, brand = ?, model = ?, year = ?, capacity = ?, fuel_type = ?, license_required = ?, notes = ?, photo = ? WHERE vehicle_id = ?');
-            $stmt->bind_param('ssssiissssi', $v['plate_number'], $v['vehicle_type'], $brand, $v['model'], $year, $cap, $v['fuel_type'], $lic, $notes, $photo, $id);
-            $stmt->execute();
-            $stmt->close();
-            if ($newPhoto) { deleteUploadedImage($cur['photo']); }
-            auditLog($conn, 'vehicle_update', null, $v['plate_number']);
-            setFlash('success', 'Vehicle ' . $v['plate_number'] . ' was updated.');
-            header('Location: view_vehicle.php?id=' . $id);
-            exit();
-        } catch (mysqli_sql_exception $e) {
-            if ($newPhoto) { deleteUploadedImage($newPhoto); }
-            if ((int)$e->getCode() === 1062) { $errors['plate_number'] = 'A vehicle with registration number ' . $v['plate_number'] . ' already exists.'; }
-            else { error_log('edit_vehicle: ' . $e->getMessage()); $errors['_'] = 'Database error. Please try again.'; }
-        }
-    }
+    $res = updateVehicle($conn, $id, $_POST);
+    if ($res['ok']) { redirectWithResult($res, 'view_vehicle.php?id=' . $id); }
+    if (!empty($res['bookings'])) { redirectWithResult($res, 'view_vehicle.php?id=' . $id . '#bookings'); }
+    $errors = $res['errors'] ?? []; $formError = $res['message'];
 }
+$src = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $v;
 adminPageStart('Edit Vehicle');
+pageHeader('Edit ' . $v['plate_number'], 'pen', 'Only the current fuel level, current mileage and status can be updated.', '<a class="btn btn-ghost" href="view_vehicle.php?id=' . $id . '"><i class="fas fa-arrow-left"></i>Back</a>');
+if ($formError) { echo '<div class="alert alert-soft alert-error mb-5"><i class="fas fa-circle-exclamation"></i><span>' . h($formError) . '</span></div>'; }
+cardStart();
 ?>
-    <h1 class="text-2xl font-extrabold tracking-tight mb-1"><i class="fas fa-pen me-2 text-[0.8em] text-primary"></i>Edit Vehicle</h1>
-    <p class="text-base-content/60 text-sm">Current status: <span class="badge <?= vehicleStatusBadgeClass($cur['status']) ?>"><?= vehicleStatusLabel($cur['status']) ?></span>
-        &middot; <a href="vehicle_maintenance.php?id=<?= $id ?>">change status / maintenance</a></p>
-    <?php if ($errors): ?><div class="alert alert-soft alert-error" role="alert">Please correct the highlighted fields.<?= isset($errors['_']) ? ' ' . htmlspecialchars($errors['_']) : '' ?></div><?php endif; ?>
-    <form method="post" enctype="multipart/form-data" class="card border border-base-300 bg-base-100" novalidate><div class="card-body">
-        <input type="hidden" name="id" value="<?= $id ?>">
-        <?php vehicleFormFields($v, $errors, $cur['photo']); ?>
-        <div class="mt-6 flex gap-2"><button class="btn btn-success" type="submit">Save changes</button><a class="btn btn-outline" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
-    </div></form>
-<?php adminPageEnd(); ?>
+<form method="post" class="grid grid-cols-12 gap-4" novalidate>
+    <input type="hidden" name="vehicle_id" value="<?= $id ?>">
+    <div class="col-span-12 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="current_mileage">Current mileage (km)</label>
+        <input type="number" class="input w-full<?= errClass($errors, 'current_mileage') ?>" id="current_mileage" name="current_mileage" min="<?= (int)$v['current_mileage'] ?>" required value="<?= h($src['current_mileage']) ?>"><?= fieldError($errors, 'current_mileage') ?></div>
+    <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="fuel_level">Current fuel level</label>
+        <select class="select w-full<?= errClass($errors, 'fuel_level', 'select') ?>" id="fuel_level" name="fuel_level"><?php foreach (FUEL_LEVELS as $f): ?><option <?= $src['fuel_level'] === $f ? 'selected' : '' ?>><?= $f ?></option><?php endforeach; ?></select><?= fieldError($errors, 'fuel_level') ?></div>
+    <div class="col-span-6 md:col-span-4"><label class="mb-1 block text-sm font-medium" for="status">Status</label>
+        <select class="select w-full<?= errClass($errors, 'status', 'select') ?>" id="status" name="status"><option value="active" <?= $src['status'] === 'active' ? 'selected' : '' ?>>Active</option><option value="maintenance" <?= $src['status'] === 'maintenance' ? 'selected' : '' ?>>Under Maintenance</option></select><?= fieldError($errors, 'status') ?></div>
+    <div class="col-span-12 flex gap-2"><button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i>Save</button><a class="btn btn-ghost" href="view_vehicle.php?id=<?= $id ?>">Cancel</a></div>
+</form>
+<?php cardEnd(); adminPageEnd(); ?>

@@ -74,6 +74,7 @@ require_once __DIR__ . '/../includes/workflow.php';
 require_once __DIR__ . '/../includes/upload.php';
 require_once __DIR__ . '/../includes/requests.php';
 require_once __DIR__ . '/../includes/tasks.php';
+require_once __DIR__ . '/../includes/fleet.php';
 require_once __DIR__ . '/../includes/recommender.php';
 require_once __DIR__ . '/../includes/accounts.php';
 require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on

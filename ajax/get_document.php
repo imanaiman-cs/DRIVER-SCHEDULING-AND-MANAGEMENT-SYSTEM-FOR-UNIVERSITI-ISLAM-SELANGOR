@@ -5,12 +5,10 @@
 // Universiti Islam Selangor (UIS)
 //
 // GET id=<doc_id>[&download=1]
-// Admin: any document. Staff: documents of their own requests.
-// Supervisor: documents of requests assigned to them. Others: 403.
+// Only the people who can see the request (requestVisibleTo) can open its documents.
 // ============================================================
 
 require_once '../config/database.php';
-require_once '../includes/upload.php';
 requireLogin();
 
 /** Sends a plain-text error and stops. */
@@ -28,37 +26,13 @@ if (!$doc_id) {
     documentError(404, 'Not found');
 }
 
-$stmt = $conn->prepare(
-    "SELECT d.stored_path, d.original_name, d.mime_type,
-            vr.staff_id, vr.supervisor_id, vr.status
-     FROM request_documents d
-     JOIN vehicle_requests vr ON vr.request_id = d.request_id
-     WHERE d.doc_id = ?
-     LIMIT 1"
-);
-$stmt->bind_param('i', $doc_id);
-$stmt->execute();
-$doc = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-
+$doc = dbOne($conn, 'SELECT d.stored_path, d.original_name, d.mime_type, d.request_id FROM request_documents d WHERE d.doc_id = ? LIMIT 1', [$doc_id]);
 if (!$doc) {
     documentError(404, 'Not found');
 }
-
-// ── Authorisation ─────────────────────────────────────────────
-$uid     = (int)$_SESSION['user_id'];
-$allowed = false;
-if (isAdmin()) {
-    // Admin only receives requests the Head of Section has approved
-    $allowed = in_array($doc['status'], ['approved', 'assigned', 'processed'], true);
-}
-if (!$allowed && (int)$doc['staff_id'] === $uid) {   // every role is also staff: its own request
-    $allowed = true;
-}
-if (!$allowed && isSupervisor()) {
-    $allowed = ($doc['supervisor_id'] !== null && (int)$doc['supervisor_id'] === $uid);
-}
-if (!$allowed) {
+// ── Authorisation: the same people who can see the request ──
+$req = loadRequest($conn, (int)$doc['request_id']);
+if (!$req || !requestVisibleTo($conn, $req, currentUser())) {
     documentError(403, 'Forbidden');
 }
 

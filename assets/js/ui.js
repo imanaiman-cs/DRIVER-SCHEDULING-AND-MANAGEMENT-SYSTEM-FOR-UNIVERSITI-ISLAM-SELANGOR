@@ -437,7 +437,7 @@
         var form = event.target;
         if (!form.matches || !form.matches('form[data-outside-check]') || form.getAttribute('data-outside-ok') === '1') { return; }
         var outside = [];
-        form.querySelectorAll('select').forEach(function (s) {
+        Array.prototype.filter.call(form.elements, function (e) { return e.tagName === 'SELECT' && !e.disabled; }).forEach(function (s) {
             var o = s.options[s.selectedIndex];
             if (o && o.getAttribute('data-outside') === '1') {
                 outside.push(o.getAttribute('data-name') + ' (' + o.getAttribute('data-tasks') + ' task(s) this month)');
