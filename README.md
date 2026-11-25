@@ -90,7 +90,9 @@ choosing another driver shows a warning with the driver's task count and needs a
 2. Start **Apache** and **MySQL**.
 3. Import `database.sql` (phpMyAdmin → Import). It **re-creates** `dsms_db` with the schema, the base data and demo
    data dated relative to the day of the import. A database of an earlier release must be re-imported (the schema changed
-   completely); the system shows a notice until it is.
+   completely); the system shows a notice until it is. The tables land in **`dsms_db`**, whichever database is open in
+   phpMyAdmin when you import; an old `uis_driver_db` stays empty and can be dropped.
+   From PowerShell (which does not accept `<`): `C:\xampp\mysql\bin\mysql.exe -u root -e "source database.sql"`.
 4. Check `config/database.php` (host, user, password, `SITE_URL`), or put them in `config/local.php` (copy `config/local.sample.php`).
 5. Open `…/login.php`.
 
