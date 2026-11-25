@@ -1,8 +1,12 @@
 <?php
 // ============================================================
-// UIS Driver Scheduling and Management System
-// Database configuration and shared utility functions
-// Universiti Islam Selangor (UIS)
+// UIS Driver Scheduling and Management System (DSMS)
+// config/database.php  -  the start of every page: settings, the three layers, session and security checks
+//
+//   View Layer (SDD_PKG_100)         the pages in admin/ staff/ supervisor/ driver/ and the root, with includes/ui.php
+//   Domain Layer (SDD_PKG_200)       app/domain/*.php  (controllers and services)
+//   Data Access Layer (SDD_PKG_300)  app/data/*.php    (Database + one class per table)
+// A page never runs SQL: it calls the Domain Layer, which calls the Data Access Layer.
 // ============================================================
 
 // Optional config/local.php (not uploaded to GitHub) overrides these for a real server; see config/local.sample.php
@@ -10,134 +14,81 @@ $_local = is_file(__DIR__ . '/local.php') ? (array)(include __DIR__ . '/local.ph
 define('DB_HOST',   $_local['db_host'] ?? 'localhost');
 define('DB_USER',   $_local['db_user'] ?? 'root');
 define('DB_PASS',   $_local['db_pass'] ?? '');
-define('DB_NAME',   getenv('DSMS_DB') ?: ($_local['db_name'] ?? 'uis_driver_db'));   // DSMS_DB: only used to run tests against another database
+define('DB_NAME',   getenv('DSMS_DB') ?: ($_local['db_name'] ?? 'dsms_db'));
 define('SITE_URL',  rtrim($_local['site_url'] ?? 'http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR', '/'));
-define('SITE_NAME', 'UIS Driver Management System');
+define('SITE_NAME', 'UIS Driver Scheduling and Management System');
 
-// ============================================================
-// Time zone — the system runs on Malaysia time (UTC+8). Without this
-// PHP falls back to UTC, so "today" is wrong between 00:00 and 08:00.
-// ============================================================
+// The system runs on Malaysia time (UTC+8)
 date_default_timezone_set('Asia/Kuala_Lumpur');
 
-// ============================================================
-// Database connection
-// ============================================================
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-$conn->set_charset("utf8mb4");
-$conn->query("SET time_zone = '+08:00'");   // keep NOW()/CURDATE() in step with PHP
-
-// ============================================================
-// Database migrations
-// The schema lives in database.sql (fresh install) and in migrations/*.sql (upgrade of an existing
-// database). Every file in migrations/ that has not been applied yet is applied ONCE, the first time a
-// page is opened, so "git pull" is enough. It can also be run by hand:
-//     mysql -uroot uis_driver_db < migrations/2026_10_align_srs.sql
-// A migration is written so that running it twice does no harm.
-// ============================================================
-function applyPendingMigrations(mysqli $conn): void
-{
-    try {
-        $conn->query("CREATE TABLE IF NOT EXISTS schema_migrations (name VARCHAR(100) NOT NULL PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-        $done = [];
-        $r = $conn->query('SELECT name FROM schema_migrations');
-        while ($r && ($row = $r->fetch_row())) { $done[$row[0]] = true; }
-        $files = glob(__DIR__ . '/../migrations/*.sql') ?: [];
-        sort($files);
-        foreach ($files as $file) {
-            $name = basename($file, '.sql');
-            if (isset($done[$name])) { continue; }
-            $lock = $conn->query("SELECT GET_LOCK('uis_migrate', 30)")->fetch_row()[0];
-            if ((int)$lock !== 1) { return; }
-            $conn->query("SELECT 1");
-            $sql = file_get_contents($file);
-            if ($conn->multi_query($sql)) {
-                do { if ($res = $conn->store_result()) { $res->free(); } } while ($conn->more_results() && $conn->next_result());
-            }
-            if ($conn->errno) { error_log("Migration $name failed: " . $conn->error); }
-            $conn->query("SELECT RELEASE_LOCK('uis_migrate')");
-        }
-    } catch (Throwable $e) {
-        error_log('Migration skipped: ' . $e->getMessage());
+// The classes of the Domain Layer and the Data Access Layer load themselves when first used
+spl_autoload_register(function (string $class): void {
+    foreach (['domain', 'data'] as $layer) {
+        $file = __DIR__ . '/../app/' . $layer . '/' . $class . '.php';
+        if (is_file($file)) { require $file; return; }
     }
-}
+});
 
-// ============================================================
-// Session initialisation
-// Must happen before any output is sent to the browser
-// ============================================================
+// Session (before any output)
 if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.use_strict_mode', '1');            // the server never accepts a session id it did not make
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path'     => '/',
-        'httponly' => true,                              // JavaScript cannot read the session cookie
-        'samesite' => 'Lax',                             // not sent with cross-site POSTs
-        'secure'   => !empty($_SERVER['HTTPS']),
-    ]);
+    ini_set('session.use_strict_mode', '1');
+    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS'])]);
     session_start();
 }
-
-// Basic browser protections on every page
 if (PHP_SAPI !== 'cli' && !headers_sent()) {
-    header('X-Frame-Options: DENY');                     // nobody can show our pages in a frame (clickjacking)
-    header('X-Content-Type-Options: nosniff');           // the browser must trust the declared file type
-    header('Referrer-Policy: same-origin');              // page addresses are not leaked to other sites
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: same-origin');
 }
 
+require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/i18n.php';
-uisI18nBoot();                                              // ?lang=ms|en, and BM translation of the page when chosen
-require_once __DIR__ . '/../includes/workflow.php';
-require_once __DIR__ . '/../includes/recommender.php';
-require_once __DIR__ . '/../includes/request_view.php';
-require_once __DIR__ . '/../includes/whatsapp.php';        // drivers are also told on WhatsApp (OpenWA), when switched on
-require_once __DIR__ . '/../includes/mailer.php';          // every notification is also e-mailed
-// Apply new migrations once per session (cheap: one SELECT when nothing is pending)
-if (empty($_SESSION['migrations_checked'])) {
-    applyPendingMigrations($conn);
-    $_SESSION['migrations_checked'] = true;
-}
+uisI18nBoot();                                              // ?lang=ms|en, and the BM translation of the page when chosen
+require_once __DIR__ . '/../includes/upload.php';
+require_once __DIR__ . '/../includes/mailer.php';          // PHPMailer (SMTP), used by NotificationService
+require_once __DIR__ . '/../includes/whatsapp.php';        // optional WhatsApp to drivers (OpenWA)
+require_once __DIR__ . '/../includes/report_export.php';   // PDF / Excel writers, used by ReportController
 
-// Lapse / cancel / complete, lightly, whenever a signed-in user opens a page (cron/run_jobs.php does it hourly)
-if (isLoggedIn() && !defined('SKIP_REQUEST_JOBS')) {
+// This version needs dsms_db of database.sql (SDD Section 3)
+if (empty($_SESSION['schema_ok'])) {
     try {
-        runRequestJobsThrottled($conn);
+        Database::value('SELECT 1 FROM vehicle_reservation LIMIT 1');
+        $_SESSION['schema_ok'] = true;
     } catch (Throwable $e) {
-        error_log('request jobs: ' . $e->getMessage());
+        http_response_code(503);
+        echo '<!DOCTYPE html><meta charset="utf-8"><title>Database needed</title><body style="font-family:sans-serif;max-width:36rem;margin:4rem auto">'
+           . '<h2>The database must be imported</h2><p>Import <code>database.sql</code> (phpMyAdmin &gt; Import, or <code>mysql -uroot &lt; database.sql</code>). '
+           . 'It creates <code>' . htmlspecialchars(DB_NAME) . '</code> with the 14 tables of the SDD and demo data.</p></body>';
+        exit();
     }
 }
 
+// Lapse / remind / complete, lightly, whenever a signed-in user opens a page (cron/run_jobs.php does it hourly)
+if (!empty($_SESSION['user_id']) && !defined('SKIP_REQUEST_JOBS')) {
+    ScheduledJob::runThrottled();
+}
+
 // ============================================================
-// Security checks that run on EVERY request of a signed-in user
-//   1. idle timeout (SESSION_TIMEOUT_MIN, default 15 minutes)
-//   2. the account must still be active (accounts come from the UIS staff system) and the role is refreshed
-//   3. (removed) there is no temporary password any more
-//   4. CSRF: every POST must carry the session's token (added automatically by assets/js/ui.js)
+// Security checks on every request of a signed-in user
+//   1. idle timeout (AccountController::idleTimeout, 15 minutes)
+//   2. the account must still be active; the role is refreshed
+//   3. CSRF: every POST must carry the session's token
 // ============================================================
 
 /** The CSRF token of this session (created on first use). */
 function csrfToken(): string
 {
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
+    if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
     return $_SESSION['csrf_token'];
 }
 
-/** Is this request an AJAX / JSON call (so it gets a JSON answer instead of a redirect)? */
 function isAjaxRequest(): bool
 {
-    return str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ajax/')
-        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+    return str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/ajax/') || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
         || ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
 }
 
-function securityStop(int $http, string $message, ?string $redirect = null): void
+function securityStop(int $http, string $message, ?string $redirect = null): never
 {
     if (isAjaxRequest()) {
         http_response_code($http);
@@ -145,586 +96,151 @@ function securityStop(int $http, string $message, ?string $redirect = null): voi
         echo json_encode(['success' => false, 'message' => $message]);
         exit();
     }
-    if ($redirect !== null) {
-        header('Location: ' . $redirect);
-        exit();
-    }
+    if ($redirect !== null) { header('Location: ' . $redirect); exit(); }
     http_response_code($http);
-    echo '<!DOCTYPE html><meta charset="utf-8"><title>' . $http . '</title><body style="font-family:sans-serif;max-width:32rem;margin:4rem auto">'
-       . '<h2>' . htmlspecialchars($message) . '</h2><p><a href="' . htmlspecialchars(SITE_URL) . '/login.php">Back to the system</a></p></body>';
+    echo '<!DOCTYPE html><meta charset="utf-8"><title>' . $http . '</title><body style="font-family:sans-serif;max-width:32rem;margin:4rem auto"><h2>'
+       . htmlspecialchars($message) . '</h2><p><a href="' . htmlspecialchars(SITE_URL) . '/login.php">Back to the system</a></p></body>';
     exit();
 }
 
-function runSecurityChecks(mysqli $conn): void
+function runSecurityChecks(): void
 {
-    if (PHP_SAPI === 'cli' || !isLoggedIn()) {
-        return;
-    }
-    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
-
-    // 1. idle timeout
-    $limit = max(1, getSettingInt($conn, 'SESSION_TIMEOUT_MIN')) * 60;
+    if (PHP_SAPI === 'cli' || !isLoggedIn()) { return; }
+    $limit = (new AccountController())->getIdleTimeout() * 60;
     if (isset($_SESSION['last_activity']) && time() - (int)$_SESSION['last_activity'] > $limit) {
-        $minutes = (int)($limit / 60);
         session_unset();
-        $_SESSION['login_notice'] = "You were signed out after $minutes minutes without activity. Please sign in again.";
+        $_SESSION['login_notice'] = 'You were signed out after ' . (int)($limit / 60) . ' minutes without activity. Please sign in again.';
         securityStop(401, 'Your session expired. Please sign in again.', SITE_URL . '/login.php');
     }
     $_SESSION['last_activity'] = time();
-
-    // 2. the account itself
-    try {
-        $uid = (int)$_SESSION['user_id'];
-        $stmt = $conn->prepare('SELECT is_active, role, department FROM users WHERE user_id = ?');
-        $stmt->bind_param('i', $uid);
-        $stmt->execute();
-        $u = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if (!$u || !(int)$u['is_active']) {
-            session_unset();
-            $_SESSION['login_notice'] = 'Your account is not available. Please contact the Vehicle Section.';
-            securityStop(401, 'Your account is not available.', SITE_URL . '/login.php');
-        }
-        $_SESSION['role'] = $u['role'];                 // a role changed in the UIS staff system applies at once
-        $_SESSION['department'] = $u['department'];
-    } catch (Throwable $e) {
-        // columns not created yet (very first request): nothing to check
+    $u = currentUser();
+    if (!$u || $u['status'] !== User::ACTIVE) {
+        session_unset();
+        $_SESSION['login_notice'] = 'Your account is not available. Please contact the Vehicle Section.';
+        securityStop(401, 'Your account is not available.', SITE_URL . '/login.php');
     }
+    $_SESSION['role'] = $u['role'];                  // a role changed by the Administrative Assistant applies at once
+    $_SESSION['full_name'] = $u['name'];
+    $_SESSION['department_id'] = (int)$u['department_id'];
 
-    // Put the CSRF token into every POST form of the page on the server, so forms work
-    // even if a script is cached, blocked or fails to load.
+    // put the CSRF token into every POST form of the page on the server
     if (!isAjaxRequest()) {
         $token = csrfToken();
         ob_start(function (string $html) use ($token) {
-            if (stripos($html, '<form') === false) {
-                return false;
-            }
-            foreach (headers_list() as $h) {
-                if (stripos($h, 'content-type:') === 0 && stripos($h, 'html') === false) {
-                    return false;
-                }
-            }
+            if (stripos($html, '<form') === false) { return false; }
+            foreach (headers_list() as $hd) { if (stripos($hd, 'content-type:') === 0 && stripos($hd, 'html') === false) { return false; } }
             $field = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES) . '">';
-            return preg_replace_callback('/<form\b[^>]*\bmethod\s*=\s*["\']?post["\']?[^>]*>/i', function ($m) use ($field) {
-                return $m[0] . $field;
-            }, $html);
+            return preg_replace_callback('/<form\b[^>]*\bmethod\s*=\s*["\']?post["\']?[^>]*>/i', fn($m) => $m[0] . $field, $html);
         });
     }
-
-    // A POST bigger than post_max_size arrives empty: say so, instead of 'page expired'
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
         securityStop(413, 'The form was too large and was not received. Each document must be 5 MB or smaller. Please go back and try again.');
     }
-
-    // 4. CSRF on every state-changing request
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sent = (string)($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-        if ($sent === '' || !hash_equals(csrfToken(), $sent)) {
-            securityStop(419, 'Your page expired. Please go back, reload it and try again.');
-        }
+        if ($sent === '' || !hash_equals(csrfToken(), $sent)) { securityStop(419, 'Your page expired. Please go back, reload it and try again.'); }
     }
 }
-runSecurityChecks($conn);
 
 // ============================================================
-// Authentication helper functions
+// Authentication helpers
 // ============================================================
-
-/**
- * Returns true when a valid user session exists.
- *
- * @return bool
- */
 function isLoggedIn(): bool
 {
-    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+    return !empty($_SESSION['user_id']);
 }
 
-/**
- * Returns true when the current session belongs to an admin user.
- *
- * @return bool
- */
+/** The signed-in user (User::findByID: department, driver details), loaded once per request. */
+function currentUser(): array
+{
+    static $u = null;
+    if ($u === null) { $u = isLoggedIn() ? (User::findByID((int)$_SESSION['user_id']) ?? []) : []; }
+    return $u;
+}
+
+/** Administrative Assistant or Head of Admin (the Head of Admin can do everything the Assistant does). */
 function isAdmin(): bool
 {
-    // admin = Admin Assistant; the Head of Admin can do everything an Admin Assistant can do
-    return isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'head_admin'], true);
+    return in_array($_SESSION['role'] ?? '', [User::AA, User::HOA], true);
 }
 
-/** The Head of Admin: everything an admin can do, plus approving driver assignments. */
 function isHeadAdmin(): bool
 {
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'head_admin';
+    return ($_SESSION['role'] ?? '') === User::HOA;
 }
 
-/** Where each role lands (also where someone is sent when they open a page that is not theirs). */
+/** Where each role lands. */
 function roleHomeUrl(?string $role = null): string
 {
-    $role = $role ?? ($_SESSION['role'] ?? '');
-    return SITE_URL . '/' . match ($role) {
-        'admin', 'superadmin', 'head_admin' => 'admin/dashboard.php',
-        'staff'      => 'staff/dashboard.php',
-        'supervisor' => 'supervisor/dashboard.php',
-        'driver'     => 'driver/dashboard.php',
-        default      => 'login.php',
+    return SITE_URL . '/' . match ($role ?? ($_SESSION['role'] ?? '')) {
+        User::AA, User::HOA => 'admin/dashboard.php',
+        User::HOD           => 'supervisor/dashboard.php',
+        User::DRIVER        => 'driver/dashboard.php',
+        User::STAFF         => 'staff/dashboard.php',
+        default             => 'login.php',
     };
 }
 
-function requireHeadAdmin(): void
-{
-    requireLogin();
-    if (!isHeadAdmin()) {
-        header('Location: ' . roleHomeUrl());
-        exit();
-    }
-}
-
-/**
- * Every role is also Staff: all of them may submit a vehicle request and follow / cancel their own.
- */
-function requireRequester(): void
-{
-    requireLogin();
-}
-
-/** Display name of a role (same words everywhere). */
-function roleLabel(string $role): string
-{
-    return match ($role) {
-        'staff' => 'Staff', 'driver' => 'Driver', 'supervisor' => 'Head of Department',
-        'admin', 'superadmin' => 'Administrative Assistant', 'head_admin' => 'Head of Admin', default => $role,
-    };
-}
-
-/**
- * Returns true when the current session belongs to a driver user.
- *
- * @return bool
- */
-function isDriver(): bool
-{
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'driver';
-}
-
-/**
- * Redirects to the login page if the visitor is not authenticated.
- * Call at the top of every protected page.
- *
- * @return void
- */
 function requireLogin(): void
 {
-    if (!isLoggedIn()) {
-        header('Location: ' . SITE_URL . '/login.php');
-        exit();
-    }
+    if (!isLoggedIn()) { header('Location: ' . SITE_URL . '/login.php'); exit(); }
 }
 
-/**
- * Ensures the current user is an admin.
- * Non-admin authenticated users are redirected to the driver dashboard.
- *
- * @return void
- */
-function requireAdmin(): void
+/** Only these roles may open the page; others go to their home page. */
+function requireRoles(array $roles): void
 {
     requireLogin();
-    if (!isAdmin()) {
+    if (!in_array($_SESSION['role'] ?? '', $roles, true)) {
+        if (isAjaxRequest()) { securityStop(403, 'You do not have access to this action.'); }
         header('Location: ' . roleHomeUrl());
         exit();
     }
 }
 
-/**
- * Ensures the current user is a driver.
- * Non-driver authenticated users are redirected to the admin dashboard.
- *
- * @return void
- */
-function requireDriver(): void
-{
-    requireLogin();
-    if (!isDriver()) {
-        header('Location: ' . roleHomeUrl());
-        exit();
-    }
-}
+function requireAdmin(): void { requireRoles([User::AA, User::HOA]); }
+function requireHeadAdmin(): void { requireRoles([User::HOA]); }
 
-/**
- * Returns true when the current session belongs to a staff user.
- *
- * @return bool
- */
-function isStaff(): bool
-{
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'staff';
-}
-
-/**
- * Returns true when the current session belongs to a supervisor
- * (head of section) user.
- *
- * @return bool
- */
-function isSupervisor(): bool
-{
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'supervisor';
-}
-
-/**
- * Ensures the current user is a staff member.
- *
- * @return void
- */
-function requireStaff(): void
-{
-    requireLogin();
-    if (!isStaff()) {
-        header('Location: ' . roleHomeUrl());
-        exit();
-    }
-}
-
-/**
- * Ensures the current user is a Head of Department (role key 'supervisor').
- *
- * @return void
- */
-function requireSupervisor(): void
-{
-    requireLogin();
-    if (!isSupervisor()) {
-        header('Location: ' . roleHomeUrl());
-        exit();
-    }
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a vehicle request status.
- *
- * @param string $status One of: pending, approved, rejected, processed, cancelled
- *
- * @return string DaisyUI badge classes
- */
-function requestStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'pending'   => 'badge-warning',
-        'approved'  => 'badge-success',
-        'rejected'  => 'badge-error',
-        'assigned'  => 'badge-info',
-        'processed' => 'badge-primary',
-        'cancelled' => 'border-0 bg-slate-500 text-white',
-        'lapsed'    => 'border-0 bg-slate-500 text-white',
-        'completed' => 'badge-neutral',
-        default     => 'border-0 bg-slate-500 text-white',
-    };
-}
-
-/** The words people see for a stored status ('assigned' = Driver Assigned, 'processed' = Confirmed). */
-function requestStatusLabel(string $status): string
-{
-    return match ($status) {
-        'pending' => 'Pending', 'approved' => 'Approved', 'assigned' => 'Driver Assigned',
-        'processed' => 'Confirmed', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled',
-        'lapsed' => 'Lapsed', 'completed' => 'Completed', default => ucfirst($status),
-    };
-}
+runSecurityChecks();
 
 // ============================================================
-// Security / sanitisation helpers
+// Small page helpers
 // ============================================================
-
-/**
- * Strips HTML tags, trims whitespace, and encodes special characters.
- * Use for displaying user-supplied strings in HTML output.
- *
- * @param string $data Raw input string
- *
- * @return string Sanitised string safe for HTML output
- */
-function sanitize(string $data): string
-{
-    return htmlspecialchars(strip_tags(trim($data)), ENT_QUOTES, 'UTF-8');
-}
-
-/**
- * Verifies a plain-text password against a stored hash.
- *
- * The system supports two storage formats:
- *   1. password_hash() (bcrypt/argon2) — preferred for new accounts.
- *   2. SHA-256 hex string — used by the SQL seed data for backwards
- *      compatibility during initial import; accounts are migrated on
- *      first successful login.
- *
- * @param string $plain      The plain-text password submitted by the user
- * @param string $stored     The hash retrieved from the database
- *
- * @return bool
- */
-function verifyPassword(string $plain, string $stored): bool
-{
-    if (password_verify($plain, $stored)) {
-        return true;
-    }
-    // A database upgraded from the first demo release may still hold SHA-256 hex hashes: accepted once,
-    // and replaced by a bcrypt hash at the first successful sign-in (see login.php).
-    return strlen($stored) === 64 && ctype_xdigit($stored) && hash_equals($stored, hash('sha256', $plain));
-}
-
-/** Replaces a legacy SHA-256 hash by a bcrypt hash after a successful sign-in. */
-function upgradeLegacyPassword(mysqli $conn, int $user_id, string $plain, string $stored): void
-{
-    if (strlen($stored) !== 64 || !ctype_xdigit($stored)) { return; }
-    $hash = password_hash($plain, PASSWORD_DEFAULT);
-    $stmt = $conn->prepare('UPDATE users SET password = ? WHERE user_id = ?');
-    $stmt->bind_param('si', $hash, $user_id);
-    $stmt->execute();
-    $stmt->close();
-}
-
-// ============================================================
-// Flash message helpers
-// ============================================================
-
-/**
- * Stores a one-time flash message in the session.
- *
- * @param string $type    Bootstrap alert type: 'success', 'danger', 'warning', 'info'
- * @param string $message The message text
- *
- * @return void
- */
 function setFlash(string $type, string $message): void
 {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
 }
 
-/**
- * Retrieves and clears the pending flash message.
- * Returns null when no flash message is queued.
- *
- * @return array{type: string, message: string}|null
- */
-function getFlash(): ?array
-{
-    if (isset($_SESSION['flash'])) {
-        $flash = $_SESSION['flash'];
-        unset($_SESSION['flash']);
-        return $flash;
-    }
-    return null;
-}
-
-/**
- * Renders the flash message as a Bootstrap alert div (if one is pending).
- * Echoes HTML directly; call inside the page body.
- *
- * @return void
- */
 function showFlash(): void
 {
-    $flash = getFlash();
-    if ($flash !== null) {
-        $type    = sanitize($flash['type']);
-        $message = sanitize($flash['message']);
-        $tone    = ['danger' => 'error', 'success' => 'success', 'warning' => 'warning', 'info' => 'info'][$type] ?? 'info';
-        $icon    = ['error' => 'circle-exclamation', 'success' => 'circle-check', 'warning' => 'triangle-exclamation', 'info' => 'circle-info'][$tone];
-        echo '<div class="alert alert-soft alert-' . $tone . ' mb-6" role="alert">'
-           . '<i class="fas fa-' . $icon . '" aria-hidden="true"></i><span>' . $message . '</span>'
-           . '<button type="button" class="btn btn-ghost btn-xs btn-square" onclick="this.parentElement.remove()" aria-label="Close"><i class="fas fa-xmark" aria-hidden="true"></i></button>'
-           . '</div>';
-    }
+    $f = $_SESSION['flash'] ?? null;
+    unset($_SESSION['flash']);
+    if (!$f) { return; }
+    $tone = ['danger' => 'error', 'success' => 'success', 'warning' => 'warning', 'info' => 'info'][$f['type']] ?? 'info';
+    $icon = ['error' => 'circle-exclamation', 'success' => 'circle-check', 'warning' => 'triangle-exclamation', 'info' => 'circle-info'][$tone];
+    echo '<div class="alert alert-soft alert-' . $tone . ' mb-6" role="alert"><i class="fas fa-' . $icon . '" aria-hidden="true"></i><span>' . h($f['message']) . '</span>'
+       . '<button type="button" class="btn btn-ghost btn-xs btn-square" onclick="this.parentElement.remove()" aria-label="Close"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>';
 }
 
-// ============================================================
-// Pagination helper
-// ============================================================
+/** Redirects with a flash message built from a domain result. */
+function redirectWithResult(array $res, string $url): never
+{
+    setFlash($res['ok'] ? 'success' : 'danger', $res['message']);
+    header('Location: ' . $url);
+    exit();
+}
 
-/**
- * Computes pagination metadata for a given total row count.
- *
- * @param int $total_rows    Total number of records in the result set
- * @param int $current_page  Current page number (1-based)
- * @param int $rows_per_page Number of records to display per page
- *
- * @return array{total_rows: int, total_pages: int, current_page: int, offset: int, rows_per_page: int}
- */
+/** Pagination numbers for a total row count. */
 function paginate(int $total_rows, int $current_page = 1, int $rows_per_page = 10): array
 {
-    $total_pages  = (int) ceil($total_rows / $rows_per_page);
+    $total_pages = (int)ceil($total_rows / $rows_per_page);
     $current_page = max(1, min($current_page, $total_pages ?: 1));
-    $offset       = ($current_page - 1) * $rows_per_page;
-
-    return [
-        'total_rows'   => $total_rows,
-        'total_pages'  => $total_pages,
-        'current_page' => $current_page,
-        'offset'       => $offset,
-        'rows_per_page'=> $rows_per_page,
-    ];
+    return ['total_rows' => $total_rows, 'total_pages' => $total_pages, 'current_page' => $current_page,
+            'offset' => ($current_page - 1) * $rows_per_page, 'rows_per_page' => $rows_per_page];
 }
 
-// ============================================================
-// Date / time formatting helpers
-// ============================================================
-
-/**
- * Formats a MySQL DATE string (Y-m-d) to a human-readable Malaysian format.
- * Example: '2025-03-10' → '10 Mar 2025'
- *
- * @param string|null $date MySQL date string or null
- *
- * @return string Formatted date or '—' if null/empty
- */
-function formatDate(?string $date): string
+/** The picture of a vehicle type. */
+function vehiclePhotoUrl(?string $photo, string $type = 'Car'): string
 {
-    if (empty($date) || $date === '0000-00-00') {
-        return '&mdash;';
-    }
-    return date('d M Y', strtotime($date));
-}
-
-/**
- * Formats a MySQL TIME string (H:i:s) to 12-hour format with am/pm.
- * Example: '07:30:00' → '7:30 am'
- *
- * @param string|null $time MySQL time string or null
- *
- * @return string Formatted time or '—' if null/empty
- */
-function formatTime(?string $time): string
-{
-    if (empty($time)) {
-        return '&mdash;';
-    }
-    return date('g:i a', strtotime($time));
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a schedule status value.
- *
- * @param string $status One of: pending, approved, in_progress, completed, cancelled
- *
- * @return string DaisyUI badge classes, e.g. 'badge-warning'
- */
-function statusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'pending'     => 'badge-warning',
-        'approved'    => 'badge-primary',
-        'in_progress' => 'badge-info',
-        'completed'   => 'badge-success',
-        'cancelled'   => 'border-0 bg-slate-500 text-white',
-        default       => 'badge-neutral',
-    };
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a driver status value.
- *
- * @param string $status One of: active, inactive
- *
- * @return string DaisyUI badge classes
- */
-function driverStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'active'   => 'badge-success',
-        'inactive' => 'badge-error',
-        default    => 'border-0 bg-slate-500 text-white',
-    };
-}
-
-/**
- * Returns the DaisyUI badge modifier classes for a vehicle status value.
- *
- * @param string $status One of: available, in_use, maintenance, inactive
- *
- * @return string DaisyUI badge classes
- */
-function vehicleStatusBadgeClass(string $status): string
-{
-    return match ($status) {
-        'available'   => 'badge-success',
-        'in_use'      => 'badge-primary',
-        'maintenance' => 'badge-warning',
-        'inactive'    => 'border-0 bg-slate-500 text-white',
-        default       => 'badge-neutral',
-    };
-}
-
-/** A registration number set like a number plate (HTML). Empty string when there is no plate. */
-function plate(?string $plateNumber): string
-{
-    $p = trim((string)$plateNumber);
-    return $p === '' ? '' : '<span class="plate">' . htmlspecialchars($p, ENT_QUOTES, 'UTF-8') . '</span>';
-}
-
-/** The words people see for a vehicle status. In Use is worked out by the system (see vehicleDisplayStatus). */
-function vehicleStatusLabel(string $status): string
-{
-    return ['available' => 'Available', 'in_use' => 'In Use', 'maintenance' => 'Under Maintenance', 'inactive' => 'Inactive'][$status] ?? ucfirst($status);
-}
-
-/**
- * The status to SHOW for a vehicle. "In Use" is not stored: it is shown when the vehicle has a
- * Confirmed trip (or an internal task) that covers this moment.
- */
-function vehicleDisplayStatus(mysqli $conn, int $vehicle_id, string $stored_status): string
-{
-    if ($stored_status !== 'available') { return $stored_status; }
-    $stmt = $conn->prepare(
-        "SELECT 1 FROM schedules s JOIN vehicle_requests vr ON vr.request_id = s.request_id
-          WHERE s.vehicle_id = ? AND s.status <> 'cancelled' AND vr.status = 'processed' AND s.start_dt <= NOW() AND s.end_dt > NOW() LIMIT 1"
-    );
-    $stmt->bind_param('i', $vehicle_id);
-    $stmt->execute();
-    $busy = (bool)$stmt->get_result()->fetch_row();
-    $stmt->close();
-    return $busy ? 'in_use' : 'available';
-}
-
-// ============================================================
-// Photo helpers (vehicles and drivers)
-// Uploaded photos are stored as a path relative to the project
-// root (e.g. 'uploads/vehicles/abc123.jpg') in the `photo` column.
-// When no photo has been uploaded, a bundled placeholder is used.
-// ============================================================
-
-/**
- * Returns the URL of a vehicle's photo, or a type-specific illustration
- * when no photo has been uploaded.
- *
- * @param string|null $photo        Stored relative path, or null
- * @param string      $vehicle_type Bus, Minibus, Van, Car, Lorry or Motorcycle
- *
- * @return string
- */
-function vehiclePhotoUrl(?string $photo, string $vehicle_type = 'Car'): string
-{
-    if (!empty($photo)) {
-        return SITE_URL . '/' . ltrim($photo, '/');
-    }
-    $slug = strtolower($vehicle_type);
-    if (!in_array($slug, ['bus', 'minibus', 'van', 'car', 'lorry', 'motorcycle'], true)) {
-        $slug = 'car';
-    }
-    return SITE_URL . '/assets/images/vehicles/' . $slug . '.svg';
-}
-
-/**
- * Returns the URL of a driver's photo, or the dummy avatar when no photo
- * has been uploaded.
- *
- * @param string|null $photo Stored relative path, or null
- *
- * @return string
- */
-function driverPhotoUrl(?string $photo): string
-{
-    if (!empty($photo)) {
-        return SITE_URL . '/' . ltrim($photo, '/');
-    }
-    return SITE_URL . '/assets/images/drivers/avatar.svg';
+    $slug = strtolower($type === 'MPV' ? 'minibus' : $type);
+    return SITE_URL . '/assets/images/vehicles/' . (in_array($slug, ['bus', 'minibus', 'van', 'car', 'lorry'], true) ? $slug : 'car') . '.svg';
 }

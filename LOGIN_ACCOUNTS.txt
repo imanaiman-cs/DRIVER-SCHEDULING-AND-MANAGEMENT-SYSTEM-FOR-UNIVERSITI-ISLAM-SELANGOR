@@ -1,67 +1,53 @@
 UIS DRIVER SCHEDULING & MANAGEMENT SYSTEM
-DEMO LOGIN ACCOUNTS  (from database.sql - for testing only)
-Aligned with the final SRS: five roles - Staff, Driver, Head of Department, Administrative Assistant, Head of Admin
+DEMO LOGIN ACCOUNTS (from database.sql - for testing only)
 =============================================================
+Login page:  http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php
+Sign in with the staff ID (or the UIS email) and the password.
 
-Login page:
-  http://localhost/DRIVER-SCHEDULING-AND-MANAGEMENT-SYSTEM-FOR-UNIVERSITI-ISLAM-SELANGOR/login.php
+New staff and Heads of Department register themselves (First Time User? Register Now) with a UIS email
+(@uis.edu.my). While e-mail is switched off (no config/mail.php) the verification code is shown on the page.
 
-In the real system the accounts come from the UIS staff system (tools/import_staff.php + CSV);
-there is no user management screen, no temporary password and no manual unlock.
-Every role is also Staff, so every account can request a vehicle (menu: Request Vehicle / My Requests).
+ADMINISTRATIVE ASSISTANT   admin    / admin123      Rozaimi bin Kamaruzzaman      BPI (Administration and Infrastructure Division)
+HEAD OF ADMIN              head001  / head001@uis   Haji Zulkifli bin Awang       BPI - head of BPI
+  (both can also make vehicle requests: New Request / My Request. The Assistant's and the drivers' requests are
+   approved by the Head of Admin as head of BPI; the Head of Admin's own request by hos003, head of the Registrar Office)
 
+HEADS OF DEPARTMENT
+  hos005 / hos005@uis   Prof. Dr. Ahmad Zaki bin Mansor   Office of the Vice-Chancellor (parent department: approves the other HoDs' own requests)
+  hos001 / hos001@uis   Mohd Hafizi bin Harun             Bursary
+  hos002 / hos002@uis   Hajah Rohana binti Ismail         Faculty of Education      (stf001)
+  hos003 / hos003@uis   Dr. Nor Azlina binti Hashim       Registrar Office          (stf002)
+  hos004 / hos004@uis   Azman bin Yusof                   Student Affairs Division  (stf003)
 
-1. ADMINISTRATIVE ASSISTANT  (Vehicle Section)
-   Username : admin          Password : admin123
-   Name     : Rozaimi bin Kamaruzzaman
-   Can do   : process approved requests (recommended driver -> "Driver Assigned"), Replace Driver,
-              vehicles and maintenance, drivers, internal tasks, welfare duty, calendar,
-              manual approval reminders, the four monthly reports, settings
+STAFF
+  stf001 / staff001@uis   Norliza binti Abdul Rahman      Faculty of Education
+  stf002 / staff002@uis   Muhammad Syafiq bin Zainal      Registrar Office
+  stf003 / staff003@uis   Siti Aishah binti Mohd Yusof    Student Affairs Division
+  stf004 / staff004@uis   Dr. Hakim bin Razali            Faculty of Science and Technology (asked for the Head of Department role:
+                                                          confirm it in User Account > Pending Role)
 
-2. HEAD OF ADMIN
-   Username : head001        Password : head001@uis
-   Name     : Haji Zulkifli bin Awang
-   Can do   : everything the Administrative Assistant can do, plus Approve / Reject driver
-              assignments ("Driver Assigned" -> "Confirmed"). The Head of Admin always approves.
+DRIVERS (password driverNNN@uis, e.g. drv001 / driver001@uis)
+  drv001 Ahmad Faizal bin Mohd Rashid     D, GDL, PSV
+  drv002 Mohd Hafizuddin bin Zulkifli     D, GDL, PSV
+  drv003 Norhaslinda binti Abdul Karim    D, GDL
+  drv004 Khairul Anuar bin Ismail         D, PSV
+  drv005 Siti Norzaharah binti Othman     D
+  drv006 Zulkarnain bin Hamzah            D, GDL, PSV
+  drv007 Roslan bin Abdul Wahab           D, PSV
+  drv008 Muhammad Asyraf bin Che Hassan   D        (licence expired: never recommended)
+  drv009 Fadzillah bin Mohd Noor          D, GDL, PSV
+  drv010 Nurul Ain binti Saharuddin       D, GDL
+  drv011 Hairul Nizam bin Kamaruddin      D        (inactive: cannot sign in)
+  drv012 Azhari bin Mahmud                D, PSV
+  Licence classes: D = car, MPV, van; GDL = lorry; PSV = bus. Only GDL drivers see "Self Drive" for a lorry.
 
-3. HEAD OF DEPARTMENT (HoD) - approves requests of staff of THEIR OWN PTJ (department)
-   hos001 / hos001@uis   Mohd Hafizi bin Harun               Transport Unit (drivers, admin, head001)
-   hos002 / hos002@uis   Hajah Rohana binti Ismail           Faculty of Education      (stf001)
-   hos003 / hos003@uis   Dr. Nor Azlina binti Hashim         Registrar Office          (stf002)
-   hos004 / hos004@uis   Azman bin Yusof                     Student Affairs Division  (stf003)
-   hos005 / hos005@uis   Prof. Dr. Ahmad Zaki bin Mansor     Rectory (approver of the other HoDs)
-   Can do   : approve / reject (reason needed) / cancel, add comments
-
-4. STAFF
-   stf001 / staff001@uis   Norliza binti Abdul Rahman      Faculty of Education
-   stf002 / staff002@uis   Muhammad Syafiq bin Zainal      Registrar Office
-   stf003 / staff003@uis   Siti Aishah binti Mohd Yusof    Student Affairs Division
-   Can do   : request a vehicle (departure/return date+time, at least 1 day ahead), see status,
-              cancel own requests (reason optional)
-
-5. DRIVERS  (view-only task page; they cannot approve or edit anything)
-   Username  Password       Name                             Licence classes   Status
-   --------  -------------  -------------------------------  ----------------  --------
-   drv001    driver001@uis  Ahmad Faizal bin Mohd Rashid     D, GDL, PSV       Active
-   drv002    driver002@uis  Mohd Hafizuddin bin Zulkifli     D, GDL, PSV       Active
-   drv003    driver003@uis  Norhaslinda binti Abdul Karim    D, GDL            Active
-   drv004    driver004@uis  Khairul Anuar bin Ismail         D, PSV            Active
-   drv005    driver005@uis  Siti Norzaharah binti Othman     D                 Active
-   drv006    driver006@uis  Zulkarnain bin Hamzah            D, GDL, PSV       Active
-   drv007    driver007@uis  Roslan bin Abdul Wahab           D, PSV            Active
-   drv008    driver008@uis  Muhammad Asyraf bin Che Hassan   D                 Active
-   drv009    driver009@uis  Fadzillah bin Mohd Noor          D, GDL, PSV       Active
-   drv010    driver010@uis  Nurul Ain binti Saharuddin       D, GDL            Active
-   drv011    driver011@uis  Hairul Nizam bin Kamaruddin      D                 Inactive
-   drv012    driver012@uis  Azhari bin Mahmud                D, PSV            Active
-   A driver sees a task only once its request is Confirmed.
-
+DEMO DATA (dates relative to the day of the import)
+  Requests in every status: Pending at the HoD, Approved by HoD waiting for a driver (Urgent), Driver Assigned waiting for
+  the Head of Admin (bus x4 with a vendor bus), Approved trips, approved Pay and Claim and Personal Self Drive (approval
+  letters), a Personal lorry request waiting for the Assistant, Rejected, Cancelled, Lapsed and Completed trips with reports.
+  Internal tasks, welfare duty (this week approved, next week waiting for drivers), a pending schedule change, replacements.
 
 NOTES
-  - These are demo accounts created by importing database.sql.
-  - The first successful sign-in upgrades the stored password to a stronger hash.
-  - 5 wrong passwords in a row block the account for 15 minutes; it unblocks by itself
-    (nothing to unlock manually). For a local test you may clear it with:
-        UPDATE users SET locked_until = NULL, failed_attempts = 0 WHERE username = 'admin';
+  - 5 wrong passwords block the login for 15 minutes (or use Forgot Password?).
   - Sessions end after 15 minutes without activity.
   - Change all passwords before any real use of the system.

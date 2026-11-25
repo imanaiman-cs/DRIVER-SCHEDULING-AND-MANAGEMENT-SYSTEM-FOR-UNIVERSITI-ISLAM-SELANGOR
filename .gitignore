@@ -21,3 +21,4 @@ node_modules/
 
 # Python bytecode from the HTTP test suites
 __pycache__/
+!uploads/documents/demo_supporting_letter.pdf

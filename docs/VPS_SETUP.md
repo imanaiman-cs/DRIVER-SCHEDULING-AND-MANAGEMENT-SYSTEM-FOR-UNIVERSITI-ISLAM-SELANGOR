@@ -3,7 +3,7 @@
 Tested plan: Hostinger KVM 2 (2 vCPU, 8 GB RAM). KVM 1 (4 GB) is enough for one WhatsApp session. Commands below were written for Ubuntu
 and were **not** run on a Hostinger VPS from the development environment: follow them step by step and read each result.
 
-Why Apache and not Nginx: the project protects `config/`, `includes/`, `cron/`, `tests/`, `migrations/`, `tools/` and `*.sql` with `.htaccess`
+Why Apache and not Nginx: the project protects `config/`, `includes/`, `cron/`, `tests/`, `tools/` and `*.sql` with `.htaccess`
 files. Nginx ignores `.htaccess`, so on Nginx you would have to recreate those rules by hand.
 
 ## 0. Before you start
@@ -47,7 +47,7 @@ GRANT ALL PRIVILEGES ON uis_driver_db.* TO 'dsms'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
-`database.sql` creates the database itself; import it as root, then the `dsms` user has access to it. **Warning: the file starts with `DROP DATABASE IF EXISTS uis_driver_db`, so importing it again later erases all data. Use it once on a fresh server; later upgrades only need `git pull` (migrations run by themselves).**
+`database.sql` creates the database itself; import it as root, then the `dsms` user has access to it. **Warning: the file starts with `DROP DATABASE IF EXISTS uis_driver_db`, so importing it again later erases all data. Use it once on a fresh server; later upgrades of the code only need `git pull`; a release that changes the schema says so in its notes.**
 ```
 sudo mysql < /var/www/dsms/database.sql
 ```
@@ -57,8 +57,9 @@ sudo cp /var/www/dsms/config/local.sample.php /var/www/dsms/config/local.php
 sudo nano /var/www/dsms/config/local.php     # db_user dsms, db_pass, site_url https://dsms.yourdomain.my
 sudo chown root:www-data /var/www/dsms/config/local.php && sudo chmod 640 /var/www/dsms/config/local.php
 ```
-The demo accounts in `LOGIN_ACCOUNTS.txt` have well-known passwords: **delete or change them before real use** (the real accounts come from
-`tools/import_staff.php`).
+The demo accounts in `LOGIN_ACCOUNTS.txt` have well-known passwords: **delete or change them before real use**. Staff and Heads of Department then register themselves with their
+UIS email, and the Administrative Assistant creates the driver accounts. Set up `config/mail.php` first: registration and
+password reset need the verification e-mail.
 
 ## 4. HTTPS
 ```
@@ -105,12 +106,12 @@ Follow `docs/OPENWA_SETUP.md` from step 2 (admin key, session, QR with a dedicat
 ## 7. Backups and updates
 - Database: `mysqldump uis_driver_db | gzip > /root/backup/dsms-$(date +%F).sql.gz` from a nightly cron; copy it off the VPS. Also use the Hostinger snapshot/backup option.
 - OpenWA data volume (`/app/data` in the container) holds the linked WhatsApp session; losing it means scanning the QR again.
-- Update the DSMS: `cd /var/www/dsms && sudo git pull` (new migrations are applied automatically the next time a page is opened).
+- Update the DSMS: `cd /var/www/dsms && sudo git pull` .
 - `sudo apt update && sudo apt upgrade` regularly; renew of HTTPS is automatic (certbot timer).
 
 ## 8. Checklist before real users
 - [ ] HTTPS works, `http://` redirects to `https://`
-- [ ] `https://dsms.yourdomain.my/config/database.php`, `/database.sql`, `/migrations/` answer **403/404**
+- [ ] `https://dsms.yourdomain.my/config/database.php`, `/database.sql`, `/tools/` answer **403/404**
 - [ ] Demo accounts removed or passwords changed; real staff imported
 - [ ] Cron line runs (check `/var/log/dsms-cron.log` after the hour)
 - [ ] A test request goes Pending to Confirmed; the e-mail arrives; `email_log` shows `sent`

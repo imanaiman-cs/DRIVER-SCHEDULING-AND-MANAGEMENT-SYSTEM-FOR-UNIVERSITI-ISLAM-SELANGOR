@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// includes/admin_page.php  –  the shared top and bottom of a page (any role: the sidebar adapts to the signed-in role)
+// includes/admin_page.php  –  View Layer: the shared top and bottom of a page (any role: the sidebar adapts to the signed-in role)
 // (settings, leaves, welfare, internal tasks ...) so each page only holds its own content.
 //
 //   adminPageStart('Title');   ...page content...   adminPageEnd();
@@ -32,7 +32,7 @@ function appLayoutEnd(): void
 
 function adminPageStart(string $title): void
 {
-    global $conn, $page_title, $current_page;
+    global $page_title, $current_page;
     $page_title = $title;
     ?>
 <!DOCTYPE html>
@@ -57,14 +57,3 @@ function adminPageEnd(): void
 <?php
 }
 
-/** A valid Y-m-d date? (kept for older pages; see isValidDate in workflow.php) */
-function validDateStr(string $d): bool
-{
-    return isValidDate($d);
-}
-
-/** Active drivers (carpool drivers), for lists and pickers. */
-function activeDrivers(mysqli $conn): array
-{
-    return $conn->query("SELECT driver_id, name, employee_id, license_class FROM drivers WHERE status = 'active' ORDER BY name")->fetch_all(MYSQLI_ASSOC);
-}
