@@ -11,68 +11,47 @@
 //   $current_page          – basename of current file, e.g. 'dashboard.php'
 // ============================================================
 
-// Resolve helpers
-$role         = $_SESSION['role']      ?? 'driver';
-$full_name    = $_SESSION['full_name'] ?? ($_SESSION['username'] ?? 'User');
-$current_page = $current_page          ?? basename($_SERVER['PHP_SELF']);
+// View Layer (SDD_PKG_100): the menu of each role, the notification bell (NotificationUI, SDD_CLASS_111)
+$role         = $_SESSION['role'] ?? '';
+$full_name    = $_SESSION['full_name'] ?? 'User';
+$current_page = $current_page ?? basename($_SERVER['PHP_SELF']);
 
-// Build initials from the user's full name (up to 2 characters)
-$name_parts = array_filter(explode(' ', trim($full_name)));
-$initials   = '';
-foreach (array_slice($name_parts, 0, 2) as $part) {
-    $initials .= strtoupper($part[0]);
-}
-$initials = $initials ?: 'U';
+$name_parts = array_values(array_filter(explode(' ', trim($full_name)), fn($w) => !in_array(strtolower($w), ['bin', 'binti'], true)));
+$initials = strtoupper(substr($name_parts[0] ?? 'U', 0, 1) . substr($name_parts[1] ?? '', 0, 1));
+$role_label = $role;
+$_is_admin_role = in_array($role, [User::AA, User::HOA], true);
+$_role_home = substr(roleHomeUrl($role), strlen(SITE_URL) + 1);
 
-// Role label displayed under the avatar
-$role_label = roleLabel($role);
-
-// Admin Assistant and Head of Admin share the admin menu (the Head of Admin has one extra item)
-$_is_admin_role = in_array($role, ['admin', 'head_admin'], true);
-
-// Home URL for the current role (used by header breadcrumb)
-$_role_home = match ($role) {
-    'admin', 'head_admin' => 'admin/dashboard.php',
-    'supervisor'          => 'supervisor/dashboard.php',
-    'driver'              => 'driver/dashboard.php',
-    default               => 'staff/dashboard.php',
-};
-
-// Helper: returns 'active' CSS class when $pages matches the current page
 function sidebarActive(string|array $pages, string $current): string
 {
     return in_array($current, (array)$pages, true) ? 'active' : '';
 }
 
-// ── Counts shown as small badges ─────────────────────────────────
-$_sidebar_uid = (int)($_SESSION['user_id'] ?? 0);
-$_badge       = ['assign' => 0, 'approvals' => 0, 'hod' => 0, 'changes' => 0, 'pending_role' => 0, 'replace' => 0, 'welfare' => 0, 'internal' => 0];
-$_app_unread  = 0;   // unread notifications (the bell)
-$_app_notifs  = [];  // the latest few
-if ($_sidebar_uid > 0 && isset($conn)) {
+// ── Counts shown as small badges (through the Domain Layer) ─────────────────
+$_badge = ['assign' => 0, 'approvals' => 0, 'head' => 0, 'changes' => 0, 'pending_role' => 0, 'replace' => 0, 'welfare' => 0, 'internal' => 0];
+$_app_unread = 0;
+$_app_notifs = [];
+if (isLoggedIn()) {
     try {
+        $_me = currentUser();
+        $_pending = (new ApprovalController())->countPending($_me);
+        $_badge['head'] = $_pending['head'];
         if ($_is_admin_role) {
-            $_badge['assign']       = (int)$conn->query('SELECT COUNT(*) FROM requests r WHERE ' . SQL_WAITING_ASSIGNMENT)->fetch_row()[0];
-            $_badge['pending_role'] = (int)$conn->query("SELECT COUNT(*) FROM users WHERE pending_role IS NOT NULL AND status = 'active'")->fetch_row()[0];
-            $_badge['replace']      = count(tasksNeedingReplacement($conn));
-            $_badge['internal']     = (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'waiting' AND start_dt > NOW()")->fetch_row()[0];
-            $_badge['welfare']      = (int)$conn->query("SELECT COUNT(*) FROM welfare_weeks WHERE status = 'waiting' AND week_start_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)")->fetch_row()[0];
+            $_ac = new AssignmentController();
+            $_badge['assign'] = count($_ac->listWaiting('Request'));
+            $_badge['replace'] = count($_ac->listWaiting('Replacement'));
+            $_badge['internal'] = count($_ac->listWaiting('Internal'));
+            $_badge['pending_role'] = (new AccountController())->listAccounts(['pending' => true])['total'];
         }
-        if ($role === 'head_admin') {
-            $_badge['approvals'] = (int)$conn->query('SELECT COUNT(*) FROM requests r WHERE ' . SQL_WAITING_HOA)->fetch_row()[0]
-                                 + (int)$conn->query("SELECT COUNT(*) FROM tasks WHERE task_source = 'internal' AND status = 'driver_assigned'")->fetch_row()[0]
-                                 + (int)$conn->query("SELECT COUNT(*) FROM welfare_weeks WHERE status = 'driver_assigned'")->fetch_row()[0]
-                                 + (int)$conn->query("SELECT COUNT(*) FROM driver_replacements WHERE status = 'pending'")->fetch_row()[0];
-            $_badge['changes']   = (int)$conn->query("SELECT COUNT(*) FROM schedule_changes WHERE status = 'pending'")->fetch_row()[0];
+        if ($role === User::HOA) {
+            $_badge['approvals'] = $_pending['head'] + $_pending['request'] + $_pending['internal'] + $_pending['welfare'] + $_pending['replacement'];
+            $_badge['changes'] = $_pending['schedule'];
         }
-        if ($role === 'supervisor') {
-            $_badge['hod'] = (int)dbValue($conn, "SELECT COUNT(*) FROM requests WHERE approver_id = ? AND status = 'pending' AND purpose_type <> 'personal'", [$_sidebar_uid]);
-        }
-        $_app_unread = (int)dbValue($conn, 'SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', [$_sidebar_uid]);
-        $_app_notifs = dbAll($conn, 'SELECT notification_id, message, link, is_read, date_sent AS created_at FROM notifications
-                                     WHERE user_id = ? ORDER BY is_read ASC, date_sent DESC, notification_id DESC LIMIT 6', [$_sidebar_uid]);
+        $_ns = new NotificationService();
+        $_app_unread = $_ns->countUnread((int)$_SESSION['user_id']);
+        $_app_notifs = $_ns->listForUser((int)$_SESSION['user_id'], 6, 0)['rows'];
     } catch (Throwable $e) {
-        // tables not ready yet
+        appLog('error', 'sidebar: ' . $e->getMessage());
     }
 }
 
@@ -82,38 +61,35 @@ $_my_requests = ['Vehicle Requests' => [
     [['my_requests.php', 'request.php', 'approval_letter.php'], 'staff/my_requests.php', 'list-check', 'My Request', null],
 ]];
 if ($_is_admin_role) {
-    $_menu = [
-        'Main' => [[['dashboard.php'], 'admin/dashboard.php', 'gauge-high', 'Dashboard', null]],
-    ];
-    if ($role === 'head_admin') {
+    $_menu = ['Main' => [[['dashboard.php'], 'admin/dashboard.php', 'gauge-high', 'Dashboard', null]]];
+    if ($role === User::HOA) {
         $_menu['Approvals'] = [
             [['approvals.php'], 'admin/approvals.php', 'stamp', 'Pending Approval', 'approvals'],
             [['schedule_changes.php'], 'admin/schedule_changes.php', 'calendar-xmark', 'Schedule Change', 'changes'],
         ];
     }
     $_menu['Requests'] = [
-        [['vehicle_requests.php', 'request.php', 'approval_letter.php'], 'admin/vehicle_requests.php', 'file-signature', 'All Request', null],
+        [['vehicle_requests.php'], 'admin/vehicle_requests.php', 'file-signature', 'All Request', null],
         [['assign_driver.php'], 'admin/assign_driver.php', 'user-plus', 'Assign Request Task', 'assign'],
     ];
     $_menu['My Vehicle Requests'] = [
         [['request_vehicle.php'], 'staff/request_vehicle.php', 'car-side', 'New Request', null],
-        [['my_requests.php'], 'staff/my_requests.php', 'list-check', 'My Request', null],
+        [['my_requests.php', 'request.php', 'approval_letter.php'], 'staff/my_requests.php', 'list-check', 'My Request', null],
     ];
     $_menu['Schedule'] = [
         [['schedule.php', 'task.php', 'replace_driver.php'], 'admin/schedule.php', 'calendar-days', 'Driver Schedule', 'replace'],
         [['internal_tasks.php'], 'admin/internal_tasks.php', 'wrench', 'Internal Task', 'internal'],
-        [['welfare.php'], 'admin/welfare.php', 'moon', 'Welfare Duty', 'welfare'],
+        [['welfare.php'], 'admin/welfare.php', 'moon', 'Welfare Duty', null],
     ];
     $_menu['Manage'] = [
         [['users.php', 'add_driver.php', 'edit_user.php', 'view_user.php'], 'admin/users.php', 'users', 'User Account', 'pending_role'],
         [['vehicles.php', 'add_vehicle.php', 'edit_vehicle.php', 'view_vehicle.php'], 'admin/vehicles.php', 'bus', 'Vehicle', null],
     ];
     $_menu['Reports'] = [[['reports.php'], 'admin/reports.php', 'chart-column', 'Report', null]];
-    $_menu['System']  = [[['settings.php'], 'admin/settings.php', 'sliders', 'Settings', null]];
-} elseif ($role === 'supervisor') {
+} elseif ($role === User::HOD) {
     $_menu = ['Main' => [[['dashboard.php'], 'supervisor/dashboard.php', 'gauge-high', 'Dashboard', null]],
-              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Department Request', 'hod']]] + $_my_requests;
-} elseif ($role === 'driver') {
+              'Approvals' => [[['approvals.php'], 'supervisor/approvals.php', 'stamp', 'Department Request', 'head']]] + $_my_requests;
+} elseif ($role === User::DRIVER) {
     $_menu = ['Main' => [[['dashboard.php'], 'driver/dashboard.php', 'gauge-high', 'Dashboard', null]],
               'My Work' => [[['tasks.php', 'task.php'], 'driver/tasks.php', 'route', 'My Task', null],
                             [['schedule_change.php'], 'driver/schedule_change.php', 'calendar-xmark', 'Schedule Change', null]]] + $_my_requests;
@@ -227,7 +203,7 @@ if ($current_page === 'profile.php') { $_page_icon = 'user'; } elseif ($current_
                             <?php if (!$_n['is_read']): ?><span class="me-1.5 inline-block size-2 rounded-full bg-primary align-middle"></span><?php endif; ?>
                             <?php echo htmlspecialchars($_n['message']); ?>
                         </span>
-                        <span class="text-xs text-base-content/65"><?php echo date('d M Y, H:i', strtotime($_n['created_at'])); ?></span>
+                        <span class="text-xs text-base-content/65"><?php echo date('d M Y, H:i', strtotime($_n['date_sent'])); ?></span>
                     </a>
                 </li>
                 <?php endforeach; ?>

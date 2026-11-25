@@ -7,7 +7,8 @@
  *
  * Each *Test.php file returns an array: 'test name' => function () { ... }.
  * Tests that touch the database run inside a transaction that is rolled back,
- * so they never change your real data. Import database.sql first (demo data).
+ * so they never change your real data. Import database.sql first (dsms_db).
+ * The tests call the Domain Layer (app/domain) and the Data Access Layer (app/data) of the SDD.
  */
 define('SKIP_REQUEST_JOBS', true);
 require dirname(__DIR__) . '/config/database.php';
@@ -40,13 +41,13 @@ foreach (glob(__DIR__ . '/*Test.php') as $file) {
     echo "\n" . basename($file, '.php') . "\n";
     foreach ((require $file) as $name => $test) {
         try {
-            $conn->begin_transaction();
+            Database::beginTransaction();
             $test();
             echo "  PASS  $name\n"; $pass++;
         } catch (Throwable $e) {
             echo "  FAIL  $name\n        " . $e->getMessage() . "\n"; $fail++;
         } finally {
-            try { $conn->rollback(); } catch (Throwable $e) { /* nothing open */ }
+            try { Database::rollback(); } catch (Throwable $e) { /* nothing open */ }
         }
     }
 }

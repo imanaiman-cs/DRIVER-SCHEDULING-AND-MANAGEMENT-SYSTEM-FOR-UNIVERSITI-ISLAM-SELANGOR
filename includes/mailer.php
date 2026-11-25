@@ -5,7 +5,7 @@
 //
 // Settings live in config/mail.php (copy of config/mail.sample.php).
 // While sending is switched off, or a user has no valid address, or the SMTP server fails, the message is
-// still written to the e-mail log (table email_log) and the in-system notification is kept: nothing is lost.
+// still written to logs/email.log and the in-system notification is kept: nothing is lost.
 // ============================================================
 
 require_once __DIR__ . '/phpmailer/Exception.php';
@@ -75,37 +75,11 @@ function mailEnabled(): bool
 
 // ── Sending and logging ──────────────────────────────────────
 
-/**
- * Writes one row to email_log.
- *
- * @param array<string, mixed> $row
- */
-function logEmail(mysqli $conn, array $row): void
+/** Writes one line to logs/email.log (the SDD has no e-mail log table). */
+function logEmail(array $row): void
 {
-    $driver_id    = isset($row['driver_id']) ? (int)$row['driver_id'] : null;
-    $to_email     = $row['to_email']     ?? null;
-    $delivered_to = $row['delivered_to'] ?? null;
-    $subject      = mb_substr((string)($row['subject'] ?? ''), 0, 255);
-    $kind         = (string)($row['kind'] ?? 'notice');
-    $ref_date     = $row['ref_date']     ?? null;
-    $schedule_ids = $row['schedule_ids'] ?? null;
-    $status       = (string)$row['status'];
-    $error        = isset($row['error_message']) ? mb_substr((string)$row['error_message'], 0, 500) : null;
-    $body         = $row['body_html']    ?? null;
-    $user_id      = isset($row['user_id']) ? (int)$row['user_id'] : null;
-
-    $stmt = $conn->prepare(
-        "INSERT INTO email_log
-            (driver_id, to_email, delivered_to, subject, kind, ref_date, schedule_ids, status, error_message, body_html, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    if (!$stmt) {
-        error_log('email_log insert failed: ' . $conn->error);
-        return;
-    }
-    $stmt->bind_param('isssssssssi', $driver_id, $to_email, $delivered_to, $subject, $kind, $ref_date, $schedule_ids, $status, $error, $body, $user_id);
-    $stmt->execute();
-    $stmt->close();
+    appLog('email', strtoupper((string)$row['status']) . ' to=' . ($row['to_email'] ?? '-') . ' kind=' . ($row['kind'] ?? 'notice')
+        . ' subject="' . mb_substr((string)($row['subject'] ?? ''), 0, 120) . '"' . (!empty($row['error_message']) ? ' error="' . $row['error_message'] . '"' : ''));
 }
 
 /**
@@ -115,7 +89,7 @@ function logEmail(mysqli $conn, array $row): void
  *
  * @return array{status: string, message: string}  status: sent | skipped | failed
  */
-function sendMail(mysqli $conn, ?string $to, string $subject, string $html, string $text, array $meta = []): array
+function sendMail(?string $to, string $subject, string $html, string $text, array $meta = []): array
 {
     $to = $to !== null ? trim($to) : null;
     $log = [
@@ -131,15 +105,15 @@ function sendMail(mysqli $conn, ?string $to, string $subject, string $html, stri
 
     if ($to === null || $to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         $log['status']        = 'skipped';
-        $log['error_message'] = 'No valid e-mail address is saved for this driver.';
-        logEmail($conn, $log);
+        $log['error_message'] = 'No valid e-mail address.';
+        logEmail($log);
         return ['status' => 'skipped', 'message' => $log['error_message']];
     }
 
     if (!mailEnabled()) {
         $log['status']        = 'skipped';
         $log['error_message'] = 'E-mail sending is switched off (see config/mail.php). The message was saved in the log only.';
-        logEmail($conn, $log);
+        logEmail($log);
         return ['status' => 'skipped', 'message' => $log['error_message']];
     }
 
@@ -180,18 +154,18 @@ function sendMail(mysqli $conn, ?string $to, string $subject, string $html, stri
         $mail->send();
 
         $log['status'] = 'sent';
-        logEmail($conn, $log);
+        logEmail($log);
         return ['status' => 'sent', 'message' => 'Sent to ' . implode(', ', $recipients) . '.'];
     } catch (MailException $e) {
         $log['status']        = 'failed';
         $log['error_message'] = $e->getMessage();
-        logEmail($conn, $log);
+        logEmail($log);
         error_log('Mail failed: ' . $e->getMessage());
         return ['status' => 'failed', 'message' => $e->getMessage()];
     } catch (Throwable $e) {
         $log['status']        = 'failed';
         $log['error_message'] = $e->getMessage();
-        logEmail($conn, $log);
+        logEmail($log);
         error_log('Mail failed: ' . $e->getMessage());
         return ['status' => 'failed', 'message' => $e->getMessage()];
     }

@@ -7,13 +7,14 @@ Sign in with the staff ID (or the UIS email) and the password.
 New staff and Heads of Department register themselves (First Time User? Register Now) with a UIS email
 (@uis.edu.my). While e-mail is switched off (no config/mail.php) the verification code is shown on the page.
 
-ADMINISTRATIVE ASSISTANT   admin    / admin123      Rozaimi bin Kamaruzzaman      Vehicle Section
-HEAD OF ADMIN              head001  / head001@uis   Haji Zulkifli bin Awang       Vehicle Section
-  (both can also make vehicle requests: New Request / My Request; approved by hos001, Head of the Vehicle Section)
+ADMINISTRATIVE ASSISTANT   admin    / admin123      Rozaimi bin Kamaruzzaman      BPI (Administration and Infrastructure Division)
+HEAD OF ADMIN              head001  / head001@uis   Haji Zulkifli bin Awang       BPI - head of BPI
+  (both can also make vehicle requests: New Request / My Request. The Assistant's and the drivers' requests are
+   approved by the Head of Admin as head of BPI; the Head of Admin's own request by hos003, head of the Registrar Office)
 
 HEADS OF DEPARTMENT
   hos005 / hos005@uis   Prof. Dr. Ahmad Zaki bin Mansor   Office of the Vice-Chancellor (parent department: approves the other HoDs' own requests)
-  hos001 / hos001@uis   Mohd Hafizi bin Harun             Vehicle Section (approves the drivers' requests)
+  hos001 / hos001@uis   Mohd Hafizi bin Harun             Bursary
   hos002 / hos002@uis   Hajah Rohana binti Ismail         Faculty of Education      (stf001)
   hos003 / hos003@uis   Dr. Nor Azlina binti Hashim       Registrar Office          (stf002)
   hos004 / hos004@uis   Azman bin Yusof                   Student Affairs Division  (stf003)

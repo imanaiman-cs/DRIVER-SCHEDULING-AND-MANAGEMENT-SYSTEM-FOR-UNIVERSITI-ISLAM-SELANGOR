@@ -1,24 +1,24 @@
 <?php
 // ============================================================
-// admin/reports.php  -  UC011 View Report + UC012 Export Report
+// admin/reports.php  -  View Layer: ReportUI (SDD_CLASS_110) displayReportTypes(), displayReport(), downloadFile()
+//   UC011 View Report + UC012 Export Report through ReportController
 // Driver Workload, Driver Replacement and Vehicle Usage for a month; print, PDF (?export=pdf) and Excel (?export=xlsx).
 // ============================================================
 $current_page = 'reports.php';
 require_once '../config/database.php';
 require_once '../includes/admin_page.php';
-require_once '../includes/report_export.php';
 requireAdmin();
 
-$types = reportTypes();
+$report = new ReportController();
+$types = ReportController::TYPES;
 $type  = array_key_exists($_GET['type'] ?? '', $types) ? $_GET['type'] : 'workload';
 $month = (string)($_GET['month'] ?? '');
 if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) { $month = date('Y-m'); }
-$rep = buildReport($conn, $type, $month);
+$rep = $report->generateReport($type, $month);
 
 $export = $_GET['export'] ?? '';
 try {
-    if ($export === 'pdf')  { exportReportPdf($rep, $type); }
-    if ($export === 'xlsx') { exportReportXlsx($rep, $type); }
+    if ($export === 'pdf' || $export === 'xlsx') { $report->exportReport($type, $month, $export); }
 } catch (Throwable $e) {
     error_log('report export: ' . $e->getMessage());
     setFlash('danger', 'The report file cannot be generated. Please try again later.');

@@ -1,20 +1,19 @@
 <?php
 // ============================================================
-// driver/dashboard.php  -  Driver start page: next tasks, reports to write, this month, my own requests
+// driver/dashboard.php  -  View Layer: Driver start page (next tasks, reports to write, this month, my own requests)
 // ============================================================
 $current_page = 'dashboard.php';
 require_once '../config/database.php';
 require_once '../includes/ui.php';
 require_once '../includes/dashboard_my.php';
-requireRoles(['driver']);
+requireRoles([User::DRIVER]);
 
 $me = currentUser();
-$did = (int)($me['driver_id'] ?? 0);
-$next = dbAll($conn, "SELECT t.*, v.plate_number, r.destination FROM tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id LEFT JOIN requests r ON r.request_id = t.request_id
-                       WHERE t.driver_id = ? AND t.status = 'approved' AND t.end_dt > NOW() ORDER BY t.start_dt LIMIT 6", [$did]);
-$toReport = (int)dbValue($conn, "SELECT COUNT(*) FROM tasks t WHERE t.driver_id = ? AND t.status = 'approved' AND t.start_dt <= NOW()
-                                 AND NOT EXISTS (SELECT 1 FROM task_reports tr WHERE tr.task_id = t.task_id)", [$did]);
-$c = driverMonthCounts($conn, date('Y-m'))[$did] ?? ['tasks' => 0, 'weekend' => 0, 'welfare' => 0];
+$did = (int)$me['user_id'];
+$dt = new DriverTaskController();
+$next = array_slice($dt->listAssignedTasks($did, 'upcoming'), 0, 6);
+$toReport = count($dt->listAssignedTasks($did, 'report'));
+$c = $dt->monthCounts($did);
 adminPageStart('Dashboard');
 echo dashHeader([['My Task', 'tasks.php', 'route', true], ['Schedule Change', 'schedule_change.php', 'calendar-xmark', false]], 'Driver · ' . date('l, j F Y'));
 if ($me['licence_expiry'] && $me['licence_expiry'] < date('Y-m-d', strtotime('+30 days'))) {
@@ -29,8 +28,8 @@ echo '<section class="dash-card mb-6"><h2><span><i class="fas fa-route"></i>My n
 if (!$next) { echo dashEmpty('No task is assigned.', 'mug-hot'); }
 foreach ($next as $t) {
     echo '<a class="dash-row" href="task.php?id=' . (int)$t['task_id'] . '"><span><strong>' . h(taskTypeLabel($t)) . '</strong>' . ($t['destination'] ? ' &rarr; ' . h($t['destination']) : '')
-       . '<span class="block text-xs text-base-content/65">' . h(fmtPeriod($t['start_dt'], $t['end_dt'])) . '</span></span><span>' . plate($t['plate_number']) . '</span></a>';
+       . '<span class="block text-xs text-base-content/65">' . h(fmtPeriod($t['start_datetime'], $t['end_datetime'])) . '</span></span><span>' . plate($t['plate_no']) . '</span></a>';
 }
 echo '</section><h2 class="mb-4 text-xl font-bold tracking-tight">My own requests</h2>';
-dashMyRequestsSection($conn, (int)$me['user_id']);
+dashMyRequestsSection($me);
 adminPageEnd();

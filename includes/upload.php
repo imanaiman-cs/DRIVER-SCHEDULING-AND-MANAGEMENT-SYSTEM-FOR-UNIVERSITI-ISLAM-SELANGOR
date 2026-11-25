@@ -425,14 +425,6 @@ function deleteStoredDocument(?string $path): void
 }
 
 /**
- * URL of the access-checked download endpoint for a document.
- */
-function documentDownloadUrl(int $doc_id): string
-{
-    return SITE_URL . '/ajax/get_document.php?id=' . $doc_id;
-}
-
-/**
  * Human-readable file size, e.g. '1.2 MB', '340 KB', '512 B'.
  */
 function formatFileSize(int $bytes): string
@@ -444,58 +436,4 @@ function formatFileSize(int $bytes): string
         return round($bytes / 1024) . ' KB';
     }
     return number_format($bytes / 1048576, 1, '.', '') . ' MB';
-}
-
-/**
- * Loads the supporting documents of several requests with ONE query.
- *
- * @param int[] $request_ids
- * @return array<int,array<int,array<string,mixed>>> [request_id => [doc, ...]]
- */
-function getRequestDocuments(mysqli $conn, array $request_ids): array
-{
-    $ids = [];
-    foreach ($request_ids as $id) {
-        $id = (int)$id;
-        if ($id > 0) {
-            $ids[$id] = $id;
-        }
-    }
-    $ids = array_values($ids);
-    if (!$ids) {
-        return [];
-    }
-
-    $labels       = documentTypes();
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $conn->prepare(
-        "SELECT doc_id, request_id, doc_type, original_name, mime_type, file_size, uploaded_at
-         FROM request_documents
-         WHERE request_id IN ($placeholders)
-         ORDER BY request_id, uploaded_at, doc_id"
-    );
-    if (!$stmt) {
-        return [];
-    }
-    $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
-    $out = [];
-    while ($row = $res->fetch_assoc()) {
-        $type = (string)$row['doc_type'];
-        $out[(int)$row['request_id']][] = [
-            'doc_id'         => (int)$row['doc_id'],
-            'doc_type'       => $type,
-            'doc_type_label' => $labels[$type] ?? $labels['other'],
-            'original_name'  => $row['original_name'],
-            'mime_type'      => $row['mime_type'],
-            'file_size'      => (int)$row['file_size'],
-            'uploaded_at'    => $row['uploaded_at'],
-            'url'            => documentDownloadUrl((int)$row['doc_id']),
-        ];
-    }
-    $stmt->close();
-
-    return $out;
 }

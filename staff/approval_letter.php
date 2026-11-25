@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// staff/approval_letter.php  -  UC017 A3 Print Approval Letter
+// staff/approval_letter.php  -  View Layer: RequestUI (SDD_CLASS_104) printApprovalLetter() - UC017 A3
 // An approved Pay and Claim or Personal request: request details, approval dates and the names of the Head of
 // Department and Head of Admin who approved it; for a Personal request also the distance and the charge.
 // Print it, or choose "Save as PDF" in the print dialog to download it as a PDF.
@@ -10,29 +10,30 @@ requireLogin();
 
 $me = currentUser();
 $id = (int)($_GET['id'] ?? 0);
-$r = $id ? loadRequest($conn, $id) : null;
-if (!$r || !requestVisibleTo($conn, $r, $me) || !hasApprovalLetter($r)) {
+$rc = new RequestController();
+$r = $id ? $rc->getApprovalLetter($id, $me) : null;
+if (!$r) {
     setFlash('danger', 'An approval letter is only available for an approved Pay and Claim or Personal request.');
     header('Location: request.php?id=' . $id);
     exit();
 }
 $rows = [
-    'Reference' => 'DSMS/' . date('Y', strtotime($r['created_at'])) . '/' . str_pad((string)$id, 5, '0', STR_PAD_LEFT),
-    'Requester' => $r['requester_name'] . ' (' . $r['requester_staff_no'] . ')',
+    'Reference' => 'DSMS/' . date('Y', strtotime($r['date_submitted'])) . '/' . str_pad((string)$id, 5, '0', STR_PAD_LEFT),
+    'Requester' => $r['requester_name'] . ' (' . $r['requester_staff_id'] . ')',
     'Department' => $r['department_name'] ?? '-',
-    'Vehicle' => $r['vehicle_type'] . ', ' . driverOptionLabel($r['driver_option']),
-    'Purpose type' => purposeTypeLabel($r['purpose_type']),
+    'Vehicle' => $r['vehicle_type'] . ', ' . $r['driver_option'],
+    'Purpose type' => $r['purpose_type'],
     'Purpose' => $r['purpose'],
     'Destination' => $r['destination'] . ', ' . $r['address'],
-    'Departure' => fmtDT($r['depart_at']),
-    'Return' => fmtDT($r['return_at']),
-    'Passengers' => (string)$r['passengers'],
+    'Departure' => fmtDT($r['depart_datetime']),
+    'Return' => fmtDT($r['return_datetime']),
+    'Passengers' => (string)$r['no_of_passengers'],
 ];
-if ($r['purpose_type'] === 'personal') {
+if ($r['purpose_type'] === 'Personal') {
     $rows['Round-trip distance'] = number_format((float)$r['distance_km'], 1) . ' km';
-    $rows['Charge'] = money((float)$r['charge']) . ' (RM ' . number_format(getSettingFloat($conn, 'CHARGE_PER_KM'), 2) . ' per km)';
+    $rows['Charge'] = money((float)$r['charge']) . ' (RM ' . number_format($rc->getChargePerKm(), 2) . ' per km)';
 }
-$vehicles = $r['driver_option'] === 'pay_claim' ? [] : requestVehicles($conn, $id);
+$vehicles = $r['driver_option'] === 'Pay and Claim' ? [] : $r['reservations'];
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -64,21 +65,21 @@ $vehicles = $r['driver_option'] === 'pay_claim' ? [] : requestVehicles($conn, $i
     <img src="<?= SITE_URL ?>/assets/images/uis-logo.png" alt="UIS">
     <div><h1>UNIVERSITI ISLAM SELANGOR</h1><p>Vehicle Section, Registrar Office &middot; Driver Scheduling and Management System</p></div>
   </header>
-  <p style="text-align:right;font-size:13px;margin-top:14px">Date: <?= h(date('d F Y', strtotime($r['hoa_approved_at'] ?? 'now'))) ?></p>
+  <p style="text-align:right;font-size:13px;margin-top:14px">Date: <?= h(date('d F Y', strtotime($r['hoa_approved_date'] ?? 'now'))) ?></p>
   <p style="font-size:14px"><?= h($r['requester_name']) ?><br><?= h($r['department_name'] ?? '') ?></p>
-  <h2>APPROVAL OF VEHICLE USE<?= $r['purpose_type'] === 'personal' ? ' (PERSONAL PURPOSE)' : ($r['driver_option'] === 'pay_claim' ? ' (PAY AND CLAIM)' : '') ?></h2>
-  <p style="font-size:14px">The vehicle request below has been approved.<?= $r['driver_option'] === 'pay_claim' ? ' You may use your own car and claim the mileage from the Bursary.' : '' ?><?= $r['purpose_type'] === 'personal' ? ' The charge is paid to the Bursary.' : '' ?></p>
+  <h2>APPROVAL OF VEHICLE USE<?= $r['purpose_type'] === 'Personal' ? ' (PERSONAL PURPOSE)' : ($r['driver_option'] === 'Pay and Claim' ? ' (PAY AND CLAIM)' : '') ?></h2>
+  <p style="font-size:14px">The vehicle request below has been approved.<?= $r['driver_option'] === 'Pay and Claim' ? ' You may use your own car and claim the mileage from the Bursary.' : '' ?><?= $r['purpose_type'] === 'Personal' ? ' The charge is paid to the Bursary.' : '' ?></p>
   <table>
     <?php foreach ($rows as $k => $val): ?><tr><td><?= h($k) ?></td><td><?= h($val) ?></td></tr><?php endforeach; ?>
-    <?php if ($vehicles): ?><tr><td>Vehicle assigned</td><td><?= h(implode(', ', array_map(fn($v) => $v['plate_number'] . ' ' . $v['brand'] . ' ' . $v['model'], array_filter($vehicles, fn($v) => $v['vehicle_id'])))) ?></td></tr><?php endif; ?>
+    <?php if ($vehicles): ?><tr><td>Vehicle assigned</td><td><?= h(implode(', ', array_map(fn($v) => $v['plate_no'] . ' ' . $v['brand'] . ' ' . $v['model'], array_filter($vehicles, fn($v) => $v['vehicle_id'])))) ?></td></tr><?php endif; ?>
   </table>
   <div class="sign">
-    <?php if ($r['purpose_type'] !== 'personal'): ?>
-    <div><strong>Approved by the Head of Department</strong><br><?= h($r['hod_approved_name'] ?? '-') ?><br><?= h(fmtDT($r['hod_approved_at'])) ?></div>
+    <?php if ($r['purpose_type'] !== 'Personal'): ?>
+    <div><strong>Approved by the Head of Department</strong><br><?= h($r['hod_name'] ?? '-') ?><br><?= h(fmtDT($r['hod_approved_date'])) ?></div>
     <?php else: ?>
-    <div><strong>Charge confirmed by the Administrative Assistant</strong><br><?= h(fmtDT($r['charge_confirmed_at'] ?? $r['assigned_at'])) ?></div>
+    <div><strong>Charge confirmed by the Administrative Assistant</strong><br><?= h(fmtDT($r['confirmed_at'] ?? null)) ?></div>
     <?php endif; ?>
-    <div><strong>Approved by the Head of Admin</strong><br><?= h($r['hoa_approved_name'] ?? '-') ?><br><?= h(fmtDT($r['hoa_approved_at'])) ?></div>
+    <div><strong>Approved by the Head of Admin</strong><br><?= h($r['hoa_name'] ?? '-') ?><br><?= h(fmtDT($r['hoa_approved_date'])) ?></div>
   </div>
   <p class="note">This letter is generated by the system and does not need a signature. The claim payment and the rental payment are handled by the Bursary outside the system.</p>
 </div>

@@ -1,6 +1,7 @@
 <?php
 // ============================================================
-// register.php  -  UC013 Register Account (includes UC014 Send Verification Email)
+// register.php  -  View Layer: AccountUI (SDD_CLASS_101) displayRegisterForm()
+//   UC013 Register Account (includes UC014 Send Verification Email) through AccountController
 //   1. staff ID + UIS email -> Request Code (not registered yet, UIS email only)
 //   2. verification code -> Submit (Resend Code when it expired or was not received)
 //   3. name, phone, department, role (Staff / Head of Department), password -> Register
@@ -11,62 +12,41 @@ require_once 'includes/auth_layout.php';
 
 if (isLoggedIn()) { header('Location: ' . roleHomeUrl()); exit(); }
 
-$reg = $_SESSION['reg'] ?? null;
+$ac = new AccountController();
 $error = null; $info = null; $errors = [];
-$step = !$reg ? 0 : (empty($reg['verified']) ? 1 : 2);
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'Your page expired. Please try again.';
     } else {
         $act = $_POST['action'] ?? '';
-        if ($act === 'restart') {
-            unset($_SESSION['reg']);
-            header('Location: register.php');
-            exit();
-        }
-        if ($act === 'request_code' || $act === 'resend') {
-            $staffNo = $act === 'resend' ? (string)$reg['staff_no'] : strtoupper(trim((string)($_POST['staff_no'] ?? '')));
-            $email   = $act === 'resend' ? (string)$reg['email'] : strtolower(trim((string)($_POST['email'] ?? '')));
-            if ($p = registerStartProblem($conn, $staffNo, $email)) {
-                $error = $p;
-            } else {
-                $res = issueVerificationCode($conn, 'register', $staffNo, $email);
-                if ($res['ok']) {
-                    $_SESSION['reg'] = ['staff_no' => $staffNo, 'email' => $email, 'verified' => false];
-                    $_SESSION['reg_info'] = $res['message'] . (isset($res['dev_code']) ? ' (Test mode, email is switched off: your code is ' . $res['dev_code'] . '.)' : '');
-                    header('Location: register.php');
-                    exit();
-                }
-                $error = $res['message'];
-            }
-        } elseif ($act === 'verify' && $reg) {
-            $res = checkVerificationCode($conn, 'register', $reg['email'], (string)($_POST['code'] ?? ''));
+        $v = $_SESSION['verify'] ?? null;
+        if ($act === 'restart') { $ac->clearVerification(); header('Location: register.php'); exit(); }
+        if ($act === 'request_code' || ($act === 'resend' && $v)) {
+            $res = $ac->requestCode($act === 'resend' ? $v['staff_id'] : (string)($_POST['staff_id'] ?? ''), $act === 'resend' ? $v['email'] : (string)($_POST['email'] ?? ''), 'Register');
             if ($res['ok']) {
-                $_SESSION['reg']['verified'] = true;
-                header('Location: register.php');
-                exit();
+                $_SESSION['reg_info'] = $res['message'] . (isset($res['dev_code']) ? ' (Test mode, email is switched off: your code is ' . $res['dev_code'] . '.)' : '');
+                header('Location: register.php'); exit();
             }
             $error = $res['message'];
-        } elseif ($act === 'register' && $reg && !empty($reg['verified'])) {
-            $res = registerAccount($conn, $reg['staff_no'], $reg['email'], $_POST);
-            if ($res['ok']) {
-                unset($_SESSION['reg']);
-                $_SESSION['login_success'] = $res['message'];
-                header('Location: login.php');
-                exit();
-            }
+        } elseif ($act === 'verify') {
+            $res = $ac->verifyCode((string)($_POST['code'] ?? ''));
+            if ($res['ok']) { header('Location: register.php'); exit(); }
+            $error = $res['message'];
+        } elseif ($act === 'register') {
+            $res = $ac->register($_POST);
+            if ($res['ok']) { $_SESSION['login_success'] = $res['message']; header('Location: login.php'); exit(); }
             $error = $res['message'];
             $errors = $res['errors'] ?? [];
         }
     }
 }
 if (!empty($_SESSION['reg_info'])) { $info = $_SESSION['reg_info']; unset($_SESSION['reg_info']); }
-$reg = $_SESSION['reg'] ?? null;
-$step = !$reg ? 0 : (empty($reg['verified']) ? 1 : 2);
-$departments = departmentsList($conn);
+$v = (($_SESSION['verify']['purpose'] ?? '') === 'Register') ? $_SESSION['verify'] : null;
+$step = !$v ? 0 : (empty($v['verified']) ? 1 : 2);
+$reg = $v;
+$departments = $ac->listDepartments();
 $csrf = '<input type="hidden" name="csrf_token" value="' . h(csrfToken()) . '">';
-$v = fn($k, $d = '') => h($_POST[$k] ?? $d);
+$val = fn($k, $d = '') => h($_POST[$k] ?? $d);
 
 authPageStart('Register Account', 'First time using the system? Register with your UIS staff ID and UIS email. Drivers do not register: the Vehicle Section creates their accounts.');
 echo authSteps(['Verify email', 'Enter code', 'Your details'], $step);
@@ -77,17 +57,17 @@ echo authAlert($error, $info);
         <?= $csrf ?><input type="hidden" name="action" value="request_code">
         <div>
             <label class="mb-1 block text-sm font-medium" for="staff_no">Staff ID</label>
-            <input class="input w-full" id="staff_no" name="staff_no" maxlength="30" required value="<?= $v('staff_no') ?>" autocomplete="username" autofocus>
+            <input class="input w-full" id="staff_no" name="staff_id" maxlength="20" required value="<?= $val('staff_id') ?>" autocomplete="username" autofocus>
         </div>
         <div>
             <label class="mb-1 block text-sm font-medium" for="email">UIS email</label>
-            <input type="email" class="input w-full" id="email" name="email" maxlength="150" required value="<?= $v('email') ?>" placeholder="name@uis.edu.my" autocomplete="email">
+            <input type="email" class="input w-full" id="email" name="email" maxlength="150" required value="<?= $val('email') ?>" placeholder="name@uis.edu.my" autocomplete="email">
             <div class="mt-1 text-xs text-base-content/60">Only UIS email is accepted. The verification code is sent to this email.</div>
         </div>
         <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i>Request Code</button>
     </form>
 <?php elseif ($step === 1): ?>
-    <p class="mb-3 text-sm">Staff ID <strong><?= h($reg['staff_no']) ?></strong>, email <strong><?= h($reg['email']) ?></strong>.</p>
+    <p class="mb-3 text-sm">Staff ID <strong><?= h($reg['staff_id']) ?></strong>, email <strong><?= h($reg['email']) ?></strong>.</p>
     <form method="post" class="flex flex-col gap-4" novalidate>
         <?= $csrf ?><input type="hidden" name="action" value="verify">
         <div>
@@ -103,22 +83,22 @@ echo authAlert($error, $info);
 <?php else: ?>
     <form method="post" class="grid grid-cols-2 gap-4" novalidate>
         <?= $csrf ?><input type="hidden" name="action" value="register">
-        <div class="col-span-2 text-sm">Staff ID <strong><?= h($reg['staff_no']) ?></strong> &middot; <?= h($reg['email']) ?> <span class="badge badge-success badge-sm">verified</span></div>
+        <div class="col-span-2 text-sm">Staff ID <strong><?= h($reg['staff_id']) ?></strong> &middot; <?= h($reg['email']) ?> <span class="badge badge-success badge-sm">verified</span></div>
         <div class="col-span-2">
             <label class="mb-1 block text-sm font-medium" for="full_name">Full name</label>
-            <input class="input w-full<?= errClass($errors, 'full_name') ?>" id="full_name" name="full_name" maxlength="120" required value="<?= $v('full_name') ?>" autocomplete="name">
-            <?= fieldError($errors, 'full_name') ?>
+            <input class="input w-full<?= errClass($errors, 'name') ?>" id="full_name" name="name" maxlength="150" required value="<?= $val('name') ?>" autocomplete="name">
+            <?= fieldError($errors, 'name') ?>
         </div>
         <div class="col-span-2 sm:col-span-1">
             <label class="mb-1 block text-sm font-medium" for="phone">Phone number</label>
-            <input type="tel" class="input w-full<?= errClass($errors, 'phone') ?>" id="phone" name="phone" maxlength="20" required value="<?= $v('phone') ?>" placeholder="012-345 6789" autocomplete="tel">
-            <?= fieldError($errors, 'phone') ?>
+            <input type="tel" class="input w-full<?= errClass($errors, 'phone_no') ?>" id="phone" name="phone_no" maxlength="20" required value="<?= $val('phone_no') ?>" placeholder="012-345 6789" autocomplete="tel">
+            <?= fieldError($errors, 'phone_no') ?>
         </div>
         <div class="col-span-2 sm:col-span-1">
             <label class="mb-1 block text-sm font-medium" for="role">Role</label>
             <select class="select w-full<?= errClass($errors, 'role', 'select') ?>" id="role" name="role">
-                <option value="staff">Staff</option>
-                <option value="supervisor" <?= ($_POST['role'] ?? '') === 'supervisor' ? 'selected' : '' ?>>Head of Department</option>
+                <option>Staff</option>
+                <option <?= ($_POST['role'] ?? '') === 'Head of Department' ? 'selected' : '' ?>>Head of Department</option>
             </select>
             <?= fieldError($errors, 'role') ?>
         </div>

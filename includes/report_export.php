@@ -1,87 +1,10 @@
 <?php
 // ============================================================
-// includes/report_export.php  -  Reports (SRS UC031 Generate, UC032 Export)
-//   reportTypes()            the four monthly report types
-//   buildReport()            numbers for one type and month (prepared statements)
+// includes/report_export.php  -  the PDF and Excel writers used by ReportController::exportReport (UC012)
 //   exportReportPdf()        small PDF 1.4 writer (A4, Helvetica, wrapped cells, page breaks, xref)
 //   exportReportXlsx()       .xlsx writer on ZipArchive (HTML-table .xls when ZipArchive is missing)
 // No external libraries.
 // ============================================================
-
-function reportTypes(): array
-{
-    return [
-        'workload'    => 'Driver Workload',
-        'replacement' => 'Driver Replacement',
-        'vehicle'     => 'Vehicle Usage',
-    ];
-}
-
-/**
- * The table of one report (UC011).
- *   Driver Workload     request tasks, internal tasks, welfare duties and weekend tasks of each driver
- *   Driver Replacement  each replacement: date, task, previous driver, new driver, reason
- *   Vehicle Usage       trips and total mileage of each vehicle (from the task reports)
- * @return array{title:string, month:string, headers:string[], rows:array<int,array>, totals:array, widths:int[], note:string}
- */
-function buildReport(mysqli $conn, string $type, string $month): array
-{
-    $types = reportTypes();
-    $from = $month . '-01 00:00:00';
-    $to   = date('Y-m-d 00:00:00', strtotime($month . '-01 +1 month'));
-    $rep  = ['title' => $types[$type] ?? $type, 'month' => $month, 'headers' => [], 'rows' => [], 'totals' => [], 'widths' => [], 'note' => ''];
-
-    if ($type === 'workload') {
-        $counts = driverMonthCounts($conn, $month);
-        $rep['headers'] = ['Driver', 'Staff ID', 'Request tasks', 'Internal tasks', 'Welfare duties', 'Total tasks', 'Weekend tasks'];
-        $rep['widths']  = [34, 14, 13, 13, 13, 12, 13];
-        $rep['note']    = 'Tasks assigned, approved or completed in the month (an outbound and a return trip are two request tasks). Weekend tasks are tasks that start on a Saturday or Sunday.';
-        foreach (dbAll($conn, 'SELECT d.driver_id, u.full_name, u.staff_no, u.status FROM drivers d JOIN users u ON u.user_id = d.user_id ORDER BY u.full_name') as $d) {
-            $c = $counts[(int)$d['driver_id']] ?? ['request' => 0, 'internal' => 0, 'welfare' => 0, 'weekend' => 0, 'tasks' => 0];
-            if ($d['status'] !== 'active' && !$c['tasks']) { continue; }
-            $rep['rows'][] = [$d['full_name'], $d['staff_no'], $c['request'], $c['internal'], $c['welfare'], $c['tasks'], $c['weekend']];
-        }
-    } elseif ($type === 'replacement') {
-        $rep['headers'] = ['Date', 'Task', 'Previous driver', 'New driver', 'Reason', 'Status'];
-        $rep['widths']  = [14, 26, 18, 18, 30, 11];
-        $rep['note']    = 'Every driver replacement recorded in the month, with the reason and whether the Head of Admin approved it.';
-        foreach (dbAll($conn, "SELECT rp.*, t.task_source, t.task_type, t.trip_type, t.request_id, t.start_dt, pu.full_name AS prev_name, nu.full_name AS new_name
-                                 FROM driver_replacements rp JOIN tasks t ON t.task_id = rp.task_id
-                                 LEFT JOIN drivers pd ON pd.driver_id = rp.previous_driver_id LEFT JOIN users pu ON pu.user_id = pd.user_id
-                                 JOIN drivers nd ON nd.driver_id = rp.new_driver_id JOIN users nu ON nu.user_id = nd.user_id
-                                WHERE rp.date_time >= ? AND rp.date_time < ? ORDER BY rp.date_time", [$from, $to]) as $r) {
-            $rep['rows'][] = [date('d M Y', strtotime($r['date_time'])), taskTypeLabel($r) . ($r['request_id'] ? ' #' . $r['request_id'] : '') . ', ' . date('d M H:i', strtotime($r['start_dt'])),
-                              (string)($r['prev_name'] ?? '-'), $r['new_name'], $r['reason'], ucfirst($r['status'])];
-        }
-    } else {
-        $rep['headers'] = ['Vehicle', 'Type', 'Trips', 'Total mileage (km)', 'Current mileage (km)', 'Status'];
-        $rep['widths']  = [32, 10, 10, 18, 18, 16];
-        $rep['note']    = 'Trips are the completed tasks (request trips, internal tasks and welfare duties) with a task report in the month; the mileage is the end mileage minus the start mileage of those reports.';
-        $rows = dbAll($conn, "SELECT v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.status, v.current_mileage,
-                                     COUNT(tr.report_id) AS trips, COALESCE(SUM(tr.end_mileage - tr.start_mileage), 0) AS km
-                                FROM vehicles v LEFT JOIN tasks t ON t.vehicle_id = v.vehicle_id
-                                LEFT JOIN task_reports tr ON tr.task_id = t.task_id AND tr.actual_depart >= ? AND tr.actual_depart < ?
-                               GROUP BY v.vehicle_id, v.plate_number, v.vehicle_type, v.brand, v.model, v.status, v.current_mileage ORDER BY v.vehicle_type, v.plate_number", [$from, $to]);
-        foreach ($rows as $r) {
-            if ($r['status'] === 'inactive' && !$r['trips']) { continue; }
-            $rep['rows'][] = [trim($r['plate_number'] . ' ' . $r['brand'] . ' ' . $r['model']), $r['vehicle_type'], (int)$r['trips'], (int)$r['km'], (int)$r['current_mileage'], vehicleStatusLabel($r['status'])];
-        }
-    }
-
-    // totals: numbers are summed; the first column says "Total"
-    $n = count($rep['headers']);
-    $tot = array_fill(0, $n, '');
-    $tot[0] = 'Total';
-    for ($c = 1; $c < $n; $c++) {
-        $isNum = $rep['rows'] ? true : false;
-        $sum = 0;
-        foreach ($rep['rows'] as $row) { if (!is_int($row[$c]) && !is_float($row[$c])) { $isNum = false; break; } $sum += $row[$c]; }
-        if ($isNum) { $tot[$c] = is_float($sum) ? round($sum, 2) : $sum; }
-    }
-    if ($type === 'vehicle') { $tot[4] = ''; }
-    $rep['totals'] = $tot;
-    return $rep;
-}
 
 function reportFileName(string $type, string $month, string $ext): string
 {

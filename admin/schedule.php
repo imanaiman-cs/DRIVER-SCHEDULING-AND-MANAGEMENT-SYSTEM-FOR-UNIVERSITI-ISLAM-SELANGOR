@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// admin/schedule.php  -  UC010 View Driver Schedule (replaces the monthly driver schedule spreadsheet)
+// admin/schedule.php  -  View Layer: ScheduleUI (SDD_CLASS_109) displayCalendar() - UC010 View Driver Schedule (replaces the monthly driver schedule spreadsheet)
 //   Week (default): every driver for the current week - request tasks, internal tasks and welfare duty with the vehicle
 //   A1 Month: the whole month      Filter by date, driver or vehicle      Select a task -> task details
 //   Needs replacement: approved tasks whose driver has an approved schedule change or is inactive (UC008)
@@ -17,19 +17,16 @@ $fVehicle = (int)($_GET['vehicle_id'] ?? 0);
 if ($view === 'month') { $from = date('Y-m-01', strtotime($date)); $to = date('Y-m-d', strtotime("$from +1 month")); }
 else { $from = weekMonday($date); $to = date('Y-m-d', strtotime("$from +7 days")); }
 
-$w = ["t.status IN ('waiting','driver_assigned','approved','completed')", 't.start_dt < ?', 't.end_dt > ?'];
-$p = [$to . ' 00:00:00', $from . ' 00:00:00'];
-if ($fDriver) { $w[] = 't.driver_id = ?'; $p[] = $fDriver; }
-if ($fVehicle) { $w[] = 't.vehicle_id = ?'; $p[] = $fVehicle; }
-$tasks = dbAll($conn, 'SELECT t.*, v.plate_number, u.full_name AS driver_name, r.destination FROM tasks t LEFT JOIN vehicles v ON v.vehicle_id = t.vehicle_id
-                       LEFT JOIN drivers d ON d.driver_id = t.driver_id LEFT JOIN users u ON u.user_id = d.user_id LEFT JOIN requests r ON r.request_id = t.request_id
-                       WHERE ' . implode(' AND ', $w) . ' ORDER BY t.start_dt', $p);
-$replace = tasksNeedingReplacement($conn);
+$report = new ReportController();
+$tasks = $report->getSchedule($from, $to, ['driver_id' => $fDriver, 'vehicle_id' => $fVehicle]);
+$replace = (new AssignmentController())->listWaiting('Replacement');
+$drivers = $report->driverList();
+$vehicles = (new VehicleController())->listVehicles();
 $qs = fn(array $o = []) => '?' . http_build_query(array_filter(array_merge(['view' => $view, 'date' => $date, 'driver_id' => $fDriver ?: '', 'vehicle_id' => $fVehicle ?: ''], $o), fn($x) => $x !== '' && $x !== null));
-$colour = fn(array $t) => match ($t['task_source']) { 'welfare' => 'border-warning bg-warning/10', 'internal' => 'border-info bg-info/10', default => 'border-primary bg-primary/10' };
+$colour = fn(array $t) => match ($t['task_source']) { 'Welfare Duty' => 'border-warning bg-warning/10', 'Internal' => 'border-info bg-info/10', default => 'border-primary bg-primary/10' };
 $chip = function (array $t) use ($colour) {
-    return '<a href="task.php?id=' . (int)$t['task_id'] . '" class="mb-1 block rounded border-s-4 px-1.5 py-1 text-xs leading-tight hover:brightness-95 ' . $colour($t) . ($t['status'] === 'driver_assigned' || $t['status'] === 'waiting' ? ' border-dashed opacity-80' : '') . '">'
-         . '<span class="font-semibold">' . ($t['task_source'] === 'welfare' ? '24 h' : h(date('H:i', strtotime($t['start_dt'])))) . '</span> ' . h(taskTypeLabel($t)) . '<br>' . h($t['plate_number'] ?? '') . ($t['destination'] ? ' &middot; ' . h(mb_strimwidth($t['destination'], 0, 22, '…')) : '') . '</a>';
+    return '<a href="task.php?id=' . (int)$t['task_id'] . '" class="mb-1 block rounded border-s-4 px-1.5 py-1 text-xs leading-tight hover:brightness-95 ' . $colour($t) . ($t['status'] === 'Driver Assigned' || $t['status'] === 'Waiting for Driver' ? ' border-dashed opacity-80' : '') . '">'
+         . '<span class="font-semibold">' . ($t['task_source'] === 'Welfare Duty' ? '24 h' : h(date('H:i', strtotime($t['start_datetime'])))) . '</span> ' . h(taskTypeLabel($t)) . '<br>' . h($t['plate_no'] ?? '') . ($t['destination'] ? ' &middot; ' . h(mb_strimwidth($t['destination'], 0, 22, '…')) : '') . '</a>';
 };
 
 adminPageStart('Driver Schedule');
@@ -41,7 +38,7 @@ if ($view === 'replace'):
 <p class="mb-3 text-sm text-base-content/65">The driver of these approved tasks has an approved schedule change on that date, asked to be removed, or is no longer active. Replace the driver; the Head of Admin approves the replacement.</p>
 <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto"><table class="table"><thead><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Why</th><th></th></tr></thead><tbody>
 <?php foreach ($replace as $t): ?>
-<tr><?= taskRowCells($t) ?><td><?= h($t['driver_name']) ?></td><td class="text-sm"><?= $t['driver_status'] !== 'active' ? 'The driver account is inactive.' : 'Schedule change: ' . h($t['change_reason']) ?></td>
+<tr><?= taskRowCells($t) ?><td><?= h($t['driver_name']) ?></td><td class="text-sm"><?= $t['driver_status'] !== 'Active' ? 'The driver account is inactive.' : 'Schedule change: ' . h($t['change_reason']) ?></td>
     <td class="text-end"><a class="btn btn-sm btn-primary" href="replace_driver.php?task=<?= (int)$t['task_id'] ?>">Replace Driver</a></td></tr>
 <?php endforeach; ?>
 <?php if (!$replace): ?><?= emptyRow(6, 'No task needs a new driver.') ?><?php endif; ?>
@@ -53,9 +50,9 @@ if ($view === 'replace'):
     <div><label class="mb-1 block text-xs font-medium" for="date">Date</label><input type="date" class="input input-sm" id="date" name="date" value="<?= h($date) ?>"></div>
     <a class="btn btn-sm btn-outline" href="<?= h($qs(['date' => date('Y-m-d', strtotime($view === 'month' ? "$from +1 month" : "$from +7 days"))])) ?>" aria-label="Next"><i class="fas fa-chevron-right"></i></a>
     <div><label class="mb-1 block text-xs font-medium" for="driver_id">Driver</label><select class="select select-sm" id="driver_id" name="driver_id"><option value="">All drivers</option>
-        <?php foreach (allDrivers($conn) as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDriver === (int)$d['driver_id'] ? 'selected' : '' ?>><?= h($d['name']) ?></option><?php endforeach; ?></select></div>
+        <?php foreach ($drivers as $d): ?><option value="<?= (int)$d['driver_id'] ?>" <?= $fDriver === (int)$d['driver_id'] ? 'selected' : '' ?>><?= h($d['name']) ?></option><?php endforeach; ?></select></div>
     <div><label class="mb-1 block text-xs font-medium" for="vehicle_id">Vehicle</label><select class="select select-sm" id="vehicle_id" name="vehicle_id"><option value="">All vehicles</option>
-        <?php foreach (dbAll($conn, 'SELECT vehicle_id, plate_number, vehicle_type FROM vehicles ORDER BY plate_number') as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= $fVehicle === (int)$v['vehicle_id'] ? 'selected' : '' ?>><?= h($v['plate_number'] . ' (' . $v['vehicle_type'] . ')') ?></option><?php endforeach; ?></select></div>
+        <?php foreach ($vehicles as $v): ?><option value="<?= (int)$v['vehicle_id'] ?>" <?= $fVehicle === (int)$v['vehicle_id'] ? 'selected' : '' ?>><?= h($v['plate_no'] . ' (' . $v['type'] . ')') ?></option><?php endforeach; ?></select></div>
     <button class="btn btn-sm btn-primary" type="submit"><i class="fas fa-filter"></i>Filter</button><a class="btn btn-sm btn-ghost" href="?view=<?= h($view) ?>">Today</a>
 </form>
 <p class="mb-3 text-sm font-semibold"><?= h(date('d M Y', strtotime($from))) ?> - <?= h(date('d M Y', strtotime("$to -1 day"))) ?>
@@ -63,8 +60,8 @@ if ($view === 'replace'):
 <?php if (!$tasks): ?><div class="dash-empty"><i class="fas fa-inbox"></i>No record is found.</div><?php endif; ?>
 <?php if ($tasks && $view === 'week'):
     $byDriver = [];
-    foreach ($tasks as $t) { $byDriver[$t['driver_id'] ? (int)$t['driver_id'] : 0][substr($t['start_dt'], 0, 10)][] = $t; }
-    $names = array_column(allDrivers($conn), 'name', 'driver_id');
+    foreach ($tasks as $t) { $byDriver[$t['driver_id'] ? (int)$t['driver_id'] : 0][substr($t['start_datetime'], 0, 10)][] = $t; }
+    $names = array_column($drivers, 'name', 'driver_id');
     uksort($byDriver, fn($a, $b) => strcmp($names[$a] ?? 'zzz', $names[$b] ?? 'zzz'));
 ?>
 <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto"><table class="table table-sm table-fixed min-w-[960px]">
@@ -76,7 +73,7 @@ if ($view === 'replace'):
 </tbody></table></div></div>
 <?php elseif ($tasks): ?>
 <div class="card border border-base-300 bg-base-100"><div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>Date and time</th><th>Task</th><th>Vehicle</th><th>Driver</th><th>Destination</th><th>Status</th></tr></thead><tbody>
-<?php $last = ''; foreach ($tasks as $t): $d = substr($t['start_dt'], 0, 10); if ($d !== $last): $last = $d; ?>
+<?php $last = ''; foreach ($tasks as $t): $d = substr($t['start_datetime'], 0, 10); if ($d !== $last): $last = $d; ?>
 <tr class="bg-base-200"><td colspan="6" class="font-semibold"><?= h(date('l, d M Y', strtotime($d))) ?></td></tr><?php endif; ?>
 <tr class="cursor-pointer hover:bg-base-200/60" onclick="location.href='task.php?id=<?= (int)$t['task_id'] ?>'"><?= taskRowCells($t) ?><td><?= h($t['driver_name'] ?? '-') ?></td><td><?= h($t['destination'] ?? $t['description'] ?? '') ?></td><td><?= taskStatusBadge($t['status']) ?></td></tr>
 <?php endforeach; ?>

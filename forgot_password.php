@@ -1,6 +1,7 @@
 <?php
 // ============================================================
-// forgot_password.php  -  UC015 Reset Password (includes UC014 Send Verification Email)
+// forgot_password.php  -  View Layer: AccountUI (SDD_CLASS_101) displayResetForm()
+//   UC015 Reset Password (includes UC014 Send Verification Email) through AccountController
 //   1. staff ID + UIS email of an active account -> Request Code
 //   2. verification code -> Submit (Resend Code)
 //   3. new password + confirm -> Save
@@ -10,52 +11,36 @@ require_once 'includes/auth_layout.php';
 
 if (isLoggedIn()) { header('Location: ' . roleHomeUrl()); exit(); }
 
-$rs = $_SESSION['reset'] ?? null;
+$ac = new AccountController();
 $error = null; $info = null; $errors = [];
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'Your page expired. Please try again.';
     } else {
         $act = $_POST['action'] ?? '';
-        if ($act === 'restart') { unset($_SESSION['reset']); header('Location: forgot_password.php'); exit(); }
-        if ($act === 'request_code' || ($act === 'resend' && $rs)) {
-            $staffNo = $act === 'resend' ? (string)$rs['staff_no'] : trim((string)($_POST['staff_no'] ?? ''));
-            $email   = $act === 'resend' ? (string)$rs['email'] : strtolower(trim((string)($_POST['email'] ?? '')));
-            $u = ($staffNo !== '' && $email !== '') ? accountByStaffAndEmail($conn, $staffNo, $email) : null;
-            if (!$u) {
-                $error = 'The account is not found. Check the staff ID and email.';
-            } else {
-                $res = issueVerificationCode($conn, 'reset', $u['staff_no'], $u['email'], $u['full_name']);
-                if ($res['ok']) {
-                    $_SESSION['reset'] = ['staff_no' => $u['staff_no'], 'email' => $u['email'], 'user_id' => (int)$u['user_id'], 'verified' => false];
-                    $_SESSION['reset_info'] = $res['message'] . (isset($res['dev_code']) ? ' (Test mode, email is switched off: your code is ' . $res['dev_code'] . '.)' : '');
-                    header('Location: forgot_password.php');
-                    exit();
-                }
-                $error = $res['message'];
+        $v = $_SESSION['verify'] ?? null;
+        if ($act === 'restart') { $ac->clearVerification(); header('Location: forgot_password.php'); exit(); }
+        if ($act === 'request_code' || ($act === 'resend' && $v)) {
+            $res = $ac->requestCode($act === 'resend' ? $v['staff_id'] : (string)($_POST['staff_no'] ?? ''), $act === 'resend' ? $v['email'] : (string)($_POST['email'] ?? ''), 'Reset Password');
+            if ($res['ok']) {
+                $_SESSION['reset_info'] = $res['message'] . (isset($res['dev_code']) ? ' (Test mode, email is switched off: your code is ' . $res['dev_code'] . '.)' : '');
+                header('Location: forgot_password.php'); exit();
             }
-        } elseif ($act === 'verify' && $rs) {
-            $res = checkVerificationCode($conn, 'reset', $rs['email'], (string)($_POST['code'] ?? ''));
-            if ($res['ok']) { $_SESSION['reset']['verified'] = true; header('Location: forgot_password.php'); exit(); }
             $error = $res['message'];
-        } elseif ($act === 'save' && $rs && !empty($rs['verified'])) {
-            $p1 = (string)($_POST['password'] ?? ''); $p2 = (string)($_POST['password_confirm'] ?? '');
-            if ($pp = passwordProblem($p1)) { $errors['password'] = $pp; $error = $pp; }
-            elseif ($p1 !== $p2) { $errors['password_confirm'] = 'The passwords do not match.'; $error = 'The passwords do not match.'; }
-            else {
-                setPassword($conn, (int)$rs['user_id'], $p1);
-                consumeVerificationCode($conn, 'reset', $rs['email']);
-                unset($_SESSION['reset']);
-                $_SESSION['login_success'] = 'Your password was changed. You can now sign in.';
-                header('Location: login.php');
-                exit();
-            }
+        } elseif ($act === 'verify') {
+            $res = $ac->verifyCode((string)($_POST['code'] ?? ''));
+            if ($res['ok']) { header('Location: forgot_password.php'); exit(); }
+            $error = $res['message'];
+        } elseif ($act === 'save') {
+            $res = $ac->resetPassword((string)($_POST['password'] ?? ''), (string)($_POST['password_confirm'] ?? ''));
+            if ($res['ok']) { $_SESSION['login_success'] = $res['message']; header('Location: login.php'); exit(); }
+            $error = $res['message'];
+            $errors = $res['errors'] ?? [];
         }
     }
 }
 if (!empty($_SESSION['reset_info'])) { $info = $_SESSION['reset_info']; unset($_SESSION['reset_info']); }
-$rs = $_SESSION['reset'] ?? null;
+$rs = (($_SESSION['verify']['purpose'] ?? '') === 'Reset Password') ? $_SESSION['verify'] : null;
 $step = !$rs ? 0 : (empty($rs['verified']) ? 1 : 2);
 $csrf = '<input type="hidden" name="csrf_token" value="' . h(csrfToken()) . '">';
 

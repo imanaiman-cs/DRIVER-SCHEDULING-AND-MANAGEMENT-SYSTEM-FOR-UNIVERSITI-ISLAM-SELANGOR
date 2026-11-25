@@ -2,7 +2,7 @@
 // ============================================================
 // WhatsApp through an OpenWA server (https://github.com/rmyndharis/OpenWA): POST /api/sessions/{id}/messages/send-text
 // Used for DRIVERS only, as an extra channel next to the in-system notification and the e-mail.
-// A failure never stops the workflow: it is written to whatsapp_log and the other channels still go out.
+// A failure never stops the workflow: it is written to logs/whatsapp.log and the other channels still go out.
 // ============================================================
 
 function whatsappConfig(): array
@@ -33,32 +33,26 @@ function whatsappNumber(?string $phone, string $country = '60'): ?string
     return (strlen($d) >= 9 && strlen($d) <= 15) ? $d : null;
 }
 
-function logWhatsapp(mysqli $conn, ?int $userId, ?string $number, string $message, string $status, ?string $error): void
+function logWhatsapp(?int $userId, ?string $number, string $message, string $status, ?string $error): void
 {
-    $stmt = $conn->prepare('INSERT INTO whatsapp_log (user_id, to_number, message, status, error_message) VALUES (?, ?, ?, ?, ?)');
-    if (!$stmt) { error_log('whatsapp_log insert failed: ' . $conn->error); return; }
-    $msg = mb_substr($message, 0, 1000);
-    $err = $error !== null ? mb_substr($error, 0, 500) : null;
-    $stmt->bind_param('issss', $userId, $number, $msg, $status, $err);
-    $stmt->execute();
-    $stmt->close();
+    appLog('whatsapp', strtoupper($status) . ' user=' . ($userId ?? '-') . ' to=' . ($number ?? '-') . ($error ? ' error="' . $error . '"' : ''));
 }
 
 /**
  * Sends one text message. Returns ['status' => sent|failed|skipped, 'message' => string].
  */
-function sendWhatsApp(mysqli $conn, ?int $userId, ?string $phone, string $text): array
+function sendWhatsApp(?int $userId, ?string $phone, string $text): array
 {
     $c = whatsappConfig();
     $number = whatsappNumber($phone, (string)$c['country_code']);
     if ($number === null) {
         $err = 'No valid mobile number is saved for this driver.';
-        logWhatsapp($conn, $userId, null, $text, 'skipped', $err);
+        logWhatsapp($userId, null, $text, 'skipped', $err);
         return ['status' => 'skipped', 'message' => $err];
     }
     if (!whatsappEnabled()) {
         $err = 'WhatsApp sending is switched off (see config/whatsapp.php).';
-        logWhatsapp($conn, $userId, $number, $text, 'skipped', $err);
+        logWhatsapp($userId, $number, $text, 'skipped', $err);
         return ['status' => 'skipped', 'message' => $err];
     }
     $target = preg_replace('/\D+/', '', (string)$c['redirect_to']) ?: $number;
@@ -76,10 +70,10 @@ function sendWhatsApp(mysqli $conn, ?int $userId, ?string $phone, string $text):
         if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) { $code = (int)$m[1]; }
     }
     if ($resp !== false && $code >= 200 && $code < 300) {
-        logWhatsapp($conn, $userId, $number, $text, 'sent', null);
+        logWhatsapp($userId, $number, $text, 'sent', null);
         return ['status' => 'sent', 'message' => 'sent'];
     }
     $err = $resp === false ? 'The OpenWA server could not be reached.' : 'OpenWA answered HTTP ' . $code . ': ' . mb_substr((string)$resp, 0, 200);
-    logWhatsapp($conn, $userId, $number, $text, 'failed', $err);
+    logWhatsapp($userId, $number, $text, 'failed', $err);
     return ['status' => 'failed', 'message' => $err];
 }

@@ -8,6 +8,6 @@ return [
     'db_host'  => 'localhost',
     'db_user'  => 'dsms',                 // a dedicated database user, never root
     'db_pass'  => '',
-    'db_name'  => 'uis_driver_db',
+    'db_name'  => 'dsms_db',
     'site_url' => 'https://dsms.example.my',   // the public address, no trailing slash
 ];

@@ -1,4 +1,5 @@
 <?php
+// View Layer: AccountUI (SDD_CLASS_101) - displayLogin()
 require_once 'config/database.php';
 
 $error   = '';
@@ -24,53 +25,17 @@ if (!empty($_SESSION['login_success'])) {
     unset($_SESSION['login_success']);
 }
 
-// Login is not a use case (SRS UC015 note): staff ID or UIS email + password
+// Login (AccountUI -> AccountController::login): staff ID or UIS email + password
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $generic  = 'Invalid staff ID or password. Please try again.';
-
     if (!hash_equals(csrfToken(), (string)($_POST['csrf_token'] ?? ''))) {
         $error = 'Your page expired. Please try again.';
-    } elseif ($username === '' || $password === '') {
-        $error = 'Please enter both your staff ID and password.';
     } else {
-        $user = dbOne($conn, 'SELECT * FROM users WHERE staff_no = ? OR email = ? LIMIT 1', [$username, strtolower($username)]);
-        $maxAttempts = max(1, getSettingInt($conn, 'MAX_FAILED_ATTEMPTS'));
-        $lockMinutes = max(1, getSettingInt($conn, 'LOCKOUT_MINUTES'));
-
-        if (!$user) {
-            $error = $generic;
-        } elseif (!empty($user['locked_until']) && strtotime($user['locked_until']) > time()) {
-            $left = max(1, (int)ceil((strtotime($user['locked_until']) - time()) / 60));
-            $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes. Please try again in $left minute" . ($left > 1 ? 's' : '') . '. You can also use Forgot Password.';
-        } elseif (!verifyPassword($password, $user['password'])) {
-            $uid = (int)$user['user_id'];
-            $n = (int)$user['failed_attempts'] + 1;
-            if ($n >= $maxAttempts) {
-                dbExec($conn, 'UPDATE users SET failed_attempts = 0, locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE user_id = ?', [$lockMinutes, $uid]);
-                $error = "Too many failed attempts. Login is blocked for $lockMinutes minutes.";
-            } else {
-                dbExec($conn, 'UPDATE users SET failed_attempts = ? WHERE user_id = ?', [$n, $uid]);
-                $error = $generic;
-            }
-        } elseif ($user['status'] !== 'active') {
-            $error = 'This account is not active. Please contact the Vehicle Section.';
-        } else {
-            $uid = (int)$user['user_id'];
-            dbExec($conn, 'UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = ?', [$uid]);
-            upgradeLegacyPassword($conn, $uid, $password, (string)$user['password']);
-            session_regenerate_id(true);                // new session id after authentication (prevents session fixation)
-            $_SESSION['user_id']       = $uid;
-            $_SESSION['username']      = $user['staff_no'];
-            $_SESSION['role']          = $user['role'];
-            $_SESSION['full_name']     = $user['full_name'];
-            $_SESSION['department_id'] = $user['department_id'];
-            $_SESSION['driver_id']     = ($d = dbValue($conn, 'SELECT driver_id FROM drivers WHERE user_id = ?', [$uid])) ? (int)$d : null;
-            $_SESSION['last_activity'] = time();
-            header('Location: ' . roleHomeUrl($user['role']));
+        $res = (new AccountController())->login((string)($_POST['username'] ?? ''), (string)($_POST['password'] ?? ''));
+        if ($res['ok']) {
+            header('Location: ' . roleHomeUrl($res['user']['role']));
             exit();
         }
+        $error = $res['message'];
     }
 }
 ?>

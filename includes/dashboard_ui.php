@@ -25,13 +25,14 @@ function dashKpi(string $label, $value, string $icon, string $tone, ?string $hre
 /** The steps of a request, with the current one marked. */
 function dashStepper(array $r): string
 {
-    $steps = $r['driver_option'] === 'with_driver'
-        ? ['pending' => $r['purpose_type'] === 'personal' ? 'Pending' : 'Pending', 'hod_approved' => 'Approved by HoD', 'driver_assigned' => 'Driver Assigned', 'approved' => 'Approved']
-        : ['pending' => 'Pending', 'hod_approved' => 'Approved by HoD', 'approved' => 'Approved'];
-    if ($r['purpose_type'] === 'personal') { unset($steps['hod_approved']); }
+    $steps = $r['driver_option'] === Request::WITH_DRIVER
+        ? [Request::PENDING, Request::APPROVED_BY_HOD, Request::DRIVER_ASSIGNED, Request::APPROVED]
+        : [Request::PENDING, Request::APPROVED_BY_HOD, Request::APPROVED];
+    if ($r['purpose_type'] === Request::PERSONAL) { $steps = array_values(array_diff($steps, [Request::APPROVED_BY_HOD])); }
+    $steps = array_combine($steps, $steps);
     $keys = array_keys($steps);
     $at = array_search($r['status'], $keys, true);
-    if ($at === false) { $at = $r['status'] === 'completed' ? count($keys) : -1; }
+    if ($at === false) { $at = $r['status'] === Request::COMPLETED ? count($keys) : -1; }
     $h = '<ol class="dash-steps">';
     foreach ($keys as $i => $k) {
         $cls = $i < $at ? 'done' : ($i === $at ? 'now' : '');

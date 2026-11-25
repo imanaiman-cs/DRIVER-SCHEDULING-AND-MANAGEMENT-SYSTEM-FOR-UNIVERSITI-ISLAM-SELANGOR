@@ -1,6 +1,7 @@
 <?php
 // ============================================================
-// profile.php  -  UC016 Manage Profile (every role)
+// profile.php  -  View Layer: AccountUI (SDD_CLASS_101) displayProfile()
+//   UC016 Manage Profile (every role) through AccountController
 //   UC016A View Profile    staff ID, name, UIS email, phone, address, department, role (+ licence and start date for a driver)
 //   UC016B Update Profile  name, phone number and address
 //   UC016C Change Password current password, new password, confirm
@@ -19,19 +20,20 @@ $pwErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
+    $ac = new AccountController();
     if ($act === 'profile') {
-        $res = updateProfile($conn, $uid, $_POST);
+        $res = $ac->updateProfile($uid, $_POST);
         if ($res['ok']) { redirectWithResult($res, 'profile.php'); }
         $errors = $res['errors'] ?? [];
         $editing = true;
     } elseif ($act === 'password') {
-        $res = changePassword($conn, $uid, (string)($_POST['current_password'] ?? ''), (string)($_POST['new_password'] ?? ''), (string)($_POST['confirm_password'] ?? ''));
+        $res = $ac->changePassword($uid, (string)($_POST['current_password'] ?? ''), (string)($_POST['new_password'] ?? ''), (string)($_POST['confirm_password'] ?? ''));
         if ($res['ok']) { redirectWithResult($res, 'profile.php'); }
         $pwErrors = $res['errors'] ?? ['current_password' => $res['message']];
     }
 }
 
-$me = loadUser($conn, $uid);
+$me = (new AccountController())->getProfile($uid);
 if (!$me) { header('Location: logout.php'); exit(); }
 $val = fn($k) => h($_POST[$k] ?? $me[$k] ?? '');
 
@@ -43,17 +45,17 @@ pageHeader('My Profile', 'user', 'Your account details. The staff ID, UIS email,
         <?php cardStart('Profile', 'id-card'); ?>
         <?php if (!$editing): ?>
             <dl>
-                <?= dlRow('Staff ID', h($me['staff_no'])) ?>
-                <?= dlRow('Name', h($me['full_name'])) ?>
+                <?= dlRow('Staff ID', h($me['staff_id'])) ?>
+                <?= dlRow('Name', h($me['name'])) ?>
                 <?= dlRow('UIS email', h($me['email'])) ?>
-                <?= dlRow('Phone number', h($me['phone'] ?: '-')) ?>
+                <?= dlRow('Phone number', h($me['phone_no'] ?: '-')) ?>
                 <?= dlRow('Address', nl2br(h($me['address'] ?: '-'))) ?>
                 <?= dlRow('Department', h($me['department_name'] ?? '-')) ?>
-                <?= dlRow('Role', h(roleLabel($me['role'])) . ($me['pending_role'] ? ' <span class="badge badge-warning badge-sm ms-1">Head of Department role waiting for confirmation</span>' : '')) ?>
-                <?php if ($me['role'] === 'driver'): ?>
+                <?= dlRow('Role', h($me['role']) . ($me['pending_role'] ? ' <span class="badge badge-warning badge-sm ms-1">Head of Department role waiting for confirmation</span>' : '')) ?>
+                <?php if ($me['role'] === User::DRIVER): ?>
                     <?= dlRow('Licence class', h(str_replace(',', ', ', (string)$me['licence_classes']))) ?>
                     <?= dlRow('Licence expiry date', h(fmtD($me['licence_expiry'])) . ($me['licence_expiry'] && $me['licence_expiry'] < date('Y-m-d') ? ' <span class="badge badge-error badge-sm">expired</span>' : '')) ?>
-                    <?= dlRow('Start date of service', h(fmtD($me['start_date'])) . ' <span class="text-xs text-base-content/60">(' . h(experienceYears($me['start_date'], date('Y-m-d'))) . ' years)</span>') ?>
+                    <?= dlRow('Start date of service', h(fmtD($me['start_date'])) . ' <span class="text-xs text-base-content/60">(' . h(Driver::getYearsOfExperience($me)) . ' years)</span>') ?>
                 <?php endif; ?>
             </dl>
             <div class="mt-3"><a class="btn btn-primary btn-sm" href="profile.php?edit=1"><i class="fas fa-pen"></i>Edit</a></div>
@@ -62,13 +64,13 @@ pageHeader('My Profile', 'user', 'Your account details. The staff ID, UIS email,
                 <input type="hidden" name="action" value="profile">
                 <div class="col-span-2">
                     <label class="mb-1 block text-sm font-medium" for="full_name">Name</label>
-                    <input class="input w-full<?= errClass($errors, 'full_name') ?>" id="full_name" name="full_name" maxlength="120" required value="<?= $val('full_name') ?>">
-                    <?= fieldError($errors, 'full_name') ?>
+                    <input class="input w-full<?= errClass($errors, 'name') ?>" id="full_name" name="name" maxlength="150" required value="<?= $val('name') ?>">
+                    <?= fieldError($errors, 'name') ?>
                 </div>
                 <div class="col-span-2 sm:col-span-1">
                     <label class="mb-1 block text-sm font-medium" for="phone">Phone number</label>
-                    <input type="tel" class="input w-full<?= errClass($errors, 'phone') ?>" id="phone" name="phone" maxlength="20" required value="<?= $val('phone') ?>">
-                    <?= fieldError($errors, 'phone') ?>
+                    <input type="tel" class="input w-full<?= errClass($errors, 'phone_no') ?>" id="phone" name="phone_no" maxlength="20" required value="<?= $val('phone_no') ?>">
+                    <?= fieldError($errors, 'phone_no') ?>
                 </div>
                 <div class="col-span-2">
                     <label class="mb-1 block text-sm font-medium" for="address">Address</label>
@@ -82,7 +84,7 @@ pageHeader('My Profile', 'user', 'Your account details. The staff ID, UIS email,
     </div>
     <div class="col-span-12 lg:col-span-5" id="password">
         <?php cardStart('Change Password', 'key'); ?>
-            <?php if ($me['role'] === 'driver'): ?><p class="mb-3 text-sm text-base-content/65">You may change the default password you received by email.</p><?php endif; ?>
+            <?php if ($me['role'] === User::DRIVER): ?><p class="mb-3 text-sm text-base-content/65">You may change the default password you received by email.</p><?php endif; ?>
             <form method="post" class="flex flex-col gap-3" novalidate>
                 <input type="hidden" name="action" value="password">
                 <div><label class="mb-1 block text-sm font-medium" for="current_password">Current password</label>

@@ -1,6 +1,7 @@
 <?php
 // ============================================================
-// staff/request_vehicle.php  -  UC018 Submit Vehicle Request (Staff, Head of Department, Driver, Administrative Assistant, Head of Admin)
+// staff/request_vehicle.php  -  View Layer: RequestUI (SDD_CLASS_104) displayDateTimeForm(), displayAvailability(), displayRequestForm()
+//   UC018 Submit Vehicle Request through RequestController (Staff, Head of Department, Driver, Administrative Assistant, Head of Admin)
 //   1. departure date + time and return date + time -> Check Availability
 //   2. the vehicle types (car, MPV, van, bus, lorry) with the units left for that period; type + quantity
 //      With Driver | Pay and Claim (car) | Self Drive (lorry, drivers with a GDL licence only)
@@ -14,6 +15,7 @@ require_once '../includes/ui.php';
 requireLogin();   // every role may submit a request (UC018)
 
 $me = currentUser();
+$rc = new RequestController();
 $errors = [];
 $formError = null;
 $src = $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET;
@@ -23,27 +25,26 @@ $checked = $p['depart_date'] !== '';
 $depart = $return = null;
 $periodOk = false;
 if ($checked) {
-    [$errors, $depart, $return] = checkTripPeriod($p['depart_date'], $p['depart_time'], $p['return_date'], $p['return_time']);
+    [$errors, $depart, $return] = $rc->checkPeriod($p['depart_date'], $p['depart_time'], $p['return_date'], $p['return_time']);
     $periodOk = !$errors;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$errors) {
-    $res = submitRequest($conn, $me, $_POST, $_FILES['document'] ?? null);
+    $res = $rc->submitRequest($me, $_POST, $_FILES['document'] ?? null);
     if ($res['ok']) { redirectWithResult($res, 'request.php?id=' . $res['request_id']); }
     $errors = $res['errors'] ?? [];
     $formError = $res['message'] . (isset($errors['general']) ? ' ' . $errors['general'] : '');
 }
 
-$units = $periodOk ? unitsLeftByType($conn, $depart, $return) : null;
-$urgent = $depart && $units !== null && isUrgentDeparture($conn, $depart);
-$chargePerKm = getSettingFloat($conn, 'CHARGE_PER_KM');
+$units = $periodOk ? $rc->checkAvailability($depart, $return) : null;
+$urgent = $depart && $units !== null && $rc->isUrgent($depart);
+$chargePerKm = $rc->getChargePerKm();
 $v = fn($k, $d = '') => h($_POST[$k] ?? $d);
 $selType = (string)($_POST['vehicle_type'] ?? '');
-$approver = approverFor($conn, $me);
-$approverName = $approver ? (loadUser($conn, $approver)['full_name'] ?? '') : '';
+$approverName = $rc->approverForUser($me)['name'] ?? '';
 $typeIcons = ['Car' => 'car', 'MPV' => 'car-side', 'Van' => 'van-shuttle', 'Bus' => 'bus', 'Lorry' => 'truck'];
 $options = [];
-foreach (VEHICLE_TYPES as $t) { $options[$t] = driverOptionsFor($me, $t); }
+foreach (Vehicle::TYPES as $t) { $options[$t] = $rc->driverOptionsFor($me, $t); }
 
 adminPageStart('New Request');
 pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, select a vehicle type from the vehicles still available, then fill in the trip details.');
@@ -73,9 +74,9 @@ pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, s
     <?php foreach ($p as $k => $val): ?><input type="hidden" name="<?= h($k) ?>" value="<?= h($val) ?>"><?php endforeach; ?>
 
     <?php cardStart('2. Vehicle', 'bus'); ?>
-    <p class="mb-3 text-sm text-base-content/65">Units left for <?= h(fmtPeriod($depart, $return)) ?>. A vehicle stays reserved until <?= h((int)getSettingFloat($conn, 'RESERVATION_BUFFER_HOURS')) ?> hour after the return time.</p>
+    <p class="mb-3 text-sm text-base-content/65">Units left for <?= h(fmtPeriod($depart, $return)) ?>. A vehicle stays reserved until <?= h((int)setting('BUFFER_HOURS')) ?> hour after the return time.</p>
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" role="radiogroup" aria-label="Vehicle type">
-        <?php foreach (VEHICLE_TYPES as $t): $left = $units[$t]; $disabled = $left === 0 && !in_array($t, ['Bus', 'Car'], true); /* 0 units: cannot be selected (a bus can come from a vendor, a car can be Pay and Claim) */ ?>
+        <?php foreach (Vehicle::TYPES as $t): $left = $units[$t]; $disabled = $left === 0 && !in_array($t, ['Bus', 'Car'], true); /* 0 units: cannot be selected (a bus can come from a vendor, a car can be Pay and Claim) */ ?>
         <label class="flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-base-300 p-3 text-center has-[:checked]:border-primary has-[:checked]:bg-primary/5 <?= $disabled ? 'cursor-not-allowed opacity-50' : '' ?>">
             <input type="radio" class="radio radio-primary radio-sm" name="vehicle_type" value="<?= $t ?>" data-left="<?= $left ?>" data-options="<?= h(implode(',', $options[$t])) ?>" <?= $selType === $t ? 'checked' : '' ?> <?= $disabled ? 'disabled' : '' ?>>
             <i class="fas fa-<?= $typeIcons[$t] ?> text-2xl text-primary" aria-hidden="true"></i>
@@ -89,9 +90,9 @@ pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, s
         <div class="col-span-12 md:col-span-4" id="optionBox">
             <label class="mb-1 block text-sm font-medium" for="driver_option">Driver</label>
             <select class="select w-full<?= errClass($errors, 'driver_option', 'select') ?>" id="driver_option" name="driver_option">
-                <option value="with_driver">With Driver</option>
-                <option value="pay_claim" <?= ($_POST['driver_option'] ?? '') === 'pay_claim' ? 'selected' : '' ?>>Pay and Claim (use my own car)</option>
-                <option value="self_drive" <?= ($_POST['driver_option'] ?? '') === 'self_drive' ? 'selected' : '' ?>>Self Drive (I drive the lorry)</option>
+                <option value="With Driver">With Driver</option>
+                <option value="Pay and Claim" <?= ($_POST['driver_option'] ?? '') === 'Pay and Claim' ? 'selected' : '' ?>>Pay and Claim (use my own car)</option>
+                <option value="Self Drive" <?= ($_POST['driver_option'] ?? '') === 'Self Drive' ? 'selected' : '' ?>>Self Drive (I drive the lorry)</option>
             </select>
             <?= fieldError($errors, 'driver_option') ?>
             <div class="mt-1 text-xs text-base-content/60" id="optionHint"></div>
@@ -113,36 +114,36 @@ pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, s
         <div class="col-span-12 md:col-span-4">
             <label class="mb-1 block text-sm font-medium" for="purpose_type">Purpose type</label>
             <select class="select w-full<?= errClass($errors, 'purpose_type', 'select') ?>" id="purpose_type" name="purpose_type" required>
-                <option value="official">Official</option>
-                <option value="unofficial" <?= ($_POST['purpose_type'] ?? '') === 'unofficial' ? 'selected' : '' ?>>Unofficial</option>
-                <option value="personal" <?= ($_POST['purpose_type'] ?? '') === 'personal' ? 'selected' : '' ?>>Personal (lorry only, charged per km)</option>
+                <option value="Official">Official</option>
+                <option value="Unofficial" <?= ($_POST['purpose_type'] ?? '') === 'Unofficial' ? 'selected' : '' ?>>Unofficial</option>
+                <option value="Personal" <?= ($_POST['purpose_type'] ?? '') === 'Personal' ? 'selected' : '' ?>>Personal (lorry only, charged per km)</option>
             </select>
             <?= fieldError($errors, 'purpose_type') ?>
         </div>
         <div class="col-span-12 md:col-span-8">
             <label class="mb-1 block text-sm font-medium" for="purpose">Purpose</label>
-            <input class="input w-full<?= errClass($errors, 'purpose') ?>" id="purpose" name="purpose" maxlength="500" required value="<?= $v('purpose') ?>">
+            <input class="input w-full<?= errClass($errors, 'purpose') ?>" id="purpose" name="purpose" maxlength="255" required value="<?= $v('purpose') ?>">
             <?= fieldError($errors, 'purpose') ?>
         </div>
         <div class="col-span-12 md:col-span-5">
             <label class="mb-1 block text-sm font-medium" for="destination">Destination</label>
-            <input class="input w-full<?= errClass($errors, 'destination') ?>" id="destination" name="destination" maxlength="200" required value="<?= $v('destination') ?>" placeholder="e.g. Putrajaya International Convention Centre">
+            <input class="input w-full<?= errClass($errors, 'destination') ?>" id="destination" name="destination" maxlength="150" required value="<?= $v('destination') ?>" placeholder="e.g. Putrajaya International Convention Centre">
             <?= fieldError($errors, 'destination') ?>
         </div>
         <div class="col-span-12 md:col-span-7">
             <label class="mb-1 block text-sm font-medium" for="address">Full address of the destination</label>
-            <textarea class="textarea w-full<?= errClass($errors, 'address', 'textarea') ?>" id="address" name="address" rows="2" maxlength="500" required><?= $v('address') ?></textarea>
+            <textarea class="textarea w-full<?= errClass($errors, 'address', 'textarea') ?>" id="address" name="address" rows="2" maxlength="255" required><?= $v('address') ?></textarea>
             <?= fieldError($errors, 'address') ?>
         </div>
         <div class="col-span-12 md:col-span-6">
             <label class="mb-1 block text-sm font-medium" for="waiting_location">Waiting location</label>
-            <input class="input w-full<?= errClass($errors, 'waiting_location') ?>" id="waiting_location" name="waiting_location" maxlength="200" required value="<?= $v('waiting_location') ?>" placeholder="Where the driver picks you up, e.g. Main entrance, Block A">
+            <input class="input w-full<?= errClass($errors, 'waiting_location') ?>" id="waiting_location" name="waiting_location" maxlength="150" required value="<?= $v('waiting_location') ?>" placeholder="Where the driver picks you up, e.g. Main entrance, Block A">
             <?= fieldError($errors, 'waiting_location') ?>
         </div>
         <div class="col-span-6 md:col-span-2">
             <label class="mb-1 block text-sm font-medium" for="passengers">Passengers</label>
-            <input type="number" class="input w-full<?= errClass($errors, 'passengers') ?>" id="passengers" name="passengers" min="1" max="500" required value="<?= $v('passengers', '1') ?>">
-            <?= fieldError($errors, 'passengers') ?>
+            <input type="number" class="input w-full<?= errClass($errors, 'no_of_passengers') ?>" id="passengers" name="no_of_passengers" min="1" max="500" required value="<?= $v('no_of_passengers', '1') ?>">
+            <?= fieldError($errors, 'no_of_passengers') ?>
         </div>
         <div class="col-span-12 md:col-span-4" id="docBox">
             <label class="mb-1 block text-sm font-medium" for="document">Supporting letter</label>
@@ -173,25 +174,25 @@ pageHeader('New Vehicle Request', 'car-side', 'Enter the trip dates and times, s
     function sel() { var c = form.querySelector('input[name="vehicle_type"]:checked'); return c; }
     function refresh() {
         var c = sel(), type = c ? c.value : '', left = c ? parseInt(c.dataset.left, 10) : 0;
-        var allowed = c ? c.dataset.options.split(',') : ['with_driver'];
+        var allowed = c ? c.dataset.options.split(',') : ['With Driver'];
         Array.prototype.forEach.call(opt.options, function (o) { o.hidden = o.disabled = allowed.indexOf(o.value) < 0; });
-        if (allowed.indexOf(opt.value) < 0) { opt.value = 'with_driver'; }
-        hint.textContent = type === 'Car' ? 'Pay and Claim: you use your own car; no vehicle is reserved.' : (type === 'Lorry' && allowed.indexOf('self_drive') >= 0 ? 'Self Drive: you drive the lorry without a UIS driver.' : '');
-        var single = opt.value !== 'with_driver';
+        if (allowed.indexOf(opt.value) < 0) { opt.value = 'With Driver'; }
+        hint.textContent = type === 'Car' ? 'Pay and Claim: you use your own car; no vehicle is reserved.' : (type === 'Lorry' && allowed.indexOf('Self Drive') >= 0 ? 'Self Drive: you drive the lorry without a UIS driver.' : '');
+        var single = opt.value !== 'With Driver';
         qtyBox.classList.toggle('hidden', single);
         if (single) { qty.value = 1; }
         var n = parseInt(qty.value || '1', 10);
-        var short = opt.value !== 'pay_claim' && c && n > left;
+        var short = opt.value !== 'Pay and Claim' && c && n > left;
         vendor.classList.toggle('hidden', !(short && type === 'Bus'));
         if (short && type === 'Bus') { vendor.querySelector('span').textContent = 'Only ' + left + ' bus(es) left. The remaining ' + (n - left) + ' bus(es) will be hired from a vendor.'; }
         qErr.classList.toggle('hidden', !(short && type !== 'Bus'));
-        Array.prototype.forEach.call(ptype.options, function (o) { if (o.value === 'personal') { o.hidden = o.disabled = type !== 'Lorry'; } });
-        if (ptype.value === 'personal' && type !== 'Lorry') { ptype.value = 'official'; }
-        var personal = ptype.value === 'personal';
+        Array.prototype.forEach.call(ptype.options, function (o) { if (o.value === 'Personal') { o.hidden = o.disabled = type !== 'Lorry'; } });
+        if (ptype.value === 'Personal' && type !== 'Lorry') { ptype.value = 'Official'; }
+        var personal = ptype.value === 'Personal';
         doc.classList.toggle('hidden', personal); dist.classList.toggle('hidden', !personal);
         out.textContent = 'RM ' + ((parseFloat(km.value) || 0) * rate).toFixed(2);
         route.textContent = personal ? 'A Personal request goes to the Administrative Assistant, then the Head of Admin. You pay the charge.'
-            : (route.dataset.hod ? 'The request goes to ' + route.dataset.hod + ' (Head of Department) for approval' + (opt.value === 'with_driver' ? ', then the Vehicle Section assigns the driver.' : ', then the Head of Admin.') : '');
+            : (route.dataset.hod ? 'The request goes to ' + route.dataset.hod + ' for approval' + (opt.value === 'With Driver' ? ', then the Vehicle Section assigns the driver.' : ', then the Head of Admin.') : '');
     }
     [opt, qty, ptype, km].forEach(function (el) { el.addEventListener('input', refresh); el.addEventListener('change', refresh); });
     types.forEach(function (r) { r.addEventListener('change', refresh); });

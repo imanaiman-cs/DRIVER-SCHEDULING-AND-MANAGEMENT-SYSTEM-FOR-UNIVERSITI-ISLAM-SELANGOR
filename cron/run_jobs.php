@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // UIS Driver Scheduling and Management System
-// cron/run_jobs.php  -  scheduled housekeeping for vehicle requests
+// cron/run_jobs.php  -  runs ScheduledJob (SDD Domain Layer) from the command line
 //
 //   1. approval emails that could not be sent are sent again (UC019)
 //   2. one reminder email to the Head of Department after one day (UC020)
@@ -24,7 +24,6 @@ if (PHP_SAPI !== 'cli') {
 }
 define('SKIP_REQUEST_JOBS', true);
 require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../includes/mailer.php';
 
-$r = runRequestJobs($conn);
-echo date('Y-m-d H:i:s') . " emails={$r['emails']} reminders={$r['reminders']} lapsed={$r['lapsed']} completed={$r['completed']}" . PHP_EOL;
+$r = (new ScheduledJob())->run();
+echo date('Y-m-d H:i:s') . ' ' . http_build_query($r, '', ' ') . PHP_EOL;
